@@ -13,6 +13,7 @@ export { PAYMENT_SESSION_STATUS_VALUES, PAYMENT_PROVIDER_VALUES, PAYMENT_METHOD_
 export type { PaymentProvider, PaymentProviderConfig, PaymentProviderType } from './paymentProvider'
 export { defaultProviderConfig } from './paymentProvider'
 export { MockPaymentProvider } from './mockPaymentProvider'
+export { MoyasarPaymentProvider } from './moyasarPaymentProvider'
 export {
   createPaymentProvider,
   resetPaymentProviderFactory,
@@ -61,11 +62,33 @@ export {
   listOrdersByUser,
   listAllOrders,
   clearAllOrders,
+  hydrateOrder,
   generateInvoiceNumber,
   generateItineraryId,
   buildCart,
   type CreateOrderInput,
 } from './orderManager'
+
+export {
+  orderToCreateInput,
+  orderFromRow,
+  paymentSessionToCreateInput,
+  paymentSessionFromRow,
+  lockToCreateInput,
+  lockFromRow,
+  couponFromRow,
+  persistOrder,
+  syncOrder,
+  persistPaymentSession,
+  syncPaymentSession,
+  persistLock,
+  releaseLockInDb,
+  loadOrder,
+  loadOrdersForUser,
+  loadPaymentSession,
+  loadCouponFromDb,
+  softPersist,
+} from './checkoutPersistence'
 
 export type { Invoice, InvoiceLine } from './invoiceGenerator'
 export { generateInvoice } from './invoiceGenerator'

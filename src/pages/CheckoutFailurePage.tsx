@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, useLocation, Navigate } from 'react-router-dom'
-import { getDefaultPaymentProvider } from '../lib/payment'
-import { CheckoutOrchestrator } from '../lib/payment/checkoutOrchestrator'
+import { getDefaultPaymentProvider, getCheckoutOrchestrator } from '../lib/payment'
 
 interface FailureLocationState {
   orderId: string
@@ -18,7 +17,7 @@ export default function CheckoutFailurePage() {
   const [retryMessage, setRetryMessage] = useState<string | null>(null)
 
   const provider = useMemo(() => getDefaultPaymentProvider(), [])
-  const orchestrator = useMemo(() => new CheckoutOrchestrator(provider), [provider])
+  const orchestrator = useMemo(() => getCheckoutOrchestrator(provider), [provider])
 
   if (!state?.orderId) {
     return <Navigate to="/my-trips" replace />
@@ -53,15 +52,15 @@ export default function CheckoutFailurePage() {
     }
   }
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (state.lockToken) {
-      orchestrator.cancelCheckout(state.orderId, state.lockToken)
+      await orchestrator.cancelCheckout(state.orderId, state.lockToken)
     }
     navigate('/my-trips')
   }
 
-  const handleRecover = () => {
-    const result = orchestrator.recoverAbandonedCheckout(state.orderId)
+  const handleRecover = async () => {
+    const result = await orchestrator.recoverAbandonedCheckout(state.orderId)
     if (result.success) {
       navigate('/checkout/payment', {
         state: {
@@ -93,7 +92,6 @@ export default function CheckoutFailurePage() {
       </header>
 
       <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
-        {/* Error banner */}
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center">
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-rose-100">
             <svg viewBox="0 0 24 24" className="h-7 w-7 text-rose-600" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -110,7 +108,6 @@ export default function CheckoutFailurePage() {
           </div>
         )}
 
-        {/* Actions */}
         <div className="mt-6 space-y-3">
           <button
             type="button"

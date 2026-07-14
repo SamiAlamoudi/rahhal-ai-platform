@@ -1,11 +1,26 @@
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { getMockAdminStats, SYSTEM_HEALTH_LABELS } from '../lib/admin/adminStats'
+import { getAdminStatsFromDb, getMockAdminStats, SYSTEM_HEALTH_LABELS, type AdminStats } from '../lib/admin/adminStats'
 
 export default function AdminDashboard() {
   const { user } = useAuth()
-  const stats = useMemo(() => getMockAdminStats(), [])
+  const [stats, setStats] = useState<AdminStats>(() => getMockAdminStats())
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const next = await getAdminStatsFromDb()
+      if (!cancelled) {
+        setStats(next)
+        setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const healthColors: Record<string, string> = {
     operational: 'bg-success-100 text-success-700',
@@ -39,6 +54,9 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-500">{user?.email}</span>
+            <Link to="/admin/checkout" className="rounded-lg bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-700 hover:bg-primary-100">
+              المدفوعات
+            </Link>
             <Link to="/" className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200">
               الرئيسية
             </Link>
@@ -47,7 +65,9 @@ export default function AdminDashboard() {
       </header>
 
       <main className="mx-auto max-w-5xl px-5 py-8">
-        <h2 className="mb-6 text-xl font-bold text-slate-900">نظرة عامة</h2>
+        <h2 className="mb-6 text-xl font-bold text-slate-900">
+          نظرة عامة{loading ? ' …' : ''}
+        </h2>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {statCards.map(card => (
@@ -73,7 +93,7 @@ export default function AdminDashboard() {
                     <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-100">
                       <div
                         className="h-full rounded-full bg-primary-500"
-                        style={{ width: `${(dest.count / stats.popularDestinations[0].count) * 100}%` }}
+                        style={{ width: `${(dest.count / (stats.popularDestinations[0]?.count || 1)) * 100}%` }}
                       />
                     </div>
                     <span className="text-xs font-medium text-slate-500">{dest.count}</span>

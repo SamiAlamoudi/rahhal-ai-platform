@@ -1,8 +1,10 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { listAllOrders } from '../lib/payment/orderManager'
-import { getMockAdminStats, SYSTEM_HEALTH_LABELS } from '../lib/admin/adminStats'
+import { loadOrdersForUser, orderFromRow } from '../lib/payment/checkoutPersistence'
+import { orderRepository } from '../lib/repositories/orderRepository'
+import { getAdminStatsFromDb, getMockAdminStats, SYSTEM_HEALTH_LABELS, type AdminStats } from '../lib/admin/adminStats'
 import type { RahhalOrder } from '../lib/payment/checkoutTypes'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -33,8 +35,42 @@ function formatPrice(price: number, currency: string): string {
 
 export default function CheckoutAdminDashboard() {
   const { user } = useAuth()
-  const baseStats = useMemo(() => getMockAdminStats(), [])
-  const orders = useMemo(() => listAllOrders(), [])
+  const [baseStats, setBaseStats] = useState<AdminStats>(() => getMockAdminStats())
+  const [orders, setOrders] = useState<RahhalOrder[]>(() => listAllOrders())
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [stats, rows] = await Promise.all([
+          getAdminStatsFromDb(),
+          orderRepository.listAll(100).catch(() => null),
+        ])
+        if (cancelled) return
+        setBaseStats(stats)
+        if (rows && rows.length > 0) {
+          setOrders(rows.map(orderFromRow))
+        } else {
+          const userOrders = await loadOrdersForUser(100).catch(() => [])
+          const memory = listAllOrders()
+          const byId = new Map<string, RahhalOrder>()
+          for (const o of memory) byId.set(o.id, o)
+          for (const o of userOrders) byId.set(o.id, o)
+          setOrders([...byId.values()])
+        }
+      } catch {
+        if (!cancelled) {
+          setOrders(listAllOrders())
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const stats = useMemo(() => {
     const paidOrders = orders.filter(o => o.status === 'paid' || o.status === 'confirmed')
@@ -85,6 +121,9 @@ export default function CheckoutAdminDashboard() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-500">{user?.email}</span>
+            <Link to="/admin" className="rounded-lg bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-700 hover:bg-primary-100">
+              لوحة التحكم
+            </Link>
             <Link to="/" className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200">
               الرئيسية
             </Link>
@@ -93,7 +132,9 @@ export default function CheckoutAdminDashboard() {
       </header>
 
       <main className="mx-auto max-w-5xl px-5 py-8">
-        <h2 className="mb-6 text-xl font-bold text-slate-900">نظرة عامة على الطلبات</h2>
+        <h2 className="mb-6 text-xl font-bold text-slate-900">
+          نظرة عامة على الطلبات{loading ? ' …' : ''}
+        </h2>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {statCards.map(card => (
@@ -105,7 +146,6 @@ export default function CheckoutAdminDashboard() {
           ))}
         </div>
 
-        {/* Orders table */}
         <div className="mt-8 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
           <h3 className="mb-4 text-sm font-bold text-slate-900">أحدث الطلبات</h3>
           {orders.length === 0 ? (
@@ -142,7 +182,6 @@ export default function CheckoutAdminDashboard() {
           )}
         </div>
 
-        {/* System health */}
         <div className="mt-8 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
           <h3 className="mb-4 text-sm font-bold text-slate-900">حالة النظام</h3>
           <div className="space-y-3">

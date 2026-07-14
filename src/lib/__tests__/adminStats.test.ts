@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getMockAdminStats, SYSTEM_HEALTH_LABELS } from '../admin/adminStats'
+import { getMockAdminStats, getAdminStatsFromDb, SYSTEM_HEALTH_LABELS } from '../admin/adminStats'
 
 describe('Admin Stats: getMockAdminStats', () => {
   it('returns all required fields', () => {
@@ -44,5 +44,15 @@ describe('Admin Stats: SYSTEM_HEALTH_LABELS', () => {
     expect(SYSTEM_HEALTH_LABELS.operational).toBeDefined()
     expect(SYSTEM_HEALTH_LABELS.degraded).toBeDefined()
     expect(SYSTEM_HEALTH_LABELS.down).toBeDefined()
+  })
+})
+
+describe('Admin Stats: getAdminStatsFromDb', () => {
+  it('returns AdminStats shape (mock fallback when DB unavailable)', async () => {
+    const stats = await getAdminStatsFromDb()
+    expect(stats).toHaveProperty('userCount')
+    expect(stats).toHaveProperty('searchCount')
+    expect(stats.systemHealth.database).toBeDefined()
+    expect(Array.isArray(stats.popularDestinations)).toBe(true)
   })
 })

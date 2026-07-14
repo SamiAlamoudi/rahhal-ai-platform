@@ -39,10 +39,17 @@ export const bookingLockRepository = {
   },
 
   async getByOrderId(orderId: string): Promise<BookingLockRow | null> {
+    return bookingLockRepository.getActiveByOrderId(orderId)
+  },
+
+  async getActiveByOrderId(orderId: string): Promise<BookingLockRow | null> {
     const { data, error } = await supabase
       .from('booking_locks')
       .select('*')
       .eq('order_id', orderId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle()
     if (error) throw error
     return data

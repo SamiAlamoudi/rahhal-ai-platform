@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../supabaseClient'
+import { isAdminUser } from './adminAccess'
 
 interface AuthContextValue {
   user: User | null
   session: Session | null
   loading: boolean
   isAuthenticated: boolean
+  isAdmin: boolean
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -14,6 +16,7 @@ const AuthContext = createContext<AuthContextValue>({
   session: null,
   loading: true,
   isAuthenticated: false,
+  isAdmin: false,
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -42,7 +45,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, isAuthenticated: !!user }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        loading,
+        isAuthenticated: !!user,
+        isAdmin: isAdminUser(user),
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

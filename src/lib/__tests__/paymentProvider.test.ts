@@ -113,9 +113,13 @@ describe('PaymentProviderFactory', () => {
     expect(p1).toBe(p2)
   })
 
+  it('creates moyasar provider (edge-backed)', () => {
+    const provider = createPaymentProvider('moyasar')
+    expect(provider.providerId).toBe('moyasar')
+  })
+
   it('throws for unimplemented providers', () => {
     expect(() => createPaymentProvider('hyperpay')).toThrow('HyperPay')
-    expect(() => createPaymentProvider('moyasar')).toThrow('Moyasar')
     expect(() => createPaymentProvider('stripe')).toThrow('Stripe')
     expect(() => createPaymentProvider('checkout_com')).toThrow('Checkout.com')
   })

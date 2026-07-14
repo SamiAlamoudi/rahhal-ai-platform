@@ -12,6 +12,12 @@ dist/
 .DS_Store
 *.tsbuildinfo
 
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # Agent / local artifacts (not product source)
 /tmp/
 batch_*/

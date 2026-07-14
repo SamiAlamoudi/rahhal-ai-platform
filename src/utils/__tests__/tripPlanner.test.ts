@@ -215,8 +215,11 @@ describe('planTrip — orchestration', () => {
       remainingBudget: 10300,
       withinBudget: true,
     })
-    expect(result.sources).toEqual({ flight: 'real', hotel: 'real' })
-    expect(result.errors).toEqual([])
+    expect(result.sources).toEqual({ flight: 'real', hotel: 'real', weather: expect.any(String) })
+    expect(result.errors.some((e) => e.domain === 'catalog')).toBe(true)
+    expect(result.errors.filter((e) => e.domain !== 'catalog')).toEqual([])
+    expect(result.weather).toBeTruthy()
+    expect(result.deferredCatalog).toEqual(['activity', 'transfer', 'visa'])
     expect(result.requestId).toBeTruthy()
     expect(result.latencyMs).toBeGreaterThanOrEqual(0)
   })
@@ -302,7 +305,7 @@ describe('planTrip — orchestration', () => {
 
     expect(result.flights).toEqual([])
     expect(result.hotels).toEqual([])
-    expect(result.sources).toEqual({ flight: 'skipped', hotel: 'skipped' })
+    expect(result.sources).toEqual({ flight: 'skipped', hotel: 'skipped', weather: 'skipped' })
     expect(result.errors.some((e) => e.domain === 'validation')).toBe(true)
     expect(flightCalls).toBe(0)
   })
@@ -447,7 +450,7 @@ describe('planTrip — provider adapter integration (Amadeus + Booking)', () => 
 
     const result = await planTrip(BASE_REQ, { flightService, hotelService })
 
-    expect(result.sources).toEqual({ flight: 'real', hotel: 'real' })
+    expect(result.sources).toEqual({ flight: 'real', hotel: 'real', weather: expect.any(String) })
     expect(result.flights.length).toBeGreaterThan(0)
     expect(result.hotels.length).toBeGreaterThan(0)
     expect(result.flights[0].providerId).toBe('amadeus-flight-001')
@@ -458,7 +461,8 @@ describe('planTrip — provider adapter integration (Amadeus + Booking)', () => 
       (result.estimatedCost.flight ?? 0) + (result.estimatedCost.hotel ?? 0),
     )
     expect(result.summary.nights).toBe(10)
-    expect(result.errors).toEqual([])
+    expect(result.errors.filter((e) => e.domain !== 'catalog')).toEqual([])
+    expect(result.deferredCatalog).toContain('activity')
 
     const flightUrl = fetchMock.mock.calls
       .map(([u]) => String(u))

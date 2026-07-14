@@ -84,6 +84,17 @@ See [`.env.example`](.env.example). Highlights:
 - Do not commit `.env.local` or provider secrets.
 - Booking V1 does not store card data; Phase 33 checkout keeps PANs off the SPA.
 - `/admin` requires authenticated user **and** admin role (`app_metadata.role === 'admin'` or `VITE_ADMIN_USER_IDS`).
+- Moyasar `MOYASAR_SECRET_KEY` / `MOYASAR_WEBHOOK_SECRET` are Edge Function secrets only (never `VITE_*`).
+
+## Ops
+
+| Topic | Notes |
+|-------|--------|
+| Monitoring | Placeholder — wire up Supabase metrics / error tracking (Sentry or equivalent) before production cutover. |
+| Staging vs prod | Use separate Supabase projects; SPA `VITE_SUPABASE_*` points at the environment. Never share service-role keys with the SPA. |
+| Webhooks | Deploy `moyasar-webhook`; set `MOYASAR_WEBHOOK_SECRET` and verify via `X-Moyasar-Signature` or `x-rahhal-webhook-secret`. Rotate secrets per environment. |
+| Payments | Local: `VITE_PAYMENT_PROVIDER=mock`. Staging/prod: `moyasar` + Edge Functions `moyasar-payment` / `moyasar-webhook`. |
+| E2E | `npm run test:e2e` (Playwright smoke against `/login`). CI builds then previews on port 5173. |
 
 ## License
 

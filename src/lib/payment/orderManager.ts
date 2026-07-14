@@ -142,6 +142,16 @@ export function clearAllOrders(): void {
   userOrders.clear()
 }
 
+/** Import / rehydrate a domain order into the in-memory Map (e.g. after DB load). */
+export function hydrateOrder(order: RahhalOrder): void {
+  orders.set(order.id, cloneOrder(order))
+  const userOrderIds = userOrders.get(order.userId) ?? []
+  if (!userOrderIds.includes(order.id)) {
+    userOrderIds.push(order.id)
+    userOrders.set(order.userId, userOrderIds)
+  }
+}
+
 function cloneOrder(order: RahhalOrder): RahhalOrder {
   return {
     ...order,

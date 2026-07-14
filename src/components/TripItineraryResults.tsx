@@ -159,8 +159,13 @@ export default function TripItineraryResults({
   continuing = false,
   continueError = null,
 }: TripItineraryResultsProps) {
-  const { summary, estimatedCost, flights, hotels, selectedFlight, selectedHotel, sources, errors } = result
-  const domainErrors = errors.filter((e) => e.domain !== 'validation')
+  const { summary, estimatedCost, flights, hotels, selectedFlight, selectedHotel, sources, errors, weather, deferredCatalog } = result
+  const domainErrors = errors.filter((e) => e.domain !== 'validation' && e.domain !== 'catalog')
+  const catalogNote = deferredCatalog?.length
+    ? deferredCatalog
+    : errors.find((e) => e.domain === 'catalog')?.message
+      ? ['activity', 'transfer', 'visa']
+      : []
 
   const [pickedFlightId, setPickedFlightId] = useState<string | null>(selectedFlight?.id ?? flights[0]?.id ?? null)
   const [pickedHotelId, setPickedHotelId] = useState<string | null>(selectedHotel?.id ?? hotels[0]?.id ?? null)
@@ -191,6 +196,9 @@ export default function TripItineraryResults({
           <div className="flex gap-1.5 text-[10px] font-bold text-slate-400">
             <span className="rounded-full bg-slate-50 px-2 py-1">طيران: {sourceLabel(sources.flight)}</span>
             <span className="rounded-full bg-slate-50 px-2 py-1">فندق: {sourceLabel(sources.hotel)}</span>
+            {sources.weather && (
+              <span className="rounded-full bg-slate-50 px-2 py-1">طقس: {sourceLabel(sources.weather)}</span>
+            )}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -252,13 +260,49 @@ export default function TripItineraryResults({
         </p>
       </section>
 
+      {weather && (
+        <section className="overflow-hidden rounded-2xl border border-sky-100 bg-sky-50/40 p-5 shadow-sm">
+          <h2 className="mb-2 text-sm font-bold text-slate-900">طقس الوجهة</h2>
+          {weather.currentSummary || weather.summary ? (
+            <>
+              <p className="text-sm text-slate-700">{weather.currentSummary || weather.summary}</p>
+              {weather.recommendation && (
+                <p className="mt-1 text-xs text-slate-500">{weather.recommendation}</p>
+              )}
+              {weather.travelScore != null && (
+                <p className="mt-2 text-[11px] font-medium text-sky-700">
+                  مؤشر ملاءمة السفر: {weather.travelScore}/100
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-slate-500">
+              {weather.recommendation || 'لا تتوفر بيانات طقس لهذه الوجهة حالياً.'}
+            </p>
+          )}
+        </section>
+      )}
+
+      {catalogNote.length > 0 && (
+        <p className="text-center text-[11px] text-slate-400">
+          قريباً: أنشطة، مواصلات، وتأشيرات — ليست جزءاً من نتائج البحث الحالية.
+        </p>
+      )}
+
       {domainErrors.length > 0 && (
         <div className="rounded-2xl border border-amber-100 bg-amber-50/70 px-5 py-3">
           <p className="text-xs font-bold text-amber-800">تنبيهات جزئية من المزوّدين</p>
           <ul className="mt-1 space-y-0.5 text-xs text-amber-700">
             {domainErrors.map((err, i) => (
               <li key={`${err.domain}-${i}`}>
-                {err.domain === 'flight' ? 'الطيران' : 'الفندق'}: {err.message}
+                {err.domain === 'flight'
+                  ? 'الطيران'
+                  : err.domain === 'hotel'
+                    ? 'الفندق'
+                    : err.domain === 'weather'
+                      ? 'الطقس'
+                      : err.domain}
+                : {err.message}
               </li>
             ))}
           </ul>
