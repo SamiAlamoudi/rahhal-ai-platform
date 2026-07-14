@@ -134,6 +134,7 @@ function createAdapterConfig(overrides: Partial<BookingComAdapterConfig> = {}): 
   return {
     apiKey: 'test-api-key',
     baseUrl: 'https://test.booking-api.com/api/v1',
+    rapidApiHost: 'booking-com15.p.rapidapi.com',
     timeout: 5000,
     maxRetries: 2,
     ...overrides,
@@ -371,6 +372,7 @@ describe('BookingComApiClient', () => {
 
     const client = new BookingComApiClient({
       apiKey: 'test', baseUrl: 'https://test.api.com/api/v1',
+      rapidApiHost: 'booking-com15.p.rapidapi.com',
       timeout: 5000, maxRetries: 2,
     })
     const result = await client.searchHotels({
@@ -392,6 +394,7 @@ describe('BookingComApiClient', () => {
 
     const client = new BookingComApiClient({
       apiKey: 'bad', baseUrl: 'https://test.api.com/api/v1',
+      rapidApiHost: 'booking-com15.p.rapidapi.com',
       timeout: 5000, maxRetries: 2,
     })
     const result = await client.searchHotels({
@@ -402,6 +405,29 @@ describe('BookingComApiClient', () => {
     expect(result.data).toBeNull()
     expect(result.error!.code).toBe('BOOKING_INVALID_KEY')
     expect(calls).toBe(1)
+  })
+
+  it('sends X-RapidAPI-Key and X-RapidAPI-Host headers from config', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(mockFetchResponse(SAMPLE_RESPONSE))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = new BookingComApiClient({
+      apiKey: 'rapid-secret',
+      baseUrl: 'https://booking-com15.p.rapidapi.com/api/v1',
+      rapidApiHost: 'booking-com15.p.rapidapi.com',
+      timeout: 5000,
+      maxRetries: 0,
+    })
+    await client.searchHotels({
+      destType: 'city', destId: -1746443, checkIn: '2026-10-15', checkOut: '2026-10-25',
+      adults: 2, children: 0, rooms: 1, currency: 'SAR', maxResults: 10,
+    } as HotelSearchQuery)
+
+    expect(fetchMock).toHaveBeenCalled()
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const headers = init.headers as Record<string, string>
+    expect(headers['X-RapidAPI-Key']).toBe('rapid-secret')
+    expect(headers['X-RapidAPI-Host']).toBe('booking-com15.p.rapidapi.com')
   })
 })
 
@@ -523,9 +549,22 @@ describe('Provider Registry — Hotel', () => {
     expect(hotel!.metadata.id).toBe('booking-hotel-001')
   })
 
+  it('auto-enables BookingComAdapter when VITE_RAPIDAPI_KEY is set (no explicit adapter)', () => {
+    vi.stubEnv('VITE_RAPIDAPI_KEY', 'rapid-test-key')
+    vi.stubEnv('VITE_BOOKING_HOST', 'booking-com15.p.rapidapi.com')
+    resetProviderRegistry()
+    clearConfigCache()
+
+    const registry = getProviderRegistry()
+    const hotel = registry.getHotel()
+    expect(hotel).not.toBeNull()
+    expect(hotel!.metadata.id).toBe('booking-hotel-001')
+  })
+
   it('returns null for booking when API key missing', () => {
     vi.stubEnv('VITE_BOOKING_PROVIDER', 'booking')
     vi.stubEnv('VITE_BOOKING_API_KEY', '')
+    vi.stubEnv('VITE_RAPIDAPI_KEY', '')
     resetProviderRegistry()
     clearConfigCache()
 

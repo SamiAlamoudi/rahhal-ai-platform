@@ -9,8 +9,8 @@ import {
 } from '../utils/travelSession'
 import { buildTravelSearchRequest } from '../utils/travelSearchRequest'
 import { useSessionPersistence } from '../lib/hooks/useSessionPersistence'
-import { orchestrateMockSearch, type SearchOrchestrationResult } from '../utils/searchOrchestrator'
-import { getActiveProviders } from '../utils/providers'
+import type { SearchOrchestrationResult } from '../utils/searchOrchestrator'
+import { orchestrateLiveSearch } from '../utils/liveSearchOrchestrator'
 import { generateReasoning, type ReasoningResult } from '../utils/reasoningEngine'
 import { searchHistoryRepository } from '../lib/repositories'
 
@@ -59,24 +59,38 @@ export default function SearchWorkspace() {
       setOrchestrationError(null)
       return
     }
+
+    let cancelled = false
     setSearching(true)
-    try {
-      const req = buildTravelSearchRequest(session)
-      const result = orchestrateMockSearch(req, getActiveProviders())
-      setOrchestrationResult(result)
-      setOrchestrationError(null)
-      searchHistoryRepository.create({
-        session_id: null,
-        destination: session.destination,
-        search_request: req as unknown as Record<string, unknown>,
-        result_count: result.rankedOptions.length,
-        ranked_top_option: result.rankedOptions[0]?.title ?? null,
-      }).then(() => setHistoryRefreshKey(k => k + 1)).catch(() => {})
-    } catch {
-      setOrchestrationResult(null)
-      setOrchestrationError('تعذّر تشغيل محرك البحث. حاول مرة أخرى.')
-    } finally {
-      setSearching(false)
+    setOrchestrationError(null)
+
+    const req = buildTravelSearchRequest(session)
+    orchestrateLiveSearch(req)
+      .then((result) => {
+        if (cancelled) return
+        setOrchestrationResult(result)
+        setOrchestrationError(null)
+        searchHistoryRepository.create({
+          session_id: null,
+          destination: session.destination,
+          search_request: req as unknown as Record<string, unknown>,
+          result_count: result.rankedOptions.length,
+          ranked_top_option: result.rankedOptions[0]?.title ?? null,
+        }).then(() => {
+          if (!cancelled) setHistoryRefreshKey(k => k + 1)
+        }).catch(() => {})
+      })
+      .catch(() => {
+        if (cancelled) return
+        setOrchestrationResult(null)
+        setOrchestrationError('تعذّر تشغيل محرك البحث. حاول مرة أخرى.')
+      })
+      .finally(() => {
+        if (!cancelled) setSearching(false)
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [confirmed])
 

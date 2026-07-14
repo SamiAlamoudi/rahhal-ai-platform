@@ -11,8 +11,8 @@ import {
 } from '../utils/travelSession'
 import { useSessionPersistence } from '../lib/hooks/useSessionPersistence'
 import { buildTravelSearchRequest } from '../utils/travelSearchRequest'
-import { orchestrateMockSearch, type SearchOrchestrationResult } from '../utils/searchOrchestrator'
-import { getActiveProviders } from '../utils/providers'
+import type { SearchOrchestrationResult } from '../utils/searchOrchestrator'
+import { orchestrateLiveSearch } from '../utils/liveSearchOrchestrator'
 import { generateReasoning, type ReasoningResult } from '../utils/reasoningEngine'
 import { buildRahhalReply, buildWelcomeReply, buildResumedReply, progressText } from '../utils/rahhalVoice'
 import DecisionProfile from '../components/DecisionProfile'
@@ -65,6 +65,7 @@ export default function TravelConversation() {
   const [mode, setMode] = useState<'essential' | 'preferences'>('essential')
   const [orchestrationResult, setOrchestrationResult] = useState<SearchOrchestrationResult | null>(null)
   const [orchestrationError, setOrchestrationError] = useState<string | null>(null)
+  const [searching, setSearching] = useState(false)
   const msgIdRef = useRef(3)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -99,16 +100,32 @@ export default function TravelConversation() {
     if (!session.decisionProfileConfirmed) {
       setOrchestrationResult(null)
       setOrchestrationError(null)
+      setSearching(false)
       return
     }
-    try {
-      const req = buildTravelSearchRequest(session)
-      const result = orchestrateMockSearch(req, getActiveProviders())
-      setOrchestrationResult(result)
-      setOrchestrationError(null)
-    } catch {
-      setOrchestrationResult(null)
-      setOrchestrationError('تعذّر تشغيل محرك البحث التجريبي. حاول مرة أخرى.')
+
+    let cancelled = false
+    setSearching(true)
+    setOrchestrationError(null)
+
+    const req = buildTravelSearchRequest(session)
+    orchestrateLiveSearch(req)
+      .then((result) => {
+        if (cancelled) return
+        setOrchestrationResult(result)
+        setOrchestrationError(null)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setOrchestrationResult(null)
+        setOrchestrationError('تعذّر تشغيل محرك البحث التجريبي. حاول مرة أخرى.')
+      })
+      .finally(() => {
+        if (!cancelled) setSearching(false)
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [session.decisionProfileConfirmed])
 
@@ -305,7 +322,14 @@ export default function TravelConversation() {
                 </p>
               </div>
 
-              {orchestrationError ? (
+              {searching ? (
+                <div className="flex items-center justify-center py-12" aria-label="جاري البحث">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
+                    <p className="text-sm text-slate-500">رحّال يفكر في أفضل خياراتك...</p>
+                  </div>
+                </div>
+              ) : orchestrationError ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-center">
                   <p className="text-sm font-bold text-rose-600">{orchestrationError}</p>
                 </div>

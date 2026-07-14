@@ -53,6 +53,8 @@ export interface HotelSearchQuery {
 export interface ApiClientConfig {
   apiKey: string
   baseUrl: string
+  /** Value for the X-RapidAPI-Host header. */
+  rapidApiHost: string
   timeout: number
   maxRetries: number
 }
@@ -145,7 +147,7 @@ export class BookingComApiClient {
           method: 'GET',
           headers: {
             'X-RapidAPI-Key': this.config.apiKey,
-            'X-RapidAPI-Host': 'booking-com15.p.rapidapi.com',
+            'X-RapidAPI-Host': this.config.rapidApiHost,
           },
           signal: controller.signal,
         })

@@ -7,10 +7,15 @@ export interface AmadeusToken {
   scope: string | null
 }
 
+/**
+ * SPA OAuth config: calls a server-side token proxy.
+ * Must never include Amadeus client_id / client_secret.
+ */
 export interface OAuthClientConfig {
-  clientId: string
-  clientSecret: string
-  baseUrl: string
+  /** Supabase Edge Function (or other backend) URL that exchanges Amadeus secrets. */
+  tokenUrl: string
+  /** Supabase anon key (or user JWT) to invoke the function — not an Amadeus secret. */
+  invokeApiKey: string
   timeout: number
 }
 
@@ -34,13 +39,16 @@ function log(level: LogLevel, message: string, context?: Record<string, unknown>
   }
 }
 
-function mapOAuthError(err: unknown, status?: number): ProviderError {
+function mapOAuthError(err: unknown, status?: number, bodyCode?: string): ProviderError {
   const ts = new Date().toISOString()
-  if (status === 401) {
+  if (status === 401 || bodyCode === 'AMADEUS_INVALID_CREDENTIALS') {
     return { code: 'AMADEUS_INVALID_CREDENTIALS', category: 'auth', severity: 'fatal', message: 'Invalid Amadeus credentials (401)', retryable: false, timestamp: ts }
   }
-  if (status === 429) {
+  if (status === 429 || bodyCode === 'AMADEUS_QUOTA_EXCEEDED') {
     return { code: 'AMADEUS_QUOTA_EXCEEDED', category: 'rate-limit', severity: 'warning', message: 'Quota exceeded (429)', retryable: true, timestamp: ts }
+  }
+  if (status === 503 || bodyCode === 'AMADEUS_SERVER_NOT_CONFIGURED') {
+    return { code: 'AMADEUS_SERVER_NOT_CONFIGURED', category: 'auth', severity: 'fatal', message: 'Amadeus credentials are not configured on the server', retryable: false, timestamp: ts }
   }
   if (err instanceof Error) {
     const msg = err.message.toLowerCase()
@@ -105,22 +113,20 @@ export class AmadeusOAuthClient {
 
   private async requestNewToken(): Promise<OAuthResult> {
     const start = Date.now()
-    const url = `${this.config.baseUrl}/security/oauth2/token`
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
 
     try {
-      const body = new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: this.config.clientId,
-        client_secret: this.config.clientSecret,
-      })
-
-      log('info', 'Requesting new access token')
-      const response = await fetch(url, {
+      log('info', 'Requesting access token via server proxy')
+      const response = await fetch(this.config.tokenUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString(),
+        headers: {
+          Authorization: `Bearer ${this.config.invokeApiKey}`,
+          apikey: this.config.invokeApiKey,
+          'Content-Type': 'application/json',
+        },
+        // Intentionally empty — Amadeus client_secret stays on the server.
+        body: '{}',
         signal: controller.signal,
       })
       clearTimeout(timeoutId)
@@ -128,16 +134,23 @@ export class AmadeusOAuthClient {
 
       if (!response.ok) {
         const errorBody = await response.text().catch(() => '')
-        const error = mapOAuthError(new Error(`HTTP ${response.status}: ${errorBody}`), response.status)
-        log('error', `Token request failed (${response.status})`, { latency, error: error.code })
+        let bodyCode: string | undefined
+        try {
+          const parsed = JSON.parse(errorBody) as { code?: string }
+          bodyCode = parsed.code
+        } catch {
+          /* ignore */
+        }
+        const error = mapOAuthError(new Error(`HTTP ${response.status}: ${errorBody}`), response.status, bodyCode)
+        log('error', `Token proxy failed (${response.status})`, { latency, error: error.code })
         return { token: null, error, latency, fromCache: false }
       }
 
       const data = await response.json() as {
         access_token: string
-        token_type: string
+        token_type?: string
         expires_in: number
-        scope?: string
+        scope?: string | null
       }
 
       const token: AmadeusToken = {
@@ -154,7 +167,7 @@ export class AmadeusOAuthClient {
       clearTimeout(timeoutId)
       const latency = Date.now() - start
       const error = mapOAuthError(err)
-      log('error', 'Token request exception', { latency, error: error.code })
+      log('error', 'Token proxy exception', { latency, error: error.code })
       return { token: null, error, latency, fromCache: false }
     }
   }
