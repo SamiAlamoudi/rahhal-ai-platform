@@ -28,7 +28,7 @@ const TEMPLATES: Template[] = [
     id: 'business-trip',
     label: 'رحلة عمل',
     icon: '💼',
-    description: 'سفر مرتيح وعملي للعمل',
+    description: 'سفر مريح وعملي للعمل',
     patch: {
       tripPurpose: 'business',
       cabinClass: 'business',

@@ -73,7 +73,7 @@ function SearchHistoryPanelImpl({ onContinueSearch, refreshKey }: Props) {
       className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"
     >
       <div className="mb-4 flex items-center gap-2">
-        <span className="text-base">🗂</span>
+        <span className="text-base">🕘</span>
         <h3 id="history-heading" className="text-sm font-bold text-slate-900">سجل البحث</h3>
       </div>
 

@@ -39,7 +39,7 @@ function formatItem(item: ReasoningItem): string {
     case 'recommendation.not-recommended':
       return `لا نوصي بهذا الخيار (${p.score}/100)`
     case 'recommendation.withinBudget':
-      return `ضمن ميزانيتك (وفّّر ≈${p.percentage}%)`
+      return `ضمن ميزانيتك (يوفّر ≈${p.percentage}%)`
     case 'recommendation.directFlight':
       return 'رحلة مباشرة'
     case 'recommendation.oneStop':
@@ -51,7 +51,7 @@ function formatItem(item: ReasoningItem): string {
     case 'recommendation.matchesPurpose':
       return `يطابق غرض السفر: ${p.purpose}`
     case 'recommendation.savesPercentage':
-      return `وفّّر حوالي ${p.percentage}% مقارنة بخيارات مشابهة`
+      return `يوفّر حوالي ${p.percentage}% مقارنة بخيارات مشابهة`
     case 'strengths.price.high':
       return `السعر ممتاز (${p.score}/100)`
     case 'strengths.comfort.high':
@@ -85,7 +85,7 @@ function formatItem(item: ReasoningItem): string {
     case 'warning.lowRating':
       return `تقييم منخفض (${p.rating}/5)`
     case 'warning.noBaggage':
-      return 'لا تشمل الأمتعة'
+      return 'لا يشمل الأمتعة'
     case 'warning.lowConfidence':
       return `مستوى ثقة منخفض (${p.confidence}/100)`
     case 'warning.lowComfort':

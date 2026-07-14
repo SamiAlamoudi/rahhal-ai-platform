@@ -46,7 +46,7 @@ export default function TravelConversationCard({ value, onChange, onStartPlannin
           onBlur={() => setFocused(false)}
           rows={4}
           placeholder={`مثال:
-أريد السفر إلى تابان لمدة 10 أيام مع العائلة وميزانيتي ٢٠ ألف ريا.`}
+أريد السفر إلى اليابان لمدة 10 أيام مع العائلة وميزانيتي ٢٠ ألف ريال.`}
           className="w-full resize-none rounded-2xl bg-transparent px-4 py-3.5 text-right text-sm leading-relaxed text-slate-800 placeholder:text-slate-400 focus:outline-none sm:text-base"
         />
       </div>

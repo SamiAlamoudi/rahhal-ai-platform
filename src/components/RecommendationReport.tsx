@@ -62,7 +62,7 @@ export default function RecommendationReport({ report, rank }: Props) {
           <div>
             <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold text-slate-700">
               <span className="text-primary-500">💡</span>
-              لماذا توصي رحّال بهذا الخيار
+              لماذا يوصي رحّال بهذا الخيار
             </h4>
             <div className="space-y-1.5">
               {report.whyRahhalRecommends.map((text, i) => (
