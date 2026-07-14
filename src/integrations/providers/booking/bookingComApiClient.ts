@@ -38,8 +38,34 @@ export interface BookingComSearchResponse {
   total_count: number
 }
 
+/** Raw destination entry from Booking.com RapidAPI searchDestination. */
+export interface BookingComDestinationResult {
+  dest_id: string | number
+  search_type?: string
+  dest_type?: string
+  label?: string
+  city_name?: string
+  country?: string
+  region?: string
+  name?: string
+  type?: string
+}
+
+export interface BookingComDestinationSearchResponse {
+  data?: BookingComDestinationResult[] | { data?: BookingComDestinationResult[] }
+  status?: boolean | number | string
+  message?: string
+}
+
+export interface ResolvedBookingDestination {
+  destId: number
+  destType: 'city' | 'airport' | 'landmark' | 'region' | 'district' | 'hotel'
+  label: string
+  query: string
+}
+
 export interface HotelSearchQuery {
-  destType: 'city' | 'airport' | ' landmark'
+  destType: 'city' | 'airport' | 'landmark' | 'region' | 'district' | 'hotel'
   destId: number
   checkIn: string
   checkOut: string
@@ -115,6 +141,84 @@ export class BookingComApiClient {
     this.config = config
   }
 
+  private headers(): Record<string, string> {
+    return {
+      'X-RapidAPI-Key': this.config.apiKey,
+      'X-RapidAPI-Host': this.config.rapidApiHost,
+    }
+  }
+
+  /**
+   * Resolve a free-text destination (city/place name) to Booking.com dest_id.
+   * Endpoint: GET /hotels/searchDestination?query=...
+   */
+  async searchDestination(query: string): Promise<ApiClientResult<BookingComDestinationResult[]>> {
+    const trimmed = query.trim()
+    if (!trimmed) {
+      return {
+        data: null,
+        error: {
+          code: 'BOOKING_BAD_REQUEST',
+          category: 'validation',
+          severity: 'warning',
+          message: 'Destination query is empty',
+          retryable: false,
+          timestamp: new Date().toISOString(),
+        },
+        latency: 0,
+        attempts: 0,
+      }
+    }
+
+    let lastError: ProviderError | null = null
+    const maxAttempts = this.config.maxRetries + 1
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const start = Date.now()
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
+
+      try {
+        const params = new URLSearchParams({ query: trimmed })
+        const url = `${this.config.baseUrl}/hotels/searchDestination?${params.toString()}`
+        log('info', `Searching destination (attempt ${attempt})`, { query: trimmed })
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: this.headers(),
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+        const latency = Date.now() - start
+
+        if (!response.ok) {
+          const body = await response.text().catch(() => '')
+          lastError = mapHttpError(response.status, body)
+          log('warn', `HTTP ${response.status} on destination attempt ${attempt}`, { latency, error: lastError.code })
+          if (!lastError.retryable || attempt >= maxAttempts) {
+            return { data: null, error: lastError, latency, attempts: attempt }
+          }
+          continue
+        }
+
+        const raw = await response.json() as BookingComDestinationSearchResponse | BookingComDestinationResult[]
+        const destinations = normalizeDestinationPayload(raw)
+        log('info', 'Destinations received', { latency, count: destinations.length })
+        return { data: destinations, error: null, latency, attempts: attempt }
+      } catch (err) {
+        clearTimeout(timeoutId)
+        const latency = Date.now() - start
+        lastError = mapNetworkError(err)
+        log('error', `Destination request failed on attempt ${attempt}`, { latency, error: lastError.code })
+        if (!lastError.retryable || attempt >= maxAttempts) {
+          return { data: null, error: lastError, latency, attempts: attempt }
+        }
+      }
+    }
+
+    return { data: null, error: lastError, latency: 0, attempts: maxAttempts }
+  }
+
   async searchHotels(query: HotelSearchQuery): Promise<ApiClientResult<BookingComSearchResponse>> {
     let lastError: ProviderError | null = null
     const maxAttempts = this.config.maxRetries + 1
@@ -145,10 +249,7 @@ export class BookingComApiClient {
 
         const response = await fetch(url, {
           method: 'GET',
-          headers: {
-            'X-RapidAPI-Key': this.config.apiKey,
-            'X-RapidAPI-Host': this.config.rapidApiHost,
-          },
+          headers: this.headers(),
           signal: controller.signal,
         })
         clearTimeout(timeoutId)
@@ -181,4 +282,28 @@ export class BookingComApiClient {
 
     return { data: null, error: lastError, latency: 0, attempts: maxAttempts }
   }
+}
+
+/** Normalize varied RapidAPI response shapes into a flat destination list. */
+export function normalizeDestinationPayload(
+  raw: BookingComDestinationSearchResponse | BookingComDestinationResult[] | null | undefined,
+): BookingComDestinationResult[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw.filter(isDestinationEntry)
+
+  if (Array.isArray(raw.data)) {
+    return raw.data.filter(isDestinationEntry)
+  }
+
+  if (raw.data && typeof raw.data === 'object' && Array.isArray(raw.data.data)) {
+    return raw.data.data.filter(isDestinationEntry)
+  }
+
+  return []
+}
+
+function isDestinationEntry(value: unknown): value is BookingComDestinationResult {
+  if (!value || typeof value !== 'object') return false
+  const destId = (value as BookingComDestinationResult).dest_id
+  return destId !== undefined && destId !== null && String(destId).trim() !== ''
 }
