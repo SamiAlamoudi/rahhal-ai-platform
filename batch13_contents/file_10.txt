@@ -203,7 +203,7 @@ function buildBestSuitedFor(option: NormalizedTravelOption, reasoning: Reasoning
     if (purpose?.includes('family')) out.push('رحلات العائلة')
     else if (purpose?.includes('business')) out.push('رحلات العمل')
     else if (purpose?.includes('honeymoon')) out.push('شهر العسل')
-    else if (purpose?.includes('adventure') ) out.push('المغامرين')
+    else if (purpose?.includes('adventure')) out.push('المغامرين')
     else if (purpose?.includes('vacation')) out.push('الرحلات السياحية')
   }
   if (getCategoryScore(score, 'comfort') >= 75) {
