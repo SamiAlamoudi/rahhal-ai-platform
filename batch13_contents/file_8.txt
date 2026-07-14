@@ -147,10 +147,10 @@ export function buildRahhalReply(
 
 export function buildWelcomeReply(nextQuestion: NextQuestion | null): string {
   if (!nextQuestion) {
-    return 'مرحباً! أنا رحّال، مستشارك للسفر. اكتب لي فكرتك عن الرحلة وسأبدأ بالتفكير معك خطوة بخطوة.'
+    return 'مرحباً! أنا رحّال، مستشار للسفر. اكتب لي فكرتك عن الرحلة وسأبدأ بالتفكير معك خطوة بخطوة.'
   }
   const why = formatWhy(nextQuestion.reason)
-  return `مرحباً! أنا رحّال، مستشارك للسفر.\n${nextQuestion.text}${WHY_CONNECTOR}${why}`
+  return `مرحباً! أنا رحّال، مستشار للسفر.\n${nextQuestion.text}${WHY_CONNECTOR}${why}`
 }
 
 export function buildResumedReply(
