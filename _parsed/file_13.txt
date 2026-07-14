@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Cairo", "Tajawal", system-ui, sans-serif;
+
+  --color-primary-50: #eef9ff;
+  --color-primary-100: #d9f0ff;
+  --color-primary-200: #bce5ff;
+  --color-primary-300: #8ed5ff;
+  --color-primary-400: #59bdff;
+  --color-primary-500: #339efb;
+  --color-primary-600: #1c80f0;
+  --color-primary-700: #1569de;
+  --color-primary-800: #1755b4;
+  --color-primary-900: #184a8e;
+  --color-primary-950: #122e57;
+
+  --color-accent-50: #fffbeb;
+  --color-accent-100: #fff4c6;
+  --color-accent-200: #ffe988;
+  --color-accent-300: #ffd84d;
+  --color-accent-400: #ffc021;
+  --color-accent-500: #fab40e;
+  --color-accent-600: #de9106;
+  --color-accent-700: #b76808;
+  --color-accent-800: #94500e;
+  --color-accent-900: #79410f;
+
+  --color-success-50: #ecfdf5;
+  --color-success-100: #d1fae5;
+  --color-success-200: #a7f3d0;
+  --color-success-300: #6ee7b7;
+  --color-success-400: #34d399;
+  --color-success-500: #10b981;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
+  --color-success-800: #065f46;
+  --color-success-900: #064e3b;
+
+  --color-warning-50: #fff7ed;
+  --color-warning-100: #ffedd5;
+  --color-warning-200: #fed7aa;
+  --color-warning-300: #fdba74;
+  --color-warning-400: #fb923c;
+  --color-warning-500: #f97316;
+  --color-warning-600: #ea580c;
+  --color-warning-700: #c2410c;
+  --color-warning-800: #9a3412;
+  --color-warning-900: #7c2d12;
+
+  --color-error-50: #fef2f2;
+  --color-error-100: #fee2e2;
+  --color-error-200: #fecaca;
+  --color-error-300: #fca5a5;
+  --color-error-400: #f87171;
+  --color-error-500: #ef4444;
+  --color-error-600: #dc2626;
+  --color-error-700: #b91c1c;
+  --color-error-800: #991b1b;
+  --color-error-900: #7f1d1d;
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+body {
+  margin: 0;
+  background-color: #f7f9fc;
+}
+
+:root {
+  color-scheme: light;
+}
+
+@media print {
+  body {
+    background: white;
+  }
+  .print-report {
+    display: block !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+}
