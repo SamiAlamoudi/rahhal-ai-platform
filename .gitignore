@@ -12,5 +12,11 @@ dist/
 .DS_Store
 *.tsbuildinfo
 
-# Agent / local artifacts
+# Agent / local artifacts (not product source)
 /tmp/
+batch_*/
+batch*.json
+_extracted/
+_parsed/
+push_batch.py
+batch_contents/
