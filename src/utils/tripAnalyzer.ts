@@ -57,7 +57,7 @@ export const FIELD_META: FieldMeta[] = [
   { key: 'tripPurpose', label: 'الغرض من الرحلة', icon: '🎯' },
   { key: 'preferredAirline', label: 'الطيران المفضل', icon: '🛩️' },
   { key: 'preferredHotel', label: 'الإقامة المفضلة', icon: '🏨' },
-  { key: 'cabinClass', label: 'درجة المقصومة', icon: '💺' },
+  { key: 'cabinClass', label: 'درجة المقصورة', icon: '💺' },
   { key: 'visaStatus', label: 'حالة التأشيرة', icon: '🛂' },
   { key: 'interests', label: 'الاهتمامات', icon: '⭐' },
   { key: 'flexibleDates', label: 'مرونة التواريخ', icon: '🔄' },
@@ -322,8 +322,8 @@ function parseDate(textNorm: string): string {
 
   for (let i = 0; i < ARABIC_MONTHS.length; i++) {
     if (textNorm.includes(ARABIC_MONTHS_NORM[i])) {
-      const dayMatch = textNorm.match(new RegExp(`(\\d{1,2})\\s*${ARABIC_MONTHS_NORM[i]}`))
-      const yearMatch = textNorm.match(new RegExp(`${ARABIC_MONTHS_NORM[i]}\\s*(\\d{4})`))
+      const dayMatch = textNorm.match(new RegExp(`(\d{1,2})\s*${ARABIC_MONTHS_NORM[i]}`))
+      const yearMatch = textNorm.match(new RegExp(`${ARABIC_MONTHS_NORM[i]}\s*(\d{4})`))
       const parts: string[] = []
       if (dayMatch) parts.push(toArabicDigits(dayMatch[1]))
       parts.push(ARABIC_MONTHS[i])
@@ -334,8 +334,8 @@ function parseDate(textNorm: string): string {
 
   for (let i = 0; i < ENGLISH_MONTHS.length; i++) {
     if (textNorm.includes(ENGLISH_MONTHS[i])) {
-      const dayMatch = textNorm.match(new RegExp(`(\\d{1,2})\\s*${ENGLISH_MONTHS[i]}`))
-      const yearMatch = textNorm.match(new RegExp(`${ENGLISH_MONTHS[i]}\\s*(\\d{4})`))
+      const dayMatch = textNorm.match(new RegExp(`(\d{1,2})\s*${ENGLISH_MONTHS[i]}`))
+      const yearMatch = textNorm.match(new RegExp(`${ENGLISH_MONTHS[i]}\s*(\d{4})`))
       const parts: string[] = []
       if (dayMatch) parts.push(toArabicDigits(dayMatch[1]))
       parts.push(ENGLISH_MONTHS[i])
