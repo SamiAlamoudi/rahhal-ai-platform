@@ -86,7 +86,7 @@ function PrintableReportImpl({ rankedOptions, reasoningResults, searchRequest }:
               {/* Why Rahhal recommends */}
               {report.whyRahhalRecommends.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-xs font-bold text-slate-600">لماذا توصي به رحّال:</p>
+                  <p className="text-xs font-bold text-slate-600">لماذا يوصي به رحّال:</p>
                   <ul className="mt-1 list-inside list-disc text-xs text-slate-700">
                     {report.whyRahhalRecommends.map((text, j) => <li key={j}>{text}</li>)}
                   </ul>

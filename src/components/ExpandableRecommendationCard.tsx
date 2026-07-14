@@ -267,7 +267,7 @@ function ExpandableRecommendationCardImpl({
               </div>
             </div>
 
-            {/* Trade offs / Risks */}
+            {/* Trade-offs / Risks */}
             {risks.length > 0 && (
               <div className="rounded-xl border border-amber-100 bg-amber-50/30 p-3">
                 <p className="mb-2 text-xs font-bold text-amber-700">⚠ التنازلات والمخاطر</p>
