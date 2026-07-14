@@ -14,10 +14,13 @@ import type { TravelSession } from './travelSession'
 import {
   getFlightService,
   getHotelService,
+  getWeatherService,
   type FlightService,
   type HotelService,
+  type WeatherService,
   type FlightModel,
   type HotelModel,
+  type WeatherModel,
 } from '../integrations'
 
 export interface TripPlannerTravelers {
@@ -73,8 +76,18 @@ export interface TripEstimatedCost {
 }
 
 export interface TripPlannerError {
-  domain: 'flight' | 'hotel' | 'validation'
+  domain: 'flight' | 'hotel' | 'weather' | 'validation' | 'catalog'
   message: string
+}
+
+export interface TripWeatherSummary {
+  destination: string
+  source: WeatherModel['source'] | 'skipped'
+  summary: string | null
+  recommendation: string | null
+  travelScore: number | null
+  currentSummary: string | null
+  error: string | null
 }
 
 export interface TripItineraryResult {
@@ -82,6 +95,10 @@ export interface TripItineraryResult {
   summary: TripTravelSummary
   flights: FlightOffer[]
   hotels: HotelOffer[]
+  /** Destination weather (graceful empty when provider fails). */
+  weather: TripWeatherSummary | null
+  /** Domains intentionally not searched yet (activity/transfer/visa). */
+  deferredCatalog: string[]
   /** Convenience picks used for the estimated package cost (cheapest of each). */
   selectedFlight: FlightOffer | null
   selectedHotel: HotelOffer | null
@@ -89,6 +106,7 @@ export interface TripItineraryResult {
   sources: {
     flight: TripPlannerProviderSource
     hotel: TripPlannerProviderSource
+    weather: TripPlannerProviderSource
   }
   errors: TripPlannerError[]
   latencyMs: number
@@ -97,7 +115,11 @@ export interface TripItineraryResult {
 export interface TripPlannerDeps {
   flightService?: FlightService
   hotelService?: HotelService
+  weatherService?: WeatherService
 }
+
+/** Catalog domains that remain mock / coming-soon outside flight+hotel. */
+export const DEFERRED_TRIP_CATALOG = ['activity', 'transfer', 'visa'] as const
 
 function nightsBetween(departureDate: string, returnDate: string): number {
   const start = Date.parse(`${departureDate}T00:00:00Z`)
@@ -317,10 +339,12 @@ function emptyResult(
     },
     flights: [],
     hotels: [],
+    weather: null,
+    deferredCatalog: [...DEFERRED_TRIP_CATALOG],
     selectedFlight: null,
     selectedHotel: null,
     estimatedCost: buildEstimatedCost(currency, budgetAmount, null, null),
-    sources: { flight: 'skipped', hotel: 'skipped' },
+    sources: { flight: 'skipped', hotel: 'skipped', weather: 'skipped' },
     errors,
     latencyMs: Date.now() - start,
   }
@@ -344,17 +368,21 @@ export async function planTrip(
   const providerReq: ProviderRequest = { search }
   const flightService = deps.flightService ?? getFlightService()
   const hotelService = deps.hotelService ?? getHotelService()
+  const weatherService = deps.weatherService ?? getWeatherService()
   const errors: TripPlannerError[] = []
 
-  const [flightSettled, hotelSettled] = await Promise.allSettled([
+  const [flightSettled, hotelSettled, weatherSettled] = await Promise.allSettled([
     flightService.searchFlights(providerReq),
     hotelService.searchHotels(providerReq),
+    weatherService.getWeatherForRequest(providerReq),
   ])
 
   let flights: FlightOffer[] = []
   let hotels: HotelOffer[] = []
   let flightSource: TripPlannerProviderSource = 'skipped'
   let hotelSource: TripPlannerProviderSource = 'skipped'
+  let weatherSource: TripPlannerProviderSource = 'skipped'
+  let weather: TripWeatherSummary | null = null
 
   if (flightSettled.status === 'fulfilled') {
     flights = flightSettled.value.offers ?? []
@@ -392,6 +420,45 @@ export async function planTrip(
     })
   }
 
+  if (weatherSettled.status === 'fulfilled') {
+    const model = weatherSettled.value
+    weatherSource = model.source
+    weather = {
+      destination: model.destination,
+      source: model.source,
+      summary: model.travelScore.summary,
+      recommendation: model.travelScore.recommendation,
+      travelScore: model.travelScore.travelScore,
+      currentSummary: model.info?.currentSummary ?? null,
+      error: model.error,
+    }
+    if (model.error) {
+      errors.push({ domain: 'weather', message: model.error })
+    }
+  } else {
+    weatherSource = 'skipped'
+    weather = {
+      destination: search.destination,
+      source: 'skipped',
+      summary: null,
+      recommendation: 'تعذّر جلب الطقس حالياً — حاول لاحقاً',
+      travelScore: null,
+      currentSummary: null,
+      error: weatherSettled.reason instanceof Error
+        ? weatherSettled.reason.message
+        : 'Weather lookup failed',
+    }
+    errors.push({
+      domain: 'weather',
+      message: weather.error ?? 'Weather lookup failed',
+    })
+  }
+
+  errors.push({
+    domain: 'catalog',
+    message: `Coming soon: ${DEFERRED_TRIP_CATALOG.join(', ')}`,
+  })
+
   const selectedFlight = cheapestByPrice(flights)
   const selectedHotel = cheapestByPrice(hotels)
   const nights = nightsBetween(req.departureDate, req.returnDate)
@@ -418,10 +485,12 @@ export async function planTrip(
     },
     flights,
     hotels,
+    weather,
+    deferredCatalog: [...DEFERRED_TRIP_CATALOG],
     selectedFlight,
     selectedHotel,
     estimatedCost: buildEstimatedCost(currency, budgetAmount, selectedFlight, selectedHotel),
-    sources: { flight: flightSource, hotel: hotelSource },
+    sources: { flight: flightSource, hotel: hotelSource, weather: weatherSource },
     errors,
     latencyMs: Date.now() - start,
   }

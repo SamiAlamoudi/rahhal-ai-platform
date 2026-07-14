@@ -1,0 +1,39 @@
+# Rahhal — Supabase local/project config
+# https://supabase.com/docs/guides/cli/config
+
+project_id = "rahhal-ai-platform"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+
+[functions.amadeus-token]
+verify_jwt = true
+
+[functions.payment-authorize]
+verify_jwt = true

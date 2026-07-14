@@ -1,6 +1,7 @@
 import type { PaymentProvider, PaymentProviderConfig, PaymentProviderType } from './paymentProvider'
 import { defaultProviderConfig } from './paymentProvider'
 import { MockPaymentProvider } from './mockPaymentProvider'
+import { MoyasarPaymentProvider } from './moyasarPaymentProvider'
 
 const instances: Map<PaymentProviderType, PaymentProvider> = new Map()
 
@@ -18,10 +19,11 @@ export function createPaymentProvider(
     case 'mock':
       provider = new MockPaymentProvider(cfg)
       break
+    case 'moyasar':
+      provider = new MoyasarPaymentProvider(cfg)
+      break
     case 'hyperpay':
       throw new Error('HyperPay provider not yet implemented. Use "mock" for development.')
-    case 'moyasar':
-      throw new Error('Moyasar provider not yet implemented. Use "mock" for development.')
     case 'stripe':
       throw new Error('Stripe provider not yet implemented. Use "mock" for development.')
     case 'checkout_com':

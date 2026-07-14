@@ -46,11 +46,11 @@ describe('CheckoutOrchestrator', () => {
     clearAllOrders()
     clearAllLocks()
     clearCoupons()
-    orchestrator = new CheckoutOrchestrator(new MockPaymentProvider())
+    orchestrator = new CheckoutOrchestrator(new MockPaymentProvider(), { persist: false })
   })
 
-  it('initiates checkout and creates order with lock', () => {
-    const session = orchestrator.initiateCheckout({
+  it('initiates checkout and creates order with lock', async () => {
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem()],
@@ -65,7 +65,7 @@ describe('CheckoutOrchestrator', () => {
   })
 
   it('creates payment session for order', async () => {
-    const session = orchestrator.initiateCheckout({
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem()],
@@ -81,7 +81,7 @@ describe('CheckoutOrchestrator', () => {
   })
 
   it('executes full payment flow: authorize then capture then confirm', async () => {
-    const session = orchestrator.initiateCheckout({
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem()],
@@ -100,7 +100,7 @@ describe('CheckoutOrchestrator', () => {
   })
 
   it('prevents duplicate payment with lock', async () => {
-    const session = orchestrator.initiateCheckout({
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem()],
@@ -123,7 +123,7 @@ describe('CheckoutOrchestrator', () => {
   })
 
   it('fails executePayment without valid lock token', async () => {
-    const session = orchestrator.initiateCheckout({
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem()],
@@ -137,8 +137,8 @@ describe('CheckoutOrchestrator', () => {
     expect(result.message).toContain('lock')
   })
 
-  it('cancels checkout and releases lock', () => {
-    const session = orchestrator.initiateCheckout({
+  it('cancels checkout and releases lock', async () => {
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem()],
@@ -146,13 +146,13 @@ describe('CheckoutOrchestrator', () => {
       travelers: [],
       couponCode: null,
     })
-    const result = orchestrator.cancelCheckout(session.order.id, session.lockToken)
+    const result = await orchestrator.cancelCheckout(session.order.id, session.lockToken)
     expect(result.success).toBe(true)
     expect(result.order!.status).toBe('cancelled')
   })
 
   it('retries failed payment after releasing lock', async () => {
-    const session = orchestrator.initiateCheckout({
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem()],
@@ -171,8 +171,8 @@ describe('CheckoutOrchestrator', () => {
     expect(retryResult.success).toBe(true)
   })
 
-  it('recovers abandoned checkout with active lock (resumed)', () => {
-    const session = orchestrator.initiateCheckout({
+  it('recovers abandoned checkout with active lock (resumed)', async () => {
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem()],
@@ -180,13 +180,13 @@ describe('CheckoutOrchestrator', () => {
       travelers: [],
       couponCode: null,
     })
-    const result = orchestrator.recoverAbandonedCheckout(session.order.id)
+    const result = await orchestrator.recoverAbandonedCheckout(session.order.id)
     expect(result.success).toBe(true)
     expect(result.message).toContain('resumed')
   })
 
-  it('recovers abandoned checkout with no lock (new lock acquired)', () => {
-    const session = orchestrator.initiateCheckout({
+  it('recovers abandoned checkout with no lock (new lock acquired)', async () => {
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem()],
@@ -196,13 +196,13 @@ describe('CheckoutOrchestrator', () => {
     })
     // Release the lock to simulate an abandoned checkout
     releaseLock(session.order.id, session.lockToken!)
-    const result = orchestrator.recoverAbandonedCheckout(session.order.id)
+    const result = await orchestrator.recoverAbandonedCheckout(session.order.id)
     expect(result.success).toBe(true)
     expect(result.message).toContain('recovered')
   })
 
-  it('cannot recover a cancelled order', () => {
-    const session = orchestrator.initiateCheckout({
+  it('cannot recover a cancelled order', async () => {
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem()],
@@ -210,14 +210,14 @@ describe('CheckoutOrchestrator', () => {
       travelers: [],
       couponCode: null,
     })
-    orchestrator.cancelCheckout(session.order.id, session.lockToken)
-    const result = orchestrator.recoverAbandonedCheckout(session.order.id)
+    await orchestrator.cancelCheckout(session.order.id, session.lockToken)
+    const result = await orchestrator.recoverAbandonedCheckout(session.order.id)
     expect(result.success).toBe(false)
     expect(result.message).toContain('cancelled')
   })
 
   it('cannot retry a paid order', async () => {
-    const session = orchestrator.initiateCheckout({
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem()],
@@ -233,7 +233,7 @@ describe('CheckoutOrchestrator', () => {
   })
 
   it('generates invoice after successful payment', async () => {
-    const session = orchestrator.initiateCheckout({
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem(), sampleItem({ id: 'i2', type: 'hotel', title: 'Hilton', price: 850 })],
@@ -249,7 +249,7 @@ describe('CheckoutOrchestrator', () => {
   })
 
   it('generates itinerary after successful payment', async () => {
-    const session = orchestrator.initiateCheckout({
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem(), sampleItem({ id: 'i2', type: 'hotel', title: 'Hilton', price: 850 })],
@@ -265,7 +265,7 @@ describe('CheckoutOrchestrator', () => {
   })
 
   it('order is created before payment authorization', async () => {
-    const session = orchestrator.initiateCheckout({
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem()],
@@ -287,7 +287,7 @@ describe('CheckoutOrchestrator', () => {
   })
 
   it('preserves cart items through full flow', async () => {
-    const session = orchestrator.initiateCheckout({
+    const session = await orchestrator.initiateCheckout({
       userId: 'user-1',
       travelSessionId: null,
       items: [sampleItem(), sampleItem({ id: 'i2', type: 'hotel', title: 'Hilton', price: 850 })],

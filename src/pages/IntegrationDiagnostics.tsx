@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getProviderHealthService, type ProviderHealth } from '../integrations/health'
+import { getCatalogStatus } from '../integrations/catalogStatus'
 import { BookingDiagnosticsSection } from '../components/BookingDiagnosticsSection'
 
 const DOMAIN_LABELS: Record<string, string> = {
@@ -75,6 +76,7 @@ export default function IntegrationDiagnostics() {
   const navigate = useNavigate()
   const healthService = useMemo(() => getProviderHealthService(), [])
   const healths = useMemo(() => healthService.checkAll(), [healthService])
+  const catalog = useMemo(() => getCatalogStatus(), [])
   const hasFlight = healths.some(h => h.domain === 'flight')
   const hasHotel = healths.some(h => h.domain === 'hotel')
   const hasRentalCar = healths.some(h => h.domain === 'rental-car')
@@ -114,6 +116,24 @@ export default function IntegrationDiagnostics() {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+        <section className="mb-6 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-sm font-bold text-slate-900">حالة الكتالوج</h2>
+          <div className="flex flex-wrap gap-2">
+            {catalog.map((entry) => (
+              <span
+                key={entry.domain}
+                className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                  entry.status === 'live'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-amber-100 text-amber-700'
+                }`}
+              >
+                {entry.domain}: {entry.status === 'live' ? 'مباشر' : 'قريباً'}
+              </span>
+            ))}
+          </div>
+        </section>
+
         {healths.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 py-12 text-center">
             <span className="text-3xl">📋</span>

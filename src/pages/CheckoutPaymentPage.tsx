@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, useLocation, Navigate } from 'react-router-dom'
-import { getDefaultPaymentProvider } from '../lib/payment'
-import { CheckoutOrchestrator } from '../lib/payment/checkoutOrchestrator'
+import { getDefaultPaymentProvider, getCheckoutOrchestrator } from '../lib/payment'
 import type { CheckoutItem, TravelerInfo } from '../lib/payment/checkoutTypes'
 import type { CheckoutSession } from '../lib/payment/checkoutOrchestrator'
 
@@ -25,7 +24,7 @@ export default function CheckoutPaymentPage() {
   const [error, setError] = useState<string | null>(null)
 
   const provider = useMemo(() => getDefaultPaymentProvider(), [])
-  const orchestrator = useMemo(() => new CheckoutOrchestrator(provider), [provider])
+  const orchestrator = useMemo(() => getCheckoutOrchestrator(provider), [provider])
 
   if (!state?.checkoutSession?.order) {
     return <Navigate to="/checkout" replace />

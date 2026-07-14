@@ -12,5 +12,17 @@ dist/
 .DS_Store
 *.tsbuildinfo
 
-# Agent / local artifacts
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Agent / local artifacts (not product source)
 /tmp/
+batch_*/
+batch*.json
+_extracted/
+_parsed/
+push_batch.py
+batch_contents/
