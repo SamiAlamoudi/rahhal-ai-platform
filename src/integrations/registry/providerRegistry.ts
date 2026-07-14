@@ -76,9 +76,11 @@ function createAdapter(domain: ProviderDomain | 'currency', adapterType: Provide
       if (adapterType === 'booking') {
         const cfg = config.hotel
         if (!cfg.apiKey) return null
+        const rapidApiHost = cfg.host || 'booking-com15.p.rapidapi.com'
         return new BookingComAdapter({
           apiKey: cfg.apiKey,
-          baseUrl: cfg.baseUrl || 'https://booking-com15.p.rapidapi.com/api/v1',
+          baseUrl: cfg.baseUrl || `https://${rapidApiHost}/api/v1`,
+          rapidApiHost,
           timeout: cfg.timeout,
           maxRetries: cfg.maxRetries,
         })

@@ -8,6 +8,8 @@ export interface ProviderConfig {
   clientId: string | null
   clientSecret: string | null
   baseUrl: string | null
+  /** RapidAPI host header value (e.g. booking-com15.p.rapidapi.com). */
+  host: string | null
   timeout: number
   maxRetries: number
 }
@@ -49,13 +51,31 @@ function readAdapter(key: string, fallback: ProviderAdapterType): ProviderAdapte
   return valid.includes(v as ProviderAdapterType) ? (v as ProviderAdapterType) : fallback
 }
 
+const DEFAULT_BOOKING_HOST = 'booking-com15.p.rapidapi.com'
+
+function readHotelAdapter(defaultAdapter: ProviderAdapterType): ProviderAdapterType {
+  // Explicit adapter wins when set.
+  const bookingProvider = readEnv('VITE_BOOKING_PROVIDER')
+  if (bookingProvider !== null) {
+    return readAdapter('VITE_BOOKING_PROVIDER', defaultAdapter)
+  }
+  const hotelAdapter = readEnv('VITE_HOTEL_ADAPTER')
+  if (hotelAdapter !== null) {
+    return readAdapter('VITE_HOTEL_ADAPTER', defaultAdapter)
+  }
+  // Auto-enable Booking.com when a RapidAPI (or legacy Booking) key is present.
+  const rapidKey = readEnv('VITE_RAPIDAPI_KEY') ?? readEnv('VITE_BOOKING_API_KEY')
+  if (rapidKey) return 'booking'
+  return defaultAdapter
+}
+
 function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType): ProviderConfig {
   const adapterOverride = prefix === 'WEATHER'
     ? readAdapter('VITE_WEATHER_PROVIDER', readAdapter(`VITE_${prefix}_ADAPTER`, defaultAdapter))
     : prefix === 'FLIGHT'
       ? readAdapter('VITE_FLIGHT_PROVIDER', readAdapter(`VITE_${prefix}_ADAPTER`, defaultAdapter))
       : prefix === 'HOTEL'
-        ? readAdapter('VITE_BOOKING_PROVIDER', readAdapter(`VITE_${prefix}_ADAPTER`, defaultAdapter))
+        ? readHotelAdapter(defaultAdapter)
         : prefix === 'RENTAL_CAR'
           ? readAdapter('VITE_RENTAL_PROVIDER', readAdapter(`VITE_${prefix}_ADAPTER`, defaultAdapter))
           : readAdapter(`VITE_${prefix}_ADAPTER`, defaultAdapter)
@@ -63,9 +83,10 @@ function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType)
   const apiKey = prefix === 'WEATHER'
     ? readEnv(`VITE_OPENWEATHER_API_KEY`) ?? readEnv(`VITE_${prefix}_API_KEY`)
     : prefix === 'HOTEL'
-      ? readEnv(`VITE_BOOKING_API_KEY`) ?? readEnv(`VITE_${prefix}_API_KEY`)
+      // Prefer shared RapidAPI key; keep VITE_BOOKING_API_KEY as a legacy alias.
+      ? readEnv('VITE_RAPIDAPI_KEY') ?? readEnv('VITE_BOOKING_API_KEY') ?? readEnv(`VITE_${prefix}_API_KEY`)
       : prefix === 'RENTAL_CAR'
-        ? readEnv(`VITE_RENTAL_API_KEY`) ?? readEnv(`VITE_${prefix}_API_KEY`)
+        ? readEnv('VITE_RAPIDAPI_KEY') ?? readEnv(`VITE_RENTAL_API_KEY`) ?? readEnv(`VITE_${prefix}_API_KEY`)
         : readEnv(`VITE_${prefix}_API_KEY`)
 
   const clientId = prefix === 'FLIGHT'
@@ -75,6 +96,14 @@ function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType)
     ? readEnv(`VITE_AMADEUS_CLIENT_SECRET`) ?? readEnv(`VITE_${prefix}_CLIENT_SECRET`)
     : readEnv(`VITE_${prefix}_CLIENT_SECRET`)
 
+  const bookingHost = prefix === 'HOTEL'
+    ? (readEnv('VITE_BOOKING_HOST') ?? DEFAULT_BOOKING_HOST)
+    : null
+
+  const baseUrl = prefix === 'HOTEL'
+    ? (readEnv(`VITE_${prefix}_BASE_URL`) ?? (bookingHost ? `https://${bookingHost}/api/v1` : null))
+    : readEnv(`VITE_${prefix}_BASE_URL`)
+
   return {
     enabled: readBool(`VITE_${prefix}_ENABLED`, true),
     adapter: adapterOverride,
@@ -82,7 +111,8 @@ function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType)
     apiSecret: readEnv(`VITE_${prefix}_API_SECRET`),
     clientId,
     clientSecret,
-    baseUrl: readEnv(`VITE_${prefix}_BASE_URL`),
+    baseUrl,
+    host: bookingHost,
     timeout: readInt(`VITE_${prefix}_TIMEOUT`, 5000),
     maxRetries: readInt(`VITE_${prefix}_MAX_RETRIES`, 2),
   }
