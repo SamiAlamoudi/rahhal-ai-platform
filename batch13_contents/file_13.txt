@@ -1,0 +1,158 @@
+import type { TravelIntent } from './tripAnalyzer'
+
+export type ScoreCriterion =
+  | 'price'
+  | 'flightDuration'
+  | 'stops'
+  | 'hotelRating'
+  | 'hotelLocation'
+  | 'transportCost'
+  | 'visaDifficulty'
+  | 'weather'
+  | 'safety'
+  | 'familySuitability'
+  | 'preferences'
+  | 'totalCost'
+  | 'comfort'
+
+export interface CriterionMeta {
+  key: ScoreCriterion
+  label: string
+  icon: string
+  weight: number
+}
+
+export const CRITERIA_META: CriterionMeta[] = [
+  { key: 'price', label: 'السعر', icon: '💸', weight: 12 },
+  { key: 'flightDuration', label: 'مدة الرحلة', icon: '⏱️', weight: 7 },
+  { key: 'stops', label: 'عدد التوقفات', icon: '🛑', weight: 6 },
+  { key: 'hotelRating', label: 'تقييم الفندق', icon: '⭐', weight: 9 },
+  { key: 'hotelLocation', label: 'موقع الفندق', icon: '📍', weight: 8 },
+  { key: 'transportCost', label: 'تكلفة المواصلات', icon: '🚕', weight: 5 },
+  { key: 'visaDifficulty', label: 'صعوبة التأشيرة', icon: '🛂', weight: 6 },
+  { key: 'weather', label: 'الطقس', icon: '🌤️', weight: 8 },
+  { key: 'safety', label: 'الأمان', icon: '🛡️', weight: 9 },
+  { key: 'familySuitability', label: 'الملاءمة للعائلة', icon: '👨‍👩‍👧', weight: 8 },
+  { key: 'preferences', label: 'تفضيلات المسافر', icon: '🎯', weight: 7 },
+  { key: 'totalCost', label: 'التكلفة الكلية', icon: '💰', weight: 8 },
+  { key: 'comfort', label: 'الراحة', icon: '🛋️', weight: 7 },
+]
+
+export interface CriterionScore {
+  key: ScoreCriterion
+  label: string
+  icon: string
+  stars: number
+  rawScore: number
+  weightedScore: number
+}
+
+export interface TravelScoreResult {
+  criteria: CriterionScore[]
+  totalScore: number
+  reason: string
+}
+
+const FULL_STAR = '★'
+const EMPTY_STAR = '☆'
+
+export function starsToString(stars: number): string {
+  const filled = Math.max(0, Math.min(5, stars))
+  return FULL_STAR.repeat(filled) + EMPTY_STAR.repeat(5 - filled)
+}
+
+const PLACEHOLDER_SCORES: Record<ScoreCriterion, number> = {
+  price: 90,
+  flightDuration: 78,
+  stops: 85,
+  hotelRating: 92,
+  hotelLocation: 88,
+  transportCost: 82,
+  visaDifficulty: 80,
+  weather: 95,
+  safety: 90,
+  familySuitability: 93,
+  preferences: 86,
+  totalCost: 84,
+  comfort: 89,
+}
+
+function adjustForIntent(base: number, intent: TravelIntent, criterion: ScoreCriterion): number {
+  let score = base
+
+  if (criterion === 'familySuitability') {
+    if (intent.children) score += 4
+    if (intent.tripPurpose === 'عائلة') score = Math.min(100, score + 3)
+  }
+
+  if (criterion === 'visaDifficulty') {
+    if (intent.visaStatus === 'بدون تأشيرة') score = 98
+    if (intent.visaStatus === 'لديه تأشيرة') score = 95
+  }
+
+  if (criterion === 'preferences') {
+    if (intent.preferredAirline) score += 3
+    if (intent.preferredHotel) score += 3
+    if (intent.interests) score += 2
+  }
+
+  if (criterion === 'comfort') {
+    if (intent.cabinClass === 'درجة أولى') score = 99
+    if (intent.cabinClass === 'درجة رجال الأعمال') score = 94
+    if (intent.cabinClass === 'الدرجة الاقتصادية') score = 80
+  }
+
+  if (criterion === 'price' || criterion === 'totalCost') {
+    if (intent.budget) score += 2
+  }
+
+  if (criterion === 'weather' && intent.departureDate) {
+    score += 1
+  }
+
+  return Math.max(0, Math.min(100, Math.round(score)))
+}
+
+function buildReason(intent: TravelIntent, topCriteria: CriterionScore[]): string {
+  const top3 = topCriteria.slice(0, 3)
+  const labels = top3.map(c => c.label)
+
+  if (intent.tripPurpose === 'عائلة' && intent.children) {
+    return `تم اختيار هذه الرحلة لأنها تحقق أفضل توازن بين ${labels[0]} و${labels[1]} و${labels[2]}، مع ملاءمة ممتازة للأطفال.`
+  }
+
+  if (intent.tripPurpose === 'عمل') {
+    return `تم اختيار هذه الرحلة لأنها توفر أفضل توازن بين ${labels[0]} و${labels[1]}، مع مراعاة وقت الوصول المناسب لرحلات العمل.`
+  }
+
+  if (intent.tripPurpose === 'شهر عسل') {
+    return `تم اختيار هذه الرحلة لأنها تجمع بين ${labels[0]} و${labels[1]} و${labels[2]}، مما يجعلها مثالية لرحلة شهر العسل.`
+  }
+
+  return `تم اختيار هذه الرحلة لأنها تحقق أفضل توازن بين ${labels[0]} و${labels[1]} و${labels[2]}.`
+}
+
+export function scoreTravelOption(intent: TravelIntent): TravelScoreResult {
+  const criteria: CriterionScore[] = CRITERIA_META.map(meta => {
+    const rawScore = adjustForIntent(PLACEHOLDER_SCORES[meta.key], intent, meta.key)
+    const stars = Math.round(rawScore / 20)
+    const weightedScore = Math.round((rawScore / 100) * meta.weight)
+    return {
+      key: meta.key,
+      label: meta.label,
+      icon: meta.icon,
+      stars: Math.max(1, Math.min(5, stars)),
+      rawScore,
+      weightedScore,
+    }
+  })
+
+  const totalWeight = CRITERIA_META.reduce((sum, c) => sum + c.weight, 0)
+  const earnedWeight = criteria.reduce((sum, c) => sum + c.weightedScore, 0)
+  const totalScore = Math.round((earnedWeight / totalWeight) * 100)
+
+  const sorted = [...criteria].sort((a, b) => b.rawScore - a.rawScore)
+  const reason = buildReason(intent, sorted)
+
+  return { criteria, totalScore, reason }
+}
