@@ -11,3 +11,4 @@ export {
   transferContractToAdapter,
   contractToAdapterAsync,
 } from './contractToAdapter'
+
