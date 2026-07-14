@@ -76,7 +76,21 @@ export function errorResult<T>(
 }
 
 export function fromThrown(thrown: unknown, _providerId: string): ProviderError {
-  const message = thrown instanceof Error ? thrown.message : 'Unknown error'
+  let message = 'Unknown error'
+  if (thrown instanceof Error) {
+    message = thrown.message || 'Unknown error'
+  } else if (typeof thrown === 'string') {
+    message = thrown.length > 0 ? thrown : 'Unknown error'
+  } else if (
+    thrown !== null &&
+    typeof thrown === 'object' &&
+    'message' in thrown &&
+    typeof (thrown as { message: unknown }).message === 'string'
+  ) {
+    const objMessage = (thrown as { message: string }).message
+    message = objMessage.length > 0 ? objMessage : 'Unknown error'
+  }
+
   return {
     code: 'UNCAUGHT',
     category: 'unknown',

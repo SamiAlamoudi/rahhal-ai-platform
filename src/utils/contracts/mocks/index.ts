@@ -6,6 +6,11 @@ import type {
   VisaProvider,
   WeatherProvider,
   DestinationProvider,
+  ProviderRequest,
+  FlightOffer,
+  HotelOffer,
+  ActivityOffer,
+  TransferOffer,
 } from '../index'
 import { MockFlightProvider } from './mockFlightProvider'
 import { MockHotelProvider } from './mockHotelProvider'
@@ -15,11 +20,25 @@ import { MockVisaProvider } from './mockVisaProvider'
 import { MockWeatherProvider } from './mockWeatherProvider'
 import { MockDestinationProvider } from './mockDestinationProvider'
 
+/** Contract mocks always expose sync sampleOffers for demos/tests. */
+export type FlightProviderWithSamples = FlightProvider & {
+  sampleOffers(req: ProviderRequest): FlightOffer[]
+}
+export type HotelProviderWithSamples = HotelProvider & {
+  sampleOffers(req: ProviderRequest): HotelOffer[]
+}
+export type ActivityProviderWithSamples = ActivityProvider & {
+  sampleOffers(req: ProviderRequest): ActivityOffer[]
+}
+export type TransferProviderWithSamples = TransferProvider & {
+  sampleOffers(req: ProviderRequest): TransferOffer[]
+}
+
 export interface MockContractProviders {
-  flight: FlightProvider
-  hotel: HotelProvider
-  activity: ActivityProvider
-  transfer: TransferProvider
+  flight: FlightProviderWithSamples
+  hotel: HotelProviderWithSamples
+  activity: ActivityProviderWithSamples
+  transfer: TransferProviderWithSamples
   visa: VisaProvider
   weather: WeatherProvider
   destination: DestinationProvider
@@ -36,4 +55,3 @@ export function createMockContractProviders(): MockContractProviders {
     destination: new MockDestinationProvider(),
   }
 }
-

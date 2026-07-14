@@ -4,7 +4,7 @@ import { defaultCapabilities } from '../capabilities'
 import type { ProviderMetadata } from '../metadata'
 
 const METADATA: ProviderMetadata = {
-  id: 'mock-flight-001',
+  id: 'mock-flight',
   name: 'Mock Flight Provider',
   priority: 1,
   enabled: true,
@@ -22,7 +22,7 @@ function buildOffers(): FlightOffer[] {
   return [
     {
       id: 'JAL-462',
-      providerId: 'mock-flight-001',
+      providerId: 'mock-flight',
       title: 'JAL 462: الرياض → طوكيو (مباشر)',
       currency: 'SAR',
       price: 8500,
@@ -52,7 +52,7 @@ function buildOffers(): FlightOffer[] {
     },
     {
       id: 'QR-1166',
-      providerId: 'mock-flight-001',
+      providerId: 'mock-flight',
       title: 'QR 1166: الرياض → طوكيو (توقف واحد)',
       currency: 'SAR',
       price: 5500,
@@ -82,7 +82,7 @@ function buildOffers(): FlightOffer[] {
     },
     {
       id: 'SV-842',
-      providerId: 'mock-flight-001',
+      providerId: 'mock-flight',
       title: 'SV 842: الرياض → طوكيو (توقف واحد)',
       currency: 'SAR',
       price: 4800,
@@ -122,7 +122,11 @@ export class MockFlightProvider implements FlightProvider {
 
   async searchFlights(_req: ProviderRequest): Promise<ProviderResult<FlightOffer[]>> {
     const start = Date.now()
-    const data = buildOffers()
+    const data = this.sampleOffers(_req)
     return okResult(METADATA.id, METADATA.name, data, Date.now() - start, 'mock')
+  }
+
+  sampleOffers(_req: ProviderRequest): FlightOffer[] {
+    return buildOffers()
   }
 }
