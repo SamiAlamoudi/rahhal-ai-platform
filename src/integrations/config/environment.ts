@@ -69,11 +69,27 @@ function readHotelAdapter(defaultAdapter: ProviderAdapterType): ProviderAdapterT
   return defaultAdapter
 }
 
+function readFlightAdapter(defaultAdapter: ProviderAdapterType): ProviderAdapterType {
+  const flightProvider = readEnv('VITE_FLIGHT_PROVIDER')
+  if (flightProvider !== null) {
+    return readAdapter('VITE_FLIGHT_PROVIDER', defaultAdapter)
+  }
+  const flightAdapter = readEnv('VITE_FLIGHT_ADAPTER')
+  if (flightAdapter !== null) {
+    return readAdapter('VITE_FLIGHT_ADAPTER', defaultAdapter)
+  }
+  // Auto-enable Amadeus when client credentials are present.
+  const clientId = readEnv('VITE_AMADEUS_CLIENT_ID')
+  const clientSecret = readEnv('VITE_AMADEUS_CLIENT_SECRET')
+  if (clientId && clientSecret) return 'amadeus'
+  return defaultAdapter
+}
+
 function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType): ProviderConfig {
   const adapterOverride = prefix === 'WEATHER'
     ? readAdapter('VITE_WEATHER_PROVIDER', readAdapter(`VITE_${prefix}_ADAPTER`, defaultAdapter))
     : prefix === 'FLIGHT'
-      ? readAdapter('VITE_FLIGHT_PROVIDER', readAdapter(`VITE_${prefix}_ADAPTER`, defaultAdapter))
+      ? readFlightAdapter(defaultAdapter)
       : prefix === 'HOTEL'
         ? readHotelAdapter(defaultAdapter)
         : prefix === 'RENTAL_CAR'

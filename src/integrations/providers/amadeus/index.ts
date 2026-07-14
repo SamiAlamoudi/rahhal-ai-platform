@@ -12,6 +12,8 @@ export {
   type AmadeusDictionaries,
   type AmadeusTravelerPricing,
   type AmadeusFareDetail,
+  type AmadeusLocationResult,
+  type AmadeusLocationsResponse,
 } from './amadeusFlightApiClient'
 export { AmadeusFlightAdapter, type AmadeusFlightAdapterConfig } from './amadeusFlightAdapter'
 export {
@@ -23,3 +25,17 @@ export {
   type NormalizedFlightOffer,
   type FlightQualityScores,
 } from './flightNormalization'
+export {
+  resolveAirportCode,
+  resolveAirportAlias,
+  parseValidIata,
+  normalizeAirportQuery,
+  pickBestLocation,
+  type ResolvedAirport,
+  type AirportResolveResult,
+} from './airportResolution'
+export {
+  buildAmadeusFlightSearchQuery,
+  mapCabinForApi,
+  type FlightSearchBuildResult,
+} from './flightSearchModule'
