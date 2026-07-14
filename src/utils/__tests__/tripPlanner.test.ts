@@ -149,6 +149,44 @@ describe('toTravelSearchRequest', () => {
   })
 })
 
+describe('buildTripPlannerRequestFromSession', () => {
+  it('maps session form fields and derives returnDate from durationDays', async () => {
+    const { buildTripPlannerRequestFromSession, deriveReturnDate } = await import('../tripPlanner')
+    expect(deriveReturnDate('2026-10-15', '', 10)).toBe('2026-10-25')
+    expect(deriveReturnDate('2026-10-15', '2026-10-20', 10)).toBe('2026-10-20')
+
+    const { createEmptyTravelSession } = await import('../travelSession')
+    const session = {
+      ...createEmptyTravelSession(),
+      departureCity: 'الرياض',
+      destination: 'طوكيو',
+      departureDate: '2026-10-15',
+      returnDate: '',
+      durationDays: 10,
+      adults: 2,
+      children: 1,
+      infants: 0,
+      budgetAmount: 20000,
+      budgetCurrency: 'SAR' as const,
+    }
+    const req = buildTripPlannerRequestFromSession(session)
+    expect(req).toEqual({
+      origin: 'الرياض',
+      destination: 'طوكيو',
+      departureDate: '2026-10-15',
+      returnDate: '2026-10-25',
+      travelers: { adults: 2, children: 1, infants: 0 },
+      budget: { amount: 20000, currency: 'SAR' },
+    })
+  })
+
+  it('returns null when required session fields are missing', async () => {
+    const { buildTripPlannerRequestFromSession } = await import('../tripPlanner')
+    const { createEmptyTravelSession } = await import('../travelSession')
+    expect(buildTripPlannerRequestFromSession(createEmptyTravelSession())).toBeNull()
+  })
+})
+
 describe('planTrip — orchestration', () => {
   it('returns a unified itinerary with flights, hotels, summary, and estimated cost', async () => {
     const result = await planTrip(BASE_REQ, makeDeps())

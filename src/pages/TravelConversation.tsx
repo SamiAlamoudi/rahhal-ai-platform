@@ -10,15 +10,15 @@ import {
   type TravelSession,
 } from '../utils/travelSession'
 import { useSessionPersistence } from '../lib/hooks/useSessionPersistence'
-import { buildTravelSearchRequest } from '../utils/travelSearchRequest'
-import type { SearchOrchestrationResult } from '../utils/searchOrchestrator'
-import { orchestrateLiveSearch } from '../utils/liveSearchOrchestrator'
-import { generateReasoning, type ReasoningResult } from '../utils/reasoningEngine'
+import {
+  planTrip,
+  buildTripPlannerRequestFromSession,
+  type TripItineraryResult,
+} from '../utils/tripPlanner'
 import { buildRahhalReply, buildWelcomeReply, buildResumedReply, progressText } from '../utils/rahhalVoice'
 import DecisionProfile from '../components/DecisionProfile'
 import LiveSummaryCard from '../components/LiveSummaryCard'
-import ResultsExperience from '../components/ResultsExperience'
-import DecisionDashboard from '../components/DecisionDashboard'
+import TripItineraryResults from '../components/TripItineraryResults'
 
 interface ChatMessage {
   id: number
@@ -63,9 +63,9 @@ export default function TravelConversation() {
   const [input, setInput] = useState('')
   const [isThinking, setIsThinking] = useState(false)
   const [mode, setMode] = useState<'essential' | 'preferences'>('essential')
-  const [orchestrationResult, setOrchestrationResult] = useState<SearchOrchestrationResult | null>(null)
   const [orchestrationError, setOrchestrationError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
+  const [tripResult, setTripResult] = useState<TripItineraryResult | null>(null)
   const msgIdRef = useRef(3)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -83,22 +83,12 @@ export default function TravelConversation() {
     })
   }, [session])
 
-  const rankedOptions = useMemo(() => orchestrationResult?.rankedOptions ?? [], [orchestrationResult])
-
-  const searchRequest = useMemo(() => buildTravelSearchRequest(session), [session])
-
-  const reasoningResults = useMemo(() => {
-    if (!session.decisionProfileConfirmed || rankedOptions.length === 0) return new Map<string, ReasoningResult>()
-    const map = new Map<string, ReasoningResult>()
-    for (const option of rankedOptions) {
-      map.set(option.id, generateReasoning(option, buildTravelSearchRequest(session)))
-    }
-    return map
-  }, [rankedOptions, session.decisionProfileConfirmed])
+  const hasItinerary =
+    !!tripResult && (tripResult.flights.length > 0 || tripResult.hotels.length > 0)
 
   useEffect(() => {
     if (!session.decisionProfileConfirmed) {
-      setOrchestrationResult(null)
+      setTripResult(null)
       setOrchestrationError(null)
       setSearching(false)
       return
@@ -108,17 +98,32 @@ export default function TravelConversation() {
     setSearching(true)
     setOrchestrationError(null)
 
-    const req = buildTravelSearchRequest(session)
-    orchestrateLiveSearch(req)
+    const plannerReq = buildTripPlannerRequestFromSession(session)
+    if (!plannerReq) {
+      setSearching(false)
+      setTripResult(null)
+      setOrchestrationError('أكمل تاريخ العودة أو مدة الرحلة مع بقية الحقول الأساسية قبل البحث.')
+      return
+    }
+
+    planTrip(plannerReq)
       .then((result) => {
         if (cancelled) return
-        setOrchestrationResult(result)
-        setOrchestrationError(null)
+        setTripResult(result)
+        const hardFail =
+          result.flights.length === 0
+          && result.hotels.length === 0
+          && result.errors.length > 0
+        if (hardFail) {
+          setOrchestrationError('تعذّر العثور على رحلات أو فنادق لهذه الخطة. حاول تعديل البحث.')
+        } else {
+          setOrchestrationError(null)
+        }
       })
       .catch(() => {
         if (cancelled) return
-        setOrchestrationResult(null)
-        setOrchestrationError('تعذّر تشغيل محرك البحث التجريبي. حاول مرة أخرى.')
+        setTripResult(null)
+        setOrchestrationError('تعذّر تشغيل مخطط الرحلة. حاول مرة أخرى.')
       })
       .finally(() => {
         if (!cancelled) setSearching(false)
@@ -167,6 +172,8 @@ export default function TravelConversation() {
   const handleReset = () => {
     clearPersistedSession()
     setSession(createEmptyTravelSession())
+    setTripResult(null)
+    setOrchestrationError(null)
     const next = getNextBestQuestion(createEmptyTravelSession())
     setMessages([{ id: msgIdRef.current++, role: 'rahhal', text: buildWelcomeReply(next) }])
   }
@@ -326,30 +333,20 @@ export default function TravelConversation() {
                 <div className="flex items-center justify-center py-12" aria-label="جاري البحث">
                   <div className="flex flex-col items-center gap-3">
                     <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
-                    <p className="text-sm text-slate-500">رحّال يفكر في أفضل خياراتك...</p>
+                    <p className="text-sm text-slate-500">رحّال يجمع رحلاتك وفنادقك...</p>
                   </div>
                 </div>
-              ) : orchestrationError ? (
+              ) : orchestrationError && !hasItinerary ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-center">
                   <p className="text-sm font-bold text-rose-600">{orchestrationError}</p>
                 </div>
-              ) : rankedOptions.length === 0 ? (
+              ) : !hasItinerary ? (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-6 text-center">
-                  <p className="text-sm font-medium text-slate-500">لا توجد خيارات تجريبية متاحة حالياً.</p>
+                  <p className="text-sm font-medium text-slate-500">لا توجد خيارات متاحة لهذه الخطة حالياً.</p>
                 </div>
-              ) : (
-                <div className="space-y-6">
-                  <ResultsExperience
-                    rankedOptions={rankedOptions}
-                    reasoningResults={reasoningResults}
-                  />
-                  <DecisionDashboard
-                    rankedOptions={rankedOptions}
-                    reasoningResults={reasoningResults}
-                    searchRequest={searchRequest}
-                  />
-                </div>
-              )}
+              ) : tripResult ? (
+                <TripItineraryResults result={tripResult} />
+              ) : null}
             </section>
           )}
 
