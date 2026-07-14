@@ -1,5 +1,5 @@
 /*
-# Rahhal Core Schema — Multi-User Foundation
+# Rahhal core Schema — Multi-User Foundation
 
 Creates the complete database foundation for the Rahhal AI travel planning platform.
 All tables are owner-scoped (user_id) with full RLS policies ensuring each user
