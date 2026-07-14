@@ -849,6 +849,18 @@ describe('Provider Registry — Flight', () => {
     expect(flight!.metadata.id).toBe('amadeus-flight-001')
   })
 
+  it('auto-enables AmadeusFlightAdapter when credentials are present (no explicit adapter)', () => {
+    vi.stubEnv('VITE_AMADEUS_CLIENT_ID', 'auto-id')
+    vi.stubEnv('VITE_AMADEUS_CLIENT_SECRET', 'auto-secret')
+    resetProviderRegistry()
+    clearConfigCache()
+
+    const registry = getProviderRegistry()
+    const flight = registry.getFlight()
+    expect(flight).not.toBeNull()
+    expect(flight!.metadata.id).toBe('amadeus-flight-001')
+  })
+
   it('returns null for amadeus when credentials missing', () => {
     vi.stubEnv('VITE_FLIGHT_PROVIDER', 'amadeus')
     vi.stubEnv('VITE_AMADEUS_CLIENT_ID', '')
