@@ -7,7 +7,7 @@ import type {
   ScoreCategory,
 } from './decisionScoreEngine'
 
-// ── Reasoning data models ──────────────────────────────────────────────────
+// ── Reasoning data models ──────────────────────────────────────────────────────
 
 export interface ReasoningItem {
   key: string
@@ -48,7 +48,7 @@ export type ReasoningGenerator = (
 
 export type ReasoningFormatter = (result: ReasoningResult) => string
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function getCategory(score: FinalDecisionScore, cat: ScoreCategory): CategoryScoreDetail | undefined {
   return score.categories.find(c => c.category === cat)
@@ -71,7 +71,7 @@ function optionLabel(option: NormalizedTravelOption): string {
   }
 }
 
-// ── Strengths ──────────────────────────────────────────────────────────────
+// ── Strengths ──────────────────────────────────────────────────────────────────
 
 export function generateStrengths(
   option: NormalizedTravelOption,
@@ -111,7 +111,7 @@ export function generateStrengths(
   return { key: 'strengths', titleKey: 'section.strengths', items }
 }
 
-// ── Weaknesses ─────────────────────────────────────────────────────────────
+// ── Weaknesses ─────────────────────────────────────────────────────────────────
 
 export function generateWeaknesses(
   option: NormalizedTravelOption,
@@ -151,7 +151,7 @@ export function generateWeaknesses(
   return { key: 'weaknesses', titleKey: 'section.weaknesses', items }
 }
 
-// ── Budget analysis ────────────────────────────────────────────────────────
+// ── Budget analysis ────────────────────────────────────────────────────────────
 
 export function generateBudgetReason(
   option: NormalizedTravelOption,
@@ -202,7 +202,7 @@ export function generateBudgetReason(
   return { key: 'budgetAnalysis', titleKey: 'section.budgetAnalysis', items }
 }
 
-// ── Family suitability ─────────────────────────────────────────────────────
+// ── Family suitability ─────────────────────────────────────────────────────────
 
 export function generateFamilyReason(
   option: NormalizedTravelOption,
@@ -248,7 +248,7 @@ export function generateFamilyReason(
   return { key: 'familySuitability', titleKey: 'section.familySuitability', items }
 }
 
-// ── Comfort analysis ───────────────────────────────────────────────────────
+// ── Comfort analysis ───────────────────────────────────────────────────────────
 
 export function generateComfortReason(
   option: NormalizedTravelOption,
@@ -290,7 +290,7 @@ export function generateComfortReason(
   return { key: 'comfortAnalysis', titleKey: 'section.comfortAnalysis', items }
 }
 
-// ── Purpose match ──────────────────────────────────────────────────────────
+// ── Purpose match ──────────────────────────────────────────────────────────────
 
 export function generatePurposeReason(
   option: NormalizedTravelOption,
@@ -328,7 +328,7 @@ export function generatePurposeReason(
   return { key: 'purposeMatch', titleKey: 'section.purposeMatch', items }
 }
 
-// ── Travel time analysis ───────────────────────────────────────────────────
+// ── Travel time analysis ───────────────────────────────────────────────────────
 
 function generateTravelTimeAnalysis(
   option: NormalizedTravelOption,
@@ -370,7 +370,7 @@ function generateTravelTimeAnalysis(
   return { key: 'travelTimeAnalysis', titleKey: 'section.travelTimeAnalysis', items }
 }
 
-// ── Destination match ──────────────────────────────────────────────────────
+// ── Destination match ──────────────────────────────────────────────────────────
 
 function generateDestinationMatch(
   option: NormalizedTravelOption,
@@ -395,7 +395,7 @@ function generateDestinationMatch(
   return { key: 'destinationMatch', titleKey: 'section.destinationMatch', items }
 }
 
-// ── Risk warnings ──────────────────────────────────────────────────────────
+// ── Risk warnings ──────────────────────────────────────────────────────────────
 
 export function generateWarnings(
   option: NormalizedTravelOption,
@@ -443,7 +443,7 @@ export function generateWarnings(
   return { key: 'riskWarnings', titleKey: 'section.riskWarnings', items }
 }
 
-// ── Confidence explanation ─────────────────────────────────────────────────
+// ── Confidence explanation ─────────────────────────────────────────────────────
 
 export function generateConfidenceExplanation(
   option: NormalizedTravelOption,
@@ -491,7 +491,7 @@ function computeScoreVariance(option: NormalizedTravelOption): number {
   return Math.round(variance)
 }
 
-// ── Recommendation summary ─────────────────────────────────────────────────
+// ── Recommendation summary ─────────────────────────────────────────────────────
 
 export function generateRecommendation(
   option: NormalizedTravelOption,
@@ -555,7 +555,7 @@ export function generateRecommendation(
   return items
 }
 
-// ── Summary ────────────────────────────────────────────────────────────────
+// ── Summary ────────────────────────────────────────────────────────────────────
 
 export function generateSummary(
   option: NormalizedTravelOption,
@@ -590,7 +590,7 @@ export function generateSummary(
   return items
 }
 
-// ── Decision explanation ───────────────────────────────────────────────────
+// ── Decision explanation ───────────────────────────────────────────────────────
 
 function generateDecisionExplanation(
   option: NormalizedTravelOption,
@@ -634,13 +634,13 @@ function generateDecisionExplanation(
   return items
 }
 
-// ── Utility ────────────────────────────────────────────────────────────────
+// ── Utility ────────────────────────────────────────────────────────────────────
 
 function emptySection(key: string, titleKey: string): ReasoningSection {
   return { key, titleKey, items: [] }
 }
 
-// ── Main generator ─────────────────────────────────────────────────────────
+// ── Main generator ─────────────────────────────────────────────────────────────
 
 export const generateReasoning: ReasoningGenerator = (
   option: NormalizedTravelOption,
@@ -670,7 +670,7 @@ export const generateReasoning: ReasoningGenerator = (
   }
 }
 
-// ── Formatter ──────────────────────────────────────────────────────────────
+// ── Formatter ──────────────────────────────────────────────────────────────────
 
 const SECTION_TITLES: Record<string, string> = {
   'section.strengths': 'نقاط القوة',
@@ -691,13 +691,13 @@ const TEXT_MAP: Record<string, (p: Record<string, string | number>) => string> =
   'recommendation.recommended': p => `نوصي بهذا ${p.type} (النتيجة: ${p.score}/100)`,
   'recommendation.acceptable': p => `هذا ${p.type} خيار مقبول (النتيجة: ${p.score}/100)`,
   'recommendation.not-recommended': p => `لا نوصي بهذا ${p.type} (النتيجة: ${p.score}/100)`,
-  'recommendation.withinBudget': p => `ضمن ميزانيتك (يوفّر ≈${p.percentage}%)`,
+  'recommendation.withinBudget': p => `ضمن ميزانيتك (توفّر ≈${p.percentage}%)`,
   'recommendation.directFlight': () => 'رحلة مباشرة',
   'recommendation.oneStop': () => 'توقف واحد فقط',
   'recommendation.shorterThanAverage': p => `مدة السفر أقصر من المتوسط (${p.hours} ساعات)`,
   'recommendation.excellentForFamilies': () => 'ممتاز للعائلات',
   'recommendation.matchesPurpose': p => `يطابق غرض السفر: ${p.purpose}`,
-  'recommendation.savesPercentage': p => `يوفّر حوالي ${p.percentage}% مقارنة بخيارات مشابهة`,
+  'recommendation.savesPercentage': p => `توفّر حوالي ${p.percentage}% مقارنة بخيارات مشابهة`,
 
   // Summary
   'summary.excellent': p => `خيار ممتاز لل${p.type} بنتيجة ${p.score}/100`,
@@ -749,7 +749,7 @@ const TEXT_MAP: Record<string, (p: Record<string, string | number>) => string> =
 
   // Budget
   'budget.significantlyUnder': p => `أقل من الميزانية بـ ${p.percentage}% (الميزانية: ${p.budget} ${p.currency})`,
-  'budget.under': p => `ضمن الميزانية (يوفّر ${p.percentage}%)`,
+  'budget.under': p => `ضمن الميزانية (توفّر ${p.percentage}%)`,
   'budget.closeToLimit': p => `قريب من حد الميزانية (${p.budget} ${p.currency})`,
   'budget.atLimit': p => `عند حد الميزانية (${p.budget} ${p.currency})`,
   'budget.overBudget': p => `يتجاوز الميزانية بـ ${p.overPercentage}%`,
@@ -830,7 +830,7 @@ const TEXT_MAP: Record<string, (p: Record<string, string | number>) => string> =
   'warning.notFamilyFriendly': () => 'غير مناسب للأطفال',
   'warning.manyStopsWithKids': p => `${p.stops} توقفات مع أطفال قد تكون مرهقة`,
   'warning.lowRating': p => `تقييم منخفض (${p.rating}/5)`,
-  'warning.noBaggage': () => 'لا يشمل الأمتعة',
+  'warning.noBaggage': () => 'لا تشمل الأمتعة',
   'warning.lowConfidence': p => `مستوى ثقة منخفض (${p.confidence}/100)`,
   'warning.lowComfort': p => `مستوى راحة منخفض (${p.score}/100)`,
 
