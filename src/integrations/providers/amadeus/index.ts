@@ -1,4 +1,5 @@
 export { AmadeusOAuthClient, type AmadeusToken, type OAuthClientConfig, type OAuthResult } from './amadeusOAuthClient'
+export { AMADEUS_DEFAULT_HOST, normalizeAmadeusHost, amadeusV1Url } from './amadeusHost'
 export {
   AmadeusFlightApiClient,
   type FlightSearchQuery,

@@ -184,10 +184,12 @@ function mapNetworkError(err: unknown): ProviderError {
 }
 
 import { AmadeusOAuthClient } from './amadeusOAuthClient'
+import { amadeusV1Url, normalizeAmadeusHost } from './amadeusHost'
 
 export class AmadeusFlightApiClient {
   private config: ApiClientConfig
   private oauthClient: AmadeusOAuthClient
+  private host: string
 
   constructor(
     config: ApiClientConfig,
@@ -195,6 +197,7 @@ export class AmadeusFlightApiClient {
   ) {
     this.config = config
     this.oauthClient = oauthClient
+    this.host = normalizeAmadeusHost(config.baseUrl)
   }
 
   getOAuthClient(): AmadeusOAuthClient {
@@ -203,7 +206,7 @@ export class AmadeusFlightApiClient {
 
   /**
    * Resolve a place name to Amadeus CITY/AIRPORT locations.
-   * Endpoint: GET /reference-data/locations?keyword=…&subType=CITY,AIRPORT
+   * Endpoint: GET /v1/reference-data/locations?keyword=…&subType=CITY,AIRPORT
    */
   async searchLocations(keyword: string): Promise<ApiClientResult<AmadeusLocationResult[]>> {
     const trimmed = keyword.trim()
@@ -242,7 +245,7 @@ export class AmadeusFlightApiClient {
           subType: 'CITY,AIRPORT',
           'page[limit]': '10',
         })
-        const url = `${this.config.baseUrl}/reference-data/locations?${params.toString()}`
+        const url = `${amadeusV1Url(this.host, '/reference-data/locations')}?${params.toString()}`
         log('info', `Searching locations (attempt ${attempt})`, { keyword: trimmed })
 
         const response = await fetch(url, {
@@ -316,7 +319,7 @@ export class AmadeusFlightApiClient {
         if (query.currency) params.append('currencyCode', query.currency)
         params.append('nonStop', 'false')
 
-        const url = `${this.config.baseUrl}/shopping/flight-offers?${params.toString()}`
+        const url = `${amadeusV1Url(this.host, '/shopping/flight-offers')}?${params.toString()}`
         log('info', `Searching flight offers (attempt ${attempt})`, { origin: query.origin, destination: query.destination })
 
         const response = await fetch(url, {

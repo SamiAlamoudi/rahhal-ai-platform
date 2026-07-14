@@ -6,6 +6,7 @@ import { AmadeusOAuthClient } from './amadeusOAuthClient'
 import { AmadeusFlightApiClient, type ApiClientConfig } from './amadeusFlightApiClient'
 import { normalizeAmadeusResponse } from './flightNormalization'
 import { buildAmadeusFlightSearchQuery } from './flightSearchModule'
+import { AMADEUS_DEFAULT_HOST, normalizeAmadeusHost } from './amadeusHost'
 
 const METADATA: ProviderMetadata = {
   id: 'amadeus-flight-001',
@@ -24,8 +25,11 @@ const CAPABILITIES: ProviderCapabilities = {
 }
 
 export interface AmadeusFlightAdapterConfig {
-  clientId: string
-  clientSecret: string
+  /** Server-side token proxy URL (Supabase Edge Function). */
+  tokenUrl: string
+  /** Supabase anon key / JWT used to invoke the proxy — never an Amadeus secret. */
+  invokeApiKey: string
+  /** Amadeus API host (e.g. https://test.api.amadeus.com). Paths use /v1/... */
   baseUrl: string
   timeout: number
   maxRetries: number
@@ -38,13 +42,12 @@ export class AmadeusFlightAdapter implements FlightProvider {
 
   constructor(config: AmadeusFlightAdapterConfig) {
     this.oauthClient = new AmadeusOAuthClient({
-      clientId: config.clientId,
-      clientSecret: config.clientSecret,
-      baseUrl: config.baseUrl,
+      tokenUrl: config.tokenUrl,
+      invokeApiKey: config.invokeApiKey,
       timeout: config.timeout,
     })
     const apiConfig: ApiClientConfig = {
-      baseUrl: config.baseUrl,
+      baseUrl: normalizeAmadeusHost(config.baseUrl || AMADEUS_DEFAULT_HOST),
       timeout: config.timeout,
       maxRetries: config.maxRetries,
     }

@@ -10,6 +10,13 @@ export interface ProviderConfig {
   baseUrl: string | null
   /** RapidAPI host header value (e.g. booking-com15.p.rapidapi.com). */
   host: string | null
+  /**
+   * Server-side Amadeus OAuth token proxy URL (Supabase Edge Function).
+   * Never point this at Amadeus directly with a client secret in the SPA.
+   */
+  tokenUrl: string | null
+  /** Key used to invoke the token proxy (Supabase anon key) — not an Amadeus secret. */
+  invokeApiKey: string | null
   timeout: number
   maxRetries: number
 }
@@ -52,6 +59,21 @@ function readAdapter(key: string, fallback: ProviderAdapterType): ProviderAdapte
 }
 
 const DEFAULT_BOOKING_HOST = 'booking-com15.p.rapidapi.com'
+const AMADEUS_TOKEN_FUNCTION_PATH = '/functions/v1/amadeus-token'
+
+function resolveAmadeusTokenUrl(): string | null {
+  const explicit = readEnv('VITE_AMADEUS_TOKEN_URL')
+  if (explicit) return explicit
+  const supabaseUrl = readEnv('VITE_SUPABASE_URL')
+  if (!supabaseUrl) return null
+  return `${supabaseUrl.replace(/\/+$/, '')}${AMADEUS_TOKEN_FUNCTION_PATH}`
+}
+
+function hasAmadeusTokenProxy(): boolean {
+  const tokenUrl = resolveAmadeusTokenUrl()
+  const invokeApiKey = readEnv('VITE_SUPABASE_ANON_KEY')
+  return Boolean(tokenUrl && invokeApiKey)
+}
 
 function readHotelAdapter(defaultAdapter: ProviderAdapterType): ProviderAdapterType {
   // Explicit adapter wins when set.
@@ -78,10 +100,11 @@ function readFlightAdapter(defaultAdapter: ProviderAdapterType): ProviderAdapter
   if (flightAdapter !== null) {
     return readAdapter('VITE_FLIGHT_ADAPTER', defaultAdapter)
   }
-  // Auto-enable Amadeus when client credentials are present.
-  const clientId = readEnv('VITE_AMADEUS_CLIENT_ID')
-  const clientSecret = readEnv('VITE_AMADEUS_CLIENT_SECRET')
-  if (clientId && clientSecret) return 'amadeus'
+  // Auto-enable Amadeus when token proxy is reachable from the SPA
+  // (secrets live only on the Edge Function — never VITE_AMADEUS_CLIENT_SECRET).
+  if (readBool('VITE_AMADEUS_ENABLED', false) && hasAmadeusTokenProxy()) {
+    return 'amadeus'
+  }
   return defaultAdapter
 }
 
@@ -105,12 +128,9 @@ function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType)
         ? readEnv('VITE_RAPIDAPI_KEY') ?? readEnv(`VITE_RENTAL_API_KEY`) ?? readEnv(`VITE_${prefix}_API_KEY`)
         : readEnv(`VITE_${prefix}_API_KEY`)
 
-  const clientId = prefix === 'FLIGHT'
-    ? readEnv(`VITE_AMADEUS_CLIENT_ID`) ?? readEnv(`VITE_${prefix}_CLIENT_ID`)
-    : readEnv(`VITE_${prefix}_CLIENT_ID`)
-  const clientSecret = prefix === 'FLIGHT'
-    ? readEnv(`VITE_AMADEUS_CLIENT_SECRET`) ?? readEnv(`VITE_${prefix}_CLIENT_SECRET`)
-    : readEnv(`VITE_${prefix}_CLIENT_SECRET`)
+  // Amadeus client_id / client_secret must never be loaded into the SPA.
+  const clientId = prefix === 'FLIGHT' ? null : readEnv(`VITE_${prefix}_CLIENT_ID`)
+  const clientSecret = prefix === 'FLIGHT' ? null : readEnv(`VITE_${prefix}_CLIENT_SECRET`)
 
   const bookingHost = prefix === 'HOTEL'
     ? (readEnv('VITE_BOOKING_HOST') ?? DEFAULT_BOOKING_HOST)
@@ -118,7 +138,12 @@ function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType)
 
   const baseUrl = prefix === 'HOTEL'
     ? (readEnv(`VITE_${prefix}_BASE_URL`) ?? (bookingHost ? `https://${bookingHost}/api/v1` : null))
-    : readEnv(`VITE_${prefix}_BASE_URL`)
+    : prefix === 'FLIGHT'
+      ? (readEnv('VITE_AMADEUS_BASE_URL') ?? readEnv(`VITE_${prefix}_BASE_URL`))
+      : readEnv(`VITE_${prefix}_BASE_URL`)
+
+  const tokenUrl = prefix === 'FLIGHT' ? resolveAmadeusTokenUrl() : null
+  const invokeApiKey = prefix === 'FLIGHT' ? readEnv('VITE_SUPABASE_ANON_KEY') : null
 
   return {
     enabled: readBool(`VITE_${prefix}_ENABLED`, true),
@@ -129,6 +154,8 @@ function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType)
     clientSecret,
     baseUrl,
     host: bookingHost,
+    tokenUrl,
+    invokeApiKey,
     timeout: readInt(`VITE_${prefix}_TIMEOUT`, 5000),
     maxRetries: readInt(`VITE_${prefix}_MAX_RETRIES`, 2),
   }

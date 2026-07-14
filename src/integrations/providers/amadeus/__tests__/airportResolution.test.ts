@@ -24,9 +24,8 @@ function mockResponse(data: unknown, status = 200): Response {
 
 function createClient() {
   const oauth = new AmadeusOAuthClient({
-    clientId: 'id',
-    clientSecret: 'secret',
-    baseUrl: 'https://test.api.amadeus.com',
+    tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+    invokeApiKey: 'test-anon-key',
     timeout: 5000,
   })
   return new AmadeusFlightApiClient({
@@ -114,7 +113,7 @@ describe('AmadeusFlightApiClient.searchLocations', () => {
 
   it('calls reference-data/locations with OAuth bearer token', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
-      if (String(url).includes('/security/oauth2/token')) {
+      if (String(url).includes('amadeus-token')) {
         return Promise.resolve(mockResponse({
           access_token: 'tok',
           token_type: 'Bearer',
@@ -134,6 +133,7 @@ describe('AmadeusFlightApiClient.searchLocations', () => {
 
     const locationCall = fetchMock.mock.calls.find(([u]) => String(u).includes('reference-data/locations'))
     expect(locationCall).toBeTruthy()
+    expect(String(locationCall![0])).toContain('/v1/reference-data/locations')
     expect(String(locationCall![0])).toContain('keyword=Dubai')
     const headers = locationCall![1].headers as Record<string, string>
     expect(headers.Authorization).toContain('Bearer tok')
@@ -155,6 +155,39 @@ describe('resolveAirportCode + buildAmadeusFlightSearchQuery', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('resolves origin and destination remotely concurrently', async () => {
+    let inFlightLocations = 0
+    let maxInFlightLocations = 0
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (String(url).includes('amadeus-token')) {
+        return mockResponse({ access_token: 'tok', token_type: 'Bearer', expires_in: 1800 })
+      }
+      inFlightLocations++
+      maxInFlightLocations = Math.max(maxInFlightLocations, inFlightLocations)
+      await new Promise((r) => setTimeout(r, 40))
+      inFlightLocations--
+      const keyword = new URL(String(url)).searchParams.get('keyword') ?? ''
+      if (keyword.includes('OriginRemote')) {
+        return mockResponse({ data: [{ iataCode: 'JED', subType: 'CITY', name: 'JEDDAH' }] })
+      }
+      return mockResponse({ data: [{ iataCode: 'CAI', subType: 'CITY', name: 'CAIRO' }] })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = createClient()
+    const built = await buildAmadeusFlightSearchQuery(
+      client,
+      { ...SAMPLE_SEARCH, departureCity: 'OriginRemoteXYZ', destination: 'DestRemoteXYZ' },
+      { allowRemoteLookup: true },
+    )
+
+    expect(built.query?.origin).toBe('JED')
+    expect(built.query?.destination).toBe('CAI')
+    const locationCalls = fetchMock.mock.calls.filter(([u]) => String(u).includes('/v1/reference-data/locations'))
+    expect(locationCalls.length).toBe(2)
+    expect(maxInFlightLocations).toBeGreaterThanOrEqual(2)
+  })
+
   it('fail-closes when origin cannot be resolved (no hard-coded RUH)', async () => {
     const client = createClient()
     const built = await buildAmadeusFlightSearchQuery(
@@ -168,7 +201,7 @@ describe('resolveAirportCode + buildAmadeusFlightSearchQuery', () => {
 
   it('uses remote Amadeus locations when alias is missing', async () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
-      if (String(url).includes('/security/oauth2/token')) {
+      if (String(url).includes('amadeus-token')) {
         return Promise.resolve(mockResponse({
           access_token: 'tok', token_type: 'Bearer', expires_in: 1800,
         }))
@@ -195,7 +228,7 @@ describe('AmadeusFlightAdapter + flight search module', () => {
 
   it('searches flight-offers with resolved IATA codes from Arabic cities', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
-      if (String(url).includes('/security/oauth2/token')) {
+      if (String(url).includes('amadeus-token')) {
         return Promise.resolve(mockResponse({
           access_token: 'tok', token_type: 'Bearer', expires_in: 1800,
         }))
@@ -235,8 +268,8 @@ describe('AmadeusFlightAdapter + flight search module', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const adapter = new AmadeusFlightAdapter({
-      clientId: 'id',
-      clientSecret: 'secret',
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
       baseUrl: 'https://test.api.amadeus.com',
       timeout: 5000,
       maxRetries: 0,

@@ -45,16 +45,15 @@ export async function buildAmadeusFlightSearchQuery(
   options: { allowRemoteLookup?: boolean } = {},
 ): Promise<FlightSearchBuildResult> {
   const errors: ProviderError[] = []
-  let resolveLatencyMs = 0
 
-  const originResult = await resolveAirportCode(client, search.departureCity, options)
-  resolveLatencyMs += originResult.latency
+  const [originResult, destinationResult] = await Promise.all([
+    resolveAirportCode(client, search.departureCity, options),
+    resolveAirportCode(client, search.destination, options),
+  ])
+  const resolveLatencyMs = originResult.latency + destinationResult.latency
   if (!originResult.airport) {
     if (originResult.error) errors.push(originResult.error)
   }
-
-  const destinationResult = await resolveAirportCode(client, search.destination, options)
-  resolveLatencyMs += destinationResult.latency
   if (!destinationResult.airport) {
     if (destinationResult.error) errors.push(destinationResult.error)
   }
