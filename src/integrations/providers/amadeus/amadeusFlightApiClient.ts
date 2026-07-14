@@ -106,6 +106,27 @@ export interface FlightSearchQuery {
   maxResults?: number
 }
 
+/** Amadeus Airport & City Search location entry. */
+export interface AmadeusLocationResult {
+  type?: string
+  subType?: string
+  name?: string
+  detailedName?: string
+  id?: string
+  iataCode?: string
+  address?: {
+    cityName?: string
+    cityCode?: string
+    countryName?: string
+    countryCode?: string
+  }
+}
+
+export interface AmadeusLocationsResponse {
+  meta?: { count?: number }
+  data?: AmadeusLocationResult[]
+}
+
 export interface ApiClientConfig {
   baseUrl: string
   timeout: number
@@ -178,6 +199,96 @@ export class AmadeusFlightApiClient {
 
   getOAuthClient(): AmadeusOAuthClient {
     return this.oauthClient
+  }
+
+  /**
+   * Resolve a place name to Amadeus CITY/AIRPORT locations.
+   * Endpoint: GET /reference-data/locations?keyword=…&subType=CITY,AIRPORT
+   */
+  async searchLocations(keyword: string): Promise<ApiClientResult<AmadeusLocationResult[]>> {
+    const trimmed = keyword.trim()
+    if (!trimmed) {
+      return {
+        data: null,
+        error: {
+          code: 'AMADEUS_BAD_REQUEST',
+          category: 'validation',
+          severity: 'warning',
+          message: 'Location keyword is empty',
+          retryable: false,
+          timestamp: new Date().toISOString(),
+        },
+        latency: 0,
+        attempts: 0,
+        tokenRefreshed: false,
+      }
+    }
+
+    let tokenRefreshed = false
+
+    for (let attempt = 1; attempt <= this.config.maxRetries + 1; attempt++) {
+      const tokenResult = await this.oauthClient.getToken()
+      if (tokenResult.error || !tokenResult.token) {
+        return { data: null, error: tokenResult.error, latency: 0, attempts: attempt, tokenRefreshed: false }
+      }
+
+      const start = Date.now()
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
+
+      try {
+        const params = new URLSearchParams({
+          keyword: trimmed,
+          subType: 'CITY,AIRPORT',
+          'page[limit]': '10',
+        })
+        const url = `${this.config.baseUrl}/reference-data/locations?${params.toString()}`
+        log('info', `Searching locations (attempt ${attempt})`, { keyword: trimmed })
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `${tokenResult.token.tokenType} ${tokenResult.token.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+        const latency = Date.now() - start
+
+        if (response.status === 401 && attempt === 1) {
+          log('warn', 'Token expired during location search, refreshing')
+          this.oauthClient.clearToken()
+          tokenRefreshed = true
+          continue
+        }
+
+        if (!response.ok) {
+          const body = await response.text().catch(() => '')
+          const error = mapHttpError(response.status, body)
+          log('warn', `HTTP ${response.status} on location attempt ${attempt}`, { latency, error: error.code })
+          if (!error.retryable || attempt > this.config.maxRetries) {
+            return { data: null, error, latency, attempts: attempt, tokenRefreshed }
+          }
+          continue
+        }
+
+        const payload = await response.json() as AmadeusLocationsResponse
+        const data = Array.isArray(payload.data) ? payload.data : []
+        log('info', 'Locations received', { latency, count: data.length })
+        return { data, error: null, latency, attempts: attempt, tokenRefreshed }
+      } catch (err) {
+        clearTimeout(timeoutId)
+        const latency = Date.now() - start
+        const error = mapNetworkError(err)
+        log('error', `Location request failed on attempt ${attempt}`, { latency, error: error.code })
+        if (!error.retryable || attempt > this.config.maxRetries) {
+          return { data: null, error, latency, attempts: attempt, tokenRefreshed }
+        }
+      }
+    }
+
+    return { data: null, error: null, latency: 0, attempts: this.config.maxRetries + 1, tokenRefreshed }
   }
 
   async searchFlightOffers(query: FlightSearchQuery): Promise<ApiClientResult<AmadeusFlightOffersResponse>> {
