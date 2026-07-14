@@ -1,0 +1,1 @@
+export { AmadeusFlightAdapter } from './amadeus'
