@@ -4,6 +4,7 @@ import type { BookingItemRow } from '../types'
 export type { BookingItemRow }
 
 export interface CreateBookingItemRowInput {
+  id?: string
   booking_session_id: string
   type: string
   provider_id: string

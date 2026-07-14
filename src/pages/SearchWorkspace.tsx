@@ -8,11 +8,13 @@ import {
   type TravelSession,
 } from '../utils/travelSession'
 import { useSessionPersistence } from '../lib/hooks/useSessionPersistence'
+import { useAuth } from '../lib/auth'
 import {
   planTrip,
   buildTripPlannerRequestFromSession,
   type TripItineraryResult,
 } from '../utils/tripPlanner'
+import { createTripBookingSession } from '../lib/booking/bookingSessionService'
 import { searchHistoryRepository } from '../lib/repositories'
 
 import { AdvancedSearchControls } from '../components/AdvancedSearchControls'
@@ -20,6 +22,7 @@ import { ProgressiveConversationCard } from '../components/ProgressiveConversati
 import { PremiumLiveSummaryCard } from '../components/PremiumLiveSummaryCard'
 import { QuickSearchTemplates } from '../components/QuickSearchTemplates'
 import { SearchHistoryPanel } from '../components/SearchHistoryPanel'
+import type { TripBookingSelection } from '../components/TripItineraryResults'
 
 const TripItineraryResults = lazy(() => import('../components/TripItineraryResults'))
 
@@ -27,7 +30,8 @@ type Tab = 'controls' | 'conversation' | 'history'
 
 export default function SearchWorkspace() {
   const navigate = useNavigate()
-  const { session: persistedSession, saveSession: persistSession, clearSession: clearPersistedSession, loading: sessionLoading } = useSessionPersistence()
+  const { user } = useAuth()
+  const { session: persistedSession, saveSession: persistSession, clearSession: clearPersistedSession, loading: sessionLoading, sessionId } = useSessionPersistence()
 
   const [session, setSession] = useState<TravelSession>(() => {
     if (persistedSession && persistedSession.completedFields.length > 0) return persistedSession
@@ -38,6 +42,8 @@ export default function SearchWorkspace() {
   const [tripResult, setTripResult] = useState<TripItineraryResult | null>(null)
   const [orchestrationError, setOrchestrationError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
+  const [continuingToBooking, setContinuingToBooking] = useState(false)
+  const [continueError, setContinueError] = useState<string | null>(null)
 
   const profileReady = useMemo(() => isDecisionProfileReady(session), [session])
   const confirmed = session.decisionProfileConfirmed
@@ -131,11 +137,46 @@ export default function SearchWorkspace() {
     persistSession(confirmedSession)
   }, [session, persistSession])
 
+  const handleContinueToBooking = useCallback(async (selection: TripBookingSelection) => {
+    if (!tripResult) return
+    if (!user?.id) {
+      setContinueError('يجب تسجيل الدخول لإنشاء جلسة حجز.')
+      return
+    }
+    setContinuingToBooking(true)
+    setContinueError(null)
+    try {
+      const created = await createTripBookingSession({
+        userId: user.id,
+        travelSessionId: sessionId,
+        flight: selection.flight,
+        hotel: selection.hotel,
+        summary: tripResult.summary,
+      })
+      if (!created.session) {
+        setContinueError(created.error ?? 'تعذّر إنشاء جلسة الحجز.')
+        return
+      }
+      if (created.error && !created.persisted) {
+        setContinueError('تم تجهيز الاختيار محلياً، لكن حفظه في قاعدة البيانات فشل. حاول مرة أخرى.')
+        return
+      }
+      navigate('/booking/review', {
+        state: { bookingSessionId: created.session.id },
+      })
+    } catch {
+      setContinueError('تعذّر إنشاء جلسة الحجز. حاول مرة أخرى.')
+    } finally {
+      setContinuingToBooking(false)
+    }
+  }, [tripResult, user?.id, sessionId, navigate])
+
   const handleReset = useCallback(() => {
     clearPersistedSession()
     setSession(createEmptyTravelSession())
     setTripResult(null)
     setOrchestrationError(null)
+    setContinueError(null)
   }, [clearPersistedSession])
 
   const handleContinueSearch = useCallback((row: { destination: string; search_request: Record<string, unknown> }) => {
@@ -295,7 +336,12 @@ export default function SearchWorkspace() {
                       <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
                     </div>
                   }>
-                    <TripItineraryResults result={tripResult} />
+                    <TripItineraryResults
+                      result={tripResult}
+                      onContinueToBooking={handleContinueToBooking}
+                      continuing={continuingToBooking}
+                      continueError={continueError}
+                    />
                   </Suspense>
                 )}
               </div>

@@ -42,3 +42,17 @@ export {
   type BookingEventRow,
   type CreateBookingEventRowInput,
 } from '../repositories/bookingEventRepository'
+export {
+  flightOfferToBookingItemInput,
+  hotelOfferToBookingItemInput,
+  formatTravelerSummary,
+} from './bookingOfferMappers'
+export {
+  createTripBookingSession,
+  loadTripBookingSession,
+  confirmTripBookingSelection,
+  bookingSessionFromRow,
+  bookingItemFromRow,
+  type CreateTripBookingInput,
+  type CreateTripBookingResult,
+} from './bookingSessionService'

@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import type { FlightOffer } from '../utils/contracts/models/flight'
 import type { HotelOffer } from '../utils/contracts/models/hotel'
 import type { TripItineraryResult } from '../utils/tripPlanner'
@@ -41,12 +42,23 @@ function sourceLabel(source: string): string {
   return '—'
 }
 
-function FlightOfferCard({ offer, selected }: { offer: FlightOffer; selected: boolean }) {
+function FlightOfferCard({
+  offer,
+  selected,
+  onSelect,
+}: {
+  offer: FlightOffer
+  selected: boolean
+  onSelect: () => void
+}) {
   const first = offer.itinerary.segments[0]
   const last = offer.itinerary.segments[offer.itinerary.segments.length - 1]
   return (
-    <article
-      className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 hover:shadow-md ${
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`w-full text-right overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 hover:shadow-md ${
         selected ? 'border-primary-200 ring-1 ring-primary-100' : 'border-slate-100 hover:border-slate-200'
       }`}
     >
@@ -61,7 +73,7 @@ function FlightOfferCard({ offer, selected }: { offer: FlightOffer; selected: bo
         <div className="text-left">
           <p className="text-base font-bold text-primary-700">{formatMoney(offer.price, offer.currency)}</p>
           {selected && (
-            <p className="mt-0.5 text-[10px] font-bold text-primary-500">الأقل سعراً في الباقة</p>
+            <p className="mt-0.5 text-[10px] font-bold text-primary-500">مختار</p>
           )}
         </div>
       </div>
@@ -72,14 +84,25 @@ function FlightOfferCard({ offer, selected }: { offer: FlightOffer; selected: bo
           <span className="rounded-full bg-success-50 px-2 py-1 text-success-700">أمتعة مشمولة</span>
         )}
       </div>
-    </article>
+    </button>
   )
 }
 
-function HotelOfferCard({ offer, selected }: { offer: HotelOffer; selected: boolean }) {
+function HotelOfferCard({
+  offer,
+  selected,
+  onSelect,
+}: {
+  offer: HotelOffer
+  selected: boolean
+  onSelect: () => void
+}) {
   return (
-    <article
-      className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 hover:shadow-md ${
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`w-full text-right overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 hover:shadow-md ${
         selected ? 'border-primary-200 ring-1 ring-primary-100' : 'border-slate-100 hover:border-slate-200'
       }`}
     >
@@ -94,7 +117,7 @@ function HotelOfferCard({ offer, selected }: { offer: HotelOffer; selected: bool
         <div className="text-left">
           <p className="text-base font-bold text-primary-700">{formatMoney(offer.price, offer.currency)}</p>
           {selected && (
-            <p className="mt-0.5 text-[10px] font-bold text-primary-500">الأقل سعراً في الباقة</p>
+            <p className="mt-0.5 text-[10px] font-bold text-primary-500">مختار</p>
           )}
         </div>
       </div>
@@ -112,21 +135,56 @@ function HotelOfferCard({ offer, selected }: { offer: HotelOffer; selected: bool
           <span className="rounded-full bg-slate-50 px-2 py-1">تقييم {offer.rating}</span>
         )}
       </div>
-    </article>
+    </button>
   )
+}
+
+export interface TripBookingSelection {
+  flight: FlightOffer
+  hotel: HotelOffer
+  estimatedTotal: number
+  currency: string
 }
 
 export interface TripItineraryResultsProps {
   result: TripItineraryResult
+  onContinueToBooking?: (selection: TripBookingSelection) => void
+  continuing?: boolean
+  continueError?: string | null
 }
 
-export default function TripItineraryResults({ result }: TripItineraryResultsProps) {
+export default function TripItineraryResults({
+  result,
+  onContinueToBooking,
+  continuing = false,
+  continueError = null,
+}: TripItineraryResultsProps) {
   const { summary, estimatedCost, flights, hotels, selectedFlight, selectedHotel, sources, errors } = result
   const domainErrors = errors.filter((e) => e.domain !== 'validation')
 
+  const [pickedFlightId, setPickedFlightId] = useState<string | null>(selectedFlight?.id ?? flights[0]?.id ?? null)
+  const [pickedHotelId, setPickedHotelId] = useState<string | null>(selectedHotel?.id ?? hotels[0]?.id ?? null)
+
+  useEffect(() => {
+    setPickedFlightId(selectedFlight?.id ?? flights[0]?.id ?? null)
+    setPickedHotelId(selectedHotel?.id ?? hotels[0]?.id ?? null)
+  }, [result.requestId, selectedFlight?.id, selectedHotel?.id, flights, hotels])
+
+  const pickedFlight = useMemo(
+    () => flights.find((f) => f.id === pickedFlightId) ?? null,
+    [flights, pickedFlightId],
+  )
+  const pickedHotel = useMemo(
+    () => hotels.find((h) => h.id === pickedHotelId) ?? null,
+    [hotels, pickedHotelId],
+  )
+
+  const packageTotal =
+    pickedFlight && pickedHotel ? pickedFlight.price + pickedHotel.price : null
+  const canContinue = !!pickedFlight && !!pickedHotel && !!onContinueToBooking
+
   return (
     <div className="space-y-6" role="region" aria-label="خطة الرحلة">
-      {/* Travel summary */}
       <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-sm font-bold text-slate-900">ملخص الرحلة</h2>
@@ -163,35 +221,34 @@ export default function TripItineraryResults({ result }: TripItineraryResultsPro
         </div>
       </section>
 
-      {/* Estimated package cost */}
       <section className="overflow-hidden rounded-2xl border border-primary-100 bg-gradient-to-bl from-primary-50/50 to-white p-5 shadow-sm">
         <h2 className="mb-3 text-sm font-bold text-slate-900">التكلفة التقديرية للباقة</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div>
             <p className="text-[10px] font-medium text-slate-400">الطيران</p>
-            <p className="text-sm font-bold text-slate-800">{formatMoney(estimatedCost.flight, estimatedCost.currency)}</p>
+            <p className="text-sm font-bold text-slate-800">
+              {formatMoney(pickedFlight?.price ?? estimatedCost.flight, estimatedCost.currency)}
+            </p>
           </div>
           <div>
             <p className="text-[10px] font-medium text-slate-400">الفندق</p>
-            <p className="text-sm font-bold text-slate-800">{formatMoney(estimatedCost.hotel, estimatedCost.currency)}</p>
+            <p className="text-sm font-bold text-slate-800">
+              {formatMoney(pickedHotel?.price ?? estimatedCost.hotel, estimatedCost.currency)}
+            </p>
           </div>
           <div>
             <p className="text-[10px] font-medium text-slate-400">الإجمالي</p>
-            <p className="text-base font-bold text-primary-700">{formatMoney(estimatedCost.total, estimatedCost.currency)}</p>
+            <p className="text-base font-bold text-primary-700">
+              {formatMoney(packageTotal ?? estimatedCost.total, estimatedCost.currency)}
+            </p>
           </div>
           <div>
             <p className="text-[10px] font-medium text-slate-400">الميزانية</p>
             <p className="text-sm font-bold text-slate-800">{formatMoney(estimatedCost.budgetAmount, estimatedCost.currency)}</p>
-            {estimatedCost.withinBudget === true && (
-              <p className="mt-0.5 text-[10px] font-bold text-success-600">ضمن الميزانية</p>
-            )}
-            {estimatedCost.withinBudget === false && (
-              <p className="mt-0.5 text-[10px] font-bold text-rose-600">تتجاوز الميزانية</p>
-            )}
           </div>
         </div>
         <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
-          التقدير يعتمد على أقل سعر طيران وأقل سعر فندق من النتائج الحالية. لا يشمل تأكيد الحجز أو الدفع.
+          اختر رحلة فندق واحدةثم واصل إلى مراجعة الحجز. لا يشمل الدفع في هذه المرحلة.
         </p>
       </section>
 
@@ -208,7 +265,6 @@ export default function TripItineraryResults({ result }: TripItineraryResultsPro
         </div>
       )}
 
-      {/* Flights */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-slate-900">رحلات الطيران</h2>
@@ -224,14 +280,14 @@ export default function TripItineraryResults({ result }: TripItineraryResultsPro
               <FlightOfferCard
                 key={offer.id}
                 offer={offer}
-                selected={selectedFlight?.id === offer.id}
+                selected={pickedFlightId === offer.id}
+                onSelect={() => setPickedFlightId(offer.id)}
               />
             ))}
           </div>
         )}
       </section>
 
-      {/* Hotels */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-slate-900">الفنادق</h2>
@@ -247,12 +303,40 @@ export default function TripItineraryResults({ result }: TripItineraryResultsPro
               <HotelOfferCard
                 key={offer.id}
                 offer={offer}
-                selected={selectedHotel?.id === offer.id}
+                selected={pickedHotelId === offer.id}
+                onSelect={() => setPickedHotelId(offer.id)}
               />
             ))}
           </div>
         )}
       </section>
+
+      {onContinueToBooking && (
+        <div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          {!canContinue && (
+            <p className="text-center text-xs text-amber-700">اختر رحلة طيران وفندقًا واحدًا للمتابعة.</p>
+          )}
+          {continueError && (
+            <p className="text-center text-xs font-medium text-rose-600">{continueError}</p>
+          )}
+          <button
+            type="button"
+            disabled={!canContinue || continuing}
+            onClick={() => {
+              if (!pickedFlight || !pickedHotel) return
+              onContinueToBooking({
+                flight: pickedFlight,
+                hotel: pickedHotel,
+                estimatedTotal: pickedFlight.price + pickedHotel.price,
+                currency: summary.currency,
+              })
+            }}
+            className="w-full rounded-2xl bg-primary-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-primary-600/25 transition-all hover:bg-primary-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+          >
+            {continuing ? 'جاري إنشاء جلسة الحجز...' : 'المتابعة إلى الحجز'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
