@@ -150,6 +150,29 @@ function mockFetchResponse(data: unknown, status = 200): Response {
   } as Response
 }
 
+const SAMPLE_DESTINATION_RESPONSE = {
+  status: true,
+  data: [
+    {
+      dest_id: '-1746443',
+      search_type: 'city',
+      dest_type: 'city',
+      label: 'Tokyo, Japan',
+      city_name: 'Tokyo',
+    },
+  ],
+}
+
+/** Route destination lookup and hotel search with appropriate fixtures. */
+function mockBookingFetch(hotelData: unknown = SAMPLE_RESPONSE, hotelStatus = 200) {
+  return vi.fn().mockImplementation((url: string) => {
+    if (String(url).includes('searchDestination')) {
+      return Promise.resolve(mockFetchResponse(SAMPLE_DESTINATION_RESPONSE))
+    }
+    return Promise.resolve(mockFetchResponse(hotelData, hotelStatus))
+  })
+}
+
 // ── Normalization Tests ──────────────────────────────────────────────────────
 
 describe('Hotel Normalization', () => {
@@ -273,7 +296,7 @@ describe('BookingComAdapter', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it('returns successful ProviderResult with HotelOffer[]', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockFetchResponse(SAMPLE_RESPONSE)))
+    vi.stubGlobal('fetch', mockBookingFetch())
 
     const adapter = new BookingComAdapter(createAdapterConfig())
     const result = await adapter.searchHotels(MOCK_REQUEST)
@@ -286,7 +309,7 @@ describe('BookingComAdapter', () => {
   })
 
   it('returns Hotel[] from searchHotelsAsHotelModel', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockFetchResponse(SAMPLE_RESPONSE)))
+    vi.stubGlobal('fetch', mockBookingFetch())
 
     const adapter = new BookingComAdapter(createAdapterConfig())
     const result = await adapter.searchHotelsAsHotelModel(MOCK_REQUEST)
@@ -298,7 +321,7 @@ describe('BookingComAdapter', () => {
   })
 
   it('tracks diagnostics after search', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockFetchResponse(SAMPLE_RESPONSE)))
+    vi.stubGlobal('fetch', mockBookingFetch())
 
     const adapter = new BookingComAdapter(createAdapterConfig())
     await adapter.searchHotels(MOCK_REQUEST)
@@ -333,7 +356,8 @@ describe('BookingComAdapter', () => {
   })
 
   it('returns error result on 429 quota exceeded', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockFetchResponse({ error: 'Too many requests' }, 429)))
+    // Destination succeeds; hotel search hits rate limit
+    vi.stubGlobal('fetch', mockBookingFetch({ error: 'Too many requests' }, 429))
 
     const adapter = new BookingComAdapter(createAdapterConfig({ maxRetries: 0 }))
     const result = await adapter.searchHotels(MOCK_REQUEST)
@@ -506,7 +530,7 @@ describe('HotelService Fallback', () => {
     resetProviderRegistry()
     clearConfigCache()
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockFetchResponse(SAMPLE_RESPONSE)))
+    vi.stubGlobal('fetch', mockBookingFetch())
 
     const service = createHotelService()
     const model = await service.searchHotels(MOCK_REQUEST)
