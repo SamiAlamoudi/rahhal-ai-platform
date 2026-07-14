@@ -120,6 +120,54 @@ export class BookingOrchestrator {
     return this.cloneSession(session)
   }
 
+  /**
+   * Hydrate an existing booking session (e.g. loaded from Supabase) into memory.
+   * Replaces any prior memory copy with the same id.
+   */
+  importSession(session: BookingSession): BookingSession {
+    const clone = this.cloneSession(session)
+    this.sessions.set(clone.id, clone)
+    this.lastError = null
+    return this.cloneSession(clone)
+  }
+
+  /**
+   * Confirm the traveler's flight+hotel selection without payment.
+   * Sets confirmedAt and keeps status as selected.
+   */
+  confirmSelection(sessionId: string): BookingSession | null {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      this.lastError = 'Session not found'
+      return null
+    }
+    if (isSessionExpired(session)) {
+      session.status = 'expired'
+      this.lastError = 'Session expired'
+      return this.cloneSession(session)
+    }
+    if (session.status === 'cancelled' || session.status === 'expired') {
+      this.lastError = `Cannot confirm selection from status: ${session.status}`
+      return this.cloneSession(session)
+    }
+    if (session.items.length === 0) {
+      this.lastError = 'No items in session'
+      return this.cloneSession(session)
+    }
+    const hasFlight = session.items.some((item) => item.type === 'flight')
+    const hasHotel = session.items.some((item) => item.type === 'hotel')
+    if (!hasFlight || !hasHotel) {
+      this.lastError = 'Selection must include one flight and one hotel'
+      return this.cloneSession(session)
+    }
+
+    session.status = 'selected'
+    session.confirmedAt = nowIso()
+    session.updatedAt = nowIso()
+    this.lastError = null
+    return this.cloneSession(session)
+  }
+
   getBookingSession(sessionId: string): BookingSession | null {
     const session = this.sessions.get(sessionId)
     if (!session) return null

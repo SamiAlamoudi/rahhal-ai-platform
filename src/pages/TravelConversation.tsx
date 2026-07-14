@@ -10,15 +10,18 @@ import {
   type TravelSession,
 } from '../utils/travelSession'
 import { useSessionPersistence } from '../lib/hooks/useSessionPersistence'
+import { useAuth } from '../lib/auth'
 import {
   planTrip,
   buildTripPlannerRequestFromSession,
   type TripItineraryResult,
 } from '../utils/tripPlanner'
+import { createTripBookingSession } from '../lib/booking/bookingSessionService'
 import { buildRahhalReply, buildWelcomeReply, buildResumedReply, progressText } from '../utils/rahhalVoice'
 import DecisionProfile from '../components/DecisionProfile'
 import LiveSummaryCard from '../components/LiveSummaryCard'
 import TripItineraryResults from '../components/TripItineraryResults'
+import type { TripBookingSelection } from '../components/TripItineraryResults'
 
 interface ChatMessage {
   id: number
@@ -30,8 +33,9 @@ export default function TravelConversation() {
   const navigate = useNavigate()
   const location = useLocation()
   const initialText = (location.state as { tripText?: string } | null)?.tripText ?? ''
+  const { user } = useAuth()
 
-  const { session: persistedSession, saveSession: persistSession, clearSession: clearPersistedSession, loading: sessionLoading } = useSessionPersistence()
+  const { session: persistedSession, saveSession: persistSession, clearSession: clearPersistedSession, loading: sessionLoading, sessionId } = useSessionPersistence()
   const [session, setSession] = useState<TravelSession>(() => {
     if (persistedSession && persistedSession.completedFields.length > 0) return persistedSession
     if (initialText.trim()) return mergeTravelSession(createEmptyTravelSession(), initialText)
@@ -66,6 +70,8 @@ export default function TravelConversation() {
   const [orchestrationError, setOrchestrationError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
   const [tripResult, setTripResult] = useState<TripItineraryResult | null>(null)
+  const [continuingToBooking, setContinuingToBooking] = useState(false)
+  const [continueError, setContinueError] = useState<string | null>(null)
   const msgIdRef = useRef(3)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -169,11 +175,46 @@ export default function TravelConversation() {
     }, 900)
   }
 
+  const handleContinueToBooking = async (selection: TripBookingSelection) => {
+    if (!tripResult) return
+    if (!user?.id) {
+      setContinueError('يجب تسجيل الدخول لإنشاء جلسة حجز.')
+      return
+    }
+    setContinuingToBooking(true)
+    setContinueError(null)
+    try {
+      const created = await createTripBookingSession({
+        userId: user.id,
+        travelSessionId: sessionId,
+        flight: selection.flight,
+        hotel: selection.hotel,
+        summary: tripResult.summary,
+      })
+      if (!created.session) {
+        setContinueError(created.error ?? 'تعذّر إنشاء جلسة الحجز.')
+        return
+      }
+      if (created.error && !created.persisted) {
+        setContinueError('تم تجهيز الاختيار محلياً، لكن حفظه في قاعدة البيانات فشل. حاول مرة أخرى.')
+        return
+      }
+      navigate('/booking/review', {
+        state: { bookingSessionId: created.session.id },
+      })
+    } catch {
+      setContinueError('تعذّر إنشاء جلسة الحجز. حاول مرة أخرى.')
+    } finally {
+      setContinuingToBooking(false)
+    }
+  }
+
   const handleReset = () => {
     clearPersistedSession()
     setSession(createEmptyTravelSession())
     setTripResult(null)
     setOrchestrationError(null)
+    setContinueError(null)
     const next = getNextBestQuestion(createEmptyTravelSession())
     setMessages([{ id: msgIdRef.current++, role: 'rahhal', text: buildWelcomeReply(next) }])
   }
@@ -345,7 +386,12 @@ export default function TravelConversation() {
                   <p className="text-sm font-medium text-slate-500">لا توجد خيارات متاحة لهذه الخطة حالياً.</p>
                 </div>
               ) : tripResult ? (
-                <TripItineraryResults result={tripResult} />
+                <TripItineraryResults
+                  result={tripResult}
+                  onContinueToBooking={handleContinueToBooking}
+                  continuing={continuingToBooking}
+                  continueError={continueError}
+                />
               ) : null}
             </section>
           )}

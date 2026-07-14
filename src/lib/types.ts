@@ -78,13 +78,13 @@ export interface BookingSessionRow {
   user_id: string
   travel_session_id: string | null
   status: string
-  items: Record<string, unknown>
+  items: unknown
   subtotal: number
   fees: number
   total: number
   currency: string
   selected_booking_mode: string
-  provider_references: Record<string, unknown>
+  provider_references: unknown
   created_at: string
   updated_at: string
   expires_at: string

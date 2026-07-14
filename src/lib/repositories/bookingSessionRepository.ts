@@ -4,27 +4,30 @@ import type { BookingSessionRow } from '../types'
 export type { BookingSessionRow }
 
 export interface CreateBookingSessionRowInput {
+  /** When set, inserts with this UUID (must match in-memory booking session id). */
+  id?: string
   travel_session_id: string | null
   status: string
-  items: Record<string, unknown>
+  items: unknown
   subtotal: number
   fees: number
   total: number
   currency: string
   selected_booking_mode: string
-  provider_references: Record<string, unknown>
+  provider_references: unknown
   expires_at: string
+  confirmed_at?: string | null
 }
 
 export interface UpdateBookingSessionRowInput {
   status?: string
-  items?: Record<string, unknown>
+  items?: unknown
   subtotal?: number
   fees?: number
   total?: number
   currency?: string
   selected_booking_mode?: string
-  provider_references?: Record<string, unknown>
+  provider_references?: unknown
   redirected_at?: string | null
   confirmed_at?: string | null
 }
