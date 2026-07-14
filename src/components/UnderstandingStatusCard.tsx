@@ -20,8 +20,8 @@ const FIELDS_TO_SHOW: (keyof TravelSession)[] = [
 const CONFIDENCE_LABELS: Record<string, string> = {
   high: 'ثقة مرتفعة',
   medium: 'ثقة متوسطة',
-  low: 'تحتاج تأكيد',
-  none: 'تحتاج تأكيد',
+  low: 'يحتاج تأكيد',
+  none: 'يحتاج تأكيد',
 }
 
 const CONFIDENCE_COLORS: Record<string, string> = {
