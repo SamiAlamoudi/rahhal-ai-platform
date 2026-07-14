@@ -22,6 +22,7 @@ import {
 import { AmadeusFlightAdapter } from '../providers/amadeus'
 import { BookingComAdapter } from '../providers/booking'
 import { RentalCarsComAdapter } from '../providers/rentalcars'
+import { AMADEUS_DEFAULT_HOST } from '../providers/amadeus/amadeusHost'
 
 export type IntegrationProvider =
   | FlightProvider
@@ -61,11 +62,11 @@ function createAdapter(domain: ProviderDomain | 'currency', adapterType: Provide
       if (adapterType === 'mock') return new MockFlightAdapter()
       if (adapterType === 'amadeus') {
         const cfg = config.flight
-        if (!cfg.clientId || !cfg.clientSecret) return null
+        if (!cfg.tokenUrl || !cfg.invokeApiKey) return null
         return new AmadeusFlightAdapter({
-          clientId: cfg.clientId,
-          clientSecret: cfg.clientSecret,
-          baseUrl: cfg.baseUrl || 'https://test.api.amadeus.com',
+          tokenUrl: cfg.tokenUrl,
+          invokeApiKey: cfg.invokeApiKey,
+          baseUrl: cfg.baseUrl || AMADEUS_DEFAULT_HOST,
           timeout: cfg.timeout,
           maxRetries: cfg.maxRetries,
         })

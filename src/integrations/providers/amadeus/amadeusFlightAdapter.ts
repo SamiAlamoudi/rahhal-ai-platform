@@ -3,8 +3,10 @@ import { okResult, errorResult } from '../../../utils/contracts/result'
 import { defaultCapabilities } from '../../../utils/contracts/capabilities'
 import type { ProviderMetadata } from '../../../utils/contracts/metadata'
 import { AmadeusOAuthClient } from './amadeusOAuthClient'
-import { AmadeusFlightApiClient, type ApiClientConfig, type FlightSearchQuery } from './amadeusFlightApiClient'
+import { AmadeusFlightApiClient, type ApiClientConfig } from './amadeusFlightApiClient'
 import { normalizeAmadeusResponse } from './flightNormalization'
+import { buildAmadeusFlightSearchQuery } from './flightSearchModule'
+import { AMADEUS_DEFAULT_HOST, normalizeAmadeusHost } from './amadeusHost'
 
 const METADATA: ProviderMetadata = {
   id: 'amadeus-flight-001',
@@ -23,29 +25,14 @@ const CAPABILITIES: ProviderCapabilities = {
 }
 
 export interface AmadeusFlightAdapterConfig {
-  clientId: string
-  clientSecret: string
+  /** Server-side token proxy URL (Supabase Edge Function). */
+  tokenUrl: string
+  /** Supabase anon key / JWT used to invoke the proxy — never an Amadeus secret. */
+  invokeApiKey: string
+  /** Amadeus API host (e.g. https://test.api.amadeus.com). Paths use /v1/... */
   baseUrl: string
   timeout: number
   maxRetries: number
-}
-
-const CABIN_MAP: Record<string, string> = {
-  'economy': 'ECONOMY',
-  'premium-economy': 'PREMIUM_ECONOMY',
-  'business': 'BUSINESS',
-  'first': 'FIRST',
-}
-
-function mapCabinForApi(preferredCabin: string): string | undefined {
-  if (!preferredCabin) return undefined
-  return CABIN_MAP[preferredCabin] ?? undefined
-}
-
-function mapOriginDestination(city: string, fallback: string): string {
-  const iata = city.toUpperCase().slice(0, 3)
-  if (iata.length === 3) return iata
-  return fallback
 }
 
 export class AmadeusFlightAdapter implements FlightProvider {
@@ -55,13 +42,12 @@ export class AmadeusFlightAdapter implements FlightProvider {
 
   constructor(config: AmadeusFlightAdapterConfig) {
     this.oauthClient = new AmadeusOAuthClient({
-      clientId: config.clientId,
-      clientSecret: config.clientSecret,
-      baseUrl: config.baseUrl,
+      tokenUrl: config.tokenUrl,
+      invokeApiKey: config.invokeApiKey,
       timeout: config.timeout,
     })
     const apiConfig: ApiClientConfig = {
-      baseUrl: config.baseUrl,
+      baseUrl: normalizeAmadeusHost(config.baseUrl || AMADEUS_DEFAULT_HOST),
       timeout: config.timeout,
       maxRetries: config.maxRetries,
     }
@@ -76,21 +62,30 @@ export class AmadeusFlightAdapter implements FlightProvider {
     return this.oauthClient
   }
 
+  getApiClient(): AmadeusFlightApiClient {
+    return this.apiClient
+  }
+
   async searchFlights(req: ProviderRequest): Promise<ProviderResult<FlightOffer[]>> {
     const start = Date.now()
-    const search = req.search
 
-    const query: FlightSearchQuery = {
-      origin: mapOriginDestination(search.departureCity, 'RUH'),
-      destination: mapOriginDestination(search.destination, 'NRT'),
-      departureDate: search.departureDate || '2026-10-15',
-      adults: search.travelers.adults || 1,
-      cabin: mapCabinForApi(search.preferredCabin),
-      currency: search.budgetCurrency || 'SAR',
-      maxResults: 10,
+    const built = await buildAmadeusFlightSearchQuery(this.apiClient, req.search, {
+      // Prefer local IATA/aliases first; remote lookup only when needed.
+      allowRemoteLookup: true,
+    })
+
+    if (!built.query) {
+      const latency = Date.now() - start
+      return errorResult<FlightOffer[]>(
+        METADATA.id,
+        METADATA.name,
+        built.errors,
+        latency,
+        'amadeus',
+      )
     }
 
-    const result = await this.apiClient.searchFlightOffers(query)
+    const result = await this.apiClient.searchFlightOffers(built.query)
     const latency = Date.now() - start
 
     if (result.error || !result.data) {

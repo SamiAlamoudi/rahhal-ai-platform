@@ -193,8 +193,8 @@ function mockFetch(response: Partial<Response>): ReturnType<typeof fetch> {
 
 function createAdapterConfig(overrides: Partial<AmadeusFlightAdapterConfig> = {}): AmadeusFlightAdapterConfig {
   return {
-    clientId: 'test-client-id',
-    clientSecret: 'test-client-secret',
+    tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+    invokeApiKey: 'test-anon-key',
     baseUrl: 'https://test.api.amadeus.com',
     timeout: 5000,
     maxRetries: 2,
@@ -220,8 +220,9 @@ describe('AmadeusOAuthClient', () => {
     }))
 
     const client = new AmadeusOAuthClient({
-      clientId: 'id', clientSecret: 'secret',
-      baseUrl: 'https://test.api.amadeus.com', timeout: 5000,
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
     })
 
     const r1 = await client.getToken()
@@ -232,6 +233,34 @@ describe('AmadeusOAuthClient', () => {
     const r2 = await client.getToken()
     expect(r2.fromCache).toBe(true)
     expect(calls).toBe(1)
+  })
+
+  it('calls the server token proxy without transmitting Amadeus client secrets', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ access_token: 'tok', token_type: 'Bearer', expires_in: 1800 }),
+      text: async () => '',
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = new AmadeusOAuthClient({
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
+    })
+    await client.getToken()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toContain('/functions/v1/amadeus-token')
+    expect(String(url)).not.toContain('api.amadeus.com')
+    const body = String(init.body ?? '')
+    expect(body).not.toMatch(/client_secret/i)
+    expect(body).not.toMatch(/client_id/i)
+    const headers = init.headers as Record<string, string>
+    expect(headers.Authorization).toBe('Bearer test-anon-key')
+    expect(headers.apikey).toBe('test-anon-key')
   })
 
   it('refreshes expired token automatically', async () => {
@@ -247,8 +276,9 @@ describe('AmadeusOAuthClient', () => {
     }))
 
     const client = new AmadeusOAuthClient({
-      clientId: 'id', clientSecret: 'secret',
-      baseUrl: 'https://test.api.amadeus.com', timeout: 5000,
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
     })
 
     const r1 = await client.getToken()
@@ -277,8 +307,9 @@ describe('AmadeusOAuthClient', () => {
     }))
 
     const client = new AmadeusOAuthClient({
-      clientId: 'id', clientSecret: 'secret',
-      baseUrl: 'https://test.api.amadeus.com', timeout: 5000,
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
     })
 
     const [r1, r2, r3] = await Promise.all([
@@ -302,8 +333,9 @@ describe('AmadeusOAuthClient', () => {
     } as Response))
 
     const client = new AmadeusOAuthClient({
-      clientId: 'bad', clientSecret: 'bad',
-      baseUrl: 'https://test.api.amadeus.com', timeout: 5000,
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
     })
 
     const result = await client.getToken()
@@ -321,8 +353,9 @@ describe('AmadeusOAuthClient', () => {
     } as Response))
 
     const client = new AmadeusOAuthClient({
-      clientId: 'id', clientSecret: 'secret',
-      baseUrl: 'https://test.api.amadeus.com', timeout: 5000,
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
     })
 
     const result = await client.getToken()
@@ -334,8 +367,9 @@ describe('AmadeusOAuthClient', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
 
     const client = new AmadeusOAuthClient({
-      clientId: 'id', clientSecret: 'secret',
-      baseUrl: 'https://test.api.amadeus.com', timeout: 5000,
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
     })
 
     const result = await client.getToken()
@@ -351,8 +385,9 @@ describe('AmadeusOAuthClient', () => {
     } as Response))
 
     const client = new AmadeusOAuthClient({
-      clientId: 'id', clientSecret: 'secret',
-      baseUrl: 'https://test.api.amadeus.com', timeout: 5000,
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
     })
 
     expect(client.getTokenStatus()).toBe('none')
@@ -377,8 +412,9 @@ describe('AmadeusOAuthClient', () => {
     }))
 
     const client = new AmadeusOAuthClient({
-      clientId: 'id', clientSecret: 'secret',
-      baseUrl: 'https://test.api.amadeus.com', timeout: 5000,
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
     })
 
     await client.getToken()
@@ -397,7 +433,7 @@ describe('AmadeusFlightApiClient', () => {
   function stubTokenAndOffers(offers: AmadeusFlightOffersResponse) {
     let tokenCalls = 0
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/security/oauth2/token')) {
+      if (String(url).includes('amadeus-token')) {
         tokenCalls++
         return Promise.resolve({
           ok: true,
@@ -420,8 +456,9 @@ describe('AmadeusFlightApiClient', () => {
     const getTokenCalls = stubTokenAndOffers(SAMPLE_RESPONSE)
 
     const oauth = new AmadeusOAuthClient({
-      clientId: 'id', clientSecret: 'secret',
-      baseUrl: 'https://test.api.amadeus.com', timeout: 5000,
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
     })
     const api = new AmadeusFlightApiClient({
       baseUrl: 'https://test.api.amadeus.com',
@@ -442,12 +479,53 @@ describe('AmadeusFlightApiClient', () => {
     expect(getTokenCalls()).toBe(1)
   })
 
+  it('uses official /v1 shopping and location path prefixes', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('amadeus-token')) {
+        return Promise.resolve({
+          ok: true, status: 200,
+          json: async () => ({ access_token: 'tok', token_type: 'Bearer', expires_in: 1800 }),
+          text: async () => '',
+        } as Response)
+      }
+      return Promise.resolve({
+        ok: true, status: 200,
+        json: async () => SAMPLE_RESPONSE,
+        text: async () => '',
+      } as Response)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const oauth = new AmadeusOAuthClient({
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
+    })
+    const api = new AmadeusFlightApiClient({
+      baseUrl: 'https://test.api.amadeus.com',
+      timeout: 5000,
+      maxRetries: 0,
+    }, oauth)
+
+    await api.searchFlightOffers({
+      origin: 'RUH', destination: 'NRT',
+      departureDate: '2026-10-15', adults: 1,
+    })
+    await api.searchLocations('Dubai')
+
+    const offerUrl = String(fetchMock.mock.calls.find(([u]) => String(u).includes('flight-offers'))![0])
+    const locationUrl = String(fetchMock.mock.calls.find(([u]) => String(u).includes('reference-data/locations'))![0])
+    expect(offerUrl).toContain('https://test.api.amadeus.com/v1/shopping/flight-offers')
+    expect(locationUrl).toContain('https://test.api.amadeus.com/v1/reference-data/locations')
+  })
+
   it('reuses cached token across multiple searches', async () => {
     const getTokenCalls = stubTokenAndOffers(SAMPLE_RESPONSE)
 
     const oauth = new AmadeusOAuthClient({
-      clientId: 'id', clientSecret: 'secret',
-      baseUrl: 'https://test.api.amadeus.com', timeout: 5000,
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
     })
     const api = new AmadeusFlightApiClient({
       baseUrl: 'https://test.api.amadeus.com',
@@ -465,7 +543,7 @@ describe('AmadeusFlightApiClient', () => {
     let tokenCalls = 0
     let searchCalls = 0
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/security/oauth2/token')) {
+      if (String(url).includes('amadeus-token')) {
         tokenCalls++
         return Promise.resolve({
           ok: true,
@@ -482,8 +560,9 @@ describe('AmadeusFlightApiClient', () => {
     }))
 
     const oauth = new AmadeusOAuthClient({
-      clientId: 'id', clientSecret: 'secret',
-      baseUrl: 'https://test.api.amadeus.com', timeout: 5000,
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
     })
     const api = new AmadeusFlightApiClient({
       baseUrl: 'https://test.api.amadeus.com',
@@ -505,7 +584,7 @@ describe('AmadeusFlightApiClient', () => {
     let tokenCalls = 0
     let searchCalls = 0
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/security/oauth2/token')) {
+      if (String(url).includes('amadeus-token')) {
         tokenCalls++
         return Promise.resolve({
           ok: true, status: 200,
@@ -521,8 +600,9 @@ describe('AmadeusFlightApiClient', () => {
     }))
 
     const oauth = new AmadeusOAuthClient({
-      clientId: 'id', clientSecret: 'secret',
-      baseUrl: 'https://test.api.amadeus.com', timeout: 5000,
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
     })
     const api = new AmadeusFlightApiClient({
       baseUrl: 'https://test.api.amadeus.com',
@@ -541,7 +621,7 @@ describe('AmadeusFlightApiClient', () => {
 
   it('returns error on network failure', async () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/security/oauth2/token')) {
+      if (String(url).includes('amadeus-token')) {
         return Promise.resolve({
           ok: true, status: 200,
           json: async () => ({ access_token: 'tok', token_type: 'Bearer', expires_in: 1800 }),
@@ -552,8 +632,9 @@ describe('AmadeusFlightApiClient', () => {
     }))
 
     const oauth = new AmadeusOAuthClient({
-      clientId: 'id', clientSecret: 'secret',
-      baseUrl: 'https://test.api.amadeus.com', timeout: 5000,
+      tokenUrl: 'https://example.supabase.co/functions/v1/amadeus-token',
+      invokeApiKey: 'test-anon-key',
+      timeout: 5000,
     })
     const api = new AmadeusFlightApiClient({
       baseUrl: 'https://test.api.amadeus.com',
@@ -663,7 +744,7 @@ describe('AmadeusFlightAdapter', () => {
 
   it('returns successful ProviderResult with FlightOffer[]', async () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/security/oauth2/token')) {
+      if (String(url).includes('amadeus-token')) {
         return Promise.resolve({
           ok: true, status: 200,
           json: async () => ({ access_token: 'tok', token_type: 'Bearer', expires_in: 1800 }),
@@ -689,7 +770,7 @@ describe('AmadeusFlightAdapter', () => {
       json: async () => ({}), text: async () => 'Unauthorized',
     } as Response))
 
-    const adapter = new AmadeusFlightAdapter(createAdapterConfig({ clientId: 'bad', clientSecret: 'bad' }))
+    const adapter = new AmadeusFlightAdapter(createAdapterConfig())
     const result = await adapter.searchFlights(MOCK_REQUEST)
 
     expect(result.success).toBe(false)
@@ -727,8 +808,8 @@ describe('FlightService Fallback', () => {
 
   it('falls back to mock when Amadeus auth fails', async () => {
     vi.stubEnv('VITE_FLIGHT_PROVIDER', 'amadeus')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_ID', 'bad-id')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_SECRET', 'bad-secret')
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -747,8 +828,8 @@ describe('FlightService Fallback', () => {
 
   it('falls back to mock on network failure', async () => {
     vi.stubEnv('VITE_FLIGHT_PROVIDER', 'amadeus')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_ID', 'id')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_SECRET', 'secret')
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -763,8 +844,8 @@ describe('FlightService Fallback', () => {
 
   it('falls back to mock on quota exceeded', async () => {
     vi.stubEnv('VITE_FLIGHT_PROVIDER', 'amadeus')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_ID', 'id')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_SECRET', 'secret')
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -791,13 +872,13 @@ describe('FlightService Fallback', () => {
 
   it('returns real data when Amadeus succeeds', async () => {
     vi.stubEnv('VITE_FLIGHT_PROVIDER', 'amadeus')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_ID', 'id')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_SECRET', 'secret')
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key')
     resetProviderRegistry()
     clearConfigCache()
 
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/security/oauth2/token')) {
+      if (String(url).includes('amadeus-token')) {
         return Promise.resolve({
           ok: true, status: 200,
           json: async () => ({ access_token: 'tok', token_type: 'Bearer', expires_in: 1800 }),
@@ -838,8 +919,8 @@ describe('Provider Registry — Flight', () => {
 
   it('returns AmadeusFlightAdapter when amadeus is configured', () => {
     vi.stubEnv('VITE_FLIGHT_PROVIDER', 'amadeus')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_ID', 'test-id')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_SECRET', 'test-secret')
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -849,10 +930,24 @@ describe('Provider Registry — Flight', () => {
     expect(flight!.metadata.id).toBe('amadeus-flight-001')
   })
 
-  it('returns null for amadeus when credentials missing', () => {
+  it('auto-enables AmadeusFlightAdapter when token proxy is configured (no explicit adapter)', () => {
+    vi.stubEnv('VITE_AMADEUS_ENABLED', 'true')
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key')
+    resetProviderRegistry()
+    clearConfigCache()
+
+    const registry = getProviderRegistry()
+    const flight = registry.getFlight()
+    expect(flight).not.toBeNull()
+    expect(flight!.metadata.id).toBe('amadeus-flight-001')
+  })
+
+  it('returns null for amadeus when token proxy is missing', () => {
     vi.stubEnv('VITE_FLIGHT_PROVIDER', 'amadeus')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_ID', '')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_SECRET', '')
+    vi.stubEnv('VITE_SUPABASE_URL', '')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', '')
+    vi.stubEnv('VITE_AMADEUS_TOKEN_URL', '')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -899,8 +994,8 @@ describe('Diagnostics — Flight', () => {
 
   it('reports real mode and OAuth status for Amadeus', () => {
     vi.stubEnv('VITE_FLIGHT_PROVIDER', 'amadeus')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_ID', 'id')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_SECRET', 'secret')
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key')
     resetProviderRegistry()
     clearConfigCache()
     resetHealthService()
@@ -914,10 +1009,11 @@ describe('Diagnostics — Flight', () => {
     expect(flight!.tokenRemainingLifetime).toBeNull()
   })
 
-  it('reports not-configured OAuth when credentials missing', () => {
+  it('reports not-configured OAuth when token proxy is missing', () => {
     vi.stubEnv('VITE_FLIGHT_PROVIDER', 'amadeus')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_ID', '')
-    vi.stubEnv('VITE_AMADEUS_CLIENT_SECRET', '')
+    vi.stubEnv('VITE_SUPABASE_URL', '')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', '')
+    vi.stubEnv('VITE_AMADEUS_TOKEN_URL', '')
     resetProviderRegistry()
     clearConfigCache()
     resetHealthService()
