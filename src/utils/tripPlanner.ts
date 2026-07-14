@@ -10,6 +10,7 @@ import type { TravelSearchRequest } from './travelSearchRequest'
 import type { FlightOffer } from './contracts/models/flight'
 import type { HotelOffer } from './contracts/models/hotel'
 import type { ProviderRequest } from './contracts/providers/base'
+import type { TravelSession } from './travelSession'
 import {
   getFlightService,
   getHotelService,
@@ -103,6 +104,67 @@ function nightsBetween(departureDate: string, returnDate: string): number {
   const end = Date.parse(`${returnDate}T00:00:00Z`)
   if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 0
   return Math.round((end - start) / (24 * 60 * 60 * 1000))
+}
+
+/**
+ * Derive YYYY-MM-DD return date from an explicit returnDate or
+ * departureDate + durationDays (session often stores only duration).
+ */
+export function deriveReturnDate(
+  departureDate: string,
+  returnDate: string,
+  durationDays: number | null | undefined,
+): string {
+  const explicit = returnDate?.trim() ?? ''
+  if (explicit) return explicit
+  const departure = departureDate?.trim() ?? ''
+  const days = durationDays ?? 0
+  if (!departure || !(days > 0)) return ''
+  const start = Date.parse(`${departure}T00:00:00Z`)
+  if (Number.isNaN(start)) return ''
+  const end = new Date(start)
+  end.setUTCDate(end.getUTCDate() + days)
+  return end.toISOString().slice(0, 10)
+}
+
+/**
+ * Map TravelSession form/chat fields onto TripPlannerRequest.
+ * Returns null when required fields for planTrip validation are missing.
+ */
+export function buildTripPlannerRequestFromSession(
+  session: TravelSession,
+): TripPlannerRequest | null {
+  const origin = session.departureCity?.trim() ?? ''
+  const destination = session.destination?.trim() ?? ''
+  const departureDate = session.departureDate?.trim() ?? ''
+  const returnDate = deriveReturnDate(
+    departureDate,
+    session.returnDate ?? '',
+    session.durationDays,
+  )
+  const adults = session.adults ?? 0
+  const budgetAmount = session.budgetAmount ?? 0
+  const currency = (session.budgetCurrency || 'SAR').toUpperCase()
+
+  if (!origin || !destination || !departureDate || !returnDate) return null
+  if (!(adults > 0) || !(budgetAmount > 0)) return null
+  if (nightsBetween(departureDate, returnDate) <= 0) return null
+
+  return {
+    origin,
+    destination,
+    departureDate,
+    returnDate,
+    travelers: {
+      adults,
+      children: session.children ?? 0,
+      infants: session.infants ?? 0,
+    },
+    budget: {
+      amount: budgetAmount,
+      currency,
+    },
+  }
 }
 
 function cheapestByPrice<T extends { price: number }>(offers: T[]): T | null {

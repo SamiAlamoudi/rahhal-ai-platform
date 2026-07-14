@@ -7,11 +7,12 @@ import {
   isDecisionProfileReady,
   type TravelSession,
 } from '../utils/travelSession'
-import { buildTravelSearchRequest } from '../utils/travelSearchRequest'
 import { useSessionPersistence } from '../lib/hooks/useSessionPersistence'
-import type { SearchOrchestrationResult } from '../utils/searchOrchestrator'
-import { orchestrateLiveSearch } from '../utils/liveSearchOrchestrator'
-import { generateReasoning, type ReasoningResult } from '../utils/reasoningEngine'
+import {
+  planTrip,
+  buildTripPlannerRequestFromSession,
+  type TripItineraryResult,
+} from '../utils/tripPlanner'
 import { searchHistoryRepository } from '../lib/repositories'
 
 import { AdvancedSearchControls } from '../components/AdvancedSearchControls'
@@ -20,8 +21,7 @@ import { PremiumLiveSummaryCard } from '../components/PremiumLiveSummaryCard'
 import { QuickSearchTemplates } from '../components/QuickSearchTemplates'
 import { SearchHistoryPanel } from '../components/SearchHistoryPanel'
 
-const ResultsExperience = lazy(() => import('../components/ResultsExperience'))
-const DecisionDashboard = lazy(() => import('../components/DecisionDashboard'))
+const TripItineraryResults = lazy(() => import('../components/TripItineraryResults'))
 
 type Tab = 'controls' | 'conversation' | 'history'
 
@@ -35,27 +35,18 @@ export default function SearchWorkspace() {
   })
   const [activeTab, setActiveTab] = useState<Tab>('controls')
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
-  const [orchestrationResult, setOrchestrationResult] = useState<SearchOrchestrationResult | null>(null)
+  const [tripResult, setTripResult] = useState<TripItineraryResult | null>(null)
   const [orchestrationError, setOrchestrationError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
 
   const profileReady = useMemo(() => isDecisionProfileReady(session), [session])
   const confirmed = session.decisionProfileConfirmed
-  const rankedOptions = useMemo(() => orchestrationResult?.rankedOptions ?? [], [orchestrationResult])
-
-  const reasoningResults = useMemo(() => {
-    if (!confirmed || rankedOptions.length === 0) return new Map<string, ReasoningResult>()
-    const map = new Map<string, ReasoningResult>()
-    const req = buildTravelSearchRequest(session)
-    for (const option of rankedOptions) {
-      map.set(option.id, generateReasoning(option, req))
-    }
-    return map
-  }, [rankedOptions, confirmed, session])
+  const hasItinerary =
+    !!tripResult && (tripResult.flights.length > 0 || tripResult.hotels.length > 0)
 
   useEffect(() => {
     if (!confirmed) {
-      setOrchestrationResult(null)
+      setTripResult(null)
       setOrchestrationError(null)
       return
     }
@@ -64,26 +55,48 @@ export default function SearchWorkspace() {
     setSearching(true)
     setOrchestrationError(null)
 
-    const req = buildTravelSearchRequest(session)
-    orchestrateLiveSearch(req)
+    const plannerReq = buildTripPlannerRequestFromSession(session)
+    if (!plannerReq) {
+      setSearching(false)
+      setTripResult(null)
+      setOrchestrationError('أكمل تاريخ العودة أو مدة الرحلة مع بقية الحقول الأساسية قبل البحث.')
+      return
+    }
+
+    planTrip(plannerReq)
       .then((result) => {
         if (cancelled) return
-        setOrchestrationResult(result)
-        setOrchestrationError(null)
+        setTripResult(result)
+        const hardFail =
+          result.flights.length === 0
+          && result.hotels.length === 0
+          && result.errors.length > 0
+        if (hardFail) {
+          const validation = result.errors.find((e) => e.domain === 'validation')
+          setOrchestrationError(
+            validation?.message
+              ? 'تعذّر بناء طلب البحث من بياناتك. راجع التواريخ والمسافرين والميزانية.'
+              : 'تعذّر العثور على رحلات أو فنادق لهذه الخطة. حاول تعديل البحث.',
+          )
+        } else {
+          setOrchestrationError(null)
+        }
         searchHistoryRepository.create({
           session_id: null,
           destination: session.destination,
-          search_request: req as unknown as Record<string, unknown>,
-          result_count: result.rankedOptions.length,
-          ranked_top_option: result.rankedOptions[0]?.title ?? null,
+          search_request: plannerReq as unknown as Record<string, unknown>,
+          result_count: result.flights.length + result.hotels.length,
+          ranked_top_option: result.selectedFlight?.title
+            ?? result.selectedHotel?.title
+            ?? null,
         }).then(() => {
           if (!cancelled) setHistoryRefreshKey(k => k + 1)
         }).catch(() => {})
       })
       .catch(() => {
         if (cancelled) return
-        setOrchestrationResult(null)
-        setOrchestrationError('تعذّر تشغيل محرك البحث. حاول مرة أخرى.')
+        setTripResult(null)
+        setOrchestrationError('تعذّر تشغيل مخطط الرحلة. حاول مرة أخرى.')
       })
       .finally(() => {
         if (!cancelled) setSearching(false)
@@ -121,7 +134,7 @@ export default function SearchWorkspace() {
   const handleReset = useCallback(() => {
     clearPersistedSession()
     setSession(createEmptyTravelSession())
-    setOrchestrationResult(null)
+    setTripResult(null)
     setOrchestrationError(null)
   }, [clearPersistedSession])
 
@@ -248,64 +261,41 @@ export default function SearchWorkspace() {
               )}
             </div>
 
-            {/* Results section — spans below controls */}
+            {/* Results section — trip planner itinerary */}
             {confirmed && (
               <div className="mt-6 space-y-6" role="region" aria-label="نتائج البحث">
                 <div className="flex items-center justify-between gap-3 rounded-2xl border border-success-200 bg-success-50 px-5 py-4">
                   <p className="text-sm font-bold text-success-700">خطتك جاهزة للبحث والمقارنة</p>
-                  {rankedOptions.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => navigate('/results', {
-                        state: {
-                          rankedOptions,
-                          reasoningResults,
-                          searchRequest: buildTravelSearchRequest(session),
-                        },
-                      })}
-                      className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-primary-700 active:scale-[0.98]"
-                    >
-                      عرض صفحة النتائج الكاملة ←
-                    </button>
-                  )}
                 </div>
 
                 {searching && (
                   <div className="flex items-center justify-center py-12" aria-label="جاري البحث">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
-                      <p className="text-sm text-slate-500">رحّال يفكر في أفضل خياراتك...</p>
+                      <p className="text-sm text-slate-500">رحّال يجمع رحلاتك وفنادقك...</p>
                     </div>
                   </div>
                 )}
 
-                {!searching && orchestrationError && (
+                {!searching && orchestrationError && !hasItinerary && (
                   <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-center">
                     <p className="text-sm font-bold text-rose-600">{orchestrationError}</p>
                   </div>
                 )}
 
-                {!searching && !orchestrationError && rankedOptions.length === 0 && (
+                {!searching && !orchestrationError && !hasItinerary && (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-6 text-center">
-                    <p className="text-sm font-medium text-slate-500">لا توجد خيارات تجريبية متاحة حالياً.</p>
+                    <p className="text-sm font-medium text-slate-500">لا توجد خيارات متاحة لهذه الخطة حالياً.</p>
                   </div>
                 )}
 
-                {!searching && !orchestrationError && rankedOptions.length > 0 && (
+                {!searching && tripResult && hasItinerary && (
                   <Suspense fallback={
                     <div className="flex justify-center py-8">
                       <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
                     </div>
                   }>
-                    <ResultsExperience
-                      rankedOptions={rankedOptions}
-                      reasoningResults={reasoningResults}
-                    />
-                    <DecisionDashboard
-                      rankedOptions={rankedOptions}
-                      reasoningResults={reasoningResults}
-                      searchRequest={buildTravelSearchRequest(session)}
-                    />
+                    <TripItineraryResults result={tripResult} />
                   </Suspense>
                 )}
               </div>
