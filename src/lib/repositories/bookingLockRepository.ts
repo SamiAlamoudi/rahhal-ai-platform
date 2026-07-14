@@ -1,0 +1,116 @@
+import { supabase } from '../supabaseClient'
+import type { BookingLockRow, CouponRow } from '../payment/paymentRowTypes'
+
+export type { BookingLockRow } from '../payment/paymentRowTypes'
+
+export interface CreateBookingLockRowInput {
+  id: string
+  order_id: string
+  lock_token: string
+  status: string
+  expires_at: string
+}
+
+export interface UpdateBookingLockRowInput {
+  status?: string
+  released_at?: string | null
+}
+
+export const bookingLockRepository = {
+  async create(input: CreateBookingLockRowInput): Promise<BookingLockRow | null> {
+    const { data, error } = await supabase
+      .from('booking_locks')
+      .insert(input)
+      .select()
+      .maybeSingle()
+    if (error) throw error
+    return data
+  },
+
+  async update(id: string, updates: UpdateBookingLockRowInput): Promise<BookingLockRow | null> {
+    const { data, error } = await supabase
+      .from('booking_locks')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .maybeSingle()
+    if (error) throw error
+    return data
+  },
+
+  async getByOrderId(orderId: string): Promise<BookingLockRow | null> {
+    const { data, error } = await supabase
+      .from('booking_locks')
+      .select('*')
+      .eq('order_id', orderId)
+      .maybeSingle()
+    if (error) throw error
+    return data
+  },
+
+  async delete(id: string): Promise<boolean> {
+    const { error } = await supabase
+      .from('booking_locks')
+      .delete()
+      .eq('id', id)
+    if (error) throw error
+    return true
+  },
+}
+
+export type { CouponRow } from '../payment/paymentRowTypes'
+
+export interface CreateCouponRowInput {
+  code: string
+  type: string
+  value: number
+  currency: string | null
+  min_order_amount: number | null
+  max_discount: number | null
+  expires_at: string | null
+  active: boolean
+  description: string
+}
+
+export const couponRepository = {
+  async create(input: CreateCouponRowInput): Promise<CouponRow | null> {
+    const { data, error } = await supabase
+      .from('coupons')
+      .insert(input)
+      .select()
+      .maybeSingle()
+    if (error) throw error
+    return data
+  },
+
+  async getByCode(code: string): Promise<CouponRow | null> {
+    const { data, error } = await supabase
+      .from('coupons')
+      .select('*')
+      .eq('code', code)
+      .maybeSingle()
+    if (error) throw error
+    return data
+  },
+
+  async listActive(): Promise<CouponRow[]> {
+    const { data, error } = await supabase
+      .from('coupons')
+      .select('*')
+      .eq('active', true)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return data ?? []
+  },
+
+  async update(code: string, updates: Partial<CreateCouponRowInput>): Promise<CouponRow | null> {
+    const { data, error } = await supabase
+      .from('coupons')
+      .update(updates)
+      .eq('code', code)
+      .select()
+      .maybeSingle()
+    if (error) throw error
+    return data
+  },
+}
