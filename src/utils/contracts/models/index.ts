@@ -1,0 +1,8 @@
+export type { FlightSegment, FlightItinerary, FlightOffer, CabinClass } from './flight'
+export type { RoomType, HotelOffer } from './hotel'
+export type { ActivityOffer, ActivityType } from './activity'
+export type { TransferOffer, TransferType } from './transfer'
+export type { Vehicle, VehicleCategory, TransmissionType, FuelType } from './rentalCar'
+export type { VisaInfo } from './visa'
+export type { WeatherInfo, WeatherForecast, WeatherCondition } from './weather'
+export type { DestinationInsight, PointOfInterest, POICategory, SafetyLevel } from './destination'
