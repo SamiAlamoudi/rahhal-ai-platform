@@ -17,3 +17,4 @@ export function defaultCapabilities(): ProviderCapabilities {
     supportsCalendarSearch: false,
   }
 }
+

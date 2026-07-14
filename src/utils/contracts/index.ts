@@ -77,3 +77,4 @@ export { MockTransferProvider } from './mocks/mockTransferProvider'
 export { MockVisaProvider } from './mocks/mockVisaProvider'
 export { MockWeatherProvider } from './mocks/mockWeatherProvider'
 export { MockDestinationProvider } from './mocks/mockDestinationProvider'
+

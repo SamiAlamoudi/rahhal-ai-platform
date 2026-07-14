@@ -19,3 +19,4 @@ export interface ProviderMetadata {
   version: string
   capabilities?: ProviderCapabilities
 }
+
