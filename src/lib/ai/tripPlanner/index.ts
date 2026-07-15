@@ -83,3 +83,14 @@ export {
   handleTripPlannerHttpRequest,
   createTripPlannerHttpHandler,
 } from './http'
+
+export {
+  mapTravelSessionToTripPlannerRequest,
+  adaptTripPlannerResultToSearchOrchestration,
+  adaptReasoningMap,
+  localizeValidationErrors,
+  formatApiTransportError,
+  runTripPlannerFlow,
+  STAGE_LABELS_AR,
+  STAGE_LABELS_EN,
+} from './frontend'

@@ -1,5 +1,5 @@
 /**
- * Phase AB–AG — AI enhancement through Trip Planner API Layer v1.
+ * Phase AB–AH — AI enhancement through Frontend Trip Planner Integration v1.
  * Additive library surface; no UI; no breaking TripPlan / ProviderAdapter changes.
  */
 
@@ -206,4 +206,15 @@ export {
   assertUserOwnsRequest,
   handleTripPlannerHttpRequest,
   createTripPlannerHttpHandler,
+} from './tripPlanner'
+
+export {
+  mapTravelSessionToTripPlannerRequest,
+  adaptTripPlannerResultToSearchOrchestration,
+  adaptReasoningMap,
+  localizeValidationErrors,
+  formatApiTransportError,
+  runTripPlannerFlow,
+  STAGE_LABELS_AR,
+  STAGE_LABELS_EN,
 } from './tripPlanner'

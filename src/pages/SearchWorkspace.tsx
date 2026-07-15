@@ -9,9 +9,7 @@ import {
 } from '../utils/travelSession'
 import { buildTravelSearchRequest } from '../utils/travelSearchRequest'
 import { useSessionPersistence } from '../lib/hooks/useSessionPersistence'
-import type { SearchOrchestrationResult } from '../utils/searchOrchestrator'
-import { orchestrateLiveSearch } from '../utils/liveSearchOrchestrator'
-import { generateReasoning, type ReasoningResult } from '../utils/reasoningEngine'
+import { useTripPlannerApi } from '../lib/hooks/useTripPlannerApi'
 import { searchHistoryRepository } from '../lib/repositories'
 
 import { AdvancedSearchControls } from '../components/AdvancedSearchControls'
@@ -19,6 +17,7 @@ import { ProgressiveConversationCard } from '../components/ProgressiveConversati
 import { PremiumLiveSummaryCard } from '../components/PremiumLiveSummaryCard'
 import { QuickSearchTemplates } from '../components/QuickSearchTemplates'
 import { SearchHistoryPanel } from '../components/SearchHistoryPanel'
+import TripPlannerPlanStatus from '../components/TripPlannerPlanStatus'
 
 const ResultsExperience = lazy(() => import('../components/ResultsExperience'))
 const DecisionDashboard = lazy(() => import('../components/DecisionDashboard'))
@@ -35,64 +34,35 @@ export default function SearchWorkspace() {
   })
   const [activeTab, setActiveTab] = useState<Tab>('controls')
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
-  const [orchestrationResult, setOrchestrationResult] = useState<SearchOrchestrationResult | null>(null)
-  const [orchestrationError, setOrchestrationError] = useState<string | null>(null)
-  const [searching, setSearching] = useState(false)
 
   const profileReady = useMemo(() => isDecisionProfileReady(session), [session])
   const confirmed = session.decisionProfileConfirmed
-  const rankedOptions = useMemo(() => orchestrationResult?.rankedOptions ?? [], [orchestrationResult])
 
-  const reasoningResults = useMemo(() => {
-    if (!confirmed || rankedOptions.length === 0) return new Map<string, ReasoningResult>()
-    const map = new Map<string, ReasoningResult>()
-    const req = buildTravelSearchRequest(session)
-    for (const option of rankedOptions) {
-      map.set(option.id, generateReasoning(option, req))
-    }
-    return map
-  }, [rankedOptions, confirmed, session])
+  const tripPlanner = useTripPlannerApi({
+    session,
+    enabled: confirmed,
+    includeBookingPreview: true,
+    locale: 'ar',
+  })
+
+  const rankedOptions = tripPlanner.rankedOptions
+  const reasoningResults = tripPlanner.reasoningResults
+  const searching = tripPlanner.loading
+  const orchestrationError = tripPlanner.error
 
   useEffect(() => {
-    if (!confirmed) {
-      setOrchestrationResult(null)
-      setOrchestrationError(null)
-      return
-    }
-
-    let cancelled = false
-    setSearching(true)
-    setOrchestrationError(null)
-
+    if (!confirmed || searching || !tripPlanner.orchestrationResult) return
     const req = buildTravelSearchRequest(session)
-    orchestrateLiveSearch(req)
-      .then((result) => {
-        if (cancelled) return
-        setOrchestrationResult(result)
-        setOrchestrationError(null)
-        searchHistoryRepository.create({
-          session_id: null,
-          destination: session.destination,
-          search_request: req as unknown as Record<string, unknown>,
-          result_count: result.rankedOptions.length,
-          ranked_top_option: result.rankedOptions[0]?.title ?? null,
-        }).then(() => {
-          if (!cancelled) setHistoryRefreshKey(k => k + 1)
-        }).catch(() => {})
-      })
-      .catch(() => {
-        if (cancelled) return
-        setOrchestrationResult(null)
-        setOrchestrationError('تعذّر تشغيل محرك البحث. حاول مرة أخرى.')
-      })
-      .finally(() => {
-        if (!cancelled) setSearching(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [confirmed])
+    searchHistoryRepository.create({
+      session_id: null,
+      destination: session.destination,
+      search_request: req as unknown as Record<string, unknown>,
+      result_count: rankedOptions.length,
+      ranked_top_option: rankedOptions[0]?.title ?? null,
+    }).then(() => {
+      setHistoryRefreshKey(k => k + 1)
+    }).catch(() => {})
+  }, [confirmed, searching, tripPlanner.orchestrationResult?.requestId])
 
   useEffect(() => {
     if (sessionLoading) return
@@ -121,8 +91,6 @@ export default function SearchWorkspace() {
   const handleReset = useCallback(() => {
     clearPersistedSession()
     setSession(createEmptyTravelSession())
-    setOrchestrationResult(null)
-    setOrchestrationError(null)
   }, [clearPersistedSession])
 
   const handleContinueSearch = useCallback((row: { destination: string; search_request: Record<string, unknown> }) => {
@@ -270,20 +238,22 @@ export default function SearchWorkspace() {
                   )}
                 </div>
 
-                {searching && (
-                  <div className="flex items-center justify-center py-12" aria-label="جاري البحث">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
-                      <p className="text-sm text-slate-500">رحّال يفكر في أفضل خياراتك...</p>
-                    </div>
-                  </div>
-                )}
-
-                {!searching && orchestrationError && (
-                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-center">
-                    <p className="text-sm font-bold text-rose-600">{orchestrationError}</p>
-                  </div>
-                )}
+                <TripPlannerPlanStatus
+                  loading={searching}
+                  error={orchestrationError}
+                  pipelineLabels={tripPlanner.pipelineLabels}
+                  pipelineStage={tripPlanner.pipelineStage}
+                  confidence={tripPlanner.confidence}
+                  warnings={tripPlanner.warnings}
+                  assumptions={tripPlanner.assumptions}
+                  tradeOffs={tripPlanner.tradeOffs}
+                  validationErrors={tripPlanner.validationErrors}
+                  partial={tripPlanner.partial}
+                  bookingPreview={tripPlanner.bookingPreview}
+                  onRetry={tripPlanner.retry}
+                  onCancel={tripPlanner.cancel}
+                  locale="ar"
+                />
 
                 {!searching && !orchestrationError && rankedOptions.length === 0 && (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-6 text-center">
@@ -291,12 +261,23 @@ export default function SearchWorkspace() {
                   </div>
                 )}
 
-                {!searching && !orchestrationError && rankedOptions.length > 0 && (
+                {!searching && rankedOptions.length > 0 && (
                   <Suspense fallback={
                     <div className="flex justify-center py-8">
                       <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
                     </div>
                   }>
+                    {tripPlanner.result?.itinerary && (
+                      <div className="rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
+                        <h3 className="text-sm font-bold text-slate-900">خط السير اليومي</h3>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {tripPlanner.result.itinerary.durationDays} أيام
+                          {' · '}
+                          {tripPlanner.result.itinerary.costs.total}{' '}
+                          {tripPlanner.result.itinerary.costs.currency}
+                        </p>
+                      </div>
+                    )}
                     <ResultsExperience
                       rankedOptions={rankedOptions}
                       reasoningResults={reasoningResults}
