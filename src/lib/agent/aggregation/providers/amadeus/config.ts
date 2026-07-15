@@ -62,7 +62,16 @@ export function resolveAmadeusProviderConfig(
   const clientId = overrides.clientId ?? readProcessEnv('AMADEUS_CLIENT_ID')
   const clientSecret = overrides.clientSecret ?? readProcessEnv('AMADEUS_CLIENT_SECRET')
 
+  const envSwitch = String(
+    overrides.environment
+    ?? readProcessEnv('AMADEUS_ENV')
+    ?? readViteEnv('VITE_AMADEUS_ENV')
+    ?? 'auto',
+  ).toLowerCase()
+
   const explicitBase = overrides.baseUrl
+    ?? (envSwitch === 'production' ? PRODUCTION_HOST : null)
+    ?? (envSwitch === 'sandbox' ? SANDBOX_HOST : null)
     ?? readProcessEnv('AMADEUS_BASE_URL')
     ?? readViteEnv('VITE_AMADEUS_BASE_URL')
     ?? readViteEnv('VITE_FLIGHT_BASE_URL')

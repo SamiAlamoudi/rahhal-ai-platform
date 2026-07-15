@@ -21,8 +21,20 @@ function readViteEnv(key: string): string | null {
   }
 }
 
+function readProcessEnv(key: string): string | null {
+  try {
+    const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    const value = proc?.env?.[key]
+    if (value === undefined || value === null || value === '') return null
+    return String(value)
+  } catch {
+    return null
+  }
+}
+
 /**
  * Resolve Booking.com adapter config from RapidAPI / hotel integration settings.
+ * Prefers server-side RAPIDAPI_KEY / BOOKING_RAPIDAPI_KEY over VITE_* when present.
  */
 export function resolveBookingComProviderConfig(
   overrides: Partial<BookingComProviderConfig> = {},
@@ -30,7 +42,9 @@ export function resolveBookingComProviderConfig(
   const integration = getIntegrationConfig().hotel
   const apiKey = overrides.apiKey !== undefined
     ? overrides.apiKey
-    : (integration.apiKey
+    : (readProcessEnv('RAPIDAPI_KEY')
+      ?? readProcessEnv('BOOKING_RAPIDAPI_KEY')
+      ?? integration.apiKey
       ?? readViteEnv('VITE_RAPIDAPI_KEY')
       ?? readViteEnv('VITE_BOOKING_API_KEY'))
 
