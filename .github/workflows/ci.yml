@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Secret / env hygiene scan
+        run: |
+          set -euo pipefail
+          # Fail if forbidden client-side secret env keys appear as assignments in tracked source.
+          if grep -RInE \
+            --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist \
+            'VITE_AMADEUS_CLIENT_SECRET\s*=|VITE_GOOGLE_MAPS_API_KEY\s*=|VITE_OPENWEATHER_API_KEY\s*=|VITE_MOYASAR_SECRET' \
+            . ; then
+            echo "Forbidden client-side secret patterns found" >&2
+            exit 1
+          fi
+          # Payment must stay mock in example / staging templates
+          for f in .env.example .env.staging.example .env.production.example; do
+            grep -q 'VITE_PAYMENT_PROVIDER=mock' "$f" || {
+              echo "VITE_PAYMENT_PROVIDER=mock missing from $f" >&2
+              exit 1
+            }
+          done
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test:run
+
+      - name: Build
+        run: npm run build
+
+      - name: Dependency audit
+        run: npm run audit
+        continue-on-error: false

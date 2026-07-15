@@ -1,0 +1,6 @@
+{
+  "status": "ok",
+  "probe": "liveness",
+  "service": "rahhal-spa",
+  "note": "Static liveness probe. Use ops-health Edge Function or checkLiveness()/checkReadiness()/checkHealth() for full readiness."
+}

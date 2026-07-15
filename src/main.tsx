@@ -2,6 +2,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
+import { AppErrorBoundary } from './components/ops/AppErrorBoundary'
+import { runStartup } from './lib/ops'
 import Home from './pages/Home.tsx'
 import TravelConversation from './pages/TravelConversation.tsx'
 import SearchWorkspace from './pages/SearchWorkspace.tsx'
@@ -48,8 +50,15 @@ function ResultsRoute() {
 import { AuthProvider } from './lib/auth/AuthContext.tsx'
 import { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './lib/auth/ProtectedRoute.tsx'
 
+// Phase X — startup validation + global error handlers (non-UI).
+runStartup({
+  failFast: false,
+  installHandlers: true,
+})
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <AppErrorBoundary>
     <BrowserRouter>
       <AuthProvider>
         <Routes>
@@ -191,5 +200,6 @@ createRoot(document.getElementById('root')!).render(
         </Routes>
       </AuthProvider>
     </BrowserRouter>
+    </AppErrorBoundary>
   </StrictMode>,
 )

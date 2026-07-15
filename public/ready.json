@@ -1,0 +1,6 @@
+{
+  "status": "ok",
+  "probe": "readiness-static",
+  "service": "rahhal-spa",
+  "note": "Static file only proves the SPA bundle is deployed. Runtime readiness is validated via validateEnvironment() / ops-health."
+}

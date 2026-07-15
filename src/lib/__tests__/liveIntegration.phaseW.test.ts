@@ -30,6 +30,7 @@ import type { AggregationQuery, ProviderFetchResult } from '../agent/aggregation
 describe('Phase W feature flags', () => {
   it('resolves per-provider flags and mock fallback default on', () => {
     const flags = resolveProviderFeatureFlags({
+      liveIntegrationEnabled: true,
       mockFallbackEnabled: true,
       amadeusEnvironment: 'sandbox',
       providers: {
