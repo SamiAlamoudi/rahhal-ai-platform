@@ -156,7 +156,8 @@ export function createMockWeatherTool(
     name: 'weather',
     domain: 'weather',
     providerId: 'aggregate-weather',
-    timeoutMs: 1500,
+    timeoutMs: 10_000,
+    selectionStrategy: 'priority_fallback',
     engine,
     inputSchema: schema('WeatherInput', {
       ...destinationSchemaProps,

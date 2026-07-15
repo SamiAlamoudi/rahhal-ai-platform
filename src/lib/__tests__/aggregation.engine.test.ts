@@ -100,7 +100,7 @@ describe('aggregation engine', () => {
       'expedia',
       'google_maps_mock',
       'openstreetmap',
-      'openweather',
+      'openweather_mock',
       'exchangerate',
       'visa_info',
       'attractions_catalog',

@@ -64,6 +64,18 @@ export type {
   CreateGoogleMapsProviderAdapterOptions,
   GoogleMapsProviderAdapter,
 } from './providers/googleMaps'
+export {
+  createOpenWeatherProviderAdapter,
+  createWeatherProviderAdapter,
+  resolveOpenWeatherProviderConfig,
+  isOpenWeatherConfigured,
+  weatherSnapshotToNormalizedOffer,
+} from './providers/openWeather'
+export type {
+  OpenWeatherProviderConfig,
+  CreateOpenWeatherProviderAdapterOptions,
+  WeatherProviderAdapter,
+} from './providers/openWeather'
 export { createProviderAdapter } from './baseAdapter'
 export { normalizeProviderError, statusFromErrorCode } from './errors'
 export { createProviderHealthTracker, isProviderHealthyEnough } from './health'

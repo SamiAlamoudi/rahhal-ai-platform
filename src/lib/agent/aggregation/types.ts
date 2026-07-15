@@ -32,6 +32,7 @@ export type KnownProviderId =
   | 'openstreetmap'
   // Weather
   | 'openweather'
+  | 'openweather_mock'
   | 'tomorrow_io'
   // Currency
   | 'exchangerate'

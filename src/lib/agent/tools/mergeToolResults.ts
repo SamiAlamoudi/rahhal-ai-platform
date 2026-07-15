@@ -159,16 +159,160 @@ function mergeHotels(plan: TripPlan, result: AgentToolResult): TripPlan {
 }
 
 function mergeWeather(plan: TripPlan, result: AgentToolResult): TripPlan {
-  const data = result.data as { summary?: string; averageHighC?: number; season?: string } | undefined
+  const data = result.data as {
+    summary?: string
+    averageHighC?: number
+    averageLowC?: number
+    season?: string
+    packingHints?: string[]
+    travelTips?: string[]
+    alerts?: Array<{ event?: string; description?: string }>
+    daily?: Array<{
+      date?: string
+      tempHighC?: number
+      tempLowC?: number
+      condition?: string
+      rainProbability?: number | null
+      description?: string
+    }>
+    current?: {
+      tempC?: number
+      feelsLikeC?: number
+      humidity?: number
+      windKph?: number
+      uvIndex?: number | null
+      sunrise?: string | null
+      sunset?: string | null
+    }
+  } | undefined
   if (!data?.summary) return plan
+
   const note = plan.locale === 'ar'
     ? `الطقس: ${data.summary}${data.season ? ` · ${data.season}` : ''}`
     : `Weather: ${data.summary}${data.season ? ` · ${data.season}` : ''}`
+
+  const detailNotes: string[] = [note]
+  if (data.current) {
+    const parts = [
+      data.current.tempC != null ? `${data.current.tempC}°C` : null,
+      data.current.feelsLikeC != null ? `feels ${data.current.feelsLikeC}°C` : null,
+      data.current.humidity != null ? `humidity ${data.current.humidity}%` : null,
+      data.current.windKph != null ? `wind ${data.current.windKph} km/h` : null,
+      data.current.uvIndex != null ? `UV ${data.current.uvIndex}` : null,
+    ].filter(Boolean)
+    if (parts.length) {
+      detailNotes.push(plan.locale === 'ar'
+        ? `الآن: ${parts.join(' · ')}`
+        : `Now: ${parts.join(' · ')}`)
+    }
+  }
+  for (const alert of data.alerts ?? []) {
+    if (!alert.event) continue
+    detailNotes.push(plan.locale === 'ar'
+      ? `تنبيه طقس: ${alert.event}`
+      : `Weather alert: ${alert.event}`)
+  }
+
+  const packingSuggestions = mergeUniqueStrings(
+    plan.packingSuggestions,
+    Array.isArray(data.packingHints) ? data.packingHints : [],
+  )
+  const travelTips = mergeUniqueStrings(
+    plan.travelTips,
+    Array.isArray(data.travelTips) ? data.travelTips : [],
+  )
+
+  const daily = Array.isArray(data.daily) ? data.daily : []
+  const dailyItinerary = plan.dailyItinerary.map((day, index) => {
+    const forecast = daily[index] ?? daily.find((d) => d.date && plan.startDate
+      && dateForPlanDay(plan.startDate, day.day) === d.date)
+    if (!forecast) return day
+    const rainy = forecast.condition === 'rain' || forecast.condition === 'thunderstorm'
+      || (forecast.rainProbability != null && forecast.rainProbability >= 0.45)
+    const extremeHot = (forecast.tempHighC ?? 0) >= 35
+    const extremeCold = (forecast.tempLowC ?? 99) <= 0
+    let advice: string | null = null
+    if (rainy) {
+      advice = plan.locale === 'ar'
+        ? 'أفضل أنشطة داخلية أثناء المطر'
+        : 'Prefer indoor activities during rain'
+    } else if (extremeHot) {
+      advice = plan.locale === 'ar'
+        ? 'تجنّب الذروة الحرارية — نزهات صباحية/مسائية'
+        : 'Avoid peak heat — sightsee morning/evening'
+    } else if (extremeCold) {
+      advice = plan.locale === 'ar'
+        ? 'درجات منخفضة — قلّل الوقت في العراء مبكراً'
+        : 'Cold temperatures — shorten early outdoor time'
+    } else if (forecast.condition === 'sunny' || forecast.condition === 'partly-cloudy') {
+      advice = plan.locale === 'ar'
+        ? 'وقت مناسب للsightseeing في الهواء الطلق'
+        : 'Good window for outdoor sightseeing'
+    }
+
+    const weatherSummary = [
+      forecast.condition,
+      forecast.tempHighC != null && forecast.tempLowC != null
+        ? `${forecast.tempLowC}–${forecast.tempHighC}°C`
+        : null,
+      forecast.rainProbability != null
+        ? `${Math.round(forecast.rainProbability * 100)}% rain`
+        : null,
+    ].filter(Boolean).join(' · ')
+
+    const activities = rainy
+      ? day.activities.map((activity) => ({
+        ...activity,
+        description: activity.description
+          ? `${activity.description} · indoor-friendly if wet`
+          : 'Consider indoor option if rain picks up',
+      }))
+      : day.activities
+
+    return {
+      ...day,
+      activities,
+      weather: {
+        summary: weatherSummary || String(forecast.description ?? data.summary),
+        condition: String(forecast.condition ?? 'unknown'),
+        tempHighC: forecast.tempHighC ?? null,
+        tempLowC: forecast.tempLowC ?? null,
+        rainProbability: forecast.rainProbability ?? null,
+        advice,
+      },
+    }
+  })
+
   return {
     ...plan,
-    weatherNotes: [...plan.weatherNotes.filter((n) => !/Weather:|الطقس:/.test(n)), note],
+    dailyItinerary,
+    activities: dailyItinerary,
+    weatherNotes: [
+      ...plan.weatherNotes.filter((n) => !/Weather:|الطقس:|Now:|الآن:|Weather alert:|تنبيه طقس:/.test(n)),
+      ...detailNotes,
+    ],
+    packingSuggestions,
+    travelTips,
     notes: [...plan.notes, note],
   }
+}
+
+function mergeUniqueStrings(existing: string[], extra: string[]): string[] {
+  const out = [...existing]
+  for (const item of extra) {
+    const trimmed = item.trim()
+    if (!trimmed) continue
+    if (out.some((x) => x.toLowerCase() === trimmed.toLowerCase())) continue
+    out.push(trimmed)
+  }
+  return out
+}
+
+function dateForPlanDay(startDate: string, dayNumber: number): string | null {
+  const base = new Date(`${startDate}T00:00:00.000Z`)
+  if (Number.isNaN(base.getTime())) return null
+  base.setUTCDate(base.getUTCDate() + Math.max(0, dayNumber - 1))
+  return base.toISOString().slice(0, 10)
 }
 
 function mergeMaps(plan: TripPlan, result: AgentToolResult): TripPlan {

@@ -51,11 +51,23 @@ export interface ItineraryActivity {
   description: string | null
 }
 
+/** Optional per-day weather shown beside the itinerary (from the weather tool). */
+export interface DayWeatherSnapshot {
+  summary: string
+  condition: string
+  tempHighC: number | null
+  tempLowC: number | null
+  rainProbability: number | null
+  advice: string | null
+}
+
 export interface ItineraryDay {
   day: number
   title: string
   location: string
   activities: ItineraryActivity[]
+  /** Weather enrichment for this day when forecasts are available. */
+  weather?: DayWeatherSnapshot | null
 }
 
 export interface TransportationItem {
