@@ -1,5 +1,5 @@
 /**
- * Phase AB–AD — AI enhancement, Recommendation Engine v1, Itinerary Engine v1.
+ * Phase AB–AE — AI enhancement through Booking Orchestrator v1.
  * Additive library surface; no UI; no breaking TripPlan / ProviderAdapter changes.
  */
 
@@ -128,3 +128,31 @@ export {
   optimizeDaysForDiversity,
   buildOptimizationResult,
 } from './itinerary'
+
+export {
+  type Booking,
+  type BookingItem,
+  type BookingItemKind,
+  type BookingItemStatus,
+  type BookingItineraryInput,
+  type BookingPipelineOptions,
+  type BookingState,
+  type BookingSummary,
+  type BookingTimeline,
+  type BookingTimelineEvent,
+  type CreateBookingInput,
+  type RetryPolicy,
+  type RetryAttemptResult,
+  type SimulatedPaymentRequest,
+  type SimulatedPaymentResult,
+  type BookingOrchestratorOptions,
+  BOOKING_STATE_TRANSITIONS,
+  canTransitionBookingState,
+  BookingIdempotencyStore,
+  DEFAULT_BOOKING_RETRY_POLICY,
+  withBookingRetry,
+  simulatePayment,
+  BookingOrchestrator,
+  createBookingOrchestrator,
+  resetBookingOrchestratorCounters,
+} from './booking'
