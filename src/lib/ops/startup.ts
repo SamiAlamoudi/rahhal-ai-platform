@@ -11,6 +11,7 @@ import { getGracefulShutdown } from './reliability/gracefulShutdown'
 import { installLongTaskDetector } from './performance/performanceToolkit'
 import { getAppConfig, loadAppConfig, resetAppConfig } from './production/appConfig'
 import { syncFeatureRegistryFromCapabilities } from './production/syncFeatureRegistry'
+import { syncProviderEnablementFeatureFlags } from '../agent/aggregation/providerEnablement/syncFeatureFlags'
 import { resetTracerProvider, setTracerProvider } from './production/tracing'
 import { resetOpsCircuitBreaker } from './production/circuitBreaker'
 import { resetFeatureRegistry } from '../ai/featureFlags'
@@ -64,8 +65,9 @@ export function runStartup(options: StartupOptions = {}): StartupResult {
         liveProvidersEnabled: config.liveCapabilities.liveProvidersMaster,
       })
 
-  // Keep product FeatureRegistry aligned with env-resolved capabilities.
+  // Keep product FeatureRegistry aligned with env-resolved capabilities (Phase AI + AJ).
   syncFeatureRegistryFromCapabilities(config.liveCapabilities)
+  syncProviderEnablementFeatureFlags(options.env)
 
   // OTel hooks remain no-op unless a provider is registered later.
   if (!config.otelEnabled) {

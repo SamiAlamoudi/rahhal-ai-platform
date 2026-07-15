@@ -28,8 +28,12 @@
 | `ops.failures` | Classified failures |
 | `ops.retries` | Retry attempts |
 | `ops.cancellations` | Cancelled operations |
-| `provider.*` | Live provider outcomes (Phase W) |
+| `provider.*` | Live provider outcomes (Phase W / AJ) |
+| `provider.fallback` | Mock fallback after live readiness/call failure |
+| `provider.circuit_open` | Circuit-breaker open events |
 | `ops.rate_limited` | Rate-limit hits |
+
+Phase AJ also records selection, readiness/configuration failures, and optional sandbox probes (tags include `providerId`, `capability`, masked reason codes — never secrets).
 
 Helpers: `recordRequestDuration`, `recordPlanningDuration`, `recordBookingDuration`, `recordFailure`, `recordRetry`, `recordCancellation`.
 
@@ -73,6 +77,7 @@ Categories:
 
 ## Related
 
+- `docs/LIVE_PROVIDER_ENABLEMENT.md`
 - `docs/PRODUCTION_READINESS.md`
 - `docs/INCIDENT_RESPONSE.md`
 - `src/lib/ops/**`

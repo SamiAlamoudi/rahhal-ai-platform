@@ -44,6 +44,36 @@ export {
   resolveLiveProviderEnvironment,
   wrapAdapterForLiveIntegration,
 } from './liveIntegration'
+
+/** Phase AJ — live provider enablement preparation */
+export {
+  getProviderConfigurationRegistry,
+  getRegistryEntry,
+  resolveProviderEnablementFlags,
+  isCapabilityLiveEnabled,
+  checkProviderReadiness,
+  checkAllProviderReadiness,
+  selectProviderForCapability,
+  selectAllCapabilities,
+  getProviderDiagnostics,
+  runProvidersCheck,
+  resolveEnablementAwareFeatureFlags,
+  toPhaseWFeatureFlags,
+  validateSecretPresence,
+  maskSecretValue,
+  runSandboxProbes,
+  PROVIDER_FAILURE_POLICY,
+  failurePolicyFor,
+  syncProviderEnablementFeatureFlags,
+} from './providerEnablement'
+export type {
+  ProviderCapability,
+  ProviderEnablementFlags,
+  ProviderReadinessResult,
+  ProviderSelectionDecision,
+  ProviderRegistryEntry,
+  ProviderDiagnosticsReport,
+} from './providerEnablement'
 export type {
   LiveProviderFlagKey,
   ProviderFeatureFlags,

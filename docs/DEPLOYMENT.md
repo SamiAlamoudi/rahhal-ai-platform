@@ -41,17 +41,22 @@ Staging/production should use `failFast: true` (default when `VITE_DEPLOY_TARGET
 
 ## Safe rollout
 
-1. Deploy with all live capability flags OFF
-2. Verify health/ready probes
-3. Verify structured logs include correlation IDs
-4. Only then consider staged provider enablement (separate approval)
+1. Deploy with all live capability flags OFF (`VITE_LIVE_PROVIDERS_ENABLED=false`, all `VITE_PROVIDERS_*_LIVE=false`)
+2. Keep `VITE_PAYMENT_PROVIDER=mock`
+3. Verify health/ready probes
+4. Run `npm run providers:check` (config-only; expect mock selections)
+5. Verify structured logs include correlation IDs
+6. Only then consider staged **sandbox** provider enablement (see `docs/LIVE_PROVIDER_ENABLEMENT.md` — separate approval)
 
 ## Rollback
 
 Use `ROLLBACK_PLAN.md`. Prefer config rollback (flags OFF, mock payment) before code rollback.
 
+For provider kill-switch: `VITE_LIVE_PROVIDERS_ENABLED=false` immediately forces mock selection.
+
 ## Related
 
+- `docs/LIVE_PROVIDER_ENABLEMENT.md`
 - `docs/CONFIGURATION.md`
 - `docs/OBSERVABILITY.md`
 - `docs/PRODUCTION_READINESS.md`
