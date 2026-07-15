@@ -21,6 +21,7 @@ import BookingReturn from './pages/BookingReturn.tsx'
 import MyTrips from './pages/MyTrips.tsx'
 import SavedTrips from './pages/SavedTrips.tsx'
 import Settings from './pages/Settings.tsx'
+import ChatPage from './pages/ChatPage.tsx'
 import CheckoutPage from './pages/CheckoutPage.tsx'
 import CheckoutReviewPage from './pages/CheckoutReviewPage.tsx'
 import CheckoutPaymentPage from './pages/CheckoutPaymentPage.tsx'
@@ -100,6 +101,11 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/settings" element={
             <ProtectedRoute>
               <Settings />
+            </ProtectedRoute>
+          } />
+          <Route path="/chat" element={
+            <ProtectedRoute>
+              <ChatPage />
             </ProtectedRoute>
           } />
           <Route path="/admin" element={

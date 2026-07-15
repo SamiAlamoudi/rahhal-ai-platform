@@ -41,7 +41,10 @@ npm run dev
 | D | Real PSP (Moyasar) | **Code complete — production enablement frozen** |
 | E | Saved trips, settings, admin RBAC | Done |
 | F | Admin dashboard management + catalog clarity | Admin overview/users/trips/bookings + mock payments; catalog flags deferred |
-| G | CI/E2E/ops | Partial |
+| G | AI Chat Foundation (+ later Voice on same services) | Text chat + mock streaming persistence; voice deferred |
+| H | CI/E2E/ops | Partial |
+
+Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).
 
 ## Payments freeze (Phase D)
 
