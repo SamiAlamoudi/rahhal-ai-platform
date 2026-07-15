@@ -91,3 +91,19 @@ export {
 } from './exclusivity'
 
 export { createAmadeusSandboxProbeFn } from './amadeusSandboxProbe'
+
+export {
+  AMADEUS_SANDBOX_VALIDATION_ENV,
+  isAmadeusSandboxValidationModeEnabled,
+  runAmadeusSandboxValidation,
+  validateAmadeusFlightOffersShape,
+  resolveSandboxTokenProxyConfig,
+  type AmadeusSandboxValidationReport,
+  type AmadeusSandboxValidationOptions,
+  type HttpStatusCategory,
+} from './amadeusSandboxValidation'
+
+export {
+  runAmadeusSandboxValidationCli,
+  type AmadeusSandboxValidationCliResult,
+} from './amadeusSandboxValidationCli'

@@ -1,0 +1,45 @@
+# Phase AL — manual Amadeus sandbox validation only.
+# Never scheduled. Does not enable production or live customer traffic.
+# Requires repository secrets for the token proxy (not Amadeus client secrets in VITE_*).
+#
+# Expected secrets (optional — missing secrets fail safely):
+#   AMADEUS_TOKEN_URL          — Edge Function URL (amadeus-token)
+#   AMADEUS_TOKEN_PROXY_KEY    — invoke key (e.g. Supabase anon key)
+
+name: Amadeus sandbox validate
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sandbox-validate:
+    name: Amadeus sandbox validation (manual)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Run sandbox validation (opt-in)
+        env:
+          AMADEUS_SANDBOX_VALIDATION: 'true'
+          ALLOW_AMADEUS_SANDBOX_NETWORK: 'true'
+          AMADEUS_TOKEN_URL: ${{ secrets.AMADEUS_TOKEN_URL }}
+          AMADEUS_TOKEN_PROXY_KEY: ${{ secrets.AMADEUS_TOKEN_PROXY_KEY }}
+          AMADEUS_BASE_URL: https://test.api.amadeus.com
+          AMADEUS_ENV: sandbox
+          VITE_PROVIDERS_FLIGHTS_LIVE: 'false'
+          VITE_LIVE_PROVIDERS_ENABLED: 'false'
+          VITE_PAYMENT_PROVIDER: mock
+          VITE_PROVIDER_MOCK_FALLBACK: 'true'
+        run: npm run amadeus:sandbox-validate:live
