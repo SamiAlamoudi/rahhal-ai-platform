@@ -67,3 +67,19 @@ export {
   resetTripPlannerCounters,
   resetTripPlannerTestSingletons,
 } from './tripPlannerService'
+
+export {
+  type TripPlannerApiAction,
+  type TripPlannerApiErrorBody,
+  type TripPlannerApiRequestBody,
+  type TripPlannerApiSuccessBody,
+  type TripPlannerAuthUser,
+  type TripPlannerAuthResolver,
+  type TripPlannerHttpHandlerOptions,
+  extractBearerToken,
+  createDevTokenAuthResolver,
+  createSupabaseJwtAuthResolver,
+  assertUserOwnsRequest,
+  handleTripPlannerHttpRequest,
+  createTripPlannerHttpHandler,
+} from './http'

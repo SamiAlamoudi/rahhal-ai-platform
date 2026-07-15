@@ -167,6 +167,8 @@ export interface TripPlannerFailure {
 
 export interface TripPlannerResult {
   requestId: string
+  /** Owning user id (additive; used by API authz). */
+  userId: string
   correlationId: string
   status: TripPlannerStatus
   stage: TripPlannerStage

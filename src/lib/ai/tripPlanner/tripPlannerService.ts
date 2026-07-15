@@ -208,6 +208,10 @@ export class TripPlannerService {
     return this.results.getByIdempotencyKey(idempotencyKey)
   }
 
+  getResultByRequestId(requestId: string): TripPlannerResult | null {
+    return this.results.getByRequestId(requestId)
+  }
+
   async plan(
     request: TripPlannerRequest,
     options: { signal?: AbortSignal } = {},
@@ -917,6 +921,7 @@ export class TripPlannerService {
 
     return {
       requestId: input.request.requestId,
+      userId: input.request.userId,
       correlationId: input.correlationId,
       status: input.status,
       stage: input.stage,
@@ -949,6 +954,7 @@ export class TripPlannerService {
   ): TripPlannerResult {
     return {
       requestId: request.requestId,
+      userId: request.userId,
       correlationId,
       status: overrides.status,
       stage: overrides.stage,
