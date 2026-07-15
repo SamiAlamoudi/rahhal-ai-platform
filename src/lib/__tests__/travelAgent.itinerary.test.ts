@@ -30,12 +30,21 @@ describe('buildTripPlan', () => {
     expect(plan.estimatedCosts.amount).toBe(plan.estimatedBudget.amount)
     expect(plan.interests).toEqual(['food', 'culture'])
     expect(plan.notes.length).toBeGreaterThan(0)
+    expect(plan.summary).toBeTruthy()
+    expect(plan.flights.length).toBeGreaterThan(0)
+    expect(plan.travelTips.length).toBeGreaterThan(0)
+    expect(plan.packingSuggestions.length).toBeGreaterThan(0)
+    expect(plan.weatherNotes.length).toBeGreaterThan(0)
+    expect(plan.visaNotes.length).toBeGreaterThan(0)
 
     const markdown = formatTripPlanReply(plan, 'en')
+    expect(markdown).toContain('Summary')
     expect(markdown).toContain('Daily itinerary')
     expect(markdown).toContain('Transportation')
-    expect(markdown).toContain('Accommodation recommendations')
-    expect(markdown).toContain('Estimated costs')
+    expect(markdown).toContain('Hotels')
+    expect(markdown).toContain('Budget breakdown')
+    expect(markdown).toContain('Travel tips')
+    expect(markdown).toContain('Packing suggestions')
   })
 
   it('does not invent traveler count when unset', () => {

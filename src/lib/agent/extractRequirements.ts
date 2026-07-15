@@ -1,4 +1,11 @@
-import type { AgentIntent, AgentLocale, TravelerType, TripRequirements } from './types'
+import type {
+  AgentIntent,
+  AgentLocale,
+  BudgetStyle,
+  PackageScope,
+  TravelerType,
+  TripRequirements,
+} from './types'
 import { detectAgentLocale } from './locale'
 
 const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
@@ -27,8 +34,11 @@ export function extractFromUserText(
   const locale = detectAgentLocale(text, fallbackLocale)
   const normalized = text.trim()
   const lower = normalized.toLowerCase()
-  const intent = detectIntent(lower, locale)
+  const intent = detectIntent(lower, normalized, locale)
   const patch: Partial<TripRequirements> = {}
+
+  const regenerateDay = matchRegenerateDay(lower, normalized)
+  if (regenerateDay != null) patch.regenerateDay = regenerateDay
 
   const destination = matchDestination(lower)
   if (destination) {
@@ -57,6 +67,9 @@ export function extractFromUserText(
   if (budget) {
     patch.budgetAmount = budget.amount
     patch.budgetCurrency = budget.currency
+    patch.budgetFlexible = false
+  } else if (/\bflexible\b|no (?:strict )?budget|أي ميزانية|ميزانية مرنة|بدون سقف/.test(lower) || /ميزانية\s*مرنة/.test(normalized)) {
+    patch.budgetFlexible = true
   }
 
   const travelers = matchTravelers(lower, normalized)
@@ -85,6 +98,8 @@ export function extractFromUserText(
   } else if (/\bsolo\b|alone|وحدي|منفرد/.test(lower)) {
     patch.travelerType = 'solo'
     patch.travelers = patch.travelers ?? 1
+  } else if (/\bfriends\b|أصدقاء|اصديق/.test(lower)) {
+    patch.travelerType = 'friends'
   }
 
   const dates = matchDates(normalized)
@@ -97,6 +112,18 @@ export function extractFromUserText(
   const interests = matchInterests(lower, normalized)
   if (interests.length) patch.interests = uniqueInterests([...(patch.interests ?? []), ...interests])
 
+  const weather = matchWeatherPreference(lower, normalized)
+  if (weather) patch.weatherPreference = weather
+
+  const budgetStyle = matchBudgetStyle(lower, normalized)
+  if (budgetStyle) patch.budgetStyle = budgetStyle
+
+  const hotel = matchHotelPreference(lower, normalized)
+  if (hotel) patch.hotelPreference = hotel
+
+  const packageScope = matchPackageScope(lower, normalized)
+  if (packageScope) patch.packageScope = packageScope
+
   if (intent === 'edit') {
     const noteMatch = normalized.match(/(?:note|notes|ملاحظة|ملاحظات)\s*[:：-]?\s*(.+)$/i)
     if (noteMatch?.[1]) patch.notes = noteMatch[1].trim()
@@ -105,7 +132,14 @@ export function extractFromUserText(
   return { locale, intent, patch }
 }
 
-function detectIntent(lower: string, locale: AgentLocale): AgentIntent {
+function detectIntent(lower: string, original: string, locale: AgentLocale): AgentIntent {
+  if (
+    /\bregenerate\s+day\b|أعد اليوم|اعد اليوم|جدّد اليوم|جدد اليوم|أعد إنشاء اليوم|اعد انشاء اليوم/.test(lower)
+    || /أعد\s*اليوم|اعد\s*اليوم/.test(original)
+    || matchRegenerateDay(lower, original) != null
+  ) {
+    return 'regenerate_day'
+  }
   if (/\bregenerate\b|أعد إنشاء|اعد انشاء|أعد توليد|اعد توليد|جدّد الخطة|جدد الخطة/.test(lower)) {
     return 'regenerate'
   }
@@ -118,6 +152,18 @@ function detectIntent(lower: string, locale: AgentLocale): AgentIntent {
   }
   void locale
   return 'answer'
+}
+
+function matchRegenerateDay(lower: string, original: string): number | null {
+  const en = lower.match(/(?:regenerate|redo|refresh)\s+(?:day\s*)?(\d+)/)
+  if (en) return Math.max(1, Math.min(21, Number(en[1])))
+  const ar = original.match(/(?:أعد|اعد|جدد|جدّد).*?(\d+)/)
+  if (ar) return Math.max(1, Math.min(21, Number(ar[1])))
+  const dayOnly = lower.match(/\bday\s*(\d+)\b/)
+  if (dayOnly && /\bregenerate\b|redo|refresh|أعد|اعد|جدد/.test(lower + original)) {
+    return Math.max(1, Math.min(21, Number(dayOnly[1])))
+  }
+  return null
 }
 
 function matchDestination(lower: string): string | null {
@@ -211,11 +257,12 @@ function matchMonthHint(lower: string, original: string): string | null {
 function matchInterests(lower: string, original: string): string[] {
   const catalog: Array<{ keys: string[]; value: string }> = [
     { keys: ['food', 'culinary', 'طعام', 'مطاعم'], value: 'food' },
-    { keys: ['museum', 'culture', 'culture', 'متحف', 'ثقافة'], value: 'culture' },
+    { keys: ['museum', 'culture', 'متحف', 'ثقافة'], value: 'culture' },
     { keys: ['beach', 'sea', 'شاطئ', 'بحر'], value: 'beach' },
-    { keys: ['nature', 'hike', 'طبيعة', 'Hiking'], value: 'nature' },
+    { keys: ['nature', 'hike', 'طبيعة', 'hiking'], value: 'nature' },
     { keys: ['shopping', 'تسوق'], value: 'shopping' },
     { keys: ['adventure', 'مغامرة'], value: 'adventure' },
+    { keys: ['surprise me', 'any interest', 'no preference', 'أي اهتمام', 'بدون تفضيل', 'فاجأني'], value: 'any' },
   ]
   const found: string[] = []
   for (const entry of catalog) {
@@ -224,6 +271,63 @@ function matchInterests(lower: string, original: string): string[] {
     }
   }
   return found
+}
+
+function matchWeatherPreference(lower: string, original: string): string | null {
+  if (/\bmild\b|معتدل/.test(lower) || /معتدل/.test(original)) return 'mild'
+  if (/\bcold\b|cool\b|بارد|مائل للبرودة/.test(lower) || /بارد/.test(original)) return 'cool'
+  if (/\bhot\b|warm\b|حار|دافئ/.test(lower) || /حار|دافئ/.test(original)) return 'warm'
+  if (/\bdry\b|جاف/.test(lower) || /جاف/.test(original)) return 'dry'
+  if (/\brainy\b|ممطر/.test(lower) || /ممطر/.test(original)) return 'rainy'
+  if (/\bany weather\b|flexible weather|أي طقس|طقس مرن|لا يهم الطقس/.test(lower) || /أي\s*طقس/.test(original)) {
+    return 'flexible'
+  }
+  const weatherHint = lower.match(/(?:prefer(?:red)?|want)?\s*(?:weather|climate)\s*[:：-]?\s*([a-z\s]{3,20})/)
+  if (weatherHint?.[1]) return weatherHint[1].trim()
+  return null
+}
+
+function matchBudgetStyle(lower: string, original: string): BudgetStyle | null {
+  if (/\bluxury\b|فاخر|فاخرة|luxury style/.test(lower) || /فاخر/.test(original)) return 'luxury'
+  if (/\bbudget\b|economy|رخيص|اقتصادي|منخفض التكلفة/.test(lower) || /اقتصادي|رخيص/.test(original)) {
+    // Avoid treating "budget $3000" alone as budget-style when "mid-range" also present
+    if (/\bmid[- ]?range\b|متوسط/.test(lower) || /متوسط/.test(original)) return 'midrange'
+    if (/\bbudget style\b|\bbudget trip\b|\bon a budget\b|رحلة اقتصادية/.test(lower)) return 'budget'
+    if (/\bluxury\b/.test(lower)) return 'luxury'
+    if (/\bbudget\b/.test(lower) && !/(?:under|below|max|budget)\s*\$?\s*\d/.test(lower)) return 'budget'
+  }
+  if (/\bmid[- ]?range\b|متوسط|وسط/.test(lower) || /متوسط/.test(original)) return 'midrange'
+  if (/\bluxury or budget\b/.test(lower)) return null
+  return null
+}
+
+function matchHotelPreference(lower: string, original: string): string | null {
+  if (/\bcentral hotel\b|hotel downtown|وسط المدينة|فندق وسط/.test(lower) || /وسط\s*المدينة/.test(original)) {
+    return 'central'
+  }
+  if (/\bboutique\b|بوتيك/.test(lower) || /بوتيك/.test(original)) return 'boutique'
+  if (/\bresort\b|منتجع/.test(lower) || /منتجع/.test(original)) return 'resort'
+  if (/\bapartment\b|شقة|airbnb/.test(lower) || /شقة/.test(original)) return 'apartment'
+  if (/\bnear airport\b|قرب المطار|قريب من المطار/.test(lower)) return 'near_airport'
+  if (/\bno hotel preference\b|any hotel|أي فندق|بدون تفضيل فندق|لا يهم الفندق/.test(lower)) {
+    return 'any'
+  }
+  const hotelHint = lower.match(/(?:hotel|stay|فندق)\s*(?:preference|prefers?)?\s*[:：-]?\s*([a-z_]{3,24})/)
+  if (hotelHint?.[1] && !['in', 'to', 'for', 'and'].includes(hotelHint[1])) {
+    return hotelHint[1]
+  }
+  return null
+}
+
+function matchPackageScope(lower: string, original: string): PackageScope | null {
+  if (/\bflights?\s*only\b|flight only|طيران فقط|رحلات فقط/.test(lower) || /طيران\s*فقط/.test(original)) {
+    return 'flights_only'
+  }
+  if (/\bfull package\b|full trip|complete package|باقة كاملة|رحلة كاملة|حزمة كاملة/.test(lower)
+    || /باقة\s*كاملة|رحلة\s*كاملة/.test(original)) {
+    return 'full_package'
+  }
+  return null
 }
 
 function clampDays(value: number): number {

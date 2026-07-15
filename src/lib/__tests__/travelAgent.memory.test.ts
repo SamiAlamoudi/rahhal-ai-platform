@@ -32,14 +32,44 @@ function assistantWithMemory(memory: Record<string, unknown>, tripPlan: unknown 
   }
 }
 
+function completeRequirements() {
+  return {
+    ...emptyRequirements(),
+    destination: 'Riyadh',
+    destinations: ['Riyadh'],
+    durationDays: 2,
+    budgetAmount: 2000,
+    budgetCurrency: 'SAR',
+    travelers: 2,
+    travelerType: 'couple' as const,
+    interests: ['food'],
+    weatherPreference: 'mild',
+    budgetStyle: 'midrange' as const,
+    hotelPreference: 'central',
+    packageScope: 'full_package' as const,
+  }
+}
+
 describe('agent memory', () => {
-  it('merges requirements and tracks missing fields without guessing duration', () => {
+  it('merges requirements and tracks interactive intake fields without guessing', () => {
     const merged = mergeRequirements(emptyRequirements(), {
       destination: 'Japan',
       destinations: ['Japan'],
     })
-    expect(missingRequirementFields(merged)).toEqual(['durationDays'])
-    const complete = mergeRequirements(merged, { durationDays: 7 })
+    expect(missingRequirementFields(merged)[0]).toBe('durationDays')
+    const withDuration = mergeRequirements(merged, { durationDays: 7 })
+    expect(missingRequirementFields(withDuration)[0]).toBe('budgetAmount')
+    const complete = mergeRequirements(withDuration, {
+      budgetAmount: 3000,
+      budgetCurrency: 'USD',
+      travelers: 2,
+      travelerType: 'couple',
+      interests: ['food'],
+      weatherPreference: 'mild',
+      budgetStyle: 'midrange',
+      hotelPreference: 'central',
+      packageScope: 'full_package',
+    })
     expect(missingRequirementFields(complete)).toEqual([])
   })
 
@@ -48,12 +78,7 @@ describe('agent memory', () => {
       assistantWithMemory({
         locale: 'en',
         phase: 'collecting',
-        requirements: {
-          ...emptyRequirements(),
-          destination: 'Riyadh',
-          destinations: ['Riyadh'],
-          durationDays: 2,
-        },
+        requirements: completeRequirements(),
         tripPlan: null,
         itinerary: null,
         missingFields: [],

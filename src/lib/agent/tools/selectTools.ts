@@ -13,6 +13,7 @@ export function selectToolsForTurn(input: {
   const { requirements, intent, missingFields } = input
   if (missingFields.length > 0) return []
   if (intent === 'save') return []
+  if (intent === 'regenerate_day') return []
   if (intent === 'edit' && !requirements.destination && requirements.destinations.length === 0) {
     return []
   }
@@ -26,16 +27,15 @@ export function selectToolsForTurn(input: {
   const destination = requirements.destination || requirements.destinations[0]
   if (!destination) return []
 
-  const selected: AgentToolName[] = ['weather', 'attractions', 'maps']
+  const flightsOnly = requirements.packageScope === 'flights_only'
+  const selected: AgentToolName[] = flightsOnly
+    ? ['weather', 'flights', 'maps']
+    : ['weather', 'attractions', 'maps', 'flights', 'hotels']
 
-  // International / city travel → flights + hotels
-  selected.push('flights', 'hotels')
-
-  if (requirements.budgetAmount != null || requirements.budgetCurrency) {
+  if (requirements.budgetAmount != null || requirements.budgetCurrency || requirements.budgetFlexible) {
     selected.push('currency')
   }
 
-  // Always attach visa guidance when leaving a home-country default for non-Gulf leisure travel
   if (isLikelyInternational(destination)) {
     selected.push('visa')
   }

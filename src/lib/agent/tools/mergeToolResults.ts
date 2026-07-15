@@ -1,5 +1,7 @@
 import type {
   AccommodationRecommendation,
+  AttractionItem,
+  FlightRecommendation,
   ItineraryDay,
   TransportationItem,
   TripPlan,
@@ -17,6 +19,12 @@ export function mergeToolResultsIntoPlan(
     ...plan,
     transportation: [...plan.transportation],
     accommodations: [...plan.accommodations],
+    flights: [...(plan.flights ?? [])],
+    attractions: [...(plan.attractions ?? [])],
+    weatherNotes: [...(plan.weatherNotes ?? [])],
+    visaNotes: [...(plan.visaNotes ?? [])],
+    travelTips: [...(plan.travelTips ?? [])],
+    packingSuggestions: [...(plan.packingSuggestions ?? [])],
     notes: [...plan.notes],
     dailyItinerary: plan.dailyItinerary.map((day) => ({
       ...day,
@@ -26,6 +34,7 @@ export function mergeToolResultsIntoPlan(
       ...plan.estimatedBudget,
       breakdown: [...plan.estimatedBudget.breakdown],
     },
+    summary: plan.summary ?? plan.title,
   }
   next.activities = next.dailyItinerary
   next.estimatedCosts = next.estimatedBudget
@@ -91,6 +100,15 @@ function mergeFlights(plan: TripPlan, result: AgentToolResult): TripPlan {
     estimatedCost: typeof offer.price === 'number' ? offer.price : null,
     currency: typeof offer.currency === 'string' ? offer.currency : plan.estimatedBudget.currency,
   }
+  const flight: FlightRecommendation = {
+    from: item.from,
+    to: item.to,
+    airline: typeof offer.airline === 'string' ? offer.airline : null,
+    stops: typeof offer.stops === 'number' ? offer.stops : null,
+    estimatedCost: item.estimatedCost,
+    currency: item.currency,
+    notes: item.notes,
+  }
   const transportation = [
     item,
     ...plan.transportation.filter((row) => row.mode !== 'flight'),
@@ -106,7 +124,13 @@ function mergeFlights(plan: TripPlan, result: AgentToolResult): TripPlan {
       ],
     }
   }
-  return { ...plan, transportation, estimatedBudget, estimatedCosts: estimatedBudget }
+  return {
+    ...plan,
+    transportation,
+    flights: [flight, ...plan.flights.filter((f) => f.from !== flight.from || f.to !== flight.to)],
+    estimatedBudget,
+    estimatedCosts: estimatedBudget,
+  }
 }
 
 function mergeHotels(plan: TripPlan, result: AgentToolResult): TripPlan {
@@ -134,14 +158,13 @@ function mergeHotels(plan: TripPlan, result: AgentToolResult): TripPlan {
 function mergeWeather(plan: TripPlan, result: AgentToolResult): TripPlan {
   const data = result.data as { summary?: string; averageHighC?: number; season?: string } | undefined
   if (!data?.summary) return plan
+  const note = plan.locale === 'ar'
+    ? `الطقس: ${data.summary}${data.season ? ` · ${data.season}` : ''}`
+    : `Weather: ${data.summary}${data.season ? ` · ${data.season}` : ''}`
   return {
     ...plan,
-    notes: [
-      ...plan.notes,
-      plan.locale === 'ar'
-        ? `الطقس: ${data.summary}`
-        : `Weather: ${data.summary}`,
-    ],
+    weatherNotes: [...plan.weatherNotes.filter((n) => !/Weather:|الطقس:/.test(n)), note],
+    notes: [...plan.notes, note],
   }
 }
 
@@ -187,6 +210,7 @@ function mergeVisa(plan: TripPlan, result: AgentToolResult): TripPlan {
   if (!data?.guidance) return plan
   return {
     ...plan,
+    visaNotes: [...plan.visaNotes.filter((n) => n !== data.guidance), data.guidance],
     notes: [...plan.notes, data.guidance],
   }
 }
@@ -196,6 +220,12 @@ function mergeAttractions(plan: TripPlan, result: AgentToolResult): TripPlan {
     attractions?: Array<{ title: string; tag?: string }>
   } | undefined
   if (!data?.attractions?.length) return plan
+
+  const attractions: AttractionItem[] = data.attractions.map((row, index) => ({
+    title: row.title,
+    tag: row.tag ?? null,
+    dayHint: (index % Math.max(1, plan.durationDays)) + 1,
+  }))
 
   const dailyItinerary: ItineraryDay[] = plan.dailyItinerary.map((day, index) => {
     const attraction = data.attractions![index % data.attractions!.length]
@@ -214,6 +244,7 @@ function mergeAttractions(plan: TripPlan, result: AgentToolResult): TripPlan {
 
   return {
     ...plan,
+    attractions,
     dailyItinerary,
     activities: dailyItinerary,
   }

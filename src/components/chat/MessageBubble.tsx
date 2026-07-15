@@ -13,6 +13,7 @@ interface MessageBubbleProps {
   onRetry?: (messageId: string) => void
   onSaveItinerary?: (itinerary: TripPlan, messageId: string) => void
   onRegenerateItinerary?: (messageId: string) => void
+  onRegenerateDay?: (messageId: string, day: number) => void
   onEditItinerary?: (patchText: string) => void
 }
 
@@ -23,6 +24,7 @@ export default function MessageBubble({
   onRetry,
   onSaveItinerary,
   onRegenerateItinerary,
+  onRegenerateDay,
   onEditItinerary,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false)
@@ -85,12 +87,13 @@ export default function MessageBubble({
           </p>
         )}
 
-        {showActions && itinerary && onSaveItinerary && onRegenerateItinerary && onEditItinerary && (
+        {showActions && itinerary && onSaveItinerary && onRegenerateItinerary && onRegenerateDay && onEditItinerary && (
           <ItineraryActions
             itinerary={itinerary}
             busy={busy}
             onSave={() => onSaveItinerary(itinerary, message.id)}
             onRegenerate={() => onRegenerateItinerary(message.id)}
+            onRegenerateDay={(day) => onRegenerateDay(message.id, day)}
             onEditSubmit={onEditItinerary}
           />
         )}

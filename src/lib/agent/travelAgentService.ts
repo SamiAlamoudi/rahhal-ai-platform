@@ -4,7 +4,7 @@
  */
 
 import type { ChatMessage } from '../chat/chatTypes'
-import { applyTripPlanEdits, buildTripPlan } from './buildItinerary'
+import { applyTripPlanEdits, buildTripPlan, regenerateTripDay } from './buildItinerary'
 import { extractFromUserText } from './extractRequirements'
 import {
   buildEditAck,
@@ -64,6 +64,12 @@ export interface TravelAgentService {
     memory: AgentMemory
     signal?: AbortSignal
   }): Promise<TripPlan>
+  regenerateDay(input: {
+    conversationId: string
+    plan: TripPlan
+    day: number
+    locale: AgentMemory['locale']
+  }): Promise<TripPlan>
   editPlan(input: {
     conversationId: string
     plan: TripPlan
@@ -80,6 +86,7 @@ export interface TravelAgentService {
 
 function hasPlanningPatch(patch: Record<string, unknown>): boolean {
   return Object.keys(patch).some((key) => {
+    if (key === 'regenerateDay') return false
     const value = patch[key]
     if (Array.isArray(value)) return value.length > 0
     return value != null && value !== ''
@@ -193,6 +200,13 @@ export function createTravelAgentService(
             : 'Use the “Save plan” button under the message to store it in Saved Trips.'
           memory.phase = 'planned'
         }
+      } else if (extracted.intent === 'regenerate_day' && memory.tripPlan) {
+        const day = extracted.patch.regenerateDay
+          ?? memory.requirements.regenerateDay
+          ?? 1
+        const plan = regenerateTripDay(memory.tripPlan, day, memory.locale)
+        memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, plan)
+        reply = formatTripPlanReply(plan, memory.locale)
       } else if (extracted.intent === 'edit' && !hasPlanningPatch(extracted.patch) && memory.tripPlan) {
         reply = buildEditAck(memory.locale)
         memory.phase = 'editing'
@@ -255,6 +269,10 @@ export function createTravelAgentService(
         seed: `regen-${Date.now()}`,
       })
       return ran.plan
+    },
+
+    async regenerateDay({ plan, day, locale }) {
+      return regenerateTripDay(plan, day, locale)
     },
 
     async editPlan({ conversationId, plan, patch, locale, signal }) {

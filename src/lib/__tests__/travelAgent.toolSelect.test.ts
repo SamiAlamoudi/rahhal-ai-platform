@@ -48,4 +48,21 @@ describe('selectToolsForTurn', () => {
       missingFields: [],
     })).toEqual([])
   })
+
+  it('selects flights-focused tools for flights_only package', () => {
+    const selected = selectToolsForTurn({
+      requirements: {
+        ...emptyRequirements(),
+        destination: 'Japan',
+        destinations: ['Japan'],
+        durationDays: 5,
+        packageScope: 'flights_only',
+      },
+      intent: 'plan',
+      missingFields: [],
+    })
+    expect(selected).toEqual(expect.arrayContaining(['flights', 'weather', 'maps', 'visa']))
+    expect(selected).not.toContain('hotels')
+    expect(selected).not.toContain('attractions')
+  })
 })

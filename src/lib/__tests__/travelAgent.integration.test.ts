@@ -8,6 +8,7 @@ import { createTravelAgentProvider } from '../agent/travelAgentProvider'
 import { conversationRepository } from '../repositories/conversationRepository'
 import { messageRepository } from '../repositories/messageRepository'
 import type { ConversationRow, MessageRow } from '../types'
+import { COMPLETE_JAPAN_7D } from './agentTestFixtures'
 
 function conversationRow(overrides: Partial<ConversationRow> = {}): ConversationRow {
   return {
@@ -60,7 +61,7 @@ describe('travel agent + chatService integration', () => {
       .mockResolvedValueOnce(messageRow({
         id: 'u1',
         role: 'user',
-        content: 'Plan a 7-day trip to Japan under $3000',
+        content: COMPLETE_JAPAN_7D,
       }))
       .mockResolvedValueOnce(messageRow({
         id: 'a1',
@@ -84,12 +85,12 @@ describe('travel agent + chatService integration', () => {
 
     const result = await chatService.sendUserMessage(
       'conv-1',
-      'Plan a 7-day trip to Japan under $3000',
+      COMPLETE_JAPAN_7D,
       { signal: new AbortController().signal },
     )
 
     expect(result.assistant.status).toBe('complete')
-    expect(result.assistant.content).toMatch(/Japan|اليابان|Day 1/)
+    expect(result.assistant.content).toMatch(/Japan|اليابان|Day 1|Summary|الملخص/)
     expect(result.assistant.providerMeta.kind).toBe('travel_agent')
     expect(result.assistant.providerMeta.version).toBe(2)
     expect(result.assistant.providerMeta.tripPlan).toBeTruthy()
