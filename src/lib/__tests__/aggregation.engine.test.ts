@@ -98,7 +98,7 @@ describe('aggregation engine', () => {
       'duffel',
       'booking_com_mock',
       'expedia',
-      'google_maps',
+      'google_maps_mock',
       'openstreetmap',
       'openweather',
       'exchangerate',

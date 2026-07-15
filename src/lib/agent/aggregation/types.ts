@@ -27,6 +27,7 @@ export type KnownProviderId =
   | 'hotelbeds'
   // Maps
   | 'google_maps'
+  | 'google_maps_mock'
   | 'mapbox'
   | 'openstreetmap'
   // Weather

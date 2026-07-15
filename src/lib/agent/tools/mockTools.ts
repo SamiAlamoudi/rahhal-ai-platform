@@ -182,7 +182,8 @@ export function createMockMapsTool(
     name: 'maps',
     domain: 'maps',
     providerId: 'aggregate-maps',
-    timeoutMs: 1500,
+    timeoutMs: 12_000,
+    selectionStrategy: 'priority_fallback',
     engine,
     inputSchema: schema('MapsInput', {
       ...destinationSchemaProps,
