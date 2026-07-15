@@ -15,6 +15,8 @@ Use before promoting a build to the staging host.
 
 ## Smoke
 
+Automated: `npm run test:smoke` and `STAGING_SMOKE_TEST.md`.
+
 - [ ] `/health.json` returns static ok
 - [ ] `ops-health?probe=live` → 200
 - [ ] `ops-health?probe=ready` → 200 with `payment_provider_safe.ok=true`

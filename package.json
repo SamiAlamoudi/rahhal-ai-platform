@@ -1,7 +1,7 @@
 {
   "name": "rahhal-app",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0-rc1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,9 @@
     "lint": "oxlint",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:e2e": "vitest run src/lib/__tests__/rc1.journey.e2e.test.ts src/lib/__tests__/rc1.failurePaths.test.ts",
+    "test:smoke": "vitest run src/lib/__tests__/rc1.stagingSmoke.test.ts",
+    "test:rc1": "vitest run src/lib/__tests__/rc1.journey.e2e.test.ts src/lib/__tests__/rc1.failurePaths.test.ts src/lib/__tests__/rc1.stagingSmoke.test.ts",
     "audit": "npm audit --audit-level=high",
     "ci": "npm run typecheck && npm run lint && npm run test:run && npm run build && npm run audit",
     "preview": "vite preview"

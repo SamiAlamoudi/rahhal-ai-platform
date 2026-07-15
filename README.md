@@ -13,7 +13,8 @@ Arabic RTL travel planning SPA: conversation-driven requirements → live flight
 | Backend | Supabase Auth + Postgres + RLS |
 | Providers | Amadeus (flights), Booking.com RapidAPI (hotels), RentalCars, OpenWeather |
 | Payments | Moyasar hosted checkout via Edge Functions — **frozen for production** pending business verification (see below) |
-| Tests | Vitest unit tests |
+| Tests | Vitest unit + RC1 library E2E/smoke |
+| Version | `1.0.0-rc1` (release candidate; production tag pending approval) |
 
 ## Local setup
 
@@ -30,6 +31,9 @@ npm run dev
 | `npm run build` | Typecheck + production build |
 | `npm run lint` | Oxlint |
 | `npm run test:run` | Vitest once |
+| `npm run test:e2e` | RC1 journey + failure-path suites |
+| `npm run test:smoke` | RC1 staging smoke suite |
+| `npm run test:rc1` | All RC1 validation suites |
 
 ## Product phases (roadmap)
 
@@ -47,7 +51,8 @@ npm run dev
 | I | Travel AI Agent foundation | Orchestration service, TripPlan model, LLM/tool adapters, chat+voice via chatEngine |
 | J | Tool execution framework | Mock flights/hotels/weather/maps/currency/visa/attractions + auto tool selection |
 | K | Multi-provider aggregation | Parallel mock provider query, normalize, dedupe, rank, confidence, merge |
-| L | CI/E2E/ops | Partial |
+| X | Production hardening & ops readiness | Done |
+| Y | Release Candidate RC1 | **Candidate** (`v1.0.0-rc1`) — awaiting tag approval |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).
 
