@@ -400,6 +400,67 @@ export class CheckoutOrchestrator {
     return getOrder(orderId)
   }
 
+  /**
+   * Fetch live Moyasar/provider status and sync the checkout persistence session.
+   * Maps paid / pending / failed / cancelled back onto the order + payment session.
+   */
+  async refreshPaymentStatus(orderId: string): Promise<PaymentExecutionResult> {
+    const order = await this.resolveOrder(orderId)
+    if (!order) {
+      return this.failure('Order not found', null)
+    }
+    if (!order.paymentSessionId) {
+      return this.failure('No payment session attached to order', order)
+    }
+
+    let paymentSession = this.paymentSessions.get(order.paymentSessionId) ?? null
+    if (!paymentSession && this.persistEnabled) {
+      paymentSession = await loadPaymentSession(order.paymentSessionId)
+      if (paymentSession) this.paymentSessions.set(paymentSession.id, paymentSession)
+    }
+    if (!paymentSession) {
+      return this.failure('Payment session not found', order)
+    }
+
+    const fromStatus = paymentSession.status
+    let status = await this.provider.getPaymentStatus(paymentSession.id)
+    if (!status) {
+      return this.failure('Could not retrieve payment status from provider', order)
+    }
+
+    paymentSession.status = status
+    paymentSession.updatedAt = new Date().toISOString()
+
+    if (status === 'paid') {
+      paymentSession.paidAt = paymentSession.paidAt ?? new Date().toISOString()
+      const invoiceNumber = generateInvoiceNumber(order)
+      markOrderPaid(orderId, invoiceNumber)
+      const itineraryId = generateItineraryId(order)
+      markOrderConfirmed(orderId, itineraryId)
+    } else if (status === 'failed' || status === 'cancelled' || status === 'expired') {
+      updateOrderStatus(orderId, status === 'cancelled' ? 'cancelled' : 'failed')
+    } else if (status === 'pending' || status === 'authorized' || status === 'created') {
+      updateOrderStatus(orderId, 'pending_payment')
+    }
+
+    const updatedOrder = getOrder(orderId)
+    if (this.persistEnabled && updatedOrder) {
+      await softPersist(async () => {
+        await syncPaymentSession(paymentSession!, fromStatus)
+        await syncOrder(updatedOrder)
+      })
+    }
+
+    return {
+      success: status === 'paid' || status === 'pending' || status === 'authorized' || status === 'created',
+      order: updatedOrder,
+      paymentSession,
+      invoice: null,
+      itinerary: null,
+      message: `Payment status: ${status}`,
+    }
+  }
+
   private async resolveOrder(orderId: string): Promise<RahhalOrder | null> {
     const cached = getOrder(orderId)
     if (cached) return cached

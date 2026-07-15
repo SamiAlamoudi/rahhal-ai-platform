@@ -13,6 +13,7 @@ export { PAYMENT_SESSION_STATUS_VALUES, PAYMENT_PROVIDER_VALUES, PAYMENT_METHOD_
 export type { PaymentProvider, PaymentProviderConfig, PaymentProviderType } from './paymentProvider'
 export { defaultProviderConfig } from './paymentProvider'
 export { MockPaymentProvider } from './mockPaymentProvider'
+export { MoyasarPaymentProvider, mapMoyasarStatus, resolveMoyasarPaymentUrl, type MoyasarPaymentProviderOptions } from './moyasarPaymentProvider'
 export {
   createPaymentProvider,
   resetPaymentProviderFactory,
