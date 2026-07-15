@@ -27,6 +27,10 @@ export interface ProviderDiagnosticsReport {
   mockFallbackEnabled: boolean
   strictLive: boolean
   paymentProvider: 'mock'
+  /** Phase AK — at most one live capability. */
+  allowedLiveCapability: string | null
+  exclusivitySuppressed: string[]
+  primarySandboxProvider: 'amadeus'
   readiness: Array<{
     provider: string
     capability: string
@@ -124,6 +128,9 @@ export function getProviderDiagnostics(
       mockFallbackEnabled: flags.mockFallbackEnabled,
       strictLive: flags.strictLive,
       paymentProvider: 'mock',
+      allowedLiveCapability: flags.allowedLiveCapability ?? null,
+      exclusivitySuppressed: flags.exclusivitySuppressed ?? [],
+      primarySandboxProvider: 'amadeus',
       readiness: readiness.map(sanitizeReadiness),
       selections: selections.map(sanitizeSelection),
     },

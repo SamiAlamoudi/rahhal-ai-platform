@@ -20,6 +20,8 @@ describe('providers:check', () => {
     expect(result.probed).toBe(false)
     expect(result.report).toContain('No network calls performed')
     expect(result.report).toContain('paymentProvider=mock')
+    expect(result.report).toMatch(/Phase A[JK]/)
+    expect(result.report).toContain('primarySandboxProvider=amadeus')
     expect(result.exitCode).toBe(0)
   })
 })

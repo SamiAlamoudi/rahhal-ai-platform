@@ -1,8 +1,14 @@
 /**
- * Phase AJ — providers:check CLI runner (config/readiness only by default).
+ * Phase AJ / AK — providers:check CLI runner.
+ * Config/readiness validation only by default (no network).
+ * Optional Amadeus-only sandbox probe with explicit opt-in.
  */
 
 import { resolveProviderEnablementFlags } from './flags'
+import {
+  PRIMARY_SANDBOX_CAPABILITY,
+  PRIMARY_SANDBOX_PROVIDER_ID,
+} from './exclusivity'
 import {
   isProductionProbeConfirmed,
   isSandboxProbeEnvEnabled,
@@ -42,11 +48,17 @@ export async function runProvidersCheck(
   const selections = selectAllCapabilities({ env, flags })
 
   const lines: string[] = []
-  lines.push('Rahhal provider readiness check (Phase AJ)')
+  lines.push('Rahhal provider readiness check (Phase AK)')
   lines.push(`paymentProvider=${getDefaultPaymentProviderType()}`)
   lines.push(`masterLive=${flags.masterLive}`)
   lines.push(`mockFallback=${flags.mockFallbackEnabled}`)
   lines.push(`strictLive=${flags.strictLive}`)
+  lines.push(`allowedLiveCapability=${flags.allowedLiveCapability ?? 'none'}`)
+  lines.push(
+    `exclusivitySuppressed=${(flags.exclusivitySuppressed ?? []).join(',') || 'none'}`,
+  )
+  lines.push(`primarySandboxProvider=${PRIMARY_SANDBOX_PROVIDER_ID}`)
+  lines.push(`primarySandboxCapability=${PRIMARY_SANDBOX_CAPABILITY}`)
   lines.push(`probeRequested=${probeRequested}`)
   lines.push('')
   lines.push('Selections:')
@@ -65,24 +77,12 @@ export async function runProvidersCheck(
 
   let probed = false
   if (probeRequested) {
-    const probeIds = readiness
-      .filter(
-        (r) =>
-          !String(r.provider).endsWith('_mock') &&
-          r.provider !== 'transport_mock' &&
-          r.provider !== 'activities_mock',
-      )
-      .map((r) => r.provider)
-
-    const probe = await runSandboxProbes(probeIds, {
+    // Phase AK: only Amadeus is eligible for optional sandbox network probing.
+    const probe = await runSandboxProbes([PRIMARY_SANDBOX_PROVIDER_ID], {
       env,
       probeEnabled: true,
       confirmProduction,
-      // Default probe does NOT network — requires injected probeFn for real calls.
-      probeFn: async () => ({
-        ok: false,
-        reason: 'network_probe_not_wired_in_default_cli',
-      }),
+      amadeusOnly: true,
     })
     probed = probe.attempted
     lines.push('')
@@ -91,7 +91,7 @@ export async function runProvidersCheck(
     } else if (!probe.attempted) {
       lines.push('Probe not attempted.')
     } else {
-      lines.push('Sandbox probe results (no credentials printed):')
+      lines.push('Sandbox probe results (Amadeus-only, no credentials printed):')
       for (const row of probe.results) {
         lines.push(
           `  - ${row.provider}: probeOk=${row.probeOk ?? false} reason=${row.probeReason ?? row.reason}`,
@@ -101,15 +101,15 @@ export async function runProvidersCheck(
   } else {
     lines.push('')
     lines.push('No network calls performed (config/readiness only).')
-    lines.push('Pass --sandbox-probe or PROVIDER_SANDBOX_PROBE=true for optional probe mode.')
+    lines.push('Pass --sandbox-probe or PROVIDER_SANDBOX_PROBE=true for optional Amadeus sandbox probe.')
   }
 
-  // Exit non-zero only on forbidden client secret exposure in readiness.
   const forbidden = readiness.some((r) =>
     r.secrets.some((s) => s.forbiddenClientExposure),
   )
   const report = lines.join('\n')
   return {
+    // Forbidden client secrets fail hard. Exclusivity conflicts are reported but non-fatal.
     exitCode: forbidden ? 2 : 0,
     report,
     probed,

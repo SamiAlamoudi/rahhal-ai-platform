@@ -3,6 +3,7 @@
  */
 
 import { resolveLiveCapabilityFlags } from '../../../ops/production/liveCapabilityFlags'
+import { enforceSingleLiveCapability } from './exclusivity'
 import type {
   CapabilityEnablement,
   ProviderCapability,
@@ -103,13 +104,21 @@ export function resolveProviderEnablementFlags(
     }
   }
 
-  return {
+  const base: ProviderEnablementFlags = {
     masterLive,
     mockFallbackEnabled: overrides.mockFallbackEnabled
       ?? parseBool(readEnv('VITE_PROVIDER_MOCK_FALLBACK', env) ?? readEnv('PROVIDER_MOCK_FALLBACK', env), true),
     strictLive: overrides.strictLive
       ?? parseBool(readEnv('VITE_PROVIDER_STRICT_LIVE', env) ?? readEnv('PROVIDER_STRICT_LIVE', env), false),
     capabilities,
+  }
+
+  // Phase AK — never allow more than one live capability at a time.
+  const exclusive = enforceSingleLiveCapability(base, env)
+  return {
+    ...exclusive.flags,
+    allowedLiveCapability: exclusive.allowedLiveCapability,
+    exclusivitySuppressed: exclusive.suppressedCapabilities,
   }
 }
 

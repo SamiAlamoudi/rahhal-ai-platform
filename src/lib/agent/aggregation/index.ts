@@ -65,6 +65,10 @@ export {
   PROVIDER_FAILURE_POLICY,
   failurePolicyFor,
   syncProviderEnablementFeatureFlags,
+  enforceSingleLiveCapability,
+  PRIMARY_SANDBOX_PROVIDER_ID,
+  PRIMARY_SANDBOX_CAPABILITY,
+  createAmadeusSandboxProbeFn,
 } from './providerEnablement'
 export type {
   ProviderCapability,

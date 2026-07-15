@@ -81,6 +81,13 @@ export interface ProviderEnablementFlags {
   /** When true, readiness/selection failure returns error instead of mock. */
   strictLive: boolean
   capabilities: Record<ProviderCapability, CapabilityEnablement>
+  /**
+   * Phase AK — at most one capability may be live.
+   * Null when master is OFF or no capability was requested live.
+   */
+  allowedLiveCapability?: ProviderCapability | null
+  /** Capabilities suppressed because another live flag won exclusivity. */
+  exclusivitySuppressed?: ProviderCapability[]
 }
 
 export interface SecretPresenceResult {
