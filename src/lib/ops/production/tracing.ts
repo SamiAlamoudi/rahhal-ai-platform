@@ -72,9 +72,13 @@ export class RecordingTracerProvider implements TracerProvider {
   }> = []
 
   startSpan(name: string, attributes: Record<string, string | number | boolean> = {}): TraceSpan {
+    const attrs: Record<string, string | number | boolean> = {
+      ...attributes,
+      'correlation.id': getCorrelationId(),
+    }
     const record = {
       name,
-      attributes: { ...attributes, 'correlation.id': getCorrelationId() },
+      attributes: attrs,
       events: [] as string[],
       exceptions: [] as string[],
       ended: false,
@@ -85,7 +89,7 @@ export class RecordingTracerProvider implements TracerProvider {
       traceId: String(record.attributes['correlation.id'] ?? ''),
       spanId: `span_${this.spans.length}`,
       setAttribute(key, value) {
-        record.attributes[key] = value
+        attrs[key] = value
       },
       addEvent(eventName) {
         record.events.push(eventName)
