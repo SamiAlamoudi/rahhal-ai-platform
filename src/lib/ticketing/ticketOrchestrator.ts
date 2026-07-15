@@ -95,6 +95,11 @@ export class TicketOrchestrator {
     return id ? this.getSession(id) : null
   }
 
+  /** Read-only list of ticket sessions (Phase V trip aggregation). */
+  listSessions(): TicketSession[] {
+    return [...this.sessions.values()].map(cloneSession)
+  }
+
   /**
    * Create a ticket session when booking+payment are eligible.
    * Prevents duplicate sessions for the same booking+order.
