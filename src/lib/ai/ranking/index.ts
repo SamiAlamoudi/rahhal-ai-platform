@@ -6,5 +6,8 @@ export type {
 } from './types'
 export {
   DefaultRankingEngine,
+  RankingEngineImpl,
   createRankingEngine,
+  stableSort,
+  breakTies,
 } from './rankingEngine'

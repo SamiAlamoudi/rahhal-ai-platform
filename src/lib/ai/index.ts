@@ -1,5 +1,5 @@
 /**
- * Phase AB — v1.1 AI Enhancement Foundation.
+ * Phase AB + AC — AI enhancement foundation and Recommendation Engine v1.
  * Additive library surface; no UI; no breaking TripPlan / ProviderAdapter changes.
  */
 
@@ -25,11 +25,16 @@ export {
   type PersonalizationProfile,
   type PreferenceEngine,
   type PreferenceEngineOptions,
+  type ExplicitPreferences,
+  type InferredPreferences,
+  type NormalizedPreferences,
   defaultPreferenceWeights,
   emptyPersonalizationProfile,
   InMemoryPreferenceEngine,
   getPreferenceEngine,
   resetPreferenceEngine,
+  normalizePreferenceWeights,
+  calculatePreferenceWeights,
 } from './preferences'
 
 export {
@@ -38,16 +43,35 @@ export {
   type RankingInput,
   type RankingEngine,
   DefaultRankingEngine,
+  RankingEngineImpl,
   createRankingEngine,
+  stableSort,
+  breakTies,
 } from './ranking'
 
 export {
   type RecommendationCandidate,
   type RecommendationRequest,
   type RecommendationResult,
-  type RecommendationEngine,
+  type RecommendationEngineContract,
+  type RecommendationKind,
+  type RecommendationReasonCategory,
+  type RecommendationReason,
+  type RecommendationScoreComponents,
+  type RecommendationScore,
+  type SeasonName,
+  type RecommendationContext,
+  type RecommendationCandidateInput,
+  type Recommendation,
+  type RecommendV1Request,
+  type RecommendV1Result,
+  RecommendationEngine,
   DefaultRecommendationEngine,
   createRecommendationEngine,
+  scoreCandidate,
+  toRecommendationScore,
+  seasonFromMonth,
+  resolveSeason,
 } from './recommendations'
 
 export {
