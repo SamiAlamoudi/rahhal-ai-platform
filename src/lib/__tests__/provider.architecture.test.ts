@@ -57,6 +57,13 @@ describe('Phase M provider adapter architecture', () => {
     const ids = flights.map((c) => c.providerId)
     expect(ids).toEqual(expect.arrayContaining(['amadeus', 'amadeus_mock', 'duffel', 'skyscanner']))
     expect(flights.find((c) => c.providerId === 'skyscanner')?.futureSlot).toBe(true)
+    const hotels = registry.discoverCapabilities('hotels')
+    expect(hotels.map((c) => c.providerId)).toEqual(expect.arrayContaining([
+      'booking_com',
+      'booking_com_mock',
+      'expedia',
+      'hotelbeds',
+    ]))
     expect(FUTURE_PROVIDER_CATALOG.map((f) => f.id)).toEqual(expect.arrayContaining([
       'skyscanner',
       'hotelbeds',

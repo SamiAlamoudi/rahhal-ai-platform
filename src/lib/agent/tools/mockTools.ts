@@ -126,7 +126,9 @@ export function createMockHotelSearchTool(
     name: 'hotels',
     domain: 'hotels',
     providerId: 'aggregate-hotels',
-    timeoutMs: 2000,
+    timeoutMs: 5000,
+    // Real Booking.com (when available) then mock hotels automatically.
+    selectionStrategy: 'priority_fallback',
     engine,
     inputSchema: schema('HotelSearchInput', {
       ...destinationSchemaProps,

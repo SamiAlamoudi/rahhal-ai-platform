@@ -22,6 +22,7 @@ export type KnownProviderId =
   | 'skyscanner'
   // Hotels
   | 'booking_com'
+  | 'booking_com_mock'
   | 'expedia'
   | 'hotelbeds'
   // Maps

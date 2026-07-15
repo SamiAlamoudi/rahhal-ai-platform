@@ -186,9 +186,10 @@ export function createMockDuffelAdapter(): ProviderAdapter {
   )
 }
 
+/** Mock hotels fallback used when the real Booking.com adapter is unavailable. */
 export function createMockBookingComAdapter(): ProviderAdapter {
   return createHotelAdapter(
-    meta('booking_com', 'Booking.com (mock)', ['hotels'], 85, 0.88),
+    meta('booking_com_mock', 'Booking.com Mock Hotels', ['hotels'], 45, 0.88),
     'Center by Booking',
     10,
   )
