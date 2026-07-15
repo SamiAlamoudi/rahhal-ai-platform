@@ -9,7 +9,10 @@ import type {
   DestinationProvider,
 } from '../providers'
 import { getProviderRegistry } from '../../../integrations/registry/providerRegistry'
-import { createMockContractProviders } from '../mocks'
+import {
+  createMockContractProviders,
+  type MockContractProviders,
+} from '../mocks'
 
 export type AnyProvider =
   | FlightProvider
@@ -31,6 +34,17 @@ export interface ContractRegistry {
   listEnabled(): AnyProvider[]
   getMetadata(providerId: string): ProviderMetadata | null
   clear(): void
+}
+
+/**
+ * Public default registry shape used by older contracts API / tests.
+ * Also exposes method-based ContractRegistry accessors for current callers.
+ */
+export type DefaultContractRegistry = ContractRegistry & {
+  flights: FlightProvider[]
+  hotels: HotelProvider[]
+  activities: ActivityProvider[]
+  transfers: TransferProvider[]
 }
 
 export function createContractRegistry(): ContractRegistry {
@@ -97,17 +111,36 @@ export function createContractRegistry(): ContractRegistry {
   }
 }
 
-export function createDefaultContractRegistry(): ContractRegistry {
+/**
+ * Build the default registry with mock providers.
+ * Returns both domain arrays (`flights`/`hotels`/…) and method-based accessors
+ * (`getByDomain`) so legacy and current callers stay compatible.
+ */
+export function createDefaultContractRegistry(
+  providers: MockContractProviders = createMockContractProviders(),
+): DefaultContractRegistry {
+  const registry = hydrateContractRegistry(providers)
+  return Object.assign(registry, {
+    flights: [providers.flight],
+    hotels: [providers.hotel],
+    activities: [providers.activity],
+    transfers: [providers.transfer],
+  })
+}
+
+/** Populates a method-based ContractRegistry with all mock + integration providers. */
+export function hydrateContractRegistry(
+  providers: MockContractProviders = createMockContractProviders(),
+): ContractRegistry {
   const registry = createContractRegistry()
-  const mocks = createMockContractProviders()
-  registry.register(mocks.flight)
-  registry.register(mocks.hotel)
-  registry.register(mocks.activity)
-  registry.register(mocks.transfer)
-  registry.register(mocks.visa)
+  registry.register(providers.flight)
+  registry.register(providers.hotel)
+  registry.register(providers.activity)
+  registry.register(providers.transfer)
+  registry.register(providers.visa)
   const integrationWeather = lookupIntegrationWeatherProvider()
-  registry.register(integrationWeather ?? mocks.weather)
-  registry.register(mocks.destination)
+  registry.register(integrationWeather ?? providers.weather)
+  registry.register(providers.destination)
   return registry
 }
 

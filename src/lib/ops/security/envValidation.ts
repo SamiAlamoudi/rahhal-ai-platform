@@ -1,7 +1,13 @@
 /**
  * Environment / secret validation for startup and readiness probes.
  * Never requires client-side provider secrets.
+ * Phase AI — also validates live capability flags and timeout knobs.
  */
+
+import {
+  assertSafeLiveDefaults,
+  resolveLiveCapabilityFlags,
+} from '../production/liveCapabilityFlags'
 
 export type DeployTarget = 'development' | 'staging' | 'production'
 
@@ -22,6 +28,13 @@ export interface EnvironmentValidationResult {
     paymentProvider: string
     liveProvidersEnabled: boolean
     supabaseConfigured: boolean
+    liveCapabilities: {
+      flights: boolean
+      hotels: boolean
+      activities: boolean
+      transport: boolean
+      payments: boolean
+    }
   }
   summary: {
     target: DeployTarget
@@ -74,8 +87,9 @@ export function validateEnvironment(
     ?? 'mock'
   ).toLowerCase()
 
+  const liveCapabilities = resolveLiveCapabilityFlags(env)
   const liveProvidersEnabled = input.liveProvidersEnabled
-    ?? ['1', 'true', 'yes', 'on'].includes(String(env.VITE_LIVE_PROVIDERS_ENABLED ?? 'false').toLowerCase())
+    ?? liveCapabilities.liveProvidersMaster
 
   const supabaseConfigured = isSet(env.VITE_SUPABASE_URL) && isSet(env.VITE_SUPABASE_ANON_KEY)
 
@@ -88,6 +102,38 @@ export function validateEnvironment(
     }
     if (liveProvidersEnabled) {
       warnings.push('Live providers enabled — ensure Edge secrets are configured and feature flags reviewed')
+    }
+  }
+
+  // Phase AI — live payments must never be on while mock freeze holds.
+  const safeLive = assertSafeLiveDefaults({
+    ...liveCapabilities,
+    livePayments:
+      liveCapabilities.livePayments ||
+      ['1', 'true', 'yes', 'on'].includes(String(env.VITE_LIVE_PAYMENTS_ENABLED ?? 'false').toLowerCase()),
+  })
+  if (!safeLive.ok) {
+    for (const violation of safeLive.violations) errors.push(violation)
+  }
+  if (paymentProvider !== 'mock' && (target === 'staging' || target === 'production')) {
+    // already errored above
+  } else if (liveCapabilities.livePayments && paymentProvider === 'mock') {
+    warnings.push('live.payments flag ignored while VITE_PAYMENT_PROVIDER=mock')
+  }
+
+  // Timeout knobs must be positive integers when set.
+  for (const key of [
+    'VITE_REQUEST_TIMEOUT_MS',
+    'VITE_PLANNING_TIMEOUT_MS',
+    'VITE_BOOKING_TIMEOUT_MS',
+    'VITE_PROVIDER_TIMEOUT_MS',
+  ]) {
+    const raw = env[key]
+    if (isSet(raw)) {
+      const n = Number.parseInt(String(raw), 10)
+      if (!Number.isFinite(n) || n <= 0) {
+        errors.push(`${key} must be a positive integer milliseconds value`)
+      }
     }
   }
 
@@ -106,10 +152,6 @@ export function validateEnvironment(
     }
   }
 
-  if (target === 'production' && liveProvidersEnabled === false) {
-    // Safe default — ok
-  }
-
   const ok = errors.length === 0
   return {
     ok,
@@ -120,6 +162,13 @@ export function validateEnvironment(
       paymentProvider,
       liveProvidersEnabled,
       supabaseConfigured,
+      liveCapabilities: {
+        flights: liveCapabilities.liveFlights,
+        hotels: liveCapabilities.liveHotels,
+        activities: liveCapabilities.liveActivities,
+        transport: liveCapabilities.liveTransport,
+        payments: liveCapabilities.livePayments,
+      },
     },
     summary: {
       target,

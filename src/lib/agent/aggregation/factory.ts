@@ -4,8 +4,8 @@ import {
   createLiveIntegrationEngine,
   createLiveProviderAdapters,
   createLiveProviderRegistry,
-  resolveProviderFeatureFlags,
 } from './liveIntegration'
+import { resolveEnablementAwareFeatureFlags } from './providerEnablement/factoryBridge'
 import {
   createActiveMockProviderAdapters,
 } from './mockProviders'
@@ -20,7 +20,7 @@ import type { AggregationEngine, ProviderAdapter, ProviderRegistry } from './typ
  * Phase W: live adapters honor feature flags; mock counterparts remain for fallback.
  */
 export function createDefaultProviderAdapters(): ProviderAdapter[] {
-  const flags = resolveProviderFeatureFlags()
+  const flags = resolveEnablementAwareFeatureFlags()
   return createLiveProviderAdapters(flags)
 }
 

@@ -18,9 +18,9 @@ import { createCircuitBreaker, type CircuitBreaker } from './circuitBreaker'
 import { resolveLiveProviderEnvironment } from './environment'
 import {
   isLiveProviderFlagEnabled,
-  resolveProviderFeatureFlags,
   type ProviderFeatureFlags,
 } from './featureFlags'
+import { resolveEnablementAwareFeatureFlags } from '../providerEnablement/factoryBridge'
 import { createProviderMetrics, type ProviderMetrics } from './metrics'
 import { createProviderRateLimiter, type ProviderRateLimiter } from './rateLimiter'
 import { createProviderSelectionLog, type ProviderSelectionLog } from './selectionLog'
@@ -92,7 +92,7 @@ function buildLiveAdapters(flags: ProviderFeatureFlags): ProviderAdapter[] {
 }
 
 export function createLiveProviderAdapters(
-  flags: ProviderFeatureFlags = resolveProviderFeatureFlags(),
+  flags: ProviderFeatureFlags = resolveEnablementAwareFeatureFlags(),
 ): ProviderAdapter[] {
   return buildLiveAdapters(flags)
 }
@@ -100,7 +100,8 @@ export function createLiveProviderAdapters(
 export function createLiveIntegration(
   options: CreateLiveIntegrationOptions = {},
 ): LiveIntegrationContext {
-  const flags = resolveProviderFeatureFlags(options.flags)
+  // Phase AJ: capability flags + readiness gate live adapters; defaults stay mock.
+  const flags = resolveEnablementAwareFeatureFlags(undefined, options.flags)
   const circuitBreaker = createCircuitBreaker()
   const metrics = createProviderMetrics()
   const selectionLog = createProviderSelectionLog()

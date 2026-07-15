@@ -15,6 +15,19 @@ export type FeatureId =
   | 'ai.analytics'
   | 'payments.live'
   | 'providers.live_master'
+  /** Phase AI capability flags — all default OFF. */
+  | 'live.flights'
+  | 'live.hotels'
+  | 'live.activities'
+  | 'live.transport'
+  | 'live.payments'
+  /** Phase AJ capability-level flags — aliases of live.*; all default OFF. */
+  | 'providers.flights.live'
+  | 'providers.hotels.live'
+  | 'providers.maps.live'
+  | 'providers.weather.live'
+  | 'providers.transport.live'
+  | 'providers.activities.live'
 
 export interface FeatureDefinition {
   id: FeatureId

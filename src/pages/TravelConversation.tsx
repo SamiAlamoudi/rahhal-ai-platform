@@ -11,14 +11,13 @@ import {
 } from '../utils/travelSession'
 import { useSessionPersistence } from '../lib/hooks/useSessionPersistence'
 import { buildTravelSearchRequest } from '../utils/travelSearchRequest'
-import type { SearchOrchestrationResult } from '../utils/searchOrchestrator'
-import { orchestrateLiveSearch } from '../utils/liveSearchOrchestrator'
-import { generateReasoning, type ReasoningResult } from '../utils/reasoningEngine'
 import { buildRahhalReply, buildWelcomeReply, buildResumedReply, progressText } from '../utils/rahhalVoice'
 import DecisionProfile from '../components/DecisionProfile'
 import LiveSummaryCard from '../components/LiveSummaryCard'
 import ResultsExperience from '../components/ResultsExperience'
 import DecisionDashboard from '../components/DecisionDashboard'
+import TripPlannerPlanStatus from '../components/TripPlannerPlanStatus'
+import { useTripPlannerApi } from '../lib/hooks/useTripPlannerApi'
 
 interface ChatMessage {
   id: number
@@ -63,9 +62,6 @@ export default function TravelConversation() {
   const [input, setInput] = useState('')
   const [isThinking, setIsThinking] = useState(false)
   const [mode, setMode] = useState<'essential' | 'preferences'>('essential')
-  const [orchestrationResult, setOrchestrationResult] = useState<SearchOrchestrationResult | null>(null)
-  const [orchestrationError, setOrchestrationError] = useState<string | null>(null)
-  const [searching, setSearching] = useState(false)
   const msgIdRef = useRef(3)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -83,51 +79,19 @@ export default function TravelConversation() {
     })
   }, [session])
 
-  const rankedOptions = useMemo(() => orchestrationResult?.rankedOptions ?? [], [orchestrationResult])
-
   const searchRequest = useMemo(() => buildTravelSearchRequest(session), [session])
 
-  const reasoningResults = useMemo(() => {
-    if (!session.decisionProfileConfirmed || rankedOptions.length === 0) return new Map<string, ReasoningResult>()
-    const map = new Map<string, ReasoningResult>()
-    for (const option of rankedOptions) {
-      map.set(option.id, generateReasoning(option, buildTravelSearchRequest(session)))
-    }
-    return map
-  }, [rankedOptions, session.decisionProfileConfirmed])
+  const tripPlanner = useTripPlannerApi({
+    session,
+    enabled: session.decisionProfileConfirmed,
+    includeBookingPreview: true,
+    locale: 'ar',
+  })
 
-  useEffect(() => {
-    if (!session.decisionProfileConfirmed) {
-      setOrchestrationResult(null)
-      setOrchestrationError(null)
-      setSearching(false)
-      return
-    }
-
-    let cancelled = false
-    setSearching(true)
-    setOrchestrationError(null)
-
-    const req = buildTravelSearchRequest(session)
-    orchestrateLiveSearch(req)
-      .then((result) => {
-        if (cancelled) return
-        setOrchestrationResult(result)
-        setOrchestrationError(null)
-      })
-      .catch(() => {
-        if (cancelled) return
-        setOrchestrationResult(null)
-        setOrchestrationError('تعذّر تشغيل محرك البحث التجريبي. حاول مرة أخرى.')
-      })
-      .finally(() => {
-        if (!cancelled) setSearching(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [session.decisionProfileConfirmed])
+  const rankedOptions = tripPlanner.rankedOptions
+  const reasoningResults = tripPlanner.reasoningResults
+  const searching = tripPlanner.loading
+  const orchestrationError = tripPlanner.error
 
   useEffect(() => {
     if (sessionLoading) return
@@ -322,23 +286,52 @@ export default function TravelConversation() {
                 </p>
               </div>
 
-              {searching ? (
-                <div className="flex items-center justify-center py-12" aria-label="جاري البحث">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
-                    <p className="text-sm text-slate-500">رحّال يفكر في أفضل خياراتك...</p>
-                  </div>
-                </div>
-              ) : orchestrationError ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-center">
-                  <p className="text-sm font-bold text-rose-600">{orchestrationError}</p>
-                </div>
-              ) : rankedOptions.length === 0 ? (
+              <TripPlannerPlanStatus
+                loading={searching}
+                error={orchestrationError}
+                pipelineLabels={tripPlanner.pipelineLabels}
+                pipelineStage={tripPlanner.pipelineStage}
+                confidence={tripPlanner.confidence}
+                warnings={tripPlanner.warnings}
+                assumptions={tripPlanner.assumptions}
+                tradeOffs={tripPlanner.tradeOffs}
+                validationErrors={tripPlanner.validationErrors}
+                partial={tripPlanner.partial}
+                bookingPreview={tripPlanner.bookingPreview}
+                onRetry={tripPlanner.retry}
+                onCancel={tripPlanner.cancel}
+                locale="ar"
+              />
+
+              {!searching && !orchestrationError && rankedOptions.length === 0 && (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-6 text-center">
                   <p className="text-sm font-medium text-slate-500">لا توجد خيارات تجريبية متاحة حالياً.</p>
                 </div>
-              ) : (
+              )}
+
+              {!searching && rankedOptions.length > 0 && (
                 <div className="space-y-6">
+                  {tripPlanner.result?.itinerary && (
+                    <div className="rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
+                      <h3 className="text-sm font-bold text-slate-900">خط السير اليومي</h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {tripPlanner.result.itinerary.durationDays} أيام
+                        {' · '}
+                        {tripPlanner.result.itinerary.destination}
+                        {' · '}
+                        {tripPlanner.result.itinerary.costs.total}{' '}
+                        {tripPlanner.result.itinerary.costs.currency}
+                      </p>
+                      <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                        {tripPlanner.result.itinerary.days.slice(0, 5).map((day) => (
+                          <li key={day.day}>
+                            اليوم {day.day}: {day.title} — {day.activities.length} أنشطة
+                            {day.freeTimeMinutes > 0 ? ` · فراغ ${day.freeTimeMinutes} د` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <ResultsExperience
                     rankedOptions={rankedOptions}
                     reasoningResults={reasoningResults}
