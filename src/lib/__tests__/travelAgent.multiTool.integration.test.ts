@@ -47,6 +47,7 @@ describe('multi-tool execution integration', () => {
       'hotels',
       'maps',
       'visa',
+      'transportation',
     ]))
     expect(turn.toolBatch!.okCount).toBeGreaterThanOrEqual(5)
     expect(turn.meta.toolResults?.length).toBeGreaterThan(0)

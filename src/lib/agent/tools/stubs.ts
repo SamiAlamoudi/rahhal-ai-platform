@@ -11,6 +11,7 @@ export const AGENT_TOOL_NAMES: AgentToolName[] = [
   'visa',
   'currency',
   'attractions',
+  'transportation',
   'local_recommendations',
 ]
 

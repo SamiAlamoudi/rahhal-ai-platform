@@ -45,6 +45,11 @@ export function aggregationResultToToolData(
         attractions: result.items.map((item) => item.payload),
         aggregation: summary(result),
       }
+    case 'transportation':
+      return {
+        options: result.items.map((item) => item.payload),
+        aggregation: summary(result),
+      }
     default:
       return { items: result.items, aggregation: summary(result) }
   }
@@ -63,6 +68,9 @@ function summary(result: AggregationResult) {
     providersSucceeded: result.meta.providersSucceeded,
     duplicatesRemoved: result.meta.duplicatesRemoved,
     averageConfidence: Number(result.averageConfidence.toFixed(3)),
+    selectionStrategy: result.meta.selectionStrategy,
+    retries: result.meta.retries,
+    fallbacksUsed: result.meta.fallbacksUsed,
     providerResults: result.providerResults,
   }
 }

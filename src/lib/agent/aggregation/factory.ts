@@ -1,5 +1,8 @@
 import { createAggregationEngine } from './engine'
-import { createDefaultMockProviderAdapters } from './mockProviders'
+import {
+  createActiveMockProviderAdapters,
+  createDefaultMockProviderAdapters,
+} from './mockProviders'
 import { createProviderRegistry } from './providerRegistry'
 import type { AggregationEngine, ProviderAdapter, ProviderRegistry } from './types'
 
@@ -9,8 +12,18 @@ export function createDefaultProviderRegistry(
   return createProviderRegistry(adapters)
 }
 
+/** Registry with only active mock adapters (no future stubs). */
+export function createActiveMockProviderRegistry(
+  adapters: ProviderAdapter[] = createActiveMockProviderAdapters(),
+): ProviderRegistry {
+  return createProviderRegistry(adapters)
+}
+
 export function createDefaultAggregationEngine(
   registry: ProviderRegistry = createDefaultProviderRegistry(),
 ): AggregationEngine {
-  return createAggregationEngine({ registry })
+  return createAggregationEngine({
+    registry,
+    selectionStrategy: 'parallel',
+  })
 }
