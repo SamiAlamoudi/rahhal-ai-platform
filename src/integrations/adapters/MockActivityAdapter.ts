@@ -77,7 +77,11 @@ export class MockActivityAdapter implements ActivityProvider {
 
   async searchActivities(_req: ProviderRequest): Promise<ProviderResult<ActivityOffer[]>> {
     const start = Date.now()
-    const data = buildOffers()
+    const data = this.sampleOffers(_req)
     return okResult(METADATA.id, METADATA.name, data, Date.now() - start, 'mock')
+  }
+
+  sampleOffers(_req: ProviderRequest): ActivityOffer[] {
+    return buildOffers()
   }
 }

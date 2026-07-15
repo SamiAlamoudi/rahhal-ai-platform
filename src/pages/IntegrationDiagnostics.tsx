@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getProviderHealthService, type ProviderHealth } from '../integrations/health'
 import { getCatalogStatus } from '../integrations/catalogStatus'
 import { BookingDiagnosticsSection } from '../components/BookingDiagnosticsSection'
+import { ProviderReadinessDiagnosticsSection } from '../components/ProviderReadinessDiagnosticsSection'
 
 const DOMAIN_LABELS: Record<string, string> = {
   flight: 'طيران',
@@ -238,6 +239,8 @@ export default function IntegrationDiagnostics() {
         )}
 
         <BookingDiagnosticsSection />
+
+        <ProviderReadinessDiagnosticsSection />
 
         <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/40 p-4">
           <p className="text-xs text-slate-500">

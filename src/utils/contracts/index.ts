@@ -65,11 +65,20 @@ export {
 export {
   createContractRegistry,
   createDefaultContractRegistry,
+  hydrateContractRegistry,
   type ContractRegistry,
+  type DefaultContractRegistry,
   type AnyProvider,
 } from './registry'
 
-export { createMockContractProviders, type MockContractProviders } from './mocks'
+export {
+  createMockContractProviders,
+  type MockContractProviders,
+  type FlightProviderWithSamples,
+  type HotelProviderWithSamples,
+  type ActivityProviderWithSamples,
+  type TransferProviderWithSamples,
+} from './mocks'
 export { MockFlightProvider } from './mocks/mockFlightProvider'
 export { MockHotelProvider } from './mocks/mockHotelProvider'
 export { MockActivityProvider } from './mocks/mockActivityProvider'
