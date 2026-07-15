@@ -183,6 +183,7 @@ export function buildTripPlan(input: {
     conversationId: input.conversationId,
     requirements: input.requirements,
     updatedAt: new Date().toISOString(),
+    decision: null,
   }
 }
 

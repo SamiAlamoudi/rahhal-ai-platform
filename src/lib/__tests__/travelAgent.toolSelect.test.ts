@@ -66,4 +66,33 @@ describe('selectToolsForTurn', () => {
     expect(selected).not.toContain('hotels')
     expect(selected).not.toContain('attractions')
   })
+
+  it('scopes tools for flight / hotel / activities / day regeneration', () => {
+    const base = {
+      ...emptyRequirements(),
+      destination: 'Japan',
+      destinations: ['Japan'],
+      durationDays: 5,
+    }
+    expect(selectToolsForTurn({
+      requirements: { ...base, regenerateScope: 'flight' },
+      intent: 'regenerate',
+      missingFields: [],
+    })).toEqual(['flights'])
+    expect(selectToolsForTurn({
+      requirements: { ...base, regenerateScope: 'hotel' },
+      intent: 'regenerate',
+      missingFields: [],
+    })).toEqual(['hotels'])
+    expect(selectToolsForTurn({
+      requirements: { ...base, regenerateScope: 'activities' },
+      intent: 'regenerate',
+      missingFields: [],
+    })).toEqual(['weather', 'attractions', 'maps'])
+    expect(selectToolsForTurn({
+      requirements: { ...base, regenerateScope: 'day', regenerateDay: 2 },
+      intent: 'regenerate_day',
+      missingFields: [],
+    })).toEqual(['weather', 'attractions'])
+  })
 })

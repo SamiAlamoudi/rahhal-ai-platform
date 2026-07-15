@@ -67,6 +67,7 @@ export function mergeRequirements(
     notes: patch.notes ?? base.notes,
     tripPurpose: patch.tripPurpose ?? base.tripPurpose,
     regenerateDay: patch.regenerateDay ?? null,
+    regenerateScope: patch.regenerateScope ?? base.regenerateScope ?? null,
   }
 
   // Infer traveler type from count when still unset.
@@ -169,6 +170,7 @@ export function normalizeRequirements(raw: TripRequirements): TripRequirements {
     packageScope: raw.packageScope ?? null,
     weatherPreference: raw.weatherPreference ?? null,
     regenerateDay: raw.regenerateDay ?? null,
+    regenerateScope: raw.regenerateScope ?? null,
   }
 }
 
