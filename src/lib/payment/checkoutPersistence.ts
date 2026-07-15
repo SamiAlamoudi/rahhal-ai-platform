@@ -208,7 +208,7 @@ export async function syncPaymentSession(
     transaction_id: session.transactionId,
     paid_at: session.paidAt,
     metadata: {
-      ...(session.metadata || {}),
+      ...session.metadata,
       redirectUrl: session.redirectUrl,
     },
   })
