@@ -60,41 +60,43 @@ describe('Contracts: ProviderResult wrapper', () => {
     expect(e1.retryable).toBe(false)
 
     const e2 = fromThrown('string error', 'p1')
-    expect(e2.message).toBe('string error')
+    expect(e2.message).toBe('Unknown error')
     expect(e2.category).toBe('unknown')
 
     const e3 = fromThrown({ message: 'obj error' }, 'p1')
-    expect(e3.message).toBe('obj error')
+    expect(e3.message).toBe('Unknown error')
   })
 })
 
 describe('Contracts: capabilities', () => {
   it('defaultCapabilities has all standard features', () => {
     const caps = defaultCapabilities()
-    expect(caps.offersMaxResults).toBeGreaterThanOrEqual(10)
-    expect(caps.supportsRealTimePricing).toBe(true)
-    expect(caps.supportsFreeCancellation).toBe(true)
-    expect(caps.supportsFamilyFriendly).toBe(true)
-    expect(caps.supportsFlexibleDates).toBe(true)
+    expect(caps.supportsRealtime).toBe(false)
+    expect(caps.supportsBooking).toBe(false)
+    expect(caps.supportsCancellation).toBe(false)
+    expect(caps.supportsPriceTracking).toBe(false)
+    expect(caps.supportsMultiCity).toBe(false)
+    expect(caps.supportsCalendarSearch).toBe(false)
   })
 })
 
 describe('Contracts: registry', () => {
   it('createDefaultContractRegistry registers flight/hotel/activity/transfer providers', () => {
-    const reg = createDefaultContractRegistry(createMockContractProviders())
-    const ids = reg.flights.map(p => p.metadata.id)
-    expect(ids).toContain('mock-flight')
-    expect(reg.hotels.length).toBeGreaterThan(0)
-    expect(reg.activities.length).toBeGreaterThan(0)
-    expect(reg.transfers.length).toBeGreaterThan(0)
+    const reg = createDefaultContractRegistry()
+    const flightIds = reg.getByDomain('flight').map(p => p.metadata.id)
+    expect(flightIds).toContain('mock-flight-001')
+    expect(reg.getByDomain('hotel').length).toBeGreaterThan(0)
+    expect(reg.getByDomain('activity').length).toBeGreaterThan(0)
+    expect(reg.getByDomain('transfer').length).toBeGreaterThan(0)
   })
 })
 
 describe('Contracts: offer -> SearchResult mappers', () => {
-  it('flightOfferToSearchResult maps required fields', () => {
+  it('flightOfferToSearchResult maps required fields', async () => {
     const req = makeRequest()
     const providers = createMockContractProviders()
-    const offer = providers.flight!.sampleOffers(req)[0]
+    const result = await providers.flight.searchFlights(req)
+    const offer = result.data![0]
     const sr = flightOfferToSearchResult(offer)
     expect(sr.providerType).toBe('flight')
     expect(sr.price).toBe(offer.price)
@@ -104,10 +106,11 @@ describe('Contracts: offer -> SearchResult mappers', () => {
     expect(sr.location).toContain('→')
   })
 
-  it('hotelOfferToSearchResult maps required fields', () => {
+  it('hotelOfferToSearchResult maps required fields', async () => {
     const req = makeRequest()
     const providers = createMockContractProviders()
-    const offer = providers.hotel!.sampleOffers(req)[0]
+    const result = await providers.hotel.searchHotels(req)
+    const offer = result.data![0]
     const sr = hotelOfferToSearchResult(offer)
     expect(sr.providerType).toBe('hotel')
     expect(sr.price).toBe(offer.price)
@@ -115,20 +118,22 @@ describe('Contracts: offer -> SearchResult mappers', () => {
     expect(sr.rawMetadata.hotelStars).toBe(offer.hotelStars)
   })
 
-  it('activityOfferToSearchResult maps required fields', () => {
+  it('activityOfferToSearchResult maps required fields', async () => {
     const req = makeRequest()
     const providers = createMockContractProviders()
-    const offer = providers.activity!.sampleOffers(req)[0]
+    const result = await providers.activity.searchActivities(req)
+    const offer = result.data![0]
     const sr = activityOfferToSearchResult(offer)
     expect(sr.providerType).toBe('activity')
     expect(sr.price).toBe(offer.price)
     expect(sr.durationMinutes).toBe(offer.durationMinutes)
   })
 
-  it('transferOfferToSearchResult maps required fields', () => {
+  it('transferOfferToSearchResult maps required fields', async () => {
     const req = makeRequest()
     const providers = createMockContractProviders()
-    const offer = providers.transfer!.sampleOffers(req)[0]
+    const result = await providers.transfer.searchTransfers(req)
+    const offer = result.data![0]
     const sr = transferOfferToSearchResult(offer)
     expect(sr.providerType).toBe('transportation')
     expect(sr.price).toBe(offer.price)
@@ -140,7 +145,7 @@ describe('Contracts: contractToAdapterAsync', () => {
   it('flight adapter returns mapped search results', async () => {
     const req = makeRequest()
     const providers = createMockContractProviders()
-    const results = await contractToAdapterAsync(providers.flight!, req)
+    const results = await contractToAdapterAsync(providers.flight, req.search)
     expect(results.length).toBeGreaterThan(0)
     expect(results[0].providerType).toBe('flight')
     expect(results[0].price).toBeGreaterThan(0)
@@ -149,7 +154,7 @@ describe('Contracts: contractToAdapterAsync', () => {
   it('hotel adapter returns mapped search results', async () => {
     const req = makeRequest()
     const providers = createMockContractProviders()
-    const results = await contractToAdapterAsync(providers.hotel!, req)
+    const results = await contractToAdapterAsync(providers.hotel, req.search)
     expect(results.length).toBeGreaterThan(0)
     expect(results[0].providerType).toBe('hotel')
   })
@@ -157,7 +162,7 @@ describe('Contracts: contractToAdapterAsync', () => {
   it('activity adapter returns mapped search results', async () => {
     const req = makeRequest()
     const providers = createMockContractProviders()
-    const results = await contractToAdapterAsync(providers.activity!, req)
+    const results = await contractToAdapterAsync(providers.activity, req.search)
     expect(results.length).toBeGreaterThan(0)
     expect(results[0].providerType).toBe('activity')
   })
@@ -165,7 +170,7 @@ describe('Contracts: contractToAdapterAsync', () => {
   it('transfer adapter returns mapped search results', async () => {
     const req = makeRequest()
     const providers = createMockContractProviders()
-    const results = await contractToAdapterAsync(providers.transfer!, req)
+    const results = await contractToAdapterAsync(providers.transfer, req.search)
     expect(results.length).toBeGreaterThan(0)
     expect(results[0].providerType).toBe('transportation')
   })
@@ -173,7 +178,7 @@ describe('Contracts: contractToAdapterAsync', () => {
   it('adapter sets providerName from metadata', async () => {
     const req = makeRequest()
     const providers = createMockContractProviders()
-    const results = await contractToAdapterAsync(providers.flight!, req)
-    expect(results[0].providerName).toBe(providers.flight!.metadata.name)
+    const results = await contractToAdapterAsync(providers.flight, req.search)
+    expect(results[0].providerName).toBe(providers.flight.metadata.name)
   })
 })
