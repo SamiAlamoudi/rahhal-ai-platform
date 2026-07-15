@@ -230,7 +230,7 @@ export function createMockOpenWeatherAdapter(): ProviderAdapter {
 }
 
 export function createMockGoogleMapsAdapter(): ProviderAdapter {
-  const metadata = meta('google_maps', 'Google Maps (mock)', ['maps'], 80, 0.9)
+  const metadata = meta('google_maps_mock', 'Google Maps (mock)', ['maps'], 45, 0.9)
   return createProviderAdapter({
     metadata,
     capabilities: { features: ['route_legs', 'directions'], rateLimitPerMinute: 100 },
@@ -254,6 +254,7 @@ export function createMockGoogleMapsAdapter(): ProviderAdapter {
           mode: 'transit',
           distanceKm,
           durationMinutes: 25 + (stableHash(to) % 60),
+          source: 'google_maps_mock',
         },
       }])
     },

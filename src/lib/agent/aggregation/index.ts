@@ -52,6 +52,18 @@ export type {
   BookingComProviderConfig,
   CreateBookingComProviderAdapterOptions,
 } from './providers/booking'
+export {
+  createGoogleMapsProviderAdapter,
+  resolveGoogleMapsProviderConfig,
+  isGoogleMapsConfigured,
+  routeLegsToNormalizedOffers,
+  locationToNormalizedOffer,
+} from './providers/googleMaps'
+export type {
+  GoogleMapsProviderConfig,
+  CreateGoogleMapsProviderAdapterOptions,
+  GoogleMapsProviderAdapter,
+} from './providers/googleMaps'
 export { createProviderAdapter } from './baseAdapter'
 export { normalizeProviderError, statusFromErrorCode } from './errors'
 export { createProviderHealthTracker, isProviderHealthyEnough } from './health'

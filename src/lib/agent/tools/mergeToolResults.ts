@@ -180,7 +180,7 @@ function mergeMaps(plan: TripPlan, result: AgentToolResult): TripPlan {
     mode: leg.mode,
     from: leg.from,
     to: leg.to,
-    notes: `${leg.distanceKm} km · ~${leg.durationMinutes} min (mock maps)`,
+    notes: `${leg.distanceKm} km · ~${leg.durationMinutes} min`,
     estimatedCost: null,
     currency: plan.estimatedBudget.currency,
   }))
