@@ -59,12 +59,16 @@ describe('Contracts: ProviderResult wrapper', () => {
     expect(e1.category).toBe('unknown')
     expect(e1.retryable).toBe(false)
 
+    // Preserve plain string / object.message; Unknown error is fallback only.
     const e2 = fromThrown('string error', 'p1')
-    expect(e2.message).toBe('Unknown error')
+    expect(e2.message).toBe('string error')
     expect(e2.category).toBe('unknown')
 
     const e3 = fromThrown({ message: 'obj error' }, 'p1')
-    expect(e3.message).toBe('Unknown error')
+    expect(e3.message).toBe('obj error')
+
+    const e4 = fromThrown(null, 'p1')
+    expect(e4.message).toBe('Unknown error')
   })
 })
 
@@ -77,6 +81,11 @@ describe('Contracts: capabilities', () => {
     expect(caps.supportsPriceTracking).toBe(false)
     expect(caps.supportsMultiCity).toBe(false)
     expect(caps.supportsCalendarSearch).toBe(false)
+    expect(caps.offersMaxResults).toBeGreaterThanOrEqual(10)
+    expect(caps.supportsRealTimePricing).toBe(true)
+    expect(caps.supportsFreeCancellation).toBe(true)
+    expect(caps.supportsFamilyFriendly).toBe(true)
+    expect(caps.supportsFlexibleDates).toBe(true)
   })
 })
 
@@ -88,6 +97,64 @@ describe('Contracts: registry', () => {
     expect(reg.getByDomain('hotel').length).toBeGreaterThan(0)
     expect(reg.getByDomain('activity').length).toBeGreaterThan(0)
     expect(reg.getByDomain('transfer').length).toBeGreaterThan(0)
+
+    // Legacy array shape remains available for backward-compatible callers.
+    expect(reg.flights.map(p => p.metadata.id)).toContain('mock-flight-001')
+    expect(reg.hotels.length).toBeGreaterThan(0)
+    expect(reg.activities.length).toBeGreaterThan(0)
+    expect(reg.transfers.length).toBeGreaterThan(0)
+  })
+})
+
+describe('Contracts: sampleOffers (flight/hotel/activity/transfer)', () => {
+  it('exposes sync sampleOffers for flight/hotel/activity/transfer mocks', () => {
+    const req = makeRequest()
+    const providers = createMockContractProviders()
+
+    const flightOffers = providers.flight.sampleOffers(req)
+    expect(Array.isArray(flightOffers)).toBe(true)
+    expect(flightOffers.length).toBeGreaterThan(0)
+    expect(flightOffers[0].price).toBeGreaterThan(0)
+    expect(flightOffers[0].currency).toBeTruthy()
+    expect(flightOffers[0].itinerary.segments.length).toBeGreaterThan(0)
+
+    const hotelOffers = providers.hotel.sampleOffers(req)
+    expect(hotelOffers.length).toBeGreaterThan(0)
+    expect(hotelOffers[0].price).toBeGreaterThan(0)
+    expect(hotelOffers[0].hotelStars).toBeGreaterThan(0)
+    expect(hotelOffers[0].location).toBeTruthy()
+
+    const activityOffers = providers.activity.sampleOffers(req)
+    expect(activityOffers.length).toBeGreaterThan(0)
+    expect(activityOffers[0].price).toBeGreaterThan(0)
+    expect(activityOffers[0].durationMinutes).toBeGreaterThan(0)
+
+    const transferOffers = providers.transfer.sampleOffers(req)
+    expect(transferOffers.length).toBeGreaterThan(0)
+    expect(transferOffers[0].price).toBeGreaterThan(0)
+    expect(transferOffers[0].transferType).toBeTruthy()
+  })
+
+  it('maps sampleOffers into SearchResult via offer mappers', () => {
+    const req = makeRequest()
+    const providers = createMockContractProviders()
+
+    const flightSr = flightOfferToSearchResult(providers.flight.sampleOffers(req)[0])
+    expect(flightSr.providerType).toBe('flight')
+    expect(flightSr.price).toBeGreaterThan(0)
+    expect(flightSr.location).toContain('→')
+
+    const hotelSr = hotelOfferToSearchResult(providers.hotel.sampleOffers(req)[0])
+    expect(hotelSr.providerType).toBe('hotel')
+    expect(hotelSr.rawMetadata.hotelStars).toBeGreaterThan(0)
+
+    const activitySr = activityOfferToSearchResult(providers.activity.sampleOffers(req)[0])
+    expect(activitySr.providerType).toBe('activity')
+    expect(activitySr.durationMinutes).toBeGreaterThan(0)
+
+    const transferSr = transferOfferToSearchResult(providers.transfer.sampleOffers(req)[0])
+    expect(transferSr.providerType).toBe('transportation')
+    expect(transferSr.rawMetadata.transportType).toBeTruthy()
   })
 })
 

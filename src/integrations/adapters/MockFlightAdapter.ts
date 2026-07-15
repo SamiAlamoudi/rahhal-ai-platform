@@ -122,7 +122,11 @@ export class MockFlightAdapter implements FlightProvider {
 
   async searchFlights(_req: ProviderRequest): Promise<ProviderResult<FlightOffer[]>> {
     const start = Date.now()
-    const data = buildOffers()
+    const data = this.sampleOffers(_req)
     return okResult(METADATA.id, METADATA.name, data, Date.now() - start, 'mock')
+  }
+
+  sampleOffers(_req: ProviderRequest): FlightOffer[] {
+    return buildOffers()
   }
 }
