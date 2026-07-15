@@ -1,5 +1,5 @@
 /**
- * Phase AB + AC — AI enhancement foundation and Recommendation Engine v1.
+ * Phase AB–AD — AI enhancement, Recommendation Engine v1, Itinerary Engine v1.
  * Additive library surface; no UI; no breaking TripPlan / ProviderAdapter changes.
  */
 
@@ -100,3 +100,31 @@ export {
   getProductAnalytics,
   resetProductAnalytics,
 } from './analytics'
+
+export {
+  type ItineraryOptimizationGoal,
+  type ActivitySlotKind,
+  type ActivitySlot,
+  type ItineraryDay as AiItineraryDay,
+  type CostBreakdown,
+  type OptimizationScores,
+  type OptimizationResult,
+  type ItineraryFlightLeg,
+  type ItineraryHotelStay,
+  type ItineraryTransportLeg,
+  type ItineraryExplanation,
+  type Itinerary as GeneratedItinerary,
+  type ItineraryEngineInput,
+  ItineraryEngine,
+  createItineraryEngine,
+  scoreTravelTime,
+  scoreBudgetFit,
+  scorePreferenceFit,
+  scoreActivityDiversity,
+  computeOptimizationScores,
+  optimizeDayForTravelTime,
+  optimizeDaysForBudget,
+  optimizeDaysForPreferences,
+  optimizeDaysForDiversity,
+  buildOptimizationResult,
+} from './itinerary'
