@@ -3,8 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
 import VoiceComposer from '../components/chat/VoiceComposer'
-import { saveGeneratedItinerary } from '../lib/agent/itineraryPersistence'
-import type { TravelItinerary } from '../lib/agent/types'
+import { travelAgentService } from '../lib/agent/travelAgentService'
+import type { TripPlan } from '../lib/agent/types'
 import { chatEngine } from '../lib/chat/chatEngine'
 import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
 import { validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
@@ -432,11 +432,13 @@ export default function ChatPage() {
     })
   }
 
-  const handleSaveItinerary = async (itinerary: TravelItinerary) => {
+  const handleSaveItinerary = async (itinerary: TripPlan) => {
     setActionError(null)
     try {
-      const saved = await saveGeneratedItinerary({ itinerary })
-      setActionError(null)
+      const saved = await travelAgentService.savePlan({
+        conversationId: itinerary.conversationId,
+        tripPlan: itinerary,
+      })
       window.alert(
         itinerary.locale === 'en'
           ? `Saved “${saved.title}” to Saved Trips.`

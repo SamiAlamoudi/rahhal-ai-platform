@@ -44,7 +44,7 @@ npm run dev
 | G | AI Chat (+ shared `chatEngine`) | Text chat, search, streaming, attachment architecture |
 | H | Realtime Voice Conversation on same engine | STT/TTS, PTT/hands-free, interrupt; no phone/video |
 | H.5 | Chat & voice polish (no new features) | Streaming coalesce, mic UX, interrupt/resume, offline/recovery, a11y, tests |
-| I | Travel AI Agent MVP | NL trip planning, follow-ups, structured itinerary, save/edit/regenerate, tool stubs |
+| I | Travel AI Agent foundation | Orchestration service, TripPlan model, LLM/tool adapters, chat+voice via chatEngine |
 | J | CI/E2E/ops | Partial |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).

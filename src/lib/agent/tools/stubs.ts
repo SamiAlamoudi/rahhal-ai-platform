@@ -8,6 +8,7 @@ const TOOL_NAMES: AgentToolName[] = [
   'maps',
   'visa',
   'currency',
+  'attractions',
   'local_recommendations',
 ]
 

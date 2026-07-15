@@ -10,9 +10,11 @@ describe('extractFromUserText', () => {
     expect(result.patch.durationDays).toBe(7)
   })
 
-  it('parses family budget vacation', () => {
+  it('parses family budget vacation without inventing party size', () => {
     const result = extractFromUserText('Family vacation under $3000.')
     expect(result.patch.travelerType).toBe('family')
+    expect(result.patch.tripPurpose).toBe('family')
+    expect(result.patch.travelers).toBeUndefined()
     expect(result.patch.budgetAmount).toBe(3000)
     expect(result.patch.budgetCurrency).toBe('USD')
   })
@@ -21,6 +23,24 @@ describe('extractFromUserText', () => {
     const result = extractFromUserText('Weekend in Riyadh.')
     expect(result.patch.destination).toBe('Riyadh')
     expect(result.patch.durationDays).toBe(2)
+  })
+
+  it('parses honeymoon in Bali', () => {
+    const result = extractFromUserText('Honeymoon in Bali.')
+    expect(result.intent).toBe('plan')
+    expect(result.patch.destination).toBe('Bali')
+    expect(result.patch.tripPurpose).toBe('honeymoon')
+    expect(result.patch.travelerType).toBe('couple')
+    expect(result.patch.travelers).toBe(2)
+    expect(result.patch.interests).toEqual(expect.arrayContaining(['romance', 'beach']))
+  })
+
+  it('parses business trip to London', () => {
+    const result = extractFromUserText('Business trip to London.')
+    expect(result.patch.destination).toBe('London')
+    expect(result.patch.tripPurpose).toBe('business')
+    expect(result.patch.travelerType).toBe('business')
+    expect(result.patch.travelers).toBe(1)
   })
 
   it('parses Arabic duration answers as answer intent', () => {

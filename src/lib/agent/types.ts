@@ -1,10 +1,10 @@
 /**
- * Travel AI Agent domain types — structured planning over the shared chatEngine.
+ * Travel AI Agent foundation models — structured planning over the shared chatEngine.
  */
 
 export type AgentLocale = 'ar' | 'en'
 
-export type TravelerType = 'solo' | 'couple' | 'family' | 'friends'
+export type TravelerType = 'solo' | 'couple' | 'family' | 'friends' | 'business'
 
 export type AgentPhase = 'collecting' | 'planned' | 'editing'
 
@@ -29,6 +29,7 @@ export interface TripRequirements {
   budgetCurrency: string | null
   interests: string[]
   notes: string | null
+  tripPurpose: 'leisure' | 'honeymoon' | 'business' | 'family' | null
 }
 
 export interface ItineraryActivity {
@@ -53,6 +54,15 @@ export interface TransportationItem {
   currency: string | null
 }
 
+export interface AccommodationRecommendation {
+  name: string
+  area: string
+  category: 'hotel' | 'resort' | 'apartment' | 'boutique'
+  fit: string
+  estimatedNightly: number | null
+  currency: string
+}
+
 export interface BudgetBreakdownLine {
   label: string
   amount: number
@@ -64,7 +74,11 @@ export interface EstimatedBudget {
   breakdown: BudgetBreakdownLine[]
 }
 
-export interface TravelItinerary {
+/**
+ * Canonical structured trip plan produced by the Travel AI Agent.
+ * `TravelItinerary` remains as a compatibility alias.
+ */
+export interface TripPlan {
   id: string
   title: string
   locale: AgentLocale
@@ -72,31 +86,44 @@ export interface TravelItinerary {
   startDate: string | null
   endDate: string | null
   durationDays: number
-  travelers: number
+  travelers: number | null
   travelerType: TravelerType | null
+  interests: string[]
+  dailyItinerary: ItineraryDay[]
+  /** Compatibility mirror of dailyItinerary for MVP callers. */
   activities: ItineraryDay[]
   transportation: TransportationItem[]
+  accommodations: AccommodationRecommendation[]
   estimatedBudget: EstimatedBudget
+  /** Alias used in product copy / saved-trip payloads. */
+  estimatedCosts: EstimatedBudget
   notes: string[]
   conversationId: string
   requirements: TripRequirements
   updatedAt: string
 }
 
+/** @deprecated Prefer TripPlan — kept for MVP compatibility. */
+export type TravelItinerary = TripPlan
+
 export interface AgentMemory {
   locale: AgentLocale
   phase: AgentPhase
   requirements: TripRequirements
-  itinerary: TravelItinerary | null
+  tripPlan: TripPlan | null
+  /** MVP compatibility mirror of tripPlan. */
+  itinerary: TripPlan | null
   missingFields: Array<keyof TripRequirements>
   lastIntent: AgentIntent
 }
 
 export interface AgentProviderMeta {
   kind: 'travel_agent'
-  version: 1
+  version: 2
   memory: AgentMemory
-  itinerary: TravelItinerary | null
+  tripPlan: TripPlan | null
+  /** MVP compatibility mirror of tripPlan. */
+  itinerary: TripPlan | null
 }
 
 export function emptyRequirements(): TripRequirements {
@@ -113,6 +140,7 @@ export function emptyRequirements(): TripRequirements {
     budgetCurrency: null,
     interests: [],
     notes: null,
+    tripPurpose: null,
   }
 }
 
@@ -121,8 +149,17 @@ export function emptyMemory(locale: AgentLocale = 'ar'): AgentMemory {
     locale,
     phase: 'collecting',
     requirements: emptyRequirements(),
+    tripPlan: null,
     itinerary: null,
     missingFields: ['destination', 'durationDays'],
     lastIntent: 'unknown',
+  }
+}
+
+export function withTripPlan(memory: AgentMemory, plan: TripPlan | null): AgentMemory {
+  return {
+    ...memory,
+    tripPlan: plan,
+    itinerary: plan,
   }
 }

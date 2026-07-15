@@ -9,6 +9,7 @@ export default defineConfig({
       VITE_SUPABASE_ANON_KEY: 'test-anon-key',
       VITE_PAYMENT_PROVIDER: 'mock',
       VITE_CHAT_PROVIDER: 'mock',
+      VITE_AGENT_LLM_PROVIDER: 'local',
       VITE_VOICE_STT_PROVIDER: 'mock',
       VITE_VOICE_TTS_PROVIDER: 'mock',
     },

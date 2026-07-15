@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import type { TravelItinerary } from '../../lib/agent/types'
+import type { TripPlan } from '../../lib/agent/types'
 
 interface ItineraryActionsProps {
-  itinerary: TravelItinerary
+  itinerary: TripPlan
   busy?: boolean
   onSave: () => void
   onRegenerate: () => void

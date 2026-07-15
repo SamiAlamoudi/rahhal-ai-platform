@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import { copyTextToClipboard } from '../../lib/chat/chatHelpers'
-import { isAgentProviderMeta } from '../../lib/agent/memory'
-import type { TravelItinerary } from '../../lib/agent/types'
+import { tripPlanFromMeta } from '../../lib/agent/memory'
+import type { TripPlan } from '../../lib/agent/types'
 import MarkdownContent from './MarkdownContent'
 import ItineraryActions from './ItineraryActions'
 
@@ -11,7 +11,7 @@ interface MessageBubbleProps {
   isStreaming?: boolean
   busy?: boolean
   onRetry?: (messageId: string) => void
-  onSaveItinerary?: (itinerary: TravelItinerary, messageId: string) => void
+  onSaveItinerary?: (itinerary: TripPlan, messageId: string) => void
   onRegenerateItinerary?: (messageId: string) => void
   onEditItinerary?: (patchText: string) => void
 }
@@ -31,9 +31,7 @@ export default function MessageBubble({
   const imageUrl = message.imageUrl
     || message.attachments.find((a) => a.kind === 'image')?.url
     || null
-  const itinerary = isAgentProviderMeta(message.providerMeta)
-    ? message.providerMeta.itinerary
-    : null
+  const itinerary = tripPlanFromMeta(message.providerMeta)
 
   const handleCopy = async () => {
     const ok = await copyTextToClipboard(message.content)

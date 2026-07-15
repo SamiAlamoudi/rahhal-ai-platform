@@ -65,13 +65,24 @@ export function extractFromUserText(
     patch.travelerType = travelers.type
   }
 
-  if (/\bfamily\b|عائلي|عائلة|أطفال|اطفال/.test(lower) || /عائلة/.test(normalized)) {
-    patch.travelerType = 'family'
-    patch.travelers = patch.travelers ?? 4
-  } else if (/\bcouple\b|honeymoon|زوجين|شهر عسل/.test(lower)) {
+  if (/\bhoneymoon\b|شهر عسل/.test(lower) || /شهر\s*عسل/.test(normalized)) {
+    patch.tripPurpose = 'honeymoon'
     patch.travelerType = 'couple'
     patch.travelers = patch.travelers ?? 2
-  } else if (/\bsolo\b|Alone|وحدي|منفرد/.test(lower)) {
+    patch.interests = uniqueInterests([...(patch.interests ?? []), 'romance', 'beach'])
+  } else if (/\bbusiness\b|work trip|رحلة عمل|عمل\b/.test(lower) || /رحلة\s*عمل/.test(normalized)) {
+    patch.tripPurpose = 'business'
+    patch.travelerType = 'business'
+    patch.travelers = patch.travelers ?? 1
+    patch.interests = uniqueInterests([...(patch.interests ?? []), 'meetings', 'city'])
+  } else if (/\bfamily\b|عائلي|عائلة|أطفال|اطفال/.test(lower) || /عائلة/.test(normalized)) {
+    patch.tripPurpose = 'family'
+    patch.travelerType = 'family'
+    // Do not invent party size for "family" unless the user stated a number.
+  } else if (/\bcouple\b|زوجين/.test(lower)) {
+    patch.travelerType = 'couple'
+    patch.travelers = patch.travelers ?? 2
+  } else if (/\bsolo\b|alone|وحدي|منفرد/.test(lower)) {
     patch.travelerType = 'solo'
     patch.travelers = patch.travelers ?? 1
   }
@@ -81,7 +92,7 @@ export function extractFromUserText(
   if (dates.end) patch.endDate = dates.end
 
   const interests = matchInterests(lower, normalized)
-  if (interests.length) patch.interests = interests
+  if (interests.length) patch.interests = uniqueInterests([...(patch.interests ?? []), ...interests])
 
   if (intent === 'edit') {
     const noteMatch = normalized.match(/(?:note|notes|ملاحظة|ملاحظات)\s*[:：-]?\s*(.+)$/i)
@@ -98,11 +109,11 @@ function detectIntent(lower: string, locale: AgentLocale): AgentIntent {
   if (/\bsave\b|احفظ|حفظ الخطة|حفظ الرحلة/.test(lower)) return 'save'
   if (/\bedit\b|update\b|change\b|عدّل|عدل|غيّر|غير|حدّث|حدث/.test(lower)) return 'edit'
   if (
-    /\bplan\b|\btrip\b|\bvacation\b|\bitinerary\b|خط[ةه]|رحل|عطلة|إجازة|اجازة|نهاية/.test(lower)
-    || locale === 'ar'
+    /\bplan\b|\btrip\b|\bvacation\b|\bitinerary\b|\bhoneymoon\b|\bbusiness\b|خط[ةه]|رحل|عطلة|إجازة|اجازة|نهاية|شهر عسل|رحلة عمل/.test(lower)
   ) {
-    if (/\bplan\b|خط[ةه]|رحل|عطلة|إجازة|اجازة|weekend|vacation|trip/.test(lower)) return 'plan'
+    return 'plan'
   }
+  void locale
   return 'answer'
 }
 
@@ -191,5 +202,17 @@ function capitalizeDestination(value: string): string {
 }
 
 function isStopWord(value: string): boolean {
-  return ['A', 'The', 'My', 'Our', 'Trip', 'Plan', 'Weekend', 'Day', 'Days'].includes(value)
+  return ['A', 'The', 'My', 'Our', 'Trip', 'Plan', 'Weekend', 'Day', 'Days', 'Honeymoon', 'Business'].includes(value)
+}
+
+function uniqueInterests(values: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const value of values) {
+    const key = value.trim().toLowerCase()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(value.trim())
+  }
+  return out
 }

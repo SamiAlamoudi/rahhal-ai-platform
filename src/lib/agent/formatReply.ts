@@ -1,4 +1,4 @@
-import type { AgentLocale, AgentMemory, TravelItinerary, TripRequirements } from './types'
+import type { AgentLocale, AgentMemory, TripPlan, TripRequirements, TravelerType } from './types'
 import { t } from './locale'
 
 export function buildFollowUpQuestion(
@@ -8,16 +8,16 @@ export function buildFollowUpQuestion(
   const locale = memory.locale
   const lines: string[] = [
     t(locale, {
-      ar: 'سأساعدك في بناء خطة سفر منظمة. قبل المتابعة أحتاج تفاصيل ناقصة:',
-      en: 'I can draft a structured trip plan. Before I continue, I still need:',
+      ar: 'سأبني خطة سفر منظمة عبر وكيل رحّال. قبل المتابعة أحتاج معلومات ناقصة (بدون تخمين):',
+      en: 'I will draft a structured trip plan via the Rahhal agent. Before continuing I need missing details (no guessing):',
     }),
   ]
 
   for (const field of missing) {
     if (field === 'destination') {
       lines.push(t(locale, {
-        ar: '• ما الوجهة المطلوبة؟ (مثال: اليابان، الرياض، باريس)',
-        en: '• What destination? (e.g. Japan, Riyadh, Paris)',
+        ar: '• ما الوجهة المطلوبة؟ (مثال: اليابان، بالي، لندن، الرياض)',
+        en: '• What destination? (e.g. Japan, Bali, London, Riyadh)',
       }))
     }
     if (field === 'durationDays') {
@@ -36,42 +36,52 @@ export function buildFollowUpQuestion(
   }
   if (memory.requirements.travelers == null) {
     lines.push(t(locale, {
-      ar: 'اختياري: كم عدد المسافرين ونوع الرحلة (عائلة/زوجين/فردي)؟',
-      en: 'Optional: travelers count and trip type (family/couple/solo)?',
+      ar: 'اختياري: كم عدد المسافرين؟',
+      en: 'Optional: how many travelers?',
     }))
   }
 
   lines.push('')
   lines.push(t(locale, {
     ar: 'أجب بجملة واحدة وسأكمل الخطة فوراً.',
-    en: 'Answer in one message and I will finish the itinerary.',
+    en: 'Answer in one message and I will finish the plan.',
   }))
   return lines.join('\n')
 }
 
-export function formatItineraryReply(itinerary: TravelItinerary, locale: AgentLocale): string {
+export function formatTripPlanReply(plan: TripPlan, locale: AgentLocale): string {
   const lines: string[] = []
-  lines.push(locale === 'ar' ? `## ${itinerary.title}` : `## ${itinerary.title}`)
+  lines.push(`## ${plan.title}`)
   lines.push('')
   lines.push(t(locale, {
-    ar: `**الوجهات:** ${itinerary.destinations.join('، ')}`,
-    en: `**Destinations:** ${itinerary.destinations.join(', ')}`,
+    ar: `**الوجهات:** ${plan.destinations.join('، ')}`,
+    en: `**Destinations:** ${plan.destinations.join(', ')}`,
   }))
   lines.push(t(locale, {
-    ar: `**التواريخ:** ${formatDates(itinerary, locale)}`,
-    en: `**Dates:** ${formatDates(itinerary, locale)}`,
+    ar: `**التواريخ:** ${formatDates(plan, locale)}`,
+    en: `**Dates:** ${formatDates(plan, locale)}`,
   }))
   lines.push(t(locale, {
-    ar: `**المسافرون:** ${itinerary.travelers}${itinerary.travelerType ? ` (${labelTraveler(itinerary.travelerType, locale)})` : ''}`,
-    en: `**Travelers:** ${itinerary.travelers}${itinerary.travelerType ? ` (${labelTraveler(itinerary.travelerType, locale)})` : ''}`,
+    ar: `**المدة:** ${plan.durationDays} ${plan.durationDays === 1 ? 'يوم' : 'أيام'}`,
+    en: `**Duration:** ${plan.durationDays} day${plan.durationDays === 1 ? '' : 's'}`,
   }))
   lines.push(t(locale, {
-    ar: `**الميزانية التقديرية:** ${itinerary.estimatedBudget.amount.toLocaleString('en-US')} ${itinerary.estimatedBudget.currency}`,
-    en: `**Estimated budget:** ${itinerary.estimatedBudget.amount.toLocaleString('en-US')} ${itinerary.estimatedBudget.currency}`,
+    ar: `**المسافرون:** ${formatTravelers(plan, locale)}`,
+    en: `**Travelers:** ${formatTravelers(plan, locale)}`,
+  }))
+  if (plan.interests.length) {
+    lines.push(t(locale, {
+      ar: `**الاهتمامات:** ${plan.interests.join('، ')}`,
+      en: `**Interests:** ${plan.interests.join(', ')}`,
+    }))
+  }
+  lines.push(t(locale, {
+    ar: `**التكاليف التقديرية:** ${plan.estimatedCosts.amount.toLocaleString('en-US')} ${plan.estimatedCosts.currency}`,
+    en: `**Estimated costs:** ${plan.estimatedCosts.amount.toLocaleString('en-US')} ${plan.estimatedCosts.currency}`,
   }))
   lines.push('')
-  lines.push(t(locale, { ar: '### برنامج الأيام', en: '### Day-by-day' }))
-  for (const day of itinerary.activities) {
+  lines.push(t(locale, { ar: '### برنامج الأيام', en: '### Daily itinerary' }))
+  for (const day of plan.dailyItinerary) {
     lines.push('')
     lines.push(`**${day.title}** — ${day.location}`)
     for (const activity of day.activities) {
@@ -82,13 +92,23 @@ export function formatItineraryReply(itinerary: TravelItinerary, locale: AgentLo
   }
   lines.push('')
   lines.push(t(locale, { ar: '### التنقل', en: '### Transportation' }))
-  for (const item of itinerary.transportation) {
+  for (const item of plan.transportation) {
     lines.push(`- ${item.mode}: ${item.from} → ${item.to}${item.notes ? ` (${item.notes})` : ''}`)
   }
-  if (itinerary.notes.length) {
+  if (plan.accommodations.length) {
+    lines.push('')
+    lines.push(t(locale, { ar: '### توصيات الإقامة', en: '### Accommodation recommendations' }))
+    for (const stay of plan.accommodations) {
+      const nightly = stay.estimatedNightly != null
+        ? ` · ~${stay.estimatedNightly} ${stay.currency}/night`
+        : ''
+      lines.push(`- ${stay.name} (${stay.area}, ${stay.category})${nightly} — ${stay.fit}`)
+    }
+  }
+  if (plan.notes.length) {
     lines.push('')
     lines.push(t(locale, { ar: '### ملاحظات', en: '### Notes' }))
-    for (const note of itinerary.notes) lines.push(`- ${note}`)
+    for (const note of plan.notes) lines.push(`- ${note}`)
   }
   lines.push('')
   lines.push(t(locale, {
@@ -97,6 +117,9 @@ export function formatItineraryReply(itinerary: TravelItinerary, locale: AgentLo
   }))
   return lines.join('\n')
 }
+
+/** @deprecated Prefer formatTripPlanReply */
+export const formatItineraryReply = formatTripPlanReply
 
 export function buildSaveAck(locale: AgentLocale, title: string): string {
   return t(locale, {
@@ -112,27 +135,33 @@ export function buildEditAck(locale: AgentLocale): string {
   })
 }
 
-function formatDates(itinerary: TravelItinerary, locale: AgentLocale): string {
-  if (itinerary.startDate && itinerary.endDate) return `${itinerary.startDate} → ${itinerary.endDate}`
-  if (itinerary.startDate) {
+function formatDates(plan: TripPlan, locale: AgentLocale): string {
+  if (plan.startDate && plan.endDate) return `${plan.startDate} → ${plan.endDate}`
+  if (plan.startDate) {
     return locale === 'ar'
-      ? `${itinerary.startDate} · ${itinerary.durationDays} أيام`
-      : `${itinerary.startDate} · ${itinerary.durationDays} days`
+      ? `${plan.startDate} · ${plan.durationDays} أيام`
+      : `${plan.startDate} · ${plan.durationDays} days`
   }
   return locale === 'ar'
-    ? `${itinerary.durationDays} أيام (تواريخ مرنة)`
-    : `${itinerary.durationDays} days (flexible dates)`
+    ? `${plan.durationDays} أيام (تواريخ مرنة)`
+    : `${plan.durationDays} days (flexible dates)`
 }
 
-function labelTraveler(
-  type: NonNullable<TravelItinerary['travelerType']>,
-  locale: AgentLocale,
-): string {
-  const map = {
+function formatTravelers(plan: TripPlan, locale: AgentLocale): string {
+  const count = plan.travelers == null
+    ? (locale === 'ar' ? 'غير مؤكد' : 'unconfirmed')
+    : String(plan.travelers)
+  if (!plan.travelerType) return count
+  return `${count} (${labelTraveler(plan.travelerType, locale)})`
+}
+
+function labelTraveler(type: TravelerType, locale: AgentLocale): string {
+  const map: Record<TravelerType, { ar: string; en: string }> = {
     solo: { ar: 'فردي', en: 'solo' },
     couple: { ar: 'زوجين', en: 'couple' },
     family: { ar: 'عائلة', en: 'family' },
     friends: { ar: 'أصدقاء', en: 'friends' },
-  } as const
+    business: { ar: 'عمل', en: 'business' },
+  }
   return map[type][locale]
 }
