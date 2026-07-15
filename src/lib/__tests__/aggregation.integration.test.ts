@@ -45,7 +45,7 @@ describe('aggregation + travel agent integration', () => {
       offers?: unknown[]
       aggregation?: { providersSucceeded?: number; providersQueried?: number }
     }
-    // Flights use priority_fallback (Amadeus → mock); hotels remain multi-provider.
+    // Flights/hotels use priority_fallback (live provider → mocks).
     expect(flightData.aggregation?.providersQueried).toBeGreaterThanOrEqual(1)
     expect(flightData.aggregation?.providersSucceeded).toBeGreaterThanOrEqual(1)
     expect((flightData.offers ?? []).length).toBeGreaterThan(0)
@@ -53,8 +53,9 @@ describe('aggregation + travel agent integration', () => {
     const hotelTool = turn.toolBatch?.results.find((r) => r.tool === 'hotels')
     const hotelData = hotelTool?.data as {
       stays?: unknown[]
-      aggregation?: { providersSucceeded?: number }
+      aggregation?: { providersSucceeded?: number; providersQueried?: number }
     }
+    expect(hotelData.aggregation?.providersQueried).toBeGreaterThanOrEqual(1)
     expect(hotelData.aggregation?.providersSucceeded).toBeGreaterThanOrEqual(1)
     expect((hotelData.stays ?? []).length).toBeGreaterThan(0)
   })

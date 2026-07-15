@@ -96,7 +96,7 @@ describe('aggregation engine', () => {
     expect(ids).toEqual(expect.arrayContaining([
       'amadeus_mock',
       'duffel',
-      'booking_com',
+      'booking_com_mock',
       'expedia',
       'google_maps',
       'openstreetmap',

@@ -4,16 +4,18 @@ import {
   createDefaultMockProviderAdapters,
 } from './mockProviders'
 import { createAmadeusProviderAdapter } from './providers/amadeus'
+import { createBookingComProviderAdapter } from './providers/booking'
 import { createProviderRegistry } from './providerRegistry'
 import type { AggregationEngine, ProviderAdapter, ProviderRegistry } from './types'
 
 /**
  * Full default provider set for the Travel Agent:
- * Amadeus (real, when configured) → mock flights fallback + other domain mocks.
+ * Amadeus / Booking.com (real, when configured) → mock fallbacks + other domain mocks.
  */
 export function createDefaultProviderAdapters(): ProviderAdapter[] {
   return [
     createAmadeusProviderAdapter(),
+    createBookingComProviderAdapter(),
     ...createDefaultMockProviderAdapters(),
   ]
 }

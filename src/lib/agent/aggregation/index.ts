@@ -42,6 +42,16 @@ export type {
   AmadeusEnvironment,
   CreateAmadeusProviderAdapterOptions,
 } from './providers/amadeus'
+export {
+  createBookingComProviderAdapter,
+  resolveBookingComProviderConfig,
+  isBookingComConfigured,
+  hotelOffersToNormalizedOffers,
+} from './providers/booking'
+export type {
+  BookingComProviderConfig,
+  CreateBookingComProviderAdapterOptions,
+} from './providers/booking'
 export { createProviderAdapter } from './baseAdapter'
 export { normalizeProviderError, statusFromErrorCode } from './errors'
 export { createProviderHealthTracker, isProviderHealthyEnough } from './health'
