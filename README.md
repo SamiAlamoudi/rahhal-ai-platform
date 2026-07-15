@@ -41,8 +41,9 @@ npm run dev
 | D | Real PSP (Moyasar) | **Code complete — production enablement frozen** |
 | E | Saved trips, settings, admin RBAC | Done |
 | F | Admin dashboard management + catalog clarity | Admin overview/users/trips/bookings + mock payments; catalog flags deferred |
-| G | AI Chat (+ later Voice on same `chatEngine`) | Text chat, search, streaming, attachment architecture; voice deferred |
-| H | CI/E2E/ops | Partial |
+| G | AI Chat (+ shared `chatEngine`) | Text chat, search, streaming, attachment architecture |
+| H | Realtime Voice Conversation on same engine | STT/TTS, PTT/hands-free, interrupt; no phone/video |
+| I | CI/E2E/ops | Partial |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).
 

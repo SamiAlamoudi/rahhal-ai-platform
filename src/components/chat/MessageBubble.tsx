@@ -36,7 +36,7 @@ export default function MessageBubble({ message, isStreaming = false, onRetry }:
       >
         <div className="mb-1 text-[10px] font-medium opacity-70">
           {isUser ? 'أنت' : 'رحّال'}
-          {message.modality === 'audio' ? ' · صوت' : ''}
+          {message.modality === 'audio' ? ' · صوت / نصّ الكلام' : ''}
           {imageUrl ? ' · صورة' : ''}
         </div>
 
@@ -49,6 +49,12 @@ export default function MessageBubble({ message, isStreaming = false, onRetry }:
               loading="lazy"
             />
           </div>
+        )}
+
+        {message.audioUrl && (
+          <audio controls preload="none" className="mb-2 w-full" src={message.audioUrl}>
+            <track kind="captions" />
+          </audio>
         )}
 
         {isUser ? (
