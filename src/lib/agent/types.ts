@@ -117,6 +117,14 @@ export interface AgentMemory {
   lastIntent: AgentIntent
 }
 
+export interface AgentToolRunSummary {
+  tool: string
+  status: string
+  summary: string
+  providerId?: string
+  durationMs?: number
+}
+
 export interface AgentProviderMeta {
   kind: 'travel_agent'
   version: 2
@@ -124,6 +132,8 @@ export interface AgentProviderMeta {
   tripPlan: TripPlan | null
   /** MVP compatibility mirror of tripPlan. */
   itinerary: TripPlan | null
+  /** Phase J: tool batch executed for this assistant turn */
+  toolResults?: AgentToolRunSummary[]
 }
 
 export function emptyRequirements(): TripRequirements {

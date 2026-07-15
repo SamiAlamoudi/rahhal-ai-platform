@@ -112,6 +112,11 @@ export function formatTripPlanReply(plan: TripPlan, locale: AgentLocale): string
   }
   lines.push('')
   lines.push(t(locale, {
+    ar: 'تم بناء هذه الخطة عبر أدوات الوكيل التجريبية (طيران/فنادق/طقس/معالم…) دون اتصالات مزود حقيقية بعد.',
+    en: 'This plan used the agent tool layer (flights/hotels/weather/attractions…) with mock adapters — no live provider APIs yet.',
+  }))
+  lines.push('')
+  lines.push(t(locale, {
     ar: 'يمكنك تعديل الخطة، إعادة توليدها، أو حفظها من الأزرار أسفل الرسالة.',
     en: 'You can edit, regenerate, or save this plan using the actions under the message.',
   }))

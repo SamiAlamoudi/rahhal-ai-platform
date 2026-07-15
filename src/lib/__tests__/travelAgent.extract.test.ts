@@ -54,4 +54,11 @@ describe('extractFromUserText', () => {
     expect(extractFromUserText('Regenerate the itinerary').intent).toBe('regenerate')
     expect(extractFromUserText('احفظ الخطة').intent).toBe('save')
   })
+
+  it('parses 5 days in Japan next April', () => {
+    const result = extractFromUserText('I want to spend 5 days in Japan next April.')
+    expect(result.patch.destination).toBe('Japan')
+    expect(result.patch.durationDays).toBe(5)
+    expect(result.patch.startDate).toMatch(/-04-01$/)
+  })
 })
