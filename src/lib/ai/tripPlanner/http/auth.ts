@@ -26,15 +26,32 @@ export function extractBearerToken(authorizationHeader: string | null): string |
  * Default test/dev resolver: accepts tokens of the form `user:<userId>`.
  * Production wiring should inject a Supabase JWT resolver.
  */
+/**
+ * Default test/dev resolver.
+ * Tokens:
+ * - `user:<userId>` — normal user
+ * - `user:<userId>:admin` — admin RBAC
+ * - `admin:<userId>` — admin RBAC (alias)
+ */
 export function createDevTokenAuthResolver(): TripPlannerAuthResolver {
   return {
     async resolveUser(authorizationHeader) {
       const token = extractBearerToken(authorizationHeader)
       if (!token) return null
-      if (token.startsWith('user:')) {
-        const id = token.slice('user:'.length).trim()
+      if (token.startsWith('admin:')) {
+        const id = token.slice('admin:'.length).trim()
         if (!id) return null
-        return { id, email: null, role: null }
+        return { id, email: null, role: 'admin' }
+      }
+      if (token.startsWith('user:')) {
+        const rest = token.slice('user:'.length).trim()
+        if (!rest) return null
+        if (rest.endsWith(':admin')) {
+          const id = rest.slice(0, -':admin'.length).trim()
+          if (!id) return null
+          return { id, email: null, role: 'admin' }
+        }
+        return { id: rest, email: null, role: null }
       }
       return null
     },

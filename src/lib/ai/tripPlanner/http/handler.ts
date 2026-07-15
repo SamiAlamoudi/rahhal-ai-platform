@@ -1,8 +1,12 @@
 /**
- * Phase AG — thin Trip Planner HTTP handler.
+ * Phase AG — Trip Planner HTTP handler.
  *
  * Flow: HTTP → auth → transport validation → TripPlannerService → HTTP
  * Does not create a second orchestration layer.
+ *
+ * Supports:
+ * - Legacy thin actions: plan / get_result / health (Phase AG initial / AH client)
+ * - REST: /trip-planner/plans* (Phase AG REST API Layer v1)
  */
 
 import { createCorrelationId, setCorrelationId } from '../../../ops/logging/correlation'
@@ -23,6 +27,11 @@ import {
   createDevTokenAuthResolver,
   type TripPlannerAuthResolver,
 } from './auth'
+import { TripPlannerPlanStore } from './planStore'
+import {
+  handleTripPlannerRestRequest,
+  isTripPlannerRestPath,
+} from './restRouter'
 import type {
   TripPlannerApiErrorBody,
   TripPlannerApiRequestBody,
@@ -38,6 +47,8 @@ export interface TripPlannerHttpHandlerOptions {
   maxRequestBytes?: number
   rateLimitKey?: (req: Request, user: TripPlannerAuthUser | null) => string
   requireAuth?: boolean
+  /** Optional shared plan store (tests). */
+  planStore?: TripPlannerPlanStore
 }
 
 function jsonResponse(
@@ -120,6 +131,23 @@ export async function handleTripPlannerHttpRequest(
   req: Request,
   options: TripPlannerHttpHandlerOptions = {},
 ): Promise<Response> {
+  const service =
+    options.service ?? createTripPlannerService(options.serviceOptions)
+  const authResolver = options.authResolver ?? createDevTokenAuthResolver()
+  const planStore = options.planStore ?? new TripPlannerPlanStore(service)
+
+  // REST namespace takes precedence when path matches.
+  if (isTripPlannerRestPath(new URL(req.url).pathname)) {
+    return handleTripPlannerRestRequest(req, {
+      service,
+      planStore,
+      authResolver,
+      allowedOrigins: options.allowedOrigins,
+      maxRequestBytes: options.maxRequestBytes,
+      requireAuth: options.requireAuth,
+    })
+  }
+
   const cors = corsHeaderRecord(req, options.allowedOrigins)
   const correlationId =
     req.headers.get('x-correlation-id')?.trim() || createCorrelationId()
@@ -131,9 +159,6 @@ export async function handleTripPlannerHttpRequest(
   }
 
   const requireAuth = options.requireAuth !== false
-  const authResolver = options.authResolver ?? createDevTokenAuthResolver()
-  const service =
-    options.service ?? createTripPlannerService(options.serviceOptions)
 
   let body: TripPlannerApiRequestBody | null = null
   if (req.method === 'POST') {
@@ -350,18 +375,21 @@ export async function handleTripPlannerHttpRequest(
     )
   }
 
-  if (user && result.userId !== user.id) {
-    return jsonResponse(
-      {
-        error: 'Trip planning result not found.',
-        code: 'not_found',
-        correlationId,
-        retryable: false,
-      },
-      404,
-      cors,
-      corrHeaders,
-    )
+  if (user) {
+    const admin = user.role === 'admin'
+    if (!admin && result.userId !== user.id) {
+      return jsonResponse(
+        {
+          error: 'Trip planning result not found.',
+          code: 'not_found',
+          correlationId,
+          retryable: false,
+        },
+        404,
+        cors,
+        corrHeaders,
+      )
+    }
   }
 
   return jsonResponse(
@@ -377,5 +405,7 @@ export function createTripPlannerHttpHandler(
 ): (req: Request) => Promise<Response> {
   const service =
     options.service ?? createTripPlannerService(options.serviceOptions)
-  return (req: Request) => handleTripPlannerHttpRequest(req, { ...options, service })
+  const planStore = options.planStore ?? new TripPlannerPlanStore(service)
+  return (req: Request) =>
+    handleTripPlannerHttpRequest(req, { ...options, service, planStore })
 }

@@ -28,3 +28,50 @@ export {
   createTripPlannerHttpHandler,
   type TripPlannerHttpHandlerOptions,
 } from './handler'
+
+export type {
+  CreateTripPlanRequestDto,
+  CreateTripPlanResponseDto,
+  TripPlanErrorDto,
+  TripPlanResultDto,
+  TripPlanStatusDto,
+  TripPlanTimelineDto,
+  TripPlanApiStatus,
+} from './dto'
+
+export {
+  toTripPlanResultDto,
+  toTimelineDto,
+  dtoToTripPlannerRequest,
+  sanitizeCreateDto,
+} from './dto'
+
+export {
+  progressForStage,
+  progressFromTimeline,
+} from './progress'
+
+export {
+  TripPlannerPlanStore,
+  hashTripPlanRequest,
+  planProgress,
+  isRetryablePlan,
+} from './planStore'
+
+export {
+  handleTripPlannerRestRequest,
+  isTripPlannerRestPath,
+  createPlanStore,
+} from './restRouter'
+
+export {
+  getTripPlannerApiMetrics,
+  resetTripPlannerApiMetrics,
+  TripPlannerApiMetrics,
+} from './apiMetrics'
+
+export {
+  buildErrorBody,
+  localizeApiError,
+  mapValidationCodeToApi,
+} from './errors'

@@ -2,7 +2,7 @@
  * Security policy helpers — headers, CORS, request size, rate limits, brute-force.
  */
 
-import { checkRateLimit, clearRateLimit } from '../../security/securityUtils'
+import { checkRateLimit, clearAllRateLimits, clearRateLimit } from '../../security/securityUtils'
 import { getOpsMetrics } from '../observability/metricsRegistry'
 
 export const SECURITY_HEADERS: Record<string, string> = {
@@ -25,7 +25,8 @@ export const SECURITY_HEADERS: Record<string, string> = {
   'X-DNS-Prefetch-Control': 'off',
 }
 
-export const DEFAULT_CORS_ALLOW_HEADERS = 'authorization, x-client-info, apikey, content-type, x-correlation-id'
+export const DEFAULT_CORS_ALLOW_HEADERS =
+  'authorization, x-client-info, apikey, content-type, x-correlation-id, idempotency-key, prefer, accept-language'
 export const DEFAULT_MAX_REQUEST_BYTES = 256 * 1024
 
 export interface CorsPolicy {
@@ -90,6 +91,10 @@ export type RateLimitDomain =
   | 'ticketing'
   | 'notification'
   | 'ops'
+  | 'trip_planner_create'
+  | 'trip_planner_status'
+  | 'trip_planner_retry'
+  | 'trip_planner_cancel'
   | 'default'
 
 const DOMAIN_LIMITS: Record<RateLimitDomain, number> = {
@@ -100,6 +105,10 @@ const DOMAIN_LIMITS: Record<RateLimitDomain, number> = {
   ticketing: 20,
   notification: 40,
   ops: 120,
+  trip_planner_create: 20,
+  trip_planner_status: 120,
+  trip_planner_retry: 10,
+  trip_planner_cancel: 30,
   default: 30,
 }
 
@@ -120,4 +129,5 @@ export function checkAuthBruteForce(identityKey: string, maxAttempts = 5): boole
 
 export function resetSecurityRateLimits(key?: string): void {
   if (key) clearRateLimit(key)
+  else clearAllRateLimits()
 }
