@@ -13,6 +13,19 @@ export { PAYMENT_SESSION_STATUS_VALUES, PAYMENT_PROVIDER_VALUES, PAYMENT_METHOD_
 export type { PaymentProvider, PaymentProviderConfig, PaymentProviderType } from './paymentProvider'
 export { defaultProviderConfig } from './paymentProvider'
 export { MockPaymentProvider } from './mockPaymentProvider'
+export { MoyasarPaymentProvider, mapMoyasarStatus, resolveMoyasarPaymentUrl, type MoyasarPaymentProviderOptions } from './moyasarPaymentProvider'
+export {
+  saveCheckoutReturnContext,
+  loadCheckoutReturnContext,
+  clearCheckoutReturnContext,
+  isHostedMoyasarPaymentUrl,
+  buildCheckoutReturnUrl,
+  resolveOrderIdFromReturn,
+  resolvePaymentIdFromReturn,
+  chooseCheckoutOutcomeRoute,
+  orderStatusFromMoyasarPayment,
+  type CheckoutReturnContext,
+} from './moyasarCheckout'
 export {
   createPaymentProvider,
   resetPaymentProviderFactory,
@@ -61,11 +74,37 @@ export {
   listOrdersByUser,
   listAllOrders,
   clearAllOrders,
+  hydrateOrder,
   generateInvoiceNumber,
   generateItineraryId,
   buildCart,
   type CreateOrderInput,
 } from './orderManager'
+
+export {
+  orderToCreateInput,
+  orderFromRow,
+  paymentSessionToCreateInput,
+  paymentSessionFromRow,
+  lockToCreateInput,
+  lockFromRow,
+  couponFromRow,
+  persistOrder,
+  syncOrder,
+  persistPaymentSession,
+  syncPaymentSession,
+  persistLock,
+  releaseLockInDb,
+  loadOrder,
+  loadOrdersForUser,
+  loadPaymentSession,
+  loadCouponFromDb,
+  softPersist,
+  createCheckoutSession,
+  getCheckoutSession,
+  updateCheckoutSession,
+  type PersistedCheckoutSession,
+} from './checkoutPersistence'
 
 export type { Invoice, InvoiceLine } from './invoiceGenerator'
 export { generateInvoice } from './invoiceGenerator'
@@ -80,6 +119,7 @@ export {
   type CheckoutInitInput,
   type CheckoutSession,
   type PaymentExecutionResult,
+  type CheckoutOrchestratorOptions,
 } from './checkoutOrchestrator'
 
 export type {

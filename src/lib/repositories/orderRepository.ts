@@ -4,6 +4,8 @@ import type { OrderRow } from '../payment/paymentRowTypes'
 export type { OrderRow } from '../payment/paymentRowTypes'
 
 export interface CreateOrderRowInput {
+  /** Optional client-generated UUID so domain + DB share the same id. */
+  id?: string
   travel_session_id: string | null
   order_number: string
   booking_number: string

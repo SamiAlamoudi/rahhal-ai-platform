@@ -27,12 +27,13 @@ describe('MockPaymentProvider', () => {
     provider = new MockPaymentProvider()
   })
 
-  it('creates a payment session with pending status', async () => {
+  it('creates a payment session with pending status and hosted return URL', async () => {
     const result = await provider.createPaymentSession(samplePaymentRequest())
     expect(result.success).toBe(true)
     expect(result.status).toBe('pending')
     expect(result.paymentSessionId).toBeTruthy()
     expect(result.providerReference).toBeTruthy()
+    expect(result.redirectUrl).toBe('https://rahhal.app/checkout/success')
   })
 
   it('authorizes a payment session', async () => {
@@ -83,10 +84,11 @@ describe('MockPaymentProvider', () => {
     expect(refundResult.success).toBe(false)
   })
 
-  it('gets payment status', async () => {
+  it('simulates hosted payment completion on status refresh', async () => {
     const created = await provider.createPaymentSession(samplePaymentRequest())
+    expect(created.status).toBe('pending')
     const status = await provider.getPaymentStatus(created.paymentSessionId)
-    expect(status).toBe('pending')
+    expect(status).toBe('paid')
   })
 
   it('returns null status for non-existent session', async () => {
@@ -113,9 +115,13 @@ describe('PaymentProviderFactory', () => {
     expect(p1).toBe(p2)
   })
 
+  it('creates moyasar provider', () => {
+    const provider = createPaymentProvider('moyasar')
+    expect(provider.providerId).toBe('moyasar')
+  })
+
   it('throws for unimplemented providers', () => {
     expect(() => createPaymentProvider('hyperpay')).toThrow('HyperPay')
-    expect(() => createPaymentProvider('moyasar')).toThrow('Moyasar')
     expect(() => createPaymentProvider('stripe')).toThrow('Stripe')
     expect(() => createPaymentProvider('checkout_com')).toThrow('Checkout.com')
   })
