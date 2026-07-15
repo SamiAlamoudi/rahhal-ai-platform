@@ -58,6 +58,13 @@ export default function Home() {
             </button>
             <button
               type="button"
+              onClick={() => navigate('/chat')}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+            >
+              المحادثة
+            </button>
+            <button
+              type="button"
               onClick={() => navigate('/settings')}
               className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
             >

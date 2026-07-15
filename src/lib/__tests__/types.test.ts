@@ -7,6 +7,8 @@ import type {
   PreferenceRow,
   NotificationRow,
   AuditLogRow,
+  ConversationRow,
+  MessageRow,
   NotificationType,
   CreateNotificationInput,
   CreateAuditLogInput,
@@ -115,6 +117,34 @@ describe('Types: database row shapes', () => {
       created_at: '2026-01-01T00:00:00Z',
     }
     expect(row.action).toBe('sign_in')
+  })
+
+  it('ConversationRow and MessageRow support text/audio modalities', () => {
+    const conversation: ConversationRow = {
+      id: 'c1',
+      user_id: 'u1',
+      title: 'محادثة',
+      modality_default: 'text',
+      travel_session_id: null,
+      created_at: '2026-07-15T00:00:00Z',
+      updated_at: '2026-07-15T00:00:00Z',
+    }
+    const message: MessageRow = {
+      id: 'm1',
+      conversation_id: 'c1',
+      user_id: 'u1',
+      role: 'assistant',
+      modality: 'text',
+      content: 'hello',
+      audio_url: null,
+      status: 'complete',
+      error: null,
+      provider_meta: {},
+      created_at: '2026-07-15T00:00:00Z',
+      updated_at: '2026-07-15T00:00:00Z',
+    }
+    expect(conversation.modality_default).toBe('text')
+    expect(message.audio_url).toBeNull()
   })
 })
 

@@ -128,6 +128,35 @@ export interface BookingEventRow {
   created_at: string
 }
 
+export type ChatModality = 'text' | 'audio'
+export type ChatMessageRole = 'user' | 'assistant' | 'system'
+export type ChatMessageStatus = 'pending' | 'streaming' | 'complete' | 'error' | 'cancelled'
+
+export interface ConversationRow {
+  id: string
+  user_id: string
+  title: string
+  modality_default: ChatModality | string
+  travel_session_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MessageRow {
+  id: string
+  conversation_id: string
+  user_id: string
+  role: ChatMessageRole | string
+  modality: ChatModality | string
+  content: string
+  audio_url: string | null
+  status: ChatMessageStatus | string
+  error: string | null
+  provider_meta: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
 export type NotificationType = 'info' | 'success' | 'warning' | 'error'
 
 export interface CreateNotificationInput {

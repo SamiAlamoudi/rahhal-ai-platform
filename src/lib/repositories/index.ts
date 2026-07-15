@@ -3,6 +3,8 @@ export { searchHistoryRepository, type CreateSearchHistoryInput } from './search
 export { savedTripRepository, type CreateSavedTripInput } from './savedTripRepository'
 export { favoriteRepository, type CreateFavoriteInput } from './favoriteRepository'
 export { preferenceRepository, type UpdatePreferencesInput } from './preferenceRepository'
+export { conversationRepository, type CreateConversationInput, type UpdateConversationInput } from './conversationRepository'
+export { messageRepository, type CreateMessageInput, type UpdateMessageInput } from './messageRepository'
 export { notificationRepository } from './notificationRepository'
 export { auditLogRepository } from './auditLogRepository'
 export { bookingSessionRepository, type CreateBookingSessionRowInput, type UpdateBookingSessionRowInput } from './bookingSessionRepository'
