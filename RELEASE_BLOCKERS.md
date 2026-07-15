@@ -35,4 +35,4 @@ RC1 is ready only when:
 - Regression checks in `RC1_TEST_REPORT.md` show actual passing executions
 - Rollback plan is documented (`ROLLBACK_PLAN.md`)
 
-**Local gate:** satisfied as of this report. **Tagging / GitHub release of `v1.0.0-rc1` waits for human approval** after PR CI is green.
+**Local gate:** satisfied. **`v1.0.0-rc1` was released as a prerelease and promoted to stable `v1.0.0` after RC1 validation sign-off.**

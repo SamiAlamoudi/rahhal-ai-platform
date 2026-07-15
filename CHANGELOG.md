@@ -2,27 +2,41 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [1.0.0] — 2026-07-15
+
+### Released
+
+- First stable production release of Rahhal AI Platform.
+- Promoted from validated `v1.0.0-rc1` after RC1 exit criteria passed.
+
+### Includes (from RC1 validation freeze)
+
+- End-to-end core journey coverage (auth, chat/voice, trip intake, TripPlan, aggregation, decision scoring, My Trips, mock booking/payment/ticketing/notifications, cancel, timeline/audit).
+- Failure-path and resilience suites (timeouts, rate limits, circuit breaker, mock fallback, partial failures, retries, DLQ, unauthorized access, expired session, voice denied/interrupt/reconnect).
+- Staging smoke suite (health/readiness, mock payment, live-provider defaults OFF, env validation, secret hygiene, security headers, PII masking, rate limits).
+- Release operations artifacts: test report, known issues, blockers checklist, staging smoke checklist, rollback plan.
+- Production-hardening ops controls from Phase X (still active in v1.0.0).
+
+### Security posture
+
+- `VITE_PAYMENT_PROVIDER=mock` remains the only enabled payment mode.
+- Live travel providers remain disabled by default.
+- Client bundles must not carry provider secrets; secret hygiene scan is part of CI.
+
+### Changed
+
+- Package version set to `1.0.0`.
+
 ## [1.0.0-rc1] — 2026-07-15
 
 ### Added
 
-- RC1 end-to-end core journey coverage (`rc1.coreJourney.test.ts`) spanning auth, chat/voice, trip intake, aggregation, decision scoring, My Trips, mock booking/payment/ticketing/notifications, cancel, and audit timeline.
-- RC1 failure-path suite (`rc1.failurePaths.test.ts`) for timeouts, rate limits, circuit breaker, mock fallback, partial failures, payment/booking/ticket/notification retries, DLQ, unauthorized access, expired session, offline reconnect, and voice permission/interrupt.
-- RC1 staging smoke suite (`rc1.stagingSmoke.test.ts`) for health/readiness, mock payment, live-provider defaults, env validation, secret hygiene, security headers, masking, and rate limits.
-- Release artifacts: `RELEASE_NOTES.md`, `RC1_TEST_REPORT.md`, `KNOWN_ISSUES.md`, `RELEASE_BLOCKERS.md`, `STAGING_SMOKE_TEST.md`, `ROLLBACK_PLAN.md`.
+- RC1 end-to-end core journey coverage (`rc1.coreJourney.test.ts`).
+- RC1 failure-path suite (`rc1.failurePaths.test.ts`).
+- RC1 staging smoke suite (`rc1.stagingSmoke.test.ts`).
+- Release artifacts for RC1 validation.
 - npm scripts: `test:e2e`, `test:smoke`, `test:rc1`.
-
-### Changed
-
-- Package version set to `1.0.0-rc1` (release candidate; not final production `1.0.0`).
-
-### Security
-
-- Confirmed mock payment is the only enabled payment mode for RC1.
-- Confirmed live travel providers remain disabled by default.
-- Staging smoke verifies no client secret assignments in example env files and active security headers / PII masking / rate limits.
 
 ### Notes
 
-- Feature freeze: RC1 includes test/docs/hardening validation only — no new product features, UI redesign, or project rename.
-- Do not tag or promote to production until RC1 exit criteria are met and explicit approval is granted.
+- Release candidate for staging validation; subsequently promoted to `v1.0.0`.
