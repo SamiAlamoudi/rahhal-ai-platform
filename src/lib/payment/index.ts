@@ -61,11 +61,37 @@ export {
   listOrdersByUser,
   listAllOrders,
   clearAllOrders,
+  hydrateOrder,
   generateInvoiceNumber,
   generateItineraryId,
   buildCart,
   type CreateOrderInput,
 } from './orderManager'
+
+export {
+  orderToCreateInput,
+  orderFromRow,
+  paymentSessionToCreateInput,
+  paymentSessionFromRow,
+  lockToCreateInput,
+  lockFromRow,
+  couponFromRow,
+  persistOrder,
+  syncOrder,
+  persistPaymentSession,
+  syncPaymentSession,
+  persistLock,
+  releaseLockInDb,
+  loadOrder,
+  loadOrdersForUser,
+  loadPaymentSession,
+  loadCouponFromDb,
+  softPersist,
+  createCheckoutSession,
+  getCheckoutSession,
+  updateCheckoutSession,
+  type PersistedCheckoutSession,
+} from './checkoutPersistence'
 
 export type { Invoice, InvoiceLine } from './invoiceGenerator'
 export { generateInvoice } from './invoiceGenerator'
@@ -80,6 +106,7 @@ export {
   type CheckoutInitInput,
   type CheckoutSession,
   type PaymentExecutionResult,
+  type CheckoutOrchestratorOptions,
 } from './checkoutOrchestrator'
 
 export type {

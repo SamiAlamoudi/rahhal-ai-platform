@@ -30,6 +30,17 @@ import { generateInvoice } from './invoiceGenerator'
 import { generateItinerary } from './itineraryGenerator'
 import type { Invoice } from './invoiceGenerator'
 import type { Itinerary } from './itineraryGenerator'
+import {
+  persistOrder,
+  syncOrder,
+  persistPaymentSession,
+  syncPaymentSession,
+  persistLock,
+  releaseLockInDb,
+  loadOrder,
+  loadPaymentSession,
+  softPersist,
+} from './checkoutPersistence'
 
 export interface CheckoutInitInput {
   userId: string
@@ -56,15 +67,22 @@ export interface PaymentExecutionResult {
   message: string
 }
 
+export interface CheckoutOrchestratorOptions {
+  /** When true, write-through to Supabase (soft-fail). Default true. */
+  persist?: boolean
+}
+
 export class CheckoutOrchestrator {
   private provider: PaymentProvider
   private paymentSessions: Map<string, PaymentSession> = new Map()
+  private persistEnabled: boolean
 
-  constructor(provider: PaymentProvider) {
+  constructor(provider: PaymentProvider, options: CheckoutOrchestratorOptions = {}) {
     this.provider = provider
+    this.persistEnabled = options.persist !== false
   }
 
-  initiateCheckout(input: CheckoutInitInput): CheckoutSession {
+  async initiateCheckout(input: CheckoutInitInput): Promise<CheckoutSession> {
     let discountAmount = 0
     if (input.couponCode) {
       const tempCart = buildCart(input.items, input.currency, null, 0)
@@ -86,6 +104,13 @@ export class CheckoutOrchestrator {
 
     const lock = acquireLock(order.id, input.userId)
 
+    if (this.persistEnabled) {
+      await softPersist(async () => {
+        await persistOrder(order)
+        if (lock) await persistLock(lock)
+      })
+    }
+
     return {
       order,
       cart,
@@ -100,7 +125,7 @@ export class CheckoutOrchestrator {
     customerName: string | null,
     returnUrl: string,
   ): Promise<PaymentExecutionResult> {
-    const order = getOrder(orderId)
+    const order = await this.resolveOrder(orderId)
     if (!order) {
       return this.failure('Order not found', null)
     }
@@ -119,6 +144,10 @@ export class CheckoutOrchestrator {
 
     if (!result.success) {
       updateOrderStatus(orderId, 'failed')
+      if (this.persistEnabled) {
+        const failed = getOrder(orderId)
+        if (failed) await softPersist(() => syncOrder(failed))
+      }
       return this.failure(result.message, null)
     }
 
@@ -149,6 +178,14 @@ export class CheckoutOrchestrator {
     attachPaymentSession(orderId, paymentSession)
     updateOrderStatus(orderId, 'pending_payment')
 
+    if (this.persistEnabled) {
+      await softPersist(async () => {
+        await persistPaymentSession(paymentSession)
+        const updated = getOrder(orderId)
+        if (updated) await syncOrder(updated)
+      })
+    }
+
     return {
       success: true,
       order: getOrder(orderId),
@@ -160,7 +197,7 @@ export class CheckoutOrchestrator {
   }
 
   async executePayment(orderId: string, lockToken: string): Promise<PaymentExecutionResult> {
-    const order = getOrder(orderId)
+    const order = await this.resolveOrder(orderId)
     if (!order) {
       return this.failure('Order not found', null)
     }
@@ -173,7 +210,11 @@ export class CheckoutOrchestrator {
       return this.failure('No payment session attached to order', order)
     }
 
-    const paymentSession = this.paymentSessions.get(order.paymentSessionId)
+    let paymentSession = this.paymentSessions.get(order.paymentSessionId) ?? null
+    if (!paymentSession && this.persistEnabled) {
+      paymentSession = await loadPaymentSession(order.paymentSessionId)
+      if (paymentSession) this.paymentSessions.set(paymentSession.id, paymentSession)
+    }
     if (!paymentSession) {
       return this.failure('Payment session not found', order)
     }
@@ -182,11 +223,19 @@ export class CheckoutOrchestrator {
       return this.failure('Payment already completed', order)
     }
 
+    const fromStatus = paymentSession.status
     const authResult = await this.provider.authorizePayment(paymentSession.id)
     if (!authResult.success) {
       paymentSession.status = 'failed'
       paymentSession.updatedAt = new Date().toISOString()
       updateOrderStatus(orderId, 'failed')
+      if (this.persistEnabled) {
+        await softPersist(async () => {
+          await syncPaymentSession(paymentSession!, fromStatus)
+          const failed = getOrder(orderId)
+          if (failed) await syncOrder(failed)
+        })
+      }
       return this.failure(authResult.message, order)
     }
 
@@ -197,9 +246,17 @@ export class CheckoutOrchestrator {
 
     const captureResult = await this.provider.capturePayment(paymentSession.id)
     if (!captureResult.success) {
+      const preCapture = paymentSession.status
       paymentSession.status = 'failed'
       paymentSession.updatedAt = new Date().toISOString()
       updateOrderStatus(orderId, 'failed')
+      if (this.persistEnabled) {
+        await softPersist(async () => {
+          await syncPaymentSession(paymentSession!, preCapture)
+          const failed = getOrder(orderId)
+          if (failed) await syncOrder(failed)
+        })
+      }
       return this.failure(captureResult.message, order)
     }
 
@@ -213,11 +270,20 @@ export class CheckoutOrchestrator {
     const itineraryId = generateItineraryId(order)
     markOrderConfirmed(orderId, itineraryId)
 
+    const lock = getLock(orderId)
     releaseLock(orderId, lockToken)
 
     const updatedOrder = getOrder(orderId)!
     const invoice = generateInvoice(updatedOrder)
     const itinerary = generateItinerary(updatedOrder)
+
+    if (this.persistEnabled) {
+      await softPersist(async () => {
+        await syncPaymentSession(paymentSession!, fromStatus)
+        await syncOrder(updatedOrder)
+        if (lock) await releaseLockInDb(lock.id)
+      })
+    }
 
     return {
       success: true,
@@ -230,7 +296,7 @@ export class CheckoutOrchestrator {
   }
 
   async retryPayment(orderId: string): Promise<PaymentExecutionResult> {
-    const order = getOrder(orderId)
+    const order = await this.resolveOrder(orderId)
     if (!order) {
       return this.failure('Order not found', null)
     }
@@ -243,20 +309,33 @@ export class CheckoutOrchestrator {
       return this.failure('Cannot acquire lock for retry. Another payment in progress.', order)
     }
 
+    if (this.persistEnabled) {
+      await softPersist(() => persistLock(lock))
+    }
+
     return this.createPaymentSession(orderId, null, null, '')
   }
 
-  cancelCheckout(orderId: string, lockToken: string | null): PaymentExecutionResult {
-    const order = getOrder(orderId)
+  async cancelCheckout(orderId: string, lockToken: string | null): Promise<PaymentExecutionResult> {
+    const order = await this.resolveOrder(orderId)
     if (!order) {
       return this.failure('Order not found', null)
     }
 
+    const lock = getLock(orderId)
     if (lockToken) {
       releaseLock(orderId, lockToken)
     }
 
     updateOrderStatus(orderId, 'cancelled')
+    if (this.persistEnabled) {
+      await softPersist(async () => {
+        const updated = getOrder(orderId)
+        if (updated) await syncOrder(updated)
+        if (lock) await releaseLockInDb(lock.id)
+      })
+    }
+
     return {
       success: true,
       order: getOrder(orderId),
@@ -267,8 +346,8 @@ export class CheckoutOrchestrator {
     }
   }
 
-  recoverAbandonedCheckout(orderId: string): PaymentExecutionResult {
-    const order = getOrder(orderId)
+  async recoverAbandonedCheckout(orderId: string): Promise<PaymentExecutionResult> {
+    const order = await this.resolveOrder(orderId)
     if (!order) {
       return this.failure('Order not found', null)
     }
@@ -281,12 +360,15 @@ export class CheckoutOrchestrator {
       return this.failure('Cannot recover a cancelled or refunded order', order)
     }
 
-    const lock = getLock(orderId)
-    if (lock && lock.status === 'active') {
+    const existingLock = getLock(orderId)
+    if (existingLock && existingLock.status === 'active') {
       return {
         success: true,
         order,
-        paymentSession: order.paymentSessionId ? this.paymentSessions.get(order.paymentSessionId) ?? null : null,
+        paymentSession: order.paymentSessionId
+          ? this.paymentSessions.get(order.paymentSessionId)
+            ?? (this.persistEnabled ? await loadPaymentSession(order.paymentSessionId) : null)
+          : null,
         invoice: null,
         itinerary: null,
         message: 'Checkout resumed — payment in progress',
@@ -294,11 +376,16 @@ export class CheckoutOrchestrator {
     }
 
     const newLock = acquireLock(order.id, order.userId)
-    void newLock
+    if (newLock && this.persistEnabled) {
+      await softPersist(() => persistLock(newLock))
+    }
     return {
       success: true,
       order,
-      paymentSession: order.paymentSessionId ? this.paymentSessions.get(order.paymentSessionId) ?? null : null,
+      paymentSession: order.paymentSessionId
+        ? this.paymentSessions.get(order.paymentSessionId)
+          ?? (this.persistEnabled ? await loadPaymentSession(order.paymentSessionId) : null)
+        : null,
       invoice: null,
       itinerary: null,
       message: 'Abandoned checkout recovered. New lock acquired.',
@@ -311,6 +398,13 @@ export class CheckoutOrchestrator {
 
   getOrder(orderId: string): RahhalOrder | null {
     return getOrder(orderId)
+  }
+
+  private async resolveOrder(orderId: string): Promise<RahhalOrder | null> {
+    const cached = getOrder(orderId)
+    if (cached) return cached
+    if (!this.persistEnabled) return null
+    return loadOrder(orderId)
   }
 
   private failure(message: string, order: RahhalOrder | null): PaymentExecutionResult {

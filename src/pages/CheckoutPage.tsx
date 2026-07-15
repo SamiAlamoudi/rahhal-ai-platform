@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate, useLocation, Navigate } from 'react-router-dom'
-import { getDefaultPaymentProvider } from '../lib/payment'
-import { CheckoutOrchestrator } from '../lib/payment/checkoutOrchestrator'
+import { getDefaultPaymentProvider, getCheckoutOrchestrator } from '../lib/payment'
+import { useAuth } from '../lib/auth'
 import { validateCoupon } from '../lib/payment/couponValidator'
 import { buildCart } from '../lib/payment/orderManager'
 import type { CheckoutItem, CheckoutCart } from '../lib/payment/checkoutTypes'
@@ -40,6 +40,7 @@ function formatPrice(price: number, currency: string): string {
 export default function CheckoutPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user } = useAuth()
   const state = location.state as CheckoutLocationState | null
 
   const [couponCode, setCouponCode] = useState('')
@@ -50,7 +51,7 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false)
 
   const provider = useMemo(() => getDefaultPaymentProvider(), [])
-  const orchestrator = useMemo(() => new CheckoutOrchestrator(provider), [provider])
+  const orchestrator = useMemo(() => getCheckoutOrchestrator(provider), [provider])
 
   const cart: CheckoutCart = useMemo(() => {
     if (!state) return { items: [], subtotal: 0, taxes: 0, fees: 0, discount, total: 0, currency: 'SAR' }
@@ -71,7 +72,7 @@ export default function CheckoutPage() {
     }
   }, [couponCode, cart])
 
-  const handleProceedToReview = useCallback(() => {
+  const handleProceedToReview = useCallback(async () => {
     if (!state || state.items.length === 0) {
       setError('لا توجد عناصر للدفع')
       return
@@ -79,8 +80,8 @@ export default function CheckoutPage() {
     setLoading(true)
     setError(null)
     try {
-      const session = orchestrator.initiateCheckout({
-        userId: 'current-user',
+      const session = await orchestrator.initiateCheckout({
+        userId: user?.id ?? 'anonymous',
         travelSessionId: state.travelSessionId,
         items: state.items,
         currency: state.currency,
@@ -100,7 +101,7 @@ export default function CheckoutPage() {
     } finally {
       setLoading(false)
     }
-  }, [state, orchestrator, couponCode, couponMessage, navigate])
+  }, [state, orchestrator, couponCode, couponMessage, navigate, user?.id])
 
   if (!state?.items || state.items.length === 0) {
     return <Navigate to="/results" replace />

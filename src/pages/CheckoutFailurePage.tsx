@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, useLocation, Navigate } from 'react-router-dom'
-import { getDefaultPaymentProvider } from '../lib/payment'
-import { CheckoutOrchestrator } from '../lib/payment/checkoutOrchestrator'
+import { getDefaultPaymentProvider, getCheckoutOrchestrator } from '../lib/payment'
 
 interface FailureLocationState {
   orderId: string
@@ -18,7 +17,7 @@ export default function CheckoutFailurePage() {
   const [retryMessage, setRetryMessage] = useState<string | null>(null)
 
   const provider = useMemo(() => getDefaultPaymentProvider(), [])
-  const orchestrator = useMemo(() => new CheckoutOrchestrator(provider), [provider])
+  const orchestrator = useMemo(() => getCheckoutOrchestrator(provider), [provider])
 
   if (!state?.orderId) {
     return <Navigate to="/my-trips" replace />
@@ -53,15 +52,15 @@ export default function CheckoutFailurePage() {
     }
   }
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (state.lockToken) {
-      orchestrator.cancelCheckout(state.orderId, state.lockToken)
+      await orchestrator.cancelCheckout(state.orderId, state.lockToken)
     }
     navigate('/my-trips')
   }
 
-  const handleRecover = () => {
-    const result = orchestrator.recoverAbandonedCheckout(state.orderId)
+  const handleRecover = async () => {
+    const result = await orchestrator.recoverAbandonedCheckout(state.orderId)
     if (result.success) {
       navigate('/checkout/payment', {
         state: {
