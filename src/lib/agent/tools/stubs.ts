@@ -1,7 +1,8 @@
-import type { AgentTool, AgentToolName } from './types'
+import type { AgentTool, AgentToolName, ToolJsonSchema } from './types'
 import { createAgentToolRegistry } from './registry'
+import { createAllMockTools } from './mockTools'
 
-const TOOL_NAMES: AgentToolName[] = [
+export const AGENT_TOOL_NAMES: AgentToolName[] = [
   'flights',
   'hotels',
   'weather',
@@ -12,25 +13,49 @@ const TOOL_NAMES: AgentToolName[] = [
   'local_recommendations',
 ]
 
+const emptySchema: ToolJsonSchema = {
+  type: 'object',
+  properties: {},
+}
+
 function createStubTool(name: AgentToolName): AgentTool {
   return {
     name,
+    providerId: `stub-${name}`,
+    defaultTimeoutMs: 500,
+    inputSchema: emptySchema,
+    outputSchema: emptySchema,
     isAvailable: () => false,
     async execute(ctx) {
       return {
         tool: name,
         status: 'unavailable',
         summary: ctx.locale === 'ar'
-          ? `أداة ${name} ستُربط لاحقاً عبر طبقة المزودين`
-          : `${name} tool will plug in later via the provider layer`,
+          ? `أداة ${name} غير متاحة`
+          : `${name} tool is unavailable`,
+        error: 'not_available',
       }
     },
   }
 }
 
-/** Default registry: all future tools registered as unavailable stubs. */
-export function createDefaultAgentToolRegistry() {
-  return createAgentToolRegistry(TOOL_NAMES.map(createStubTool))
+/** Unavailable stubs only — useful for isolation tests. */
+export function createUnavailableAgentToolRegistry() {
+  return createAgentToolRegistry(AGENT_TOOL_NAMES.map(createStubTool))
 }
 
-export { TOOL_NAMES as AGENT_TOOL_NAMES }
+/**
+ * Default Phase J registry: deterministic mock tools with production-ready schemas.
+ * Real vendors (Amadeus, Duffel, Booking.com, OpenWeather, …) replace these adapters later.
+ */
+export function createMockAgentToolRegistry() {
+  const registry = createAgentToolRegistry(createAllMockTools())
+  // Keep local_recommendations as an unavailable extension slot
+  registry.register(createStubTool('local_recommendations'))
+  return registry
+}
+
+/** @deprecated Prefer createMockAgentToolRegistry — default tools are mocks now. */
+export function createDefaultAgentToolRegistry() {
+  return createMockAgentToolRegistry()
+}

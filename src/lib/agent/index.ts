@@ -7,6 +7,7 @@ export type {
   TripRequirements,
   AgentIntent,
   AccommodationRecommendation,
+  AgentToolRunSummary,
 } from './types'
 export { emptyMemory, emptyRequirements, withTripPlan } from './types'
 export { createTravelAgentProvider, travelAgentProvider } from './travelAgentProvider'
@@ -31,9 +32,26 @@ export {
   applyItineraryEdits,
 } from './buildItinerary'
 export { formatTripPlanReply, formatItineraryReply } from './formatReply'
-export { createDefaultAgentToolRegistry, AGENT_TOOL_NAMES } from './tools/stubs'
+export {
+  createDefaultAgentToolRegistry,
+  createMockAgentToolRegistry,
+  createUnavailableAgentToolRegistry,
+  AGENT_TOOL_NAMES,
+} from './tools/stubs'
 export { createAgentToolRegistry } from './tools/registry'
-export type { AgentTool, AgentToolName, AgentToolRegistry } from './tools/types'
+export { createToolExecutor } from './tools/executor'
+export { selectToolsForTurn } from './tools/selectTools'
+export { mergeToolResultsIntoPlan } from './tools/mergeToolResults'
+export { buildToolInput } from './tools/buildToolInput'
+export type {
+  AgentTool,
+  AgentToolName,
+  AgentToolRegistry,
+  AgentToolResult,
+  ToolExecutionBatch,
+  ToolJsonSchema,
+  ToolExecutionMeta,
+} from './tools/types'
 export {
   createAgentLlmProvider,
   createAgentLlmRegistry,

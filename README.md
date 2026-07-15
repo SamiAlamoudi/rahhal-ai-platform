@@ -45,7 +45,8 @@ npm run dev
 | H | Realtime Voice Conversation on same engine | STT/TTS, PTT/hands-free, interrupt; no phone/video |
 | H.5 | Chat & voice polish (no new features) | Streaming coalesce, mic UX, interrupt/resume, offline/recovery, a11y, tests |
 | I | Travel AI Agent foundation | Orchestration service, TripPlan model, LLM/tool adapters, chat+voice via chatEngine |
-| J | CI/E2E/ops | Partial |
+| J | Tool execution framework | Mock flights/hotels/weather/maps/currency/visa/attractions + auto tool selection |
+| K | CI/E2E/ops | Partial |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).
 

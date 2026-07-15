@@ -91,6 +91,9 @@ export function extractFromUserText(
   if (dates.start) patch.startDate = dates.start
   if (dates.end) patch.endDate = dates.end
 
+  const monthDate = matchMonthHint(lower, normalized)
+  if (monthDate && !patch.startDate) patch.startDate = monthDate
+
   const interests = matchInterests(lower, normalized)
   if (interests.length) patch.interests = uniqueInterests([...(patch.interests ?? []), ...interests])
 
@@ -168,6 +171,41 @@ function matchDates(text: string): { start: string | null; end: string | null } 
   if (iso.length >= 2) return { start: iso[0], end: iso[1] }
   if (iso.length === 1) return { start: iso[0], end: null }
   return { start: null, end: null }
+}
+
+/** Resolve soft month hints like "next April" into a planning start date (YYYY-MM-01). */
+function matchMonthHint(lower: string, original: string): string | null {
+  const months: Array<{ keys: string[]; month: number }> = [
+    { keys: ['january', 'يناير'], month: 1 },
+    { keys: ['february', 'فبراير'], month: 2 },
+    { keys: ['march', 'مارس'], month: 3 },
+    { keys: ['april', 'أبريل', 'ابريل'], month: 4 },
+    { keys: ['may', 'مايو'], month: 5 },
+    { keys: ['june', 'يونيو'], month: 6 },
+    { keys: ['july', 'يوليو'], month: 7 },
+    { keys: ['august', 'أغسطس', 'اغسطس'], month: 8 },
+    { keys: ['september', 'سبتمبر'], month: 9 },
+    { keys: ['october', 'أكتوبر', 'اكتوبر'], month: 10 },
+    { keys: ['november', 'نوفمبر'], month: 11 },
+    { keys: ['december', 'ديسمبر'], month: 12 },
+  ]
+  for (const entry of months) {
+    if (entry.keys.some((k) => lower.includes(k) || original.includes(k))) {
+      const now = new Date()
+      let year = now.getUTCFullYear()
+      if (entry.month <= now.getUTCMonth() + 1) year += 1
+      if (/\bnext\b|القادم|المقبل/.test(lower) || /القادم|المقبل/.test(original)) {
+        if (entry.month <= now.getUTCMonth() + 1) {
+          // already bumped
+        } else {
+          // keep current year for an upcoming month
+        }
+      }
+      const mm = String(entry.month).padStart(2, '0')
+      return `${year}-${mm}-01`
+    }
+  }
+  return null
 }
 
 function matchInterests(lower: string, original: string): string[] {

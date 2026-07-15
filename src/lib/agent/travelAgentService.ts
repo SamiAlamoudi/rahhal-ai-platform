@@ -20,9 +20,18 @@ import {
   rebuildMemoryFromMessages,
 } from './memory'
 import { saveGeneratedItinerary } from './itineraryPersistence'
+import { createToolExecutor } from './tools/executor'
+import { mergeToolResultsIntoPlan } from './tools/mergeToolResults'
+import { selectToolsForTurn } from './tools/selectTools'
 import { createDefaultAgentToolRegistry } from './tools/stubs'
-import type { AgentToolRegistry } from './tools/types'
-import type { AgentMemory, AgentProviderMeta, TripPlan, TripRequirements } from './types'
+import type { AgentToolRegistry, AgentToolResult, ToolExecutionBatch } from './tools/types'
+import type {
+  AgentMemory,
+  AgentProviderMeta,
+  AgentToolRunSummary,
+  TripPlan,
+  TripRequirements,
+} from './types'
 import { withTripPlan } from './types'
 
 export interface TravelAgentTurnInput {
@@ -36,6 +45,7 @@ export interface TravelAgentTurnResult {
   memory: AgentMemory
   tripPlan: TripPlan | null
   meta: AgentProviderMeta
+  toolBatch: ToolExecutionBatch | null
 }
 
 export interface TravelAgentServiceOptions {
@@ -52,13 +62,15 @@ export interface TravelAgentService {
   regeneratePlan(input: {
     conversationId: string
     memory: AgentMemory
-  }): TripPlan
+    signal?: AbortSignal
+  }): Promise<TripPlan>
   editPlan(input: {
     conversationId: string
     plan: TripPlan
     patch: Partial<TripRequirements>
     locale: AgentMemory['locale']
-  }): TripPlan
+    signal?: AbortSignal
+  }): Promise<TripPlan>
   savePlan(input: {
     conversationId: string
     tripPlan: TripPlan
@@ -74,12 +86,65 @@ function hasPlanningPatch(patch: Record<string, unknown>): boolean {
   })
 }
 
+function toToolSummaries(results: AgentToolResult[]): AgentToolRunSummary[] {
+  return results.map((result) => ({
+    tool: result.tool,
+    status: result.status,
+    summary: result.summary,
+    providerId: result.meta?.providerId,
+    durationMs: result.meta?.durationMs,
+  }))
+}
+
 export function createTravelAgentService(
   options: TravelAgentServiceOptions = {},
 ): TravelAgentService {
   const tools = options.tools ?? createDefaultAgentToolRegistry()
+  const executor = createToolExecutor(tools)
   const llms = options.llms ?? createAgentLlmRegistry()
   const savePlanHook = options.savePlan
+
+  const runToolsForPlan = async (input: {
+    memory: AgentMemory
+    conversationId: string
+    signal?: AbortSignal
+    seed?: string
+    basePlan?: TripPlan
+  }): Promise<{ plan: TripPlan; batch: ToolExecutionBatch }> => {
+    const selected = selectToolsForTurn({
+      requirements: input.memory.requirements,
+      intent: input.memory.lastIntent,
+      missingFields: input.memory.missingFields,
+    })
+
+    const batch = selected.length > 0
+      ? await executor.execute({
+        names: selected,
+        ctx: {
+          requirements: input.memory.requirements,
+          tripPlan: input.memory.tripPlan,
+          itinerary: input.memory.tripPlan,
+          locale: input.memory.locale,
+          signal: input.signal,
+        },
+      })
+      : {
+        results: [],
+        selected: [],
+        okCount: 0,
+        failedCount: 0,
+        durationMs: 0,
+      }
+
+    const base = input.basePlan ?? buildTripPlan({
+      requirements: input.memory.requirements,
+      conversationId: input.conversationId,
+      locale: input.memory.locale,
+      seed: input.seed,
+    })
+    const plan = mergeToolResultsIntoPlan(base, batch.results)
+    return { plan, batch }
+  }
 
   const service: TravelAgentService = {
     async planTurn(input) {
@@ -97,14 +162,6 @@ export function createTravelAgentService(
       memory.missingFields = missingRequirementFields(memory.requirements)
       memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
 
-      await tools.runAvailable({
-        requirements: memory.requirements,
-        tripPlan: memory.tripPlan,
-        itinerary: memory.tripPlan,
-        locale: memory.locale,
-        signal: input.signal,
-      }, ['attractions', 'local_recommendations', 'weather', 'flights', 'hotels', 'maps', 'visa', 'currency'])
-
       const llm = llms.getActive()
       const llmResult = await llm.complete({
         conversationId: input.conversationId,
@@ -115,6 +172,8 @@ export function createTravelAgentService(
       })
 
       let reply = ''
+      let toolBatch: ToolExecutionBatch | null = null
+
       if (extracted.intent === 'save') {
         if (!memory.tripPlan) {
           reply = memory.locale === 'ar'
@@ -141,23 +200,19 @@ export function createTravelAgentService(
         (extracted.intent === 'regenerate' || extracted.intent === 'edit' || extracted.intent === 'plan' || extracted.intent === 'answer')
         && memory.missingFields.length === 0
       ) {
-        let plan: TripPlan
-        if (memory.tripPlan && extracted.intent === 'edit') {
-          plan = service.editPlan({
-            conversationId: input.conversationId,
-            plan: memory.tripPlan,
-            patch: extracted.patch,
-            locale: memory.locale,
-          })
-        } else if (extracted.intent === 'regenerate' && memory.tripPlan) {
-          plan = service.regeneratePlan({ conversationId: input.conversationId, memory })
-        } else {
-          plan = buildTripPlan({
-            requirements: memory.requirements,
-            conversationId: input.conversationId,
-            locale: memory.locale,
-          })
-        }
+        const basePlan = memory.tripPlan && extracted.intent === 'edit'
+          ? applyTripPlanEdits(memory.tripPlan, extracted.patch, memory.locale)
+          : undefined
+        const seed = extracted.intent === 'regenerate' ? `regen-${Date.now()}` : undefined
+        const ran = await runToolsForPlan({
+          memory,
+          conversationId: input.conversationId,
+          signal: input.signal,
+          seed,
+          basePlan,
+        })
+        let plan = ran.plan
+        toolBatch = ran.batch
         if (llmResult.draft?.notes?.length) {
           plan = { ...plan, notes: [...plan.notes, ...llmResult.draft.notes] }
         }
@@ -180,6 +235,7 @@ export function createTravelAgentService(
         memory,
         tripPlan: memory.tripPlan,
         itinerary: memory.tripPlan,
+        toolResults: toolBatch ? toToolSummaries(toolBatch.results) : [],
       }
 
       return {
@@ -187,20 +243,49 @@ export function createTravelAgentService(
         memory,
         tripPlan: memory.tripPlan,
         meta,
+        toolBatch,
       }
     },
 
-    regeneratePlan({ conversationId, memory }) {
-      return buildTripPlan({
-        requirements: memory.requirements,
+    async regeneratePlan({ conversationId, memory, signal }) {
+      const ran = await runToolsForPlan({
+        memory: { ...memory, lastIntent: 'regenerate', missingFields: [] },
         conversationId,
-        locale: memory.locale,
+        signal,
         seed: `regen-${Date.now()}`,
       })
+      return ran.plan
     },
 
-    editPlan({ conversationId, plan, patch, locale }) {
-      return applyTripPlanEdits({ ...plan, conversationId }, patch, locale)
+    async editPlan({ conversationId, plan, patch, locale, signal }) {
+      const requirements = {
+        ...plan.requirements,
+        ...patch,
+        destinations: patch.destinations?.length
+          ? patch.destinations
+          : plan.requirements.destinations,
+        interests: patch.interests?.length
+          ? patch.interests
+          : plan.requirements.interests,
+        destination: patch.destination ?? plan.requirements.destination,
+      }
+      const memory: AgentMemory = {
+        locale,
+        phase: 'editing',
+        requirements,
+        tripPlan: plan,
+        itinerary: plan,
+        missingFields: [],
+        lastIntent: 'edit',
+      }
+      const base = applyTripPlanEdits({ ...plan, conversationId }, patch, locale)
+      const ran = await runToolsForPlan({
+        memory,
+        conversationId,
+        signal,
+        basePlan: base,
+      })
+      return ran.plan
     },
 
     async savePlan({ tripPlan, existingSavedTripId }) {
