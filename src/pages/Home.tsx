@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import TravelConversationCard from '../components/TravelConversationCard'
 import QuickActions from '../components/QuickActions'
+import { useAuth } from '../lib/auth'
 
 export default function Home() {
   const navigate = useNavigate()
+  const { isAdmin } = useAuth()
   const [tripText, setTripText] = useState('')
 
   const handleStartPlanning = () => {
@@ -61,6 +63,15 @@ export default function Home() {
             >
               الإعدادات
             </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => navigate('/admin')}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-primary-600 transition-colors hover:bg-primary-50 hover:text-primary-700"
+              >
+                لوحة التحكم
+              </button>
+            )}
           </nav>
         </div>
       </header>

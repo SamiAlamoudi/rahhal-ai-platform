@@ -39,8 +39,8 @@ npm run dev
 | B | Live search via integrations | Done (`orchestrateLiveSearch` / `planTrip`) |
 | C | Persist booking/checkout | Done |
 | D | Real PSP (Moyasar) | **Code complete — production enablement frozen** |
-| E | Saved trips, settings, admin RBAC | In this PR |
-| F | Catalog clarity / optional LLM | Catalog status flags; adapters still deferred |
+| E | Saved trips, settings, admin RBAC | Done |
+| F | Admin dashboard management + catalog clarity | Admin overview/users/trips/bookings + mock payments; catalog flags deferred |
 | G | CI/E2E/ops | Partial |
 
 ## Payments freeze (Phase D)

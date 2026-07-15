@@ -9,6 +9,10 @@ import Login from './pages/Login.tsx'
 import SignUp from './pages/SignUp.tsx'
 import ForgotPassword from './pages/ForgotPassword.tsx'
 import AdminDashboard from './pages/AdminDashboard.tsx'
+import AdminUsersPage from './pages/AdminUsersPage.tsx'
+import AdminTripsPage from './pages/AdminTripsPage.tsx'
+import AdminBookingsPage from './pages/AdminBookingsPage.tsx'
+import AdminPaymentsPage from './pages/AdminPaymentsPage.tsx'
 import Notifications from './pages/Notifications.tsx'
 import ResultsPage from './pages/ResultsPage.tsx'
 import IntegrationDiagnostics from './pages/IntegrationDiagnostics.tsx'
@@ -23,7 +27,6 @@ import CheckoutPaymentPage from './pages/CheckoutPaymentPage.tsx'
 import CheckoutReturnPage from './pages/CheckoutReturnPage.tsx'
 import CheckoutSuccessPage from './pages/CheckoutSuccessPage.tsx'
 import CheckoutFailurePage from './pages/CheckoutFailurePage.tsx'
-import CheckoutAdminDashboard from './pages/CheckoutAdminDashboard.tsx'
 import type { NormalizedTravelOption } from './utils/searchOrchestrator'
 import type { ReasoningResult } from './utils/reasoningEngine'
 import type { TravelSearchRequest } from './utils/travelSearchRequest'
@@ -104,9 +107,29 @@ createRoot(document.getElementById('root')!).render(
               <AdminDashboard />
             </AdminRoute>
           } />
+          <Route path="/admin/users" element={
+            <AdminRoute>
+              <AdminUsersPage />
+            </AdminRoute>
+          } />
+          <Route path="/admin/trips" element={
+            <AdminRoute>
+              <AdminTripsPage />
+            </AdminRoute>
+          } />
+          <Route path="/admin/bookings" element={
+            <AdminRoute>
+              <AdminBookingsPage />
+            </AdminRoute>
+          } />
+          <Route path="/admin/payments" element={
+            <AdminRoute>
+              <AdminPaymentsPage />
+            </AdminRoute>
+          } />
           <Route path="/admin/checkout" element={
             <AdminRoute>
-              <CheckoutAdminDashboard />
+              <Navigate to="/admin/payments" replace />
             </AdminRoute>
           } />
           <Route path="/checkout" element={
