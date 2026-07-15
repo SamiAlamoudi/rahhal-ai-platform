@@ -26,8 +26,17 @@ export {
   validateUserMessage,
   parseMarkdownBlocks,
 } from './chatHelpers'
+export { isBenignChatError, logChat, logChatError } from './chatLogger'
+export {
+  buildChatSearch,
+  resolveInitialConversationId,
+  readStoredConversationId,
+  writeStoredConversationId,
+} from './chatRecovery'
+export { createDeltaCoalescer } from './streamUi'
 export { createVoiceSession, stripMarkdownForSpeech } from './voice/voiceSession'
 export { createSpeechToTextProvider, createTextToSpeechProvider } from './voice/voiceProviderFactory'
+export { subscribeMicrophonePermission } from './voice/microphonePermission'
 export type {
   VoiceInputMode,
   VoiceLocale,

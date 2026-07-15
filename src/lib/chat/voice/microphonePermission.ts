@@ -37,3 +37,26 @@ export async function requestMicrophoneAccess(): Promise<MicrophonePermissionSta
     return { state: 'denied', error: message }
   }
 }
+
+/**
+ * Subscribe to microphone permission changes (Chrome/Edge). Returns an unsubscribe.
+ */
+export async function subscribeMicrophonePermission(
+  onChange: (state: MicrophonePermissionState) => void,
+): Promise<() => void> {
+  if (typeof navigator === 'undefined' || !navigator.permissions?.query) {
+    return () => {}
+  }
+  try {
+    const status = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+    const handler = () => {
+      if (status.state === 'granted' || status.state === 'denied' || status.state === 'prompt') {
+        onChange({ state: status.state, error: null })
+      }
+    }
+    status.addEventListener('change', handler)
+    return () => status.removeEventListener('change', handler)
+  } catch {
+    return () => {}
+  }
+}

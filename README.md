@@ -43,6 +43,7 @@ npm run dev
 | F | Admin dashboard management + catalog clarity | Admin overview/users/trips/bookings + mock payments; catalog flags deferred |
 | G | AI Chat (+ shared `chatEngine`) | Text chat, search, streaming, attachment architecture |
 | H | Realtime Voice Conversation on same engine | STT/TTS, PTT/hands-free, interrupt; no phone/video |
+| H.5 | Chat & voice polish (no new features) | Streaming coalesce, mic UX, interrupt/resume, offline/recovery, a11y, tests |
 | I | CI/E2E/ops | Partial |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).

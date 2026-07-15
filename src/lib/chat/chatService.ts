@@ -102,10 +102,13 @@ async function streamIntoAssistant(
           updatedAt: new Date().toISOString(),
         }
         handlers.onDelta?.(latest)
+        // Non-blocking mid-stream persist so network lag does not stall UI deltas
         if (content.length - lastPersistedLength >= 120) {
-          const saved = await persistAssistantDelta(assistantId, content, 'streaming')
-          if (saved) latest = saved
           lastPersistedLength = content.length
+          const snapshot = content
+          void persistAssistantDelta(assistantId, snapshot, 'streaming').catch(() => {
+            // final persist still runs on done/error
+          })
         }
       } else if (chunk.type === 'error') {
         const err = chunk.error === 'cancelled' ? 'cancelled' : (chunk.error ?? 'stream error')

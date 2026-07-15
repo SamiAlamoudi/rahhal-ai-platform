@@ -1,14 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
 import VoiceComposer from '../components/chat/VoiceComposer'
 import { chatEngine } from '../lib/chat/chatEngine'
 import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
 import { validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
+import { isBenignChatError, logChatError } from '../lib/chat/chatLogger'
+import {
+  buildChatSearch,
+  resolveInitialConversationId,
+  writeStoredConversationId,
+} from '../lib/chat/chatRecovery'
+import { createDeltaCoalescer } from '../lib/chat/streamUi'
 import type { ChatConversation, ChatMessage } from '../lib/chat/chatTypes'
 import { createSpeechToTextProvider, createTextToSpeechProvider } from '../lib/chat/voice/voiceProviderFactory'
 import { createVoiceSession, type CreateVoiceSessionOptions, type VoiceSession } from '../lib/chat/voice/voiceSession'
+import { subscribeMicrophonePermission } from '../lib/chat/voice/microphonePermission'
 import type { VoiceInputMode, VoiceLocale, VoiceSessionStatus } from '../lib/chat/voice/voiceTypes'
 
 type ComposerMode = 'text' | 'voice'
@@ -23,6 +31,7 @@ function buildVoiceSession(callbacks: CreateVoiceSessionOptions['callbacks']): V
 
 export default function ChatPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [conversations, setConversations] = useState<ChatConversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -41,10 +50,13 @@ export default function ChatPage() {
   const [voiceLocale, setVoiceLocale] = useState<VoiceLocale>('ar')
   const [partialTranscript, setPartialTranscript] = useState('')
   const [micError, setMicError] = useState<string | null>(null)
+  const [permissionState, setPermissionState] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null)
+  const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine)
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const voiceRef = useRef<VoiceSession | null>(null)
   const activeIdRef = useRef<string | null>(null)
+  const streamingRef = useRef(false)
 
   const filtered = useMemo(
     () => chatEngine.searchConversations(conversations, query),
@@ -52,13 +64,14 @@ export default function ChatPage() {
   )
 
   const isStreaming = messages.some((m) => m.status === 'streaming') || sending
-  const voiceBusy = voiceStatus === 'processing' || voiceStatus === 'speaking'
+  const voiceBusy = voiceStatus === 'processing' || voiceStatus === 'speaking' || voiceStatus === 'reconnecting'
+  streamingRef.current = isStreaming || voiceBusy
 
-  const scrollToBottom = useCallback(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  const scrollToBottom = useCallback((smooth = false) => {
+    bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' })
   }, [])
 
-  const upsertMessage = useCallback((message: ChatMessage) => {
+  const applyMessage = useCallback((message: ChatMessage) => {
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.id === message.id)
       if (idx === -1) return [...prev, message]
@@ -68,25 +81,62 @@ export default function ChatPage() {
     })
   }, [])
 
+  const coalescerRef = useRef(createDeltaCoalescer(applyMessage))
+
+  useEffect(() => {
+    coalescerRef.current = createDeltaCoalescer(applyMessage)
+    return () => coalescerRef.current.dispose()
+  }, [applyMessage])
+
+  const upsertMessage = useCallback((message: ChatMessage) => {
+    if (message.status === 'streaming') coalescerRef.current.push(message)
+    else {
+      coalescerRef.current.flushNow()
+      applyMessage(message)
+    }
+  }, [applyMessage])
+
+  const selectConversation = useCallback((id: string | null) => {
+    setActiveId(id)
+    writeStoredConversationId(id)
+    const nextSearch = buildChatSearch(id, location.search)
+    if (nextSearch !== location.search) {
+      navigate({ pathname: '/chat', search: nextSearch }, { replace: true })
+    }
+  }, [location.search, navigate])
+
   const loadConversations = useCallback(async (preferId?: string | null) => {
     setListLoading(true)
     setListError(null)
     try {
       const rows = await chatEngine.listConversations()
       setConversations(rows)
-      const nextId = preferId && rows.some((r) => r.id === preferId)
+      const ids = rows.map((r) => r.id)
+      const currentSearch = typeof window !== 'undefined' ? window.location.search : ''
+      const nextId = preferId && ids.includes(preferId)
         ? preferId
-        : (activeIdRef.current && rows.some((r) => r.id === activeIdRef.current)
-          ? activeIdRef.current
-          : rows[0]?.id ?? null)
-      setActiveId(nextId)
+        : resolveInitialConversationId({
+          search: currentSearch,
+          availableIds: ids,
+        })
+      writeStoredConversationId(nextId)
+      if (nextId !== activeIdRef.current) {
+        setActiveId(nextId)
+      } else if (!activeIdRef.current) {
+        setActiveId(nextId)
+      }
+      const nextSearch = buildChatSearch(nextId, currentSearch)
+      if (nextSearch !== currentSearch) {
+        navigate({ pathname: '/chat', search: nextSearch }, { replace: true })
+      }
     } catch (e) {
+      logChatError('chat.list', e)
       setListError(e instanceof Error ? e.message : 'تعذر تحميل المحادثات')
       setConversations([])
     } finally {
       setListLoading(false)
     }
-  }, [])
+  }, [navigate])
 
   const loadDetail = useCallback(async (id: string) => {
     setDetailLoading(true)
@@ -98,6 +148,7 @@ export default function ChatPage() {
         prev.map((c) => (c.id === detail.conversation.id ? detail.conversation : c)),
       )
     } catch (e) {
+      logChatError('chat.detail', e)
       setDetailError(e instanceof Error ? e.message : 'تعذر تحميل المحادثة')
       setMessages([])
     } finally {
@@ -118,12 +169,38 @@ export default function ChatPage() {
       setMessages([])
       return
     }
+    writeStoredConversationId(activeId)
     void loadDetail(activeId)
   }, [activeId, loadDetail])
 
   useEffect(() => {
-    scrollToBottom()
+    scrollToBottom(!streamingRef.current)
   }, [messages, partialTranscript, scrollToBottom])
+
+  useEffect(() => {
+    const onOnline = () => {
+      setOnline(true)
+      void loadConversations(activeIdRef.current)
+    }
+    const onOffline = () => setOnline(false)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [loadConversations])
+
+  useEffect(() => {
+    let unsubscribe = () => {}
+    void subscribeMicrophonePermission((state) => {
+      setPermissionState(state.state)
+      if (state.state === 'granted') setMicError(null)
+    }).then((fn) => {
+      unsubscribe = fn
+    })
+    return () => unsubscribe()
+  }, [])
 
   useEffect(() => {
     const session = buildVoiceSession({
@@ -131,10 +208,13 @@ export default function ChatPage() {
       onPartialTranscript: setPartialTranscript,
       onFinalTranscript: setPartialTranscript,
       onPermission: (state) => {
+        setPermissionState(state.state)
         if (state.state !== 'granted') setMicError(state.error || 'يلزم إذن الميكروفون')
         else setMicError(null)
       },
-      onError: (error) => setActionError(error),
+      onError: (error) => {
+        if (!isBenignChatError(error)) setActionError(error)
+      },
       onAssistantCreate: upsertMessage,
       onDelta: upsertMessage,
       onComplete: (message) => {
@@ -143,7 +223,7 @@ export default function ChatPage() {
       },
       onStreamError: (message, error) => {
         upsertMessage(message)
-        if (error !== 'cancelled') setActionError(error)
+        if (!isBenignChatError(error)) setActionError(error)
       },
     })
     voiceRef.current = session
@@ -161,15 +241,25 @@ export default function ChatPage() {
     voiceRef.current?.setMode(voiceMode)
   }, [voiceMode])
 
+  useEffect(() => {
+    if (!mobileSidebarOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileSidebarOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mobileSidebarOpen])
+
   const handleCreate = async () => {
     setActionError(null)
     try {
       const created = await chatEngine.createConversation()
       setConversations((prev) => [created, ...prev])
-      setActiveId(created.id)
+      selectConversation(created.id)
       setMessages([])
       setMobileSidebarOpen(false)
     } catch (e) {
+      logChatError('chat.create', e)
       setActionError(e instanceof Error ? e.message : 'تعذر إنشاء المحادثة')
     }
   }
@@ -188,6 +278,7 @@ export default function ChatPage() {
       const renamed = await chatEngine.renameConversation(id, nextTitle)
       setConversations((prev) => prev.map((c) => (c.id === id ? renamed : c)))
     } catch (e) {
+      logChatError('chat.rename', e)
       setActionError(e instanceof Error ? e.message : 'تعذر إعادة التسمية')
     }
   }
@@ -200,10 +291,11 @@ export default function ChatPage() {
       const remaining = conversations.filter((c) => c.id !== id)
       setConversations(remaining)
       if (activeId === id) {
-        setActiveId(remaining[0]?.id ?? null)
+        selectConversation(remaining[0]?.id ?? null)
         setMessages([])
       }
     } catch (e) {
+      logChatError('chat.delete', e)
       setActionError(e instanceof Error ? e.message : 'تعذر حذف المحادثة')
     }
   }
@@ -212,7 +304,9 @@ export default function ChatPage() {
     abortRef.current?.abort()
     abortRef.current = null
     setSending(false)
-    voiceRef.current?.interrupt()
+    voiceRef.current?.interrupt(() => {
+      abortRef.current?.abort()
+    }, { resumeHandsFree: voiceMode === 'hands_free' })
   }
 
   const runGeneration = async (
@@ -240,11 +334,14 @@ export default function ChatPage() {
         },
         onError: (message, error) => {
           upsertMessage(message)
-          if (error !== 'cancelled') setActionError(error)
+          if (!isBenignChatError(error)) setActionError(error)
         },
       })
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'تعذر إرسال الرسالة')
+      if (!isBenignChatError(e)) {
+        logChatError('chat.send', e)
+        setActionError(e instanceof Error ? e.message : 'تعذر إرسال الرسالة')
+      }
     } finally {
       if (abortRef.current === controller) abortRef.current = null
       setSending(false)
@@ -253,7 +350,7 @@ export default function ChatPage() {
 
   const handleSend = async (e: FormEvent) => {
     e.preventDefault()
-    if (!activeId || isStreaming || voiceBusy) return
+    if (!activeId || isStreaming || voiceBusy || !online) return
     const validation = validateUserMessage(draft)
     if (validation) {
       setActionError(validation)
@@ -295,7 +392,7 @@ export default function ChatPage() {
   }
 
   const handleRetry = async (assistantMessageId: string) => {
-    if (!activeId || isStreaming || voiceBusy) return
+    if (!activeId || isStreaming || voiceBusy || !online) return
     await runGeneration(async (handlers) => {
       const updated = await chatEngine.retryAssistantMessage(activeId, assistantMessageId, handlers)
       upsertMessage(updated)
@@ -318,11 +415,12 @@ export default function ChatPage() {
   }
 
   const handlePushStart = async () => {
-    if (!activeId) return
+    if (!activeId || !online) return
     setActionError(null)
     try {
       await voiceRef.current?.startPushToTalk()
     } catch (e) {
+      logChatError('voice.ptt.start', e)
       setActionError(e instanceof Error ? e.message : 'تعذر بدء الاستماع')
     }
   }
@@ -332,10 +430,12 @@ export default function ChatPage() {
     setSending(true)
     try {
       await voiceRef.current?.stopPushToTalkAndSend(activeId)
-      await loadConversations(activeId)
-      await loadDetail(activeId)
+      void loadConversations(activeId)
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'تعذر إرسال الرسالة الصوتية')
+      if (!isBenignChatError(e)) {
+        logChatError('voice.ptt.send', e)
+        setActionError(e instanceof Error ? e.message : 'تعذر إرسال الرسالة الصوتية')
+      }
     } finally {
       setSending(false)
     }
@@ -353,6 +453,7 @@ export default function ChatPage() {
       setVoiceMode('hands_free')
       await voiceRef.current.startHandsFree(activeId)
     } catch (e) {
+      logChatError('voice.handsfree', e)
       setActionError(e instanceof Error ? e.message : 'تعذر تشغيل حر اليدين')
     }
   }
@@ -375,22 +476,28 @@ export default function ChatPage() {
             <button
               type="button"
               className="rounded-lg px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 lg:hidden"
+              aria-expanded={mobileSidebarOpen}
+              aria-controls="chat-sidebar"
               onClick={() => setMobileSidebarOpen(true)}
             >
               المحادثات
             </button>
             <div className="min-w-0">
               <h1 className="truncate text-base font-bold text-slate-900">محادثة رحّال</h1>
-              <p className="text-[10px] text-slate-400">نص وصوت على نفس المحرك والسجل</p>
+              <p className="text-[10px] text-slate-400">
+                {online ? 'نص وصوت على نفس المحرك والسجل' : 'غير متصل — وضع القراءة فقط مؤقتاً'}
+              </p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium">
+            <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium" role="tablist" aria-label="وضع الإدخال">
               <button
                 type="button"
+                role="tab"
+                aria-selected={composerMode === 'text'}
                 onClick={() => {
                   setComposerMode('text')
-                  void voiceRef.current?.stopListening()
+                  voiceRef.current?.interrupt()
                 }}
                 className={`rounded-md px-2.5 py-1 ${composerMode === 'text' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
               >
@@ -398,6 +505,8 @@ export default function ChatPage() {
               </button>
               <button
                 type="button"
+                role="tab"
+                aria-selected={composerMode === 'voice'}
                 onClick={() => setComposerMode('voice')}
                 className={`rounded-md px-2.5 py-1 ${composerMode === 'voice' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
               >
@@ -416,32 +525,40 @@ export default function ChatPage() {
       </header>
 
       <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1">
-        <ConversationSidebar
-          conversations={filtered}
-          activeId={activeId}
-          query={query}
-          onQueryChange={setQuery}
-          onSelect={setActiveId}
-          onCreate={() => void handleCreate()}
-          onRename={(id) => void handleRename(id)}
-          onDelete={(id) => void handleDelete(id)}
-          loading={listLoading}
-          mobileOpen={mobileSidebarOpen}
-          onCloseMobile={() => setMobileSidebarOpen(false)}
-        />
+        <div id="chat-sidebar" className="contents">
+          <ConversationSidebar
+            conversations={filtered}
+            activeId={activeId}
+            query={query}
+            onQueryChange={setQuery}
+            onSelect={(id) => selectConversation(id)}
+            onCreate={() => void handleCreate()}
+            onRename={(id) => void handleRename(id)}
+            onDelete={(id) => void handleDelete(id)}
+            loading={listLoading}
+            mobileOpen={mobileSidebarOpen}
+            onCloseMobile={() => setMobileSidebarOpen(false)}
+          />
+        </div>
 
-        <section className="flex min-w-0 flex-1 flex-col">
+        <section className="flex min-w-0 flex-1 flex-col" aria-busy={listLoading || detailLoading}>
+          {!online && (
+            <div className="mx-4 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
+              انقطع الاتصال. يمكنك متابعة القراءة؛ الإرسال سيعود تلقائياً عند الاتصال.
+            </div>
+          )}
+
           {listError && (
             <div className="m-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               <p>{listError}</p>
-              <button type="button" onClick={() => void loadConversations()} className="mt-2 text-xs underline">
+              <button type="button" onClick={() => void loadConversations(activeId)} className="mt-2 text-xs underline">
                 إعادة المحاولة
               </button>
             </div>
           )}
 
           {actionError && (
-            <div className="mx-4 mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <div className="mx-4 mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">
               {actionError}
             </div>
           )}
@@ -482,7 +599,7 @@ export default function ChatPage() {
                     <p className="text-sm text-slate-500">لا توجد رسائل بعد. اكتب أو تحدّث بالأسفل.</p>
                   </div>
                 )}
-                <div className="space-y-3">
+                <div className="space-y-3" aria-live="polite">
                   {messages.map((message) => (
                     <MessageBubble
                       key={message.id}
@@ -504,7 +621,9 @@ export default function ChatPage() {
                     locale={voiceLocale}
                     partialTranscript={partialTranscript}
                     permissionError={micError}
+                    permissionState={permissionState}
                     busy={isStreaming || voiceBusy}
+                    online={online}
                     onModeChange={setVoiceMode}
                     onLocaleChange={setVoiceLocale}
                     onPushStart={() => void handlePushStart()}
@@ -524,7 +643,7 @@ export default function ChatPage() {
                         rows={2}
                         placeholder="اسأل رحّال عن وجهتك، الميزانية، أو خطة السفر..."
                         className="min-h-[44px] w-full resize-none rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400/20"
-                        disabled={!activeId || voiceBusy}
+                        disabled={!activeId || voiceBusy || !online}
                       />
                       <div className="flex shrink-0 gap-2">
                         <button
@@ -540,6 +659,7 @@ export default function ChatPage() {
                           <button
                             type="button"
                             onClick={stopGeneration}
+                            aria-label="إيقاف التوليد"
                             className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-100"
                           >
                             إيقاف
@@ -547,7 +667,7 @@ export default function ChatPage() {
                         )}
                         <button
                           type="submit"
-                          disabled={!activeId || isStreaming || voiceBusy || !draft.trim()}
+                          disabled={!activeId || isStreaming || voiceBusy || !draft.trim() || !online}
                           className="rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700 disabled:bg-slate-300"
                         >
                           {sending ? 'جاري الإرسال...' : 'إرسال'}

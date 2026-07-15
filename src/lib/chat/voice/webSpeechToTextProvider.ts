@@ -24,9 +24,17 @@ function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
 }
 
+function detach(recognition: BrowserSpeechRecognition | null) {
+  if (!recognition) return
+  recognition.onresult = null
+  recognition.onerror = null
+  recognition.onend = null
+}
+
 export function createWebSpeechToTextProvider(): SpeechToTextProvider {
   let recognition: BrowserSpeechRecognition | null = null
   let finalTranscript = ''
+  let intentionalStop = false
 
   const provider: SpeechToTextProvider = {
     providerId: 'web-speech-stt',
@@ -34,7 +42,9 @@ export function createWebSpeechToTextProvider(): SpeechToTextProvider {
     async start(options: SpeechToTextStartOptions) {
       const Ctor = getSpeechRecognitionCtor()
       if (!Ctor) throw new Error('التعرف على الكلام غير مدعوم في هذا المتصفح')
+      detach(recognition)
       finalTranscript = ''
+      intentionalStop = false
       recognition = new Ctor()
       recognition.lang = speechLangForLocale(options.locale)
       recognition.continuous = options.continuous
@@ -56,7 +66,9 @@ export function createWebSpeechToTextProvider(): SpeechToTextProvider {
         }
       }
       recognition.onerror = (event) => {
-        provider.onError?.(event.error || 'speech_recognition_error')
+        const error = event.error || 'speech_recognition_error'
+        if (intentionalStop && (error === 'aborted' || error === 'no-speech')) return
+        provider.onError?.(error)
       }
       recognition.onend = () => {
         provider.onEnd?.()
@@ -64,11 +76,21 @@ export function createWebSpeechToTextProvider(): SpeechToTextProvider {
       recognition.start()
     },
     async stop() {
+      intentionalStop = true
       recognition?.stop()
-      return finalTranscript.trim()
+      const text = finalTranscript.trim()
+      detach(recognition)
+      recognition = null
+      return text
     },
     abort() {
-      recognition?.abort()
+      intentionalStop = true
+      try {
+        recognition?.abort()
+      } catch {
+        // ignore
+      }
+      detach(recognition)
       recognition = null
     },
   }

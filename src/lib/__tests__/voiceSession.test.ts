@@ -123,6 +123,54 @@ describe('voiceSession', () => {
     session.dispose()
   })
 
+  it('ignores aborted STT errors and clears handlers on dispose', async () => {
+    const { provider: stt, controller } = createMockSpeechToTextProvider()
+    const onError = vi.fn()
+    const session = createVoiceSession({
+      stt,
+      tts: createMockTextToSpeechProvider(),
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      callbacks: { onError },
+    })
+    await session.startPushToTalk()
+    controller.emitError('aborted')
+    expect(onError).not.toHaveBeenCalled()
+    session.dispose()
+    expect(stt.onPartial).toBeUndefined()
+    expect(stt.onEnd).toBeUndefined()
+  })
+
+  it('hands-free interrupt while sending resumes after benign abort', async () => {
+    const { provider: stt, controller } = createMockSpeechToTextProvider('')
+    const tts = createMockTextToSpeechProvider()
+    const statuses: string[] = []
+    const deferred: { reject: ((error: Error) => void) | null } = { reject: null }
+    const sendTurn = vi.fn(() => new Promise((_resolve, reject) => {
+      deferred.reject = reject
+    }))
+
+    const session = createVoiceSession({
+      stt,
+      tts,
+      sendTurn: sendTurn as never,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      callbacks: { onStatus: (s) => statuses.push(s) },
+    })
+
+    await session.startHandsFree('c1')
+    controller.emitFinal('متابعة الرحلة')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(sendTurn).toHaveBeenCalled()
+    expect(session.getStatus()).toBe('processing')
+
+    session.interrupt()
+    deferred.reject?.(new Error('aborted'))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(statuses).toContain('reconnecting')
+    expect(session.getStatus()).toBe('listening')
+    session.dispose()
+  })
+
   it('supports ar/en locales and denied mic permission', async () => {
     const { provider: stt } = createMockSpeechToTextProvider()
     const tts = createMockTextToSpeechProvider()
