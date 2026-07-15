@@ -24,7 +24,7 @@ Rules:
 - Enabling a flag does **not** by itself call live providers (Phase AJ readiness + secrets still gate selection)
 - Provider selection examples (defaults stay `mock`): `VITE_FLIGHTS_PROVIDER=amadeus`, `VITE_HOTELS_PROVIDER=booking`, `VITE_MAPS_PROVIDER=google_maps`, `VITE_WEATHER_PROVIDER=openweather`
 
-See `docs/LIVE_PROVIDER_ENABLEMENT.md` for sandbox enablement (Phase AJ prep + Phase AK single-provider exclusivity).
+See `docs/LIVE_PROVIDER_ENABLEMENT.md` for sandbox enablement (Phase AJ prep + Phase AK exclusivity + Phase AL Amadeus sandbox validation).
 At most one `VITE_PROVIDERS_*_LIVE` capability may be active; extra flags are suppressed (prefer flights / `VITE_SINGLE_LIVE_CAPABILITY`).
 
 ## Timeouts

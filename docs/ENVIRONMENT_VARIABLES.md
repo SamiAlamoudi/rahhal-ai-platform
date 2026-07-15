@@ -40,8 +40,11 @@ Templates:
 
 | Variable | Purpose |
 |----------|---------|
-| `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET` | Amadeus OAuth |
+| `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET` | Amadeus OAuth (server / Edge only) |
 | `AMADEUS_ENV` / `AMADEUS_BASE_URL` | sandbox \| production |
+| `AMADEUS_SANDBOX_VALIDATION` | Phase AL sandbox validation mode (default `false`) |
+| `AMADEUS_TOKEN_URL` / `AMADEUS_TOKEN_PROXY_KEY` | Phase AL token-proxy URL + invoke key (server/CI secrets) |
+| `ALLOW_AMADEUS_SANDBOX_NETWORK` | Required with validation mode for live CLI / workflow_dispatch |
 | `GOOGLE_MAPS_API_KEY` | Maps proxy |
 | `OPENWEATHER_API_KEY` | Weather proxy |
 | `RAPIDAPI_KEY` / `BOOKING_RAPIDAPI_KEY` / `BOOKING_RAPIDAPI_HOST` | Booking.com |

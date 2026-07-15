@@ -69,6 +69,10 @@ export {
   PRIMARY_SANDBOX_PROVIDER_ID,
   PRIMARY_SANDBOX_CAPABILITY,
   createAmadeusSandboxProbeFn,
+  isAmadeusSandboxValidationModeEnabled,
+  runAmadeusSandboxValidation,
+  runAmadeusSandboxValidationCli,
+  validateAmadeusFlightOffersShape,
 } from './providerEnablement'
 export type {
   ProviderCapability,

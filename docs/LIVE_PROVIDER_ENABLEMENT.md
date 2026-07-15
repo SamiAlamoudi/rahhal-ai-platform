@@ -1,8 +1,24 @@
-# Live Provider Enablement (Phases AJ + AK)
+# Live Provider Enablement (Phases AJ + AK + AL)
 
 Preparation and controlled single-provider sandbox enablement. **Do not enable any live provider in production without a separate approval.**
 
 Payments remain **`VITE_PAYMENT_PROVIDER=mock`**. This document does not integrate real payments.
+
+## Phase AL — Amadeus sandbox validation (manual only)
+
+Validate the existing Amadeus flight integration against the **Amadeus sandbox** via the secure server token proxy. Does **not** enable `VITE_PROVIDERS_FLIGHTS_LIVE` or production traffic.
+
+| Item | Value |
+|---|---|
+| Mode flag (default OFF) | `AMADEUS_SANDBOX_VALIDATION=false` |
+| CLI (no network) | `npm run amadeus:sandbox-validate` |
+| CLI (opt-in live) | `AMADEUS_SANDBOX_VALIDATION=true npm run amadeus:sandbox-validate:live` |
+| GitHub Actions | `.github/workflows/amadeus-sandbox-validate.yml` (`workflow_dispatch` only) |
+| OAuth path | Existing `amadeus-token` Edge Function proxy |
+| Required secrets | `AMADEUS_TOKEN_URL`, `AMADEUS_TOKEN_PROXY_KEY` (repo/env secrets — never `VITE_*` Amadeus credentials) |
+| Host | `https://test.api.amadeus.com` only (production host refused) |
+
+Report fields: latency, HTTP status category, provider mode, correlation ID. Tokens/secrets are redacted. Missing secrets fail safely. Normal unit tests always mock HTTP.
 
 ## Phase AK — Single live provider only
 
