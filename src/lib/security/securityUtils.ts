@@ -54,3 +54,8 @@ export function checkRateLimit(key: string, maxRequests: number = 30): boolean {
 export function clearRateLimit(key: string): void {
   rateLimitStore.delete(key)
 }
+
+/** Clear all in-memory rate-limit windows (tests / process reset). */
+export function clearAllRateLimits(): void {
+  rateLimitStore.clear()
+}

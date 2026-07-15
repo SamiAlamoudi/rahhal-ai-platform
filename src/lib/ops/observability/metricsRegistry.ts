@@ -13,6 +13,13 @@ export type OpsMetricName =
   | 'notification.failures'
   | 'ops.rate_limited'
   | 'ops.idempotency_hits'
+  /** Phase AI production readiness metrics (additive). */
+  | 'request.duration_ms'
+  | 'planning.duration_ms'
+  | 'booking.duration_ms'
+  | 'ops.failures'
+  | 'ops.retries'
+  | 'ops.cancellations'
 
 export interface MetricSample {
   name: OpsMetricName
