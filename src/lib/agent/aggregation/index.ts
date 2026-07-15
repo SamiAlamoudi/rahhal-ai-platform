@@ -26,7 +26,22 @@ export {
   createDefaultAggregationEngine,
   createDefaultProviderRegistry,
   createActiveMockProviderRegistry,
+  createDefaultProviderAdapters,
 } from './factory'
+export {
+  createAmadeusProviderAdapter,
+  resolveAmadeusProviderConfig,
+  isAmadeusConfigured,
+  resolveAmadeusEnvironment,
+  SANDBOX_HOST,
+  PRODUCTION_HOST,
+  flightOffersToNormalizedOffers,
+} from './providers/amadeus'
+export type {
+  AmadeusProviderConfig,
+  AmadeusEnvironment,
+  CreateAmadeusProviderAdapterOptions,
+} from './providers/amadeus'
 export { createProviderAdapter } from './baseAdapter'
 export { normalizeProviderError, statusFromErrorCode } from './errors'
 export { createProviderHealthTracker, isProviderHealthyEnough } from './health'

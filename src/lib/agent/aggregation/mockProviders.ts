@@ -169,9 +169,10 @@ function createHotelAdapter(
   })
 }
 
+/** Mock flights fallback used when the real Amadeus adapter is unavailable. */
 export function createMockAmadeusAdapter(): ProviderAdapter {
   return createFlightAdapter(
-    meta('amadeus', 'Amadeus (mock)', ['flights'], 80, 0.9),
+    meta('amadeus_mock', 'Amadeus Mock Flights', ['flights'], 45, 0.9),
     ['Amadeus Mock Air', 'Sky Mock'],
     20,
   )
@@ -458,7 +459,7 @@ export function createFutureProviderStubs(): ProviderAdapter[] {
     createUnavailableProviderStub(entry.id, entry.displayName, entry.domains, entry.features))
 }
 
-/** Active mock adapters — default runtime path for the Travel Agent. */
+/** Active mock adapters (no live vendors). */
 export function createActiveMockProviderAdapters(): ProviderAdapter[] {
   return [
     createMockAmadeusAdapter(),
@@ -475,8 +476,9 @@ export function createActiveMockProviderAdapters(): ProviderAdapter[] {
   ]
 }
 
-/** Default registry population: active mocks + future architecture slots. */
+/** Default registry population: live Amadeus (when configured) + mocks + future slots. */
 export function createDefaultMockProviderAdapters(): ProviderAdapter[] {
+  // Lazy import avoided — factory wires Amadeus via createDefaultProviderAdapters().
   return [
     ...createActiveMockProviderAdapters(),
     ...createFutureProviderStubs(),
