@@ -80,3 +80,14 @@ export {
 } from './failurePolicy'
 
 export { syncProviderEnablementFeatureFlags } from './syncFeatureFlags'
+
+export {
+  enforceSingleLiveCapability,
+  isExclusiveLiveCapability,
+  LIVE_CAPABILITY_PRIORITY,
+  PRIMARY_SANDBOX_PROVIDER_ID,
+  PRIMARY_SANDBOX_CAPABILITY,
+  type ExclusivityResolution,
+} from './exclusivity'
+
+export { createAmadeusSandboxProbeFn } from './amadeusSandboxProbe'

@@ -1,8 +1,18 @@
-# Live Provider Enablement Preparation (Phase AJ)
+# Live Provider Enablement (Phases AJ + AK)
 
-Preparation and sandbox validation only. **Do not enable any live provider in production without a separate approval.**
+Preparation and controlled single-provider sandbox enablement. **Do not enable any live provider in production without a separate approval.**
 
-Payments remain **`VITE_PAYMENT_PROVIDER=mock`**. This phase does not integrate real payments.
+Payments remain **`VITE_PAYMENT_PROVIDER=mock`**. This document does not integrate real payments.
+
+## Phase AK — Single live provider only
+
+At most **one** live capability may be active at a time.
+
+- If multiple `VITE_PROVIDERS_*_LIVE` flags are ON, exclusivity keeps one and suppresses the rest.
+- Default winner: **flights** (Amadeus) — the Phase AK primary sandbox candidate.
+- Override winner with `VITE_SINGLE_LIVE_CAPABILITY=hotels|maps|weather|…` (must be one of the requested live capabilities).
+- Optional Amadeus sandbox probe is **Amadeus-only**, read-only (token/search), never bookings.
+- All live flags remain **OFF** in defaults and examples until an operator enables exactly one.
 
 ## Goals
 
@@ -61,12 +71,17 @@ Example — Amadeus flights only (still requires separate product approval befor
 VITE_LIVE_PROVIDERS_ENABLED=true
 VITE_PROVIDERS_FLIGHTS_LIVE=true
 VITE_FLIGHTS_PROVIDER=amadeus
+VITE_SINGLE_LIVE_CAPABILITY=flights
 VITE_PROVIDER_MOCK_FALLBACK=true
 VITE_PAYMENT_PROVIDER=mock
-# Keep other VITE_PROVIDERS_*_LIVE=false
+# Keep EVERY other VITE_PROVIDERS_*_LIVE=false
 ```
 
+If another capability is accidentally enabled alongside flights, Phase AK exclusivity suppresses it and keeps flights (unless `VITE_SINGLE_LIVE_CAPABILITY` names a different capability that was also requested).
+
 Missing credentials while the flag is ON → live not selected; mock fallback recorded (`fallbackUsed=true`).
+
+Do **not** enable hotels/maps/weather live in the same deployment while Amadeus flights are live.
 
 ## Readiness checks
 
