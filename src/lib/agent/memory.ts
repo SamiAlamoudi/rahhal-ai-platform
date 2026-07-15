@@ -1,16 +1,29 @@
 import type { ChatMessage } from '../chat/chatTypes'
-import type { AgentMemory, AgentProviderMeta, TripRequirements } from './types'
-import { emptyMemory, emptyRequirements } from './types'
+import type { AgentMemory, AgentProviderMeta, TripPlan, TripRequirements } from './types'
+import { emptyMemory, emptyRequirements, withTripPlan } from './types'
 
 export function isAgentProviderMeta(value: unknown): value is AgentProviderMeta {
   if (!value || typeof value !== 'object') return false
   const row = value as Record<string, unknown>
-  return row.kind === 'travel_agent' && row.version === 1 && !!row.memory
+  return row.kind === 'travel_agent'
+    && (row.version === 1 || row.version === 2)
+    && !!row.memory
+}
+
+export function tripPlanFromMeta(meta: Record<string, unknown> | null | undefined): TripPlan | null {
+  if (!isAgentProviderMeta(meta)) return null
+  return meta.tripPlan ?? meta.itinerary ?? meta.memory.tripPlan ?? meta.memory.itinerary ?? null
 }
 
 export function memoryFromMeta(meta: Record<string, unknown> | null | undefined): AgentMemory | null {
   if (!isAgentProviderMeta(meta)) return null
-  return meta.memory
+  const raw = meta.memory
+  const plan = raw.tripPlan ?? raw.itinerary ?? meta.tripPlan ?? meta.itinerary ?? null
+  return withTripPlan({
+    ...raw,
+    tripPlan: plan,
+    itinerary: plan,
+  }, plan)
 }
 
 export function mergeRequirements(
@@ -45,6 +58,7 @@ export function mergeRequirements(
     budgetCurrency: patch.budgetCurrency ?? base.budgetCurrency,
     interests,
     notes: patch.notes ?? base.notes,
+    tripPurpose: patch.tripPurpose ?? base.tripPurpose,
   }
 }
 
@@ -69,6 +83,7 @@ export function rebuildMemoryFromMessages(
   }
   if (!memory.requirements) memory.requirements = emptyRequirements()
   memory.missingFields = missingRequirementFields(memory.requirements)
+  memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
   return memory
 }
 

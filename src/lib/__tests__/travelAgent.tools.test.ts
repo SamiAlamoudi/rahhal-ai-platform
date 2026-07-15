@@ -5,11 +5,13 @@ import { emptyRequirements } from '../agent/types'
 import type { AgentTool } from '../agent/tools/types'
 
 describe('agent tool registry', () => {
-  it('registers future tools without provider-specific logic', async () => {
+  it('registers future tools including attractions without provider-specific logic', async () => {
     const registry = createDefaultAgentToolRegistry()
     expect(registry.list()).toEqual(AGENT_TOOL_NAMES)
+    expect(registry.list()).toContain('attractions')
     const results = await registry.runAvailable({
       requirements: emptyRequirements(),
+      tripPlan: null,
       itinerary: null,
       locale: 'en',
     })
@@ -27,6 +29,7 @@ describe('agent tool registry', () => {
     const registry = createAgentToolRegistry([weather])
     const results = await registry.runAvailable({
       requirements: emptyRequirements(),
+      tripPlan: null,
       itinerary: null,
       locale: 'ar',
     }, ['weather', 'flights'])

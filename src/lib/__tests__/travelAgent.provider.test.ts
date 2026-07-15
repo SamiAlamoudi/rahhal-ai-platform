@@ -57,9 +57,15 @@ describe('travelAgentProvider', () => {
     }
     const second = await collect(provider, [user('Plan a trip to Japan'), assistant, user('7 days')])
     expect(second.text).toMatch(/Day 1|اليوم 1/)
-    const itinerary = second.meta?.itinerary as { durationDays?: number; destinations?: string[] }
-    expect(itinerary.durationDays).toBe(7)
-    expect(itinerary.destinations?.[0]).toBe('Japan')
+    expect(second.meta?.version).toBe(2)
+    const tripPlan = (second.meta?.tripPlan ?? second.meta?.itinerary) as {
+      durationDays?: number
+      destinations?: string[]
+      accommodations?: unknown[]
+    }
+    expect(tripPlan.durationDays).toBe(7)
+    expect(tripPlan.destinations?.[0]).toBe('Japan')
+    expect(tripPlan.accommodations?.length).toBeGreaterThan(0)
   })
 
   it('saves via injected hook on save intent', async () => {

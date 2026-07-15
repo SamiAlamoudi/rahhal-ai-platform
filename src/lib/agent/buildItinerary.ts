@@ -1,9 +1,10 @@
 import type {
+  AccommodationRecommendation,
   AgentLocale,
   EstimatedBudget,
   ItineraryDay,
   TransportationItem,
-  TravelItinerary,
+  TripPlan,
   TripRequirements,
 } from './types'
 import { t } from './locale'
@@ -51,30 +52,32 @@ const CITY_PLAYBOOK: Record<string, { hubs: string[]; vibes: string[] }> = {
   },
 }
 
-export function buildTravelItinerary(input: {
+export function buildTripPlan(input: {
   requirements: TripRequirements
   conversationId: string
   locale: AgentLocale
   seed?: string
-}): TravelItinerary {
+}): TripPlan {
   const destination = input.requirements.destination
     || input.requirements.destinations[0]
     || (input.locale === 'ar' ? 'وجهة مقترحة' : 'Suggested destination')
   const durationDays = resolveDuration(input.requirements)
-  const travelers = input.requirements.travelers ?? defaultTravelers(input.requirements.travelerType)
+  const travelers = input.requirements.travelers
+  const costingTravelers = travelers ?? assumedTravelersForCosting(input.requirements.travelerType)
   const destinations = unique([
     destination,
     ...input.requirements.destinations,
     ...splitMultiCity(destination, durationDays),
   ])
 
-  const activities = buildDays({
+  const dailyItinerary = buildDays({
     destination,
     destinations,
     durationDays,
     locale: input.locale,
     interests: input.requirements.interests,
     travelerType: input.requirements.travelerType,
+    tripPurpose: input.requirements.tripPurpose,
     seed: input.seed ?? `${destination}-${durationDays}`,
   })
 
@@ -86,10 +89,19 @@ export function buildTravelItinerary(input: {
     currency: input.requirements.budgetCurrency || 'USD',
   })
 
+  const accommodations = buildAccommodations({
+    destination,
+    destinations,
+    locale: input.locale,
+    travelerType: input.requirements.travelerType,
+    tripPurpose: input.requirements.tripPurpose,
+    currency: input.requirements.budgetCurrency || 'USD',
+  })
+
   const estimatedBudget = estimateBudget({
     requirements: input.requirements,
     durationDays,
-    travelers,
+    travelers: costingTravelers,
     destinations,
   })
 
@@ -97,10 +109,10 @@ export function buildTravelItinerary(input: {
     ? `رحلة ${durationDays} ${durationDays === 1 ? 'يوم' : 'أيام'} إلى ${destination}`
     : `${durationDays}-day trip to ${destination}`
 
-  const notes = buildNotes(input.requirements, input.locale, estimatedBudget)
+  const notes = buildNotes(input.requirements, input.locale, estimatedBudget, travelers == null)
 
   return {
-    id: `itin_${hashSeed(`${input.conversationId}:${destination}:${durationDays}:${input.seed ?? ''}`)}`,
+    id: `plan_${hashSeed(`${input.conversationId}:${destination}:${durationDays}:${input.seed ?? ''}`)}`,
     title,
     locale: input.locale,
     destinations,
@@ -109,9 +121,13 @@ export function buildTravelItinerary(input: {
     durationDays,
     travelers,
     travelerType: input.requirements.travelerType,
-    activities,
+    interests: [...input.requirements.interests],
+    dailyItinerary,
+    activities: dailyItinerary,
     transportation,
+    accommodations,
     estimatedBudget,
+    estimatedCosts: estimatedBudget,
     notes,
     conversationId: input.conversationId,
     requirements: input.requirements,
@@ -119,29 +135,35 @@ export function buildTravelItinerary(input: {
   }
 }
 
-export function applyItineraryEdits(
-  itinerary: TravelItinerary,
+/** @deprecated Prefer buildTripPlan */
+export const buildTravelItinerary = buildTripPlan
+
+export function applyTripPlanEdits(
+  plan: TripPlan,
   patch: Partial<TripRequirements>,
   locale: AgentLocale,
-): TravelItinerary {
+): TripPlan {
   const requirements = {
-    ...itinerary.requirements,
+    ...plan.requirements,
     ...patch,
     destinations: patch.destinations?.length
       ? patch.destinations
-      : itinerary.requirements.destinations,
+      : plan.requirements.destinations,
     interests: patch.interests?.length
       ? patch.interests
-      : itinerary.requirements.interests,
-    destination: patch.destination ?? itinerary.requirements.destination,
+      : plan.requirements.interests,
+    destination: patch.destination ?? plan.requirements.destination,
   }
-  return buildTravelItinerary({
+  return buildTripPlan({
     requirements,
-    conversationId: itinerary.conversationId,
+    conversationId: plan.conversationId,
     locale,
     seed: `edit-${Date.now()}`,
   })
 }
+
+/** @deprecated Prefer applyTripPlanEdits */
+export const applyItineraryEdits = applyTripPlanEdits
 
 function resolveDuration(requirements: TripRequirements): number {
   if (requirements.durationDays != null) return Math.min(21, Math.max(1, requirements.durationDays))
@@ -155,10 +177,10 @@ function resolveDuration(requirements: TripRequirements): number {
   return 3
 }
 
-function defaultTravelers(type: TripRequirements['travelerType']): number {
-  if (type === 'solo') return 1
+function assumedTravelersForCosting(type: TripRequirements['travelerType']): number {
+  if (type === 'solo' || type === 'business') return 1
   if (type === 'couple') return 2
-  if (type === 'family') return 4
+  if (type === 'family') return 3
   if (type === 'friends') return 3
   return 2
 }
@@ -176,6 +198,7 @@ function buildDays(input: {
   locale: AgentLocale
   interests: string[]
   travelerType: TripRequirements['travelerType']
+  tripPurpose: TripRequirements['tripPurpose']
   seed: string
 }): ItineraryDay[] {
   const playbook = CITY_PLAYBOOK[input.destination] ?? {
@@ -187,15 +210,18 @@ function buildDays(input: {
     const hub = playbook.hubs[(day - 1) % playbook.hubs.length] || input.destination
     const vibe = playbook.vibes[(day - 1) % playbook.vibes.length]
     const interest = input.interests[(day - 1) % Math.max(1, input.interests.length)] || null
-    const family = input.travelerType === 'family'
+    const family = input.travelerType === 'family' || input.tripPurpose === 'family'
+    const business = input.travelerType === 'business' || input.tripPurpose === 'business'
     days.push({
       day,
       title: input.locale === 'ar' ? `اليوم ${day}: ${hub}` : `Day ${day}: ${hub}`,
       location: hub,
       activities: [
         {
-          time: '09:00',
-          title: input.locale === 'ar' ? `صباح في ${hub}` : `Morning in ${hub}`,
+          time: business ? '08:30' : '09:00',
+          title: business
+            ? t(input.locale, { ar: `صباح عمل في ${hub}`, en: `Work morning in ${hub}` })
+            : (input.locale === 'ar' ? `صباح في ${hub}` : `Morning in ${hub}`),
           description: interest
             ? (input.locale === 'ar' ? `تركيز على ${interest}` : `Focus on ${interest}`)
             : (input.locale === 'ar' ? `استكشاف ${vibe}` : `Explore ${vibe}`),
@@ -205,10 +231,12 @@ function buildDays(input: {
           title: input.locale === 'ar' ? 'غداء محلي' : 'Local lunch',
           description: family
             ? t(input.locale, { ar: 'خيار مناسب للعائلات', en: 'Family-friendly option' })
-            : t(input.locale, { ar: 'تجربة طعام محلي', en: 'Local food experience' }),
+            : business
+              ? t(input.locale, { ar: 'غداء سريع قرب منطقة العمل', en: 'Quick lunch near the business district' })
+              : t(input.locale, { ar: 'تجربة طعام محلي', en: 'Local food experience' }),
         },
         {
-          time: '16:00',
+          time: business ? '18:00' : '16:00',
           title: input.locale === 'ar' ? `مسائي في ${hub}` : `Afternoon in ${hub}`,
           description: t(input.locale, {
             ar: day === input.durationDays ? 'وقت مرن أو تسوق للهدايا' : 'نشاط اختياري أو استراحة',
@@ -218,11 +246,63 @@ function buildDays(input: {
       ],
     })
   }
-  // tiny seed influence: reverse midday activity title on odd hash
   if (hashSeed(input.seed) % 2 === 1 && days[0]?.activities[1]) {
     days[0].activities[1].title = input.locale === 'ar' ? 'غداء مع إطلالة' : 'Lunch with a view'
   }
   return days
+}
+
+function buildAccommodations(input: {
+  destination: string
+  destinations: string[]
+  locale: AgentLocale
+  travelerType: TripRequirements['travelerType']
+  tripPurpose: TripRequirements['tripPurpose']
+  currency: string
+}): AccommodationRecommendation[] {
+  const area = input.destinations[0] || input.destination
+  const honeymoon = input.tripPurpose === 'honeymoon' || input.travelerType === 'couple'
+  const business = input.tripPurpose === 'business' || input.travelerType === 'business'
+  const family = input.tripPurpose === 'family' || input.travelerType === 'family'
+  const nightly = input.currency === 'SAR' ? 450 : input.currency === 'AED' ? 420 : 140
+
+  const primary: AccommodationRecommendation = {
+    name: honeymoon
+      ? t(input.locale, { ar: `منتجع رومانسي قرب ${area}`, en: `Romantic resort near ${area}` })
+      : business
+        ? t(input.locale, { ar: `فندق أعمال في ${area}`, en: `Business hotel in ${area}` })
+        : family
+          ? t(input.locale, { ar: `شقة عائلية في ${area}`, en: `Family apartment in ${area}` })
+          : t(input.locale, { ar: `فندق وسط ${area}`, en: `Central hotel in ${area}` }),
+    area,
+    category: honeymoon ? 'resort' : family ? 'apartment' : business ? 'hotel' : 'boutique',
+    fit: honeymoon
+      ? t(input.locale, { ar: 'إطلالة خاصة وإيقاع هادئ', en: 'Private feel and quieter pacing' })
+      : business
+        ? t(input.locale, { ar: 'قريب من المواصلات وخدمات العمل', en: 'Near transit and work amenities' })
+        : family
+          ? t(input.locale, { ar: 'مساحة أكبر ومطبخ صغير', en: 'More space and a small kitchen' })
+          : t(input.locale, { ar: 'موقع مركزي للتنقل اليومي', en: 'Central base for daily exploring' }),
+    estimatedNightly: nightly,
+    currency: input.currency,
+  }
+
+  const secondary: AccommodationRecommendation = {
+    name: t(input.locale, {
+      ar: `خيار متوسط الميزانية في ${area}`,
+      en: `Mid-budget stay in ${area}`,
+    }),
+    area,
+    category: 'hotel',
+    fit: t(input.locale, {
+      ar: 'توازن بين الموقع والسعر (يحتاج تأكيد مزود الفنادق لاحقاً)',
+      en: 'Balance of location and price (hotel tool confirms later)',
+    }),
+    estimatedNightly: Math.round(nightly * 0.7),
+    currency: input.currency,
+  }
+
+  return [primary, secondary]
 }
 
 function buildTransportation(input: {
@@ -308,19 +388,38 @@ function buildNotes(
   requirements: TripRequirements,
   locale: AgentLocale,
   budget: EstimatedBudget,
+  travelersUnknown: boolean,
 ): string[] {
   const notes: string[] = []
   notes.push(t(locale, {
     ar: 'هذه خطة أولية قابلة للتعديل من المحادثة.',
     en: 'This is a draft plan you can edit from the conversation.',
   }))
+  if (travelersUnknown) {
+    notes.push(t(locale, {
+      ar: 'عدد المسافرين غير مؤكد — تقدير التكلفة افترض حجماً تقريبياً فقط.',
+      en: 'Traveler count is unconfirmed — cost estimates use a provisional party size only.',
+    }))
+  }
   if (requirements.budgetAmount != null) {
     notes.push(t(locale, {
       ar: `الميزانية المستهدفة: ${requirements.budgetAmount} ${budget.currency}`,
       en: `Target budget: ${requirements.budgetAmount} ${budget.currency}`,
     }))
   }
-  if (requirements.travelerType === 'family') {
+  if (requirements.tripPurpose === 'honeymoon') {
+    notes.push(t(locale, {
+      ar: 'تم ضبط الإيقاع والإقامة لرحلة شهر عسل.',
+      en: 'Pacing and stays tuned for a honeymoon trip.',
+    }))
+  }
+  if (requirements.tripPurpose === 'business' || requirements.travelerType === 'business') {
+    notes.push(t(locale, {
+      ar: 'تم إدخال فترات عمل وهدوء مسائي لرحلة عمل.',
+      en: 'Includes work blocks and quieter evenings for a business trip.',
+    }))
+  }
+  if (requirements.travelerType === 'family' || requirements.tripPurpose === 'family') {
     notes.push(t(locale, {
       ar: 'تم تفضيل أنشطة مناسبة للعائلات وأوقات مرنة.',
       en: 'Enriched with family-friendly pacing and flexible blocks.',

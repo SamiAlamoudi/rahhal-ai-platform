@@ -3,11 +3,12 @@ import {
   mergeRequirements,
   missingRequirementFields,
   rebuildMemoryFromMessages,
+  tripPlanFromMeta,
 } from '../agent/memory'
 import { emptyRequirements } from '../agent/types'
 import type { ChatMessage } from '../chat/chatTypes'
 
-function assistantWithMemory(memory: Record<string, unknown>): ChatMessage {
+function assistantWithMemory(memory: Record<string, unknown>, tripPlan: unknown = null): ChatMessage {
   return {
     id: 'a1',
     conversationId: 'c1',
@@ -21,9 +22,10 @@ function assistantWithMemory(memory: Record<string, unknown>): ChatMessage {
     error: null,
     providerMeta: {
       kind: 'travel_agent',
-      version: 1,
+      version: 2,
       memory,
-      itinerary: null,
+      tripPlan,
+      itinerary: tripPlan,
     },
     createdAt: '2026-07-15T00:00:00.000Z',
     updatedAt: '2026-07-15T00:00:00.000Z',
@@ -31,7 +33,7 @@ function assistantWithMemory(memory: Record<string, unknown>): ChatMessage {
 }
 
 describe('agent memory', () => {
-  it('merges requirements and tracks missing fields', () => {
+  it('merges requirements and tracks missing fields without guessing duration', () => {
     const merged = mergeRequirements(emptyRequirements(), {
       destination: 'Japan',
       destinations: ['Japan'],
@@ -52,6 +54,7 @@ describe('agent memory', () => {
           destinations: ['Riyadh'],
           durationDays: 2,
         },
+        tripPlan: null,
         itinerary: null,
         missingFields: [],
         lastIntent: 'plan',
@@ -60,5 +63,24 @@ describe('agent memory', () => {
     expect(memory.locale).toBe('en')
     expect(memory.requirements.destination).toBe('Riyadh')
     expect(memory.missingFields).toEqual([])
+  })
+
+  it('reads tripPlan from meta for UI actions', () => {
+    const plan = { id: 'p1', title: 'Bali', destinations: ['Bali'] }
+    expect(tripPlanFromMeta({
+      kind: 'travel_agent',
+      version: 2,
+      memory: {
+        locale: 'en',
+        phase: 'planned',
+        requirements: emptyRequirements(),
+        tripPlan: plan,
+        itinerary: plan,
+        missingFields: [],
+        lastIntent: 'plan',
+      },
+      tripPlan: plan,
+      itinerary: plan,
+    })?.title).toBe('Bali')
   })
 })

@@ -1,4 +1,4 @@
-import type { AgentLocale, TripRequirements, TravelItinerary } from '../types'
+import type { AgentLocale, TripRequirements, TripPlan } from '../types'
 
 /**
  * Future-facing tool abstraction. Concrete providers (Amadeus, Booking, etc.)
@@ -11,11 +11,14 @@ export type AgentToolName =
   | 'maps'
   | 'visa'
   | 'currency'
+  | 'attractions'
   | 'local_recommendations'
 
 export interface AgentToolContext {
   requirements: TripRequirements
-  itinerary: TravelItinerary | null
+  tripPlan: TripPlan | null
+  /** MVP compatibility alias */
+  itinerary: TripPlan | null
   locale: AgentLocale
   signal?: AbortSignal
 }

@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { applyItineraryEdits, buildTravelItinerary } from '../agent/buildItinerary'
-import { formatItineraryReply } from '../agent/formatReply'
+import { applyTripPlanEdits, buildTripPlan } from '../agent/buildItinerary'
+import { formatTripPlanReply } from '../agent/formatReply'
 import { emptyRequirements } from '../agent/types'
 
-describe('buildTravelItinerary', () => {
-  it('builds structured itinerary with all required sections', () => {
-    const itinerary = buildTravelItinerary({
+describe('buildTripPlan', () => {
+  it('builds structured trip plan with all foundation sections', () => {
+    const plan = buildTripPlan({
       conversationId: 'c1',
       locale: 'en',
       requirements: {
@@ -21,21 +21,42 @@ describe('buildTravelItinerary', () => {
       },
     })
 
-    expect(itinerary.destinations[0]).toBe('Japan')
-    expect(itinerary.durationDays).toBe(7)
-    expect(itinerary.activities).toHaveLength(7)
-    expect(itinerary.transportation.length).toBeGreaterThan(0)
-    expect(itinerary.estimatedBudget.amount).toBeGreaterThan(0)
-    expect(itinerary.notes.length).toBeGreaterThan(0)
+    expect(plan.destinations[0]).toBe('Japan')
+    expect(plan.durationDays).toBe(7)
+    expect(plan.dailyItinerary).toHaveLength(7)
+    expect(plan.activities).toEqual(plan.dailyItinerary)
+    expect(plan.transportation.length).toBeGreaterThan(0)
+    expect(plan.accommodations.length).toBeGreaterThan(0)
+    expect(plan.estimatedCosts.amount).toBe(plan.estimatedBudget.amount)
+    expect(plan.interests).toEqual(['food', 'culture'])
+    expect(plan.notes.length).toBeGreaterThan(0)
 
-    const markdown = formatItineraryReply(itinerary, 'en')
-    expect(markdown).toContain('Day-by-day')
+    const markdown = formatTripPlanReply(plan, 'en')
+    expect(markdown).toContain('Daily itinerary')
     expect(markdown).toContain('Transportation')
-    expect(markdown).toContain('Estimated budget')
+    expect(markdown).toContain('Accommodation recommendations')
+    expect(markdown).toContain('Estimated costs')
+  })
+
+  it('does not invent traveler count when unset', () => {
+    const plan = buildTripPlan({
+      conversationId: 'c1',
+      locale: 'en',
+      requirements: {
+        ...emptyRequirements(),
+        destination: 'Riyadh',
+        destinations: ['Riyadh'],
+        durationDays: 2,
+        tripPurpose: 'family',
+        travelerType: 'family',
+      },
+    })
+    expect(plan.travelers).toBeNull()
+    expect(plan.notes.some((n) => /unconfirmed|غير مؤكد/i.test(n))).toBe(true)
   })
 
   it('regenerates/edits with a new duration', () => {
-    const base = buildTravelItinerary({
+    const base = buildTripPlan({
       conversationId: 'c1',
       locale: 'ar',
       requirements: {
@@ -45,9 +66,9 @@ describe('buildTravelItinerary', () => {
         durationDays: 2,
       },
     })
-    const edited = applyItineraryEdits(base, { durationDays: 4 }, 'ar')
+    const edited = applyTripPlanEdits(base, { durationDays: 4 }, 'ar')
     expect(edited.durationDays).toBe(4)
-    expect(edited.activities).toHaveLength(4)
+    expect(edited.dailyItinerary).toHaveLength(4)
     expect(edited.id).not.toBe(base.id)
   })
 })
