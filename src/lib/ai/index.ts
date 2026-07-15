@@ -1,5 +1,5 @@
 /**
- * Phase AB–AE — AI enhancement through Booking Orchestrator v1.
+ * Phase AB–AF — AI enhancement through Unified Trip Planner Pipeline v1.
  * Additive library surface; no UI; no breaking TripPlan / ProviderAdapter changes.
  */
 
@@ -156,3 +156,40 @@ export {
   createBookingOrchestrator,
   resetBookingOrchestratorCounters,
 } from './booking'
+
+export {
+  type BookingPreview,
+  type PipelineConfidence,
+  type PipelineNormalizedPreferences,
+  type PreferenceSourceRecord,
+  type PreferredLanguage,
+  type TripPlannerRequest,
+  type TripPlannerResult,
+  type TripPlannerStage,
+  type TripPlannerStatus,
+  type TripPlannerValidationError,
+  type TripPlannerFailure,
+  type TripPlannerPipelineEvent,
+  type TripPlannerTimeouts,
+  type TripPlannerServiceOptions,
+  type TripPlannerFailStage,
+  type TripPlannerMetrics,
+  type PipelineExecutionState,
+  DEFAULT_TRIP_PLANNER_TIMEOUTS,
+  SUPPORTED_TRIP_CURRENCIES,
+  validateTripPlannerRequest,
+  resolveCurrency,
+  resolveDurationDays,
+  buildRecommendationCandidates,
+  calculatePipelineConfidence,
+  InMemoryTripPlannerExecutionRepository,
+  InMemoryTripPlannerEventRepository,
+  InMemoryTripPlannerResultRepository,
+  InMemoryTripPlannerMetrics,
+  getTripPlannerMetrics,
+  resetTripPlannerMetrics,
+  TripPlannerService,
+  createTripPlannerService,
+  resetTripPlannerCounters,
+  resetTripPlannerTestSingletons,
+} from './tripPlanner'
