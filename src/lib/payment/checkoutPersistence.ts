@@ -91,7 +91,7 @@ export function paymentSessionToCreateInput(session: PaymentSession) {
     customer_email: session.customerEmail,
     customer_name: session.customerName,
     metadata: {
-      ...(session.metadata || {}),
+      ...session.metadata,
       redirectUrl: session.redirectUrl,
       providerReference: session.providerReference,
       authorizationCode: session.authorizationCode,
