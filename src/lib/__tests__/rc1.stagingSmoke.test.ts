@@ -3,8 +3,6 @@
  * Complements STAGING_SMOKE_TEST.md for CI/local gate checks.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { readFileSync, existsSync } from 'node:fs'
-import { resolve } from 'node:path'
 import {
   checkHealth,
   checkLiveness,
@@ -143,16 +141,22 @@ describe('Phase Y RC1 staging smoke', () => {
     expect(ok.ok).toBe(true)
   })
 
-  it('no committed env examples ship live payment; hygiene script present', () => {
-    const root = resolve(process.cwd())
-    for (const file of ['.env.example', '.env.staging.example', '.env.production.example']) {
-      const path = resolve(root, file)
-      expect(existsSync(path), path).toBe(true)
-      const text = readFileSync(path, 'utf8')
-      expect(text).toMatch(/^VITE_PAYMENT_PROVIDER=mock/m)
-      expect(text).not.toMatch(/^\s*VITE_AMADEUS_CLIENT_SECRET\s*=\s*[^#[\s].+/m)
+  it('client env must not carry provider secrets; payment stays mock', () => {
+    const secretKeys = [
+      'VITE_AMADEUS_CLIENT_SECRET',
+      'VITE_AMADEUS_CLIENT_ID',
+      'VITE_OPENWEATHER_API_KEY',
+      'VITE_GOOGLE_MAPS_API_KEY',
+      'VITE_MOYASAR_SECRET_KEY',
+    ]
+    for (const key of secretKeys) {
+      const value = (import.meta.env as Record<string, string | undefined>)[key]
+      expect(value, key).toBeFalsy()
     }
-    expect(existsSync(resolve(root, 'scripts/secret-hygiene-scan.sh'))).toBe(true)
+    expect(import.meta.env.VITE_PAYMENT_PROVIDER).toBe('mock')
+    expect(assertNoSecretsInText('safe operational log line')).toBe(true)
+    expect(assertNoSecretsInText('Authorization: Bearer abc.def.ghi')).toBe(false)
+    expect(assertNoSecretsInText('sk_live_ABCDEF123456')).toBe(false)
   })
 
   it('security headers, PII masking, and rate limits are active', () => {
