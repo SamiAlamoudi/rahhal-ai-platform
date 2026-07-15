@@ -92,8 +92,9 @@ export function resolveProviderFeatureFlags(
   }
 
   return {
+    // Phase X safe default: live providers off unless explicitly enabled.
     liveIntegrationEnabled: overrides.liveIntegrationEnabled
-      ?? parseBool(readEnv('VITE_LIVE_PROVIDERS_ENABLED') ?? readEnv('LIVE_PROVIDERS_ENABLED'), true),
+      ?? parseBool(readEnv('VITE_LIVE_PROVIDERS_ENABLED') ?? readEnv('LIVE_PROVIDERS_ENABLED'), false),
     mockFallbackEnabled: overrides.mockFallbackEnabled
       ?? parseBool(readEnv('VITE_PROVIDER_MOCK_FALLBACK') ?? readEnv('PROVIDER_MOCK_FALLBACK'), true),
     providers,
