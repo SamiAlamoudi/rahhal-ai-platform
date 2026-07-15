@@ -124,7 +124,28 @@ describe('MoyasarPaymentProvider', () => {
     expect(body.action).toBe('create_session')
     expect(body.amount).toBe(11155)
     expect(body.currency).toBe('SAR')
-    expect(body.callbackUrl).toBe('https://rahhal.app/checkout/success')
+    expect(body.successUrl).toBe('https://rahhal.app/checkout/success')
+    expect(body.backUrl).toBe('https://rahhal.app/checkout/success')
+  })
+
+  it('returns a hosted invoice.moyasar.com URL for redirect', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockEdgeResponse({
+      paymentSessionId: 'inv_abc123',
+      providerId: 'moyasar',
+      status: 'pending',
+      providerReference: 'inv_abc123',
+      redirectUrl: 'https://invoice.moyasar.com/i/abc123',
+      message: 'Moyasar hosted payment session created',
+      kind: 'invoice',
+    })))
+
+    const result = await provider.createPaymentSession(samplePaymentRequest({
+      returnUrl: 'https://rahhal.app/checkout/return?orderId=order-001',
+    }))
+
+    expect(result.success).toBe(true)
+    expect(result.redirectUrl).toBe('https://invoice.moyasar.com/i/abc123')
+    expect(result.redirectUrl).toMatch(/\.moyasar\.com/)
   })
 
   it('retrieves payment status (paid)', async () => {

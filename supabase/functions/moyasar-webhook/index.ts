@@ -33,6 +33,8 @@ function mapMoyasarStatus(status: string | undefined): string {
       return 'failed'
     case 'refunded':
       return 'refunded'
+    case 'expired':
+      return 'expired'
     case 'voided':
     case 'canceled':
     case 'cancelled':
@@ -193,6 +195,32 @@ Deno.serve(async (req) => {
               payment_provider: 'moyasar',
               payment_session_id: sessionId,
               paid_at: paidAt,
+              updated_at: new Date().toISOString(),
+            }),
+          },
+        )
+      }
+    }
+
+    if ((mappedStatus === 'failed' || mappedStatus === 'cancelled' || mappedStatus === 'expired') && orderId) {
+      const orderLookup = await fetch(
+        `${supabaseUrl}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}&select=id,status&limit=1`,
+        { headers },
+      )
+      const orders = await orderLookup.json() as Array<{ id: string; status: string }>
+      const order = Array.isArray(orders) ? orders[0] : null
+      const terminal = order && (order.status === 'paid' || order.status === 'confirmed')
+      if (order && !terminal) {
+        const nextStatus = mappedStatus === 'cancelled' ? 'cancelled' : 'failed'
+        await fetch(
+          `${supabaseUrl}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`,
+          {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({
+              status: nextStatus,
+              payment_provider: 'moyasar',
+              payment_session_id: sessionId,
               updated_at: new Date().toISOString(),
             }),
           },

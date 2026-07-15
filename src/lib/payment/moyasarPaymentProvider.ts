@@ -198,6 +198,9 @@ export class MoyasarPaymentProvider implements PaymentProvider {
       amount: request.amount,
       currency: request.currency.toUpperCase(),
       description: request.description,
+      // Browser return after hosted invoice (success_url / back_url on Edge).
+      successUrl: request.returnUrl,
+      backUrl: request.returnUrl,
       callbackUrl: request.returnUrl,
       orderId: request.orderId,
       orderNumber: request.orderNumber,

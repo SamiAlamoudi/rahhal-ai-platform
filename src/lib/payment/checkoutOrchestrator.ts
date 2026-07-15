@@ -196,7 +196,22 @@ export class CheckoutOrchestrator {
     }
   }
 
-  async executePayment(orderId: string, lockToken: string): Promise<PaymentExecutionResult> {
+  /**
+   * Authorize + capture path for tokenized / card-on-file flows only.
+   * Normal Moyasar checkout redirects to the hosted invoice URL instead.
+   */
+  async executePayment(
+    orderId: string,
+    lockToken: string,
+    options: { tokenizedCard?: boolean } = {},
+  ): Promise<PaymentExecutionResult> {
+    if (!options.tokenizedCard) {
+      return this.failure(
+        'Hosted Moyasar checkout must redirect to the payment URL. Pass { tokenizedCard: true } only for tokenized card capture.',
+        getOrder(orderId),
+      )
+    }
+
     const order = await this.resolveOrder(orderId)
     if (!order) {
       return this.failure('Order not found', null)

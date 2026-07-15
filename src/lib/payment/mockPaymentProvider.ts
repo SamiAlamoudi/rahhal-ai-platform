@@ -44,7 +44,8 @@ export class MockPaymentProvider implements PaymentProvider {
       authorizationCode: null,
       transactionId: null,
       message: 'Mock payment session created',
-      redirectUrl: null,
+      // Simulate hosted checkout: SPA redirects here, then refreshPaymentStatus.
+      redirectUrl: request.returnUrl || null,
       paidAt: null,
       metadata: { mock: true, requestAmount: request.amount },
     }
@@ -138,7 +139,14 @@ export class MockPaymentProvider implements PaymentProvider {
 
   async getPaymentStatus(paymentSessionId: string): Promise<PaymentSessionStatus | null> {
     const session = this.sessions.get(paymentSessionId)
-    return session ? session.status : null
+    if (!session) return null
+    // Hosted-flow simulation: pending sessions resolve as paid on status refresh
+    // (mirrors customer completing Moyasar invoice checkout).
+    if (session.status === 'pending' || session.status === 'authorized') {
+      session.status = 'paid'
+      session.transactionId = session.transactionId ?? `TXN-${paymentSessionId.slice(0, 8).toUpperCase()}`
+    }
+    return session.status
   }
 
   private failureResult(paymentSessionId: string, message: string): PaymentResult {

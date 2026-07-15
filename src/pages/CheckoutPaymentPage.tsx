@@ -1,6 +1,11 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { getDefaultPaymentProvider, getCheckoutOrchestrator } from '../lib/payment'
+import {
+  buildCheckoutReturnUrl,
+  isHostedMoyasarPaymentUrl,
+  saveCheckoutReturnContext,
+} from '../lib/payment/moyasarCheckout'
 import type { CheckoutItem, TravelerInfo } from '../lib/payment/checkoutTypes'
 import type { CheckoutSession } from '../lib/payment/checkoutOrchestrator'
 
@@ -43,39 +48,61 @@ export default function CheckoutPaymentPage() {
     setError(null)
 
     try {
+      const returnUrl = buildCheckoutReturnUrl(window.location.origin, order.id)
+      const traveler = state.travelers[0]
+      const customerName = traveler
+        ? `${traveler.firstName} ${traveler.lastName}`.trim()
+        : null
+
       const sessionResult = await orchestrator.createPaymentSession(
         order.id,
         null,
-        null,
-        `${window.location.origin}/checkout/success`,
+        customerName,
+        returnUrl,
       )
 
-      if (!sessionResult.success) {
-        setError(sessionResult.message)
+      if (!sessionResult.success || !sessionResult.paymentSession) {
+        setError(sessionResult.message || 'Failed to create payment session')
         setProcessing(false)
         return
       }
 
-      const paymentResult = await orchestrator.executePayment(order.id, lockToken)
-
-      if (paymentResult.success) {
-        navigate('/checkout/success', {
-          state: {
-            order: paymentResult.order,
-            invoice: paymentResult.invoice,
-            itinerary: paymentResult.itinerary,
-            paymentSession: paymentResult.paymentSession,
-          },
-        })
-      } else {
+      const redirectUrl = sessionResult.paymentSession.redirectUrl
+      if (!redirectUrl) {
+        setError('Payment provider did not return a hosted payment URL')
+        setProcessing(false)
         navigate('/checkout/failure', {
           state: {
             orderId: order.id,
             lockToken,
-            message: paymentResult.message,
+            message: 'Missing hosted payment URL',
           },
         })
+        return
       }
+
+      // Production Moyasar path: only redirect to verified *.moyasar.com URLs.
+      if (provider.providerId === 'moyasar' && !isHostedMoyasarPaymentUrl(redirectUrl)) {
+        setError('Payment provider returned an invalid Moyasar hosted URL')
+        setProcessing(false)
+        navigate('/checkout/failure', {
+          state: {
+            orderId: order.id,
+            lockToken,
+            message: 'Invalid Moyasar payment URL',
+          },
+        })
+        return
+      }
+
+      saveCheckoutReturnContext({
+        orderId: order.id,
+        lockToken,
+        paymentSessionId: sessionResult.paymentSession.id,
+      })
+
+      // Hosted checkout — leave Rahhal; Moyasar (or mock returnUrl) collects payment.
+      window.location.assign(redirectUrl)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Payment processing failed')
       setProcessing(false)
@@ -113,7 +140,6 @@ export default function CheckoutPaymentPage() {
           </div>
         )}
 
-        {/* Payment summary */}
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-sm font-bold text-slate-900 mb-4">ملخص الدفع</h2>
           <div className="space-y-2 text-sm">
@@ -136,32 +162,22 @@ export default function CheckoutPaymentPage() {
           </div>
         </div>
 
-        {/* Payment method placeholder */}
         <div className="mt-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
           <h2 className="text-sm font-bold text-slate-900 mb-3">طريقة الدفع</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {['بطاقة ائتمانية', 'مدى', 'Apple Pay'].map((method, i) => (
-              <div
-                key={method}
-                className={`rounded-xl border p-3 text-center text-xs font-medium ${i === 0 ? 'border-primary-300 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500'}`}
-              >
-                {method}
-              </div>
-            ))}
-          </div>
+          <p className="text-sm text-slate-600">
+            سيتم تحويلك إلى صفحة الدفع الآمنة لدى Moyasar لإدخال بيانات البطاقة.
+          </p>
           <p className="mt-3 text-[10px] text-slate-400">
-            الدفع الآمن عبر بوابة الدفع. لا يتم تخزين بيانات البطاقة.
+            الدفع الآمن عبر بوابة Moyasar. لا يتم تخزين بيانات البطاقة في رحّال.
           </p>
         </div>
 
-        {/* Lock notice */}
         <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
           <p className="text-xs text-sky-800">
             يتم حماية عملية الدفع بقفل آلي لمنع الدفع المكرر أو إعادة الإرسال.
           </p>
         </div>
 
-        {/* Pay button */}
         <button
           type="button"
           onClick={handlePay}
@@ -174,7 +190,7 @@ export default function CheckoutPaymentPage() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
               </svg>
-              جاري معالجة الدفع...
+              جاري التحويل إلى Moyasar...
             </span>
           ) : (
             `ادفع ${formatPrice(cart.total, cart.currency)}`

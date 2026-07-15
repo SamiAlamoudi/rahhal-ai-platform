@@ -18,6 +18,7 @@ import MyTrips from './pages/MyTrips.tsx'
 import CheckoutPage from './pages/CheckoutPage.tsx'
 import CheckoutReviewPage from './pages/CheckoutReviewPage.tsx'
 import CheckoutPaymentPage from './pages/CheckoutPaymentPage.tsx'
+import CheckoutReturnPage from './pages/CheckoutReturnPage.tsx'
 import CheckoutSuccessPage from './pages/CheckoutSuccessPage.tsx'
 import CheckoutFailurePage from './pages/CheckoutFailurePage.tsx'
 import CheckoutAdminDashboard from './pages/CheckoutAdminDashboard.tsx'
@@ -109,6 +110,11 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/checkout/payment" element={
             <ProtectedRoute>
               <CheckoutPaymentPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/checkout/return" element={
+            <ProtectedRoute>
+              <CheckoutReturnPage />
             </ProtectedRoute>
           } />
           <Route path="/checkout/success" element={
