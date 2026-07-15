@@ -5,12 +5,14 @@ export interface CreateConversationInput {
   title?: string
   modality_default?: string
   travel_session_id?: string | null
+  last_message_preview?: string
 }
 
 export interface UpdateConversationInput {
   title?: string
   modality_default?: string
   travel_session_id?: string | null
+  last_message_preview?: string
 }
 
 export const conversationRepository = {
@@ -21,6 +23,7 @@ export const conversationRepository = {
         title: input.title?.trim() || 'محادثة جديدة',
         modality_default: input.modality_default ?? 'text',
         travel_session_id: input.travel_session_id ?? null,
+        last_message_preview: input.last_message_preview ?? '',
       })
       .select()
       .maybeSingle()
@@ -59,10 +62,13 @@ export const conversationRepository = {
     return data ?? []
   },
 
-  async touch(id: string): Promise<void> {
+  async touch(id: string, preview?: string): Promise<void> {
     const { error } = await supabase
       .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
+      .update({
+        updated_at: new Date().toISOString(),
+        ...(typeof preview === 'string' ? { last_message_preview: preview } : {}),
+      })
       .eq('id', id)
     if (error) throw error
   },

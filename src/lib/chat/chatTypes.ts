@@ -1,17 +1,19 @@
 import type { ChatMessageRole, ChatMessageStatus, ChatModality, ConversationRow, MessageRow } from '../types'
+import { normalizeAttachments, type ChatAttachment } from './chatAttachments'
 
 /**
  * Shared chat domain contracts for text today and voice later.
  * Voice will reuse the same Conversation/Message lifecycle with modality='audio'.
  */
 
-export type { ChatMessageRole, ChatMessageStatus, ChatModality }
+export type { ChatMessageRole, ChatMessageStatus, ChatModality, ChatAttachment }
 
 export interface ChatConversation {
   id: string
   title: string
   modalityDefault: ChatModality
   travelSessionId: string | null
+  lastMessagePreview: string
   createdAt: string
   updatedAt: string
 }
@@ -23,6 +25,8 @@ export interface ChatMessage {
   modality: ChatModality
   content: string
   audioUrl: string | null
+  imageUrl: string | null
+  attachments: ChatAttachment[]
   status: ChatMessageStatus
   error: string | null
   providerMeta: Record<string, unknown>
@@ -53,6 +57,7 @@ export function conversationFromRow(row: ConversationRow): ChatConversation {
     title: row.title,
     modalityDefault: row.modality_default === 'audio' ? 'audio' : 'text',
     travelSessionId: row.travel_session_id,
+    lastMessagePreview: row.last_message_preview ?? '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -74,6 +79,8 @@ export function messageFromRow(row: MessageRow): ChatMessage {
     modality: row.modality === 'audio' ? 'audio' : 'text',
     content: row.content ?? '',
     audioUrl: row.audio_url,
+    imageUrl: row.image_url ?? null,
+    attachments: normalizeAttachments(row.attachments),
     status,
     error: row.error,
     providerMeta: row.provider_meta ?? {},

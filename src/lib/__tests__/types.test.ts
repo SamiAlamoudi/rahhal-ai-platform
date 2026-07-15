@@ -119,13 +119,14 @@ describe('Types: database row shapes', () => {
     expect(row.action).toBe('sign_in')
   })
 
-  it('ConversationRow and MessageRow support text/audio modalities', () => {
+  it('ConversationRow and MessageRow support text/audio modalities and attachments', () => {
     const conversation: ConversationRow = {
       id: 'c1',
       user_id: 'u1',
       title: 'محادثة',
       modality_default: 'text',
       travel_session_id: null,
+      last_message_preview: 'مرحبا',
       created_at: '2026-07-15T00:00:00Z',
       updated_at: '2026-07-15T00:00:00Z',
     }
@@ -137,6 +138,8 @@ describe('Types: database row shapes', () => {
       modality: 'text',
       content: 'hello',
       audio_url: null,
+      image_url: null,
+      attachments: [],
       status: 'complete',
       error: null,
       provider_meta: {},
@@ -144,7 +147,9 @@ describe('Types: database row shapes', () => {
       updated_at: '2026-07-15T00:00:00Z',
     }
     expect(conversation.modality_default).toBe('text')
+    expect(conversation.last_message_preview).toBe('مرحبا')
     expect(message.audio_url).toBeNull()
+    expect(message.image_url).toBeNull()
   })
 })
 

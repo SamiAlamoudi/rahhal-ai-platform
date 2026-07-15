@@ -1,7 +1,8 @@
 import { conversationRepository } from '../repositories/conversationRepository'
 import { messageRepository } from '../repositories/messageRepository'
 import { createChatProvider } from './chatProviderFactory'
-import type { ChatProvider } from './chatTypes'
+import type { ChatAttachment } from './chatAttachments'
+import type { ChatModality, ChatProvider } from './chatTypes'
 import {
   conversationFromRow,
   messageFromRow,
@@ -9,6 +10,8 @@ import {
   type ChatMessage,
 } from './chatTypes'
 import {
+  buildMessagePreview,
+  filterConversations,
   findRetryTarget,
   titleFromFirstMessage,
   validateConversationTitle,
@@ -26,6 +29,13 @@ export interface StreamHandlers {
   onDelta?: (message: ChatMessage) => void
   onComplete?: (message: ChatMessage) => void
   onError?: (message: ChatMessage, error: string) => void
+}
+
+export interface SendUserMessageOptions {
+  modality?: ChatModality
+  audioUrl?: string | null
+  imageUrl?: string | null
+  attachments?: ChatAttachment[]
 }
 
 let activeProvider: ChatProvider = createChatProvider()
@@ -68,6 +78,8 @@ async function streamIntoAssistant(
     modality: 'text',
     content: '',
     audioUrl: null,
+    imageUrl: null,
+    attachments: [],
     status: 'streaming',
     error: null,
     providerMeta: { providerId: activeProvider.providerId },
@@ -90,7 +102,6 @@ async function streamIntoAssistant(
           updatedAt: new Date().toISOString(),
         }
         handlers.onDelta?.(latest)
-        // Persist periodically for crash-safe streaming history
         if (content.length - lastPersistedLength >= 120) {
           const saved = await persistAssistantDelta(assistantId, content, 'streaming')
           if (saved) latest = saved
@@ -107,7 +118,7 @@ async function streamIntoAssistant(
         const saved = await persistAssistantDelta(assistantId, content, 'complete')
         latest = saved ?? { ...latest, content, status: 'complete', error: null }
         handlers.onComplete?.(latest)
-        await conversationRepository.touch(conversationId)
+        await conversationRepository.touch(conversationId, buildMessagePreview(content))
         return latest
       }
     }
@@ -115,7 +126,7 @@ async function streamIntoAssistant(
     const saved = await persistAssistantDelta(assistantId, content, 'complete')
     latest = saved ?? { ...latest, content, status: 'complete' }
     handlers.onComplete?.(latest)
-    await conversationRepository.touch(conversationId)
+    await conversationRepository.touch(conversationId, buildMessagePreview(content))
     return latest
   } catch (e) {
     const err = e instanceof Error ? e.message : 'تعذر توليد الرد'
@@ -131,6 +142,10 @@ export const chatService = {
   async listConversations(limit = 50): Promise<ChatConversation[]> {
     const rows = await conversationRepository.listByUser(limit)
     return rows.map(conversationFromRow)
+  },
+
+  searchConversations(conversations: ChatConversation[], query: string): ChatConversation[] {
+    return filterConversations(conversations, query)
   },
 
   async createConversation(title?: string): Promise<ChatConversation> {
@@ -172,25 +187,36 @@ export const chatService = {
     conversationId: string,
     content: string,
     handlers: StreamHandlers,
+    options: SendUserMessageOptions = {},
   ): Promise<{ user: ChatMessage; assistant: ChatMessage }> {
     const validation = validateUserMessage(content)
     if (validation) throw new Error(validation)
+
+    const modality: ChatModality = options.modality === 'audio' ? 'audio' : 'text'
+    const attachments = options.attachments ?? []
 
     const existing = await messageRepository.listByConversation(conversationId)
     const userRow = await messageRepository.create({
       conversation_id: conversationId,
       role: 'user',
-      modality: 'text',
+      modality,
       content: content.trim(),
+      audio_url: options.audioUrl ?? null,
+      image_url: options.imageUrl ?? null,
+      attachments,
       status: 'complete',
     })
     if (!userRow) throw new Error('تعذر حفظ الرسالة')
 
+    const preview = buildMessagePreview(content)
     if (existing.length === 0) {
       const autoTitle = titleFromFirstMessage(content)
-      await conversationRepository.update(conversationId, { title: autoTitle })
+      await conversationRepository.update(conversationId, {
+        title: autoTitle,
+        last_message_preview: preview,
+      })
     } else {
-      await conversationRepository.touch(conversationId)
+      await conversationRepository.touch(conversationId, preview)
     }
 
     const assistantRow = await messageRepository.create({
@@ -237,7 +263,6 @@ export const chatService = {
     }
     handlers.onAssistantCreate?.(seed)
 
-    // History up to and including the paired user message
     const truncated: ChatMessage[] = []
     for (const message of messages) {
       if (message.id === assistantMessageId) break

@@ -7,6 +7,8 @@ export interface CreateMessageInput {
   content?: string
   modality?: string
   audio_url?: string | null
+  image_url?: string | null
+  attachments?: unknown[]
   status?: string
   error?: string | null
   provider_meta?: Record<string, unknown>
@@ -17,6 +19,8 @@ export interface UpdateMessageInput {
   status?: string
   error?: string | null
   audio_url?: string | null
+  image_url?: string | null
+  attachments?: unknown[]
   provider_meta?: Record<string, unknown>
 }
 
@@ -30,6 +34,8 @@ export const messageRepository = {
         content: input.content ?? '',
         modality: input.modality ?? 'text',
         audio_url: input.audio_url ?? null,
+        image_url: input.image_url ?? null,
+        attachments: input.attachments ?? [],
         status: input.status ?? 'complete',
         error: input.error ?? null,
         provider_meta: input.provider_meta ?? {},
