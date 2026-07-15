@@ -53,12 +53,16 @@ async function persistAssistantDelta(
   content: string,
   status: string,
   error: string | null = null,
+  providerMeta: Record<string, unknown> = {},
 ): Promise<ChatMessage | null> {
   const row = await messageRepository.update(messageId, {
     content,
     status,
     error,
-    provider_meta: { providerId: activeProvider.providerId },
+    provider_meta: {
+      providerId: activeProvider.providerId,
+      ...providerMeta,
+    },
   })
   return row ? messageFromRow(row) : null
 }
@@ -71,6 +75,7 @@ async function streamIntoAssistant(
 ): Promise<ChatMessage> {
   let content = ''
   let lastPersistedLength = 0
+  let streamMeta: Record<string, unknown> = {}
   let latest: ChatMessage = {
     id: assistantId,
     conversationId,
@@ -106,35 +111,47 @@ async function streamIntoAssistant(
         if (content.length - lastPersistedLength >= 120) {
           lastPersistedLength = content.length
           const snapshot = content
-          void persistAssistantDelta(assistantId, snapshot, 'streaming').catch(() => {
+          void persistAssistantDelta(assistantId, snapshot, 'streaming', null, streamMeta).catch(() => {
             // final persist still runs on done/error
           })
         }
       } else if (chunk.type === 'error') {
         const err = chunk.error === 'cancelled' ? 'cancelled' : (chunk.error ?? 'stream error')
         const status = err === 'cancelled' ? 'cancelled' : 'error'
-        const saved = await persistAssistantDelta(assistantId, content, status, err)
+        const saved = await persistAssistantDelta(assistantId, content, status, err, streamMeta)
         latest = saved ?? { ...latest, status, error: err, content }
         handlers.onError?.(latest, err)
         return latest
       } else if (chunk.type === 'done') {
-        const saved = await persistAssistantDelta(assistantId, content, 'complete')
-        latest = saved ?? { ...latest, content, status: 'complete', error: null }
+        if (chunk.meta) streamMeta = chunk.meta
+        const saved = await persistAssistantDelta(assistantId, content, 'complete', null, streamMeta)
+        latest = saved ?? {
+          ...latest,
+          content,
+          status: 'complete',
+          error: null,
+          providerMeta: { providerId: activeProvider.providerId, ...streamMeta },
+        }
         handlers.onComplete?.(latest)
         await conversationRepository.touch(conversationId, buildMessagePreview(content))
         return latest
       }
     }
 
-    const saved = await persistAssistantDelta(assistantId, content, 'complete')
-    latest = saved ?? { ...latest, content, status: 'complete' }
+    const saved = await persistAssistantDelta(assistantId, content, 'complete', null, streamMeta)
+    latest = saved ?? {
+      ...latest,
+      content,
+      status: 'complete',
+      providerMeta: { providerId: activeProvider.providerId, ...streamMeta },
+    }
     handlers.onComplete?.(latest)
     await conversationRepository.touch(conversationId, buildMessagePreview(content))
     return latest
   } catch (e) {
     const err = e instanceof Error ? e.message : 'تعذر توليد الرد'
     const status = handlers.signal.aborted ? 'cancelled' : 'error'
-    const saved = await persistAssistantDelta(assistantId, content, status, err)
+    const saved = await persistAssistantDelta(assistantId, content, status, err, streamMeta)
     latest = saved ?? { ...latest, status, error: err, content }
     handlers.onError?.(latest, err)
     return latest

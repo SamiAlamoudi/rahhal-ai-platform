@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
 import VoiceComposer from '../components/chat/VoiceComposer'
+import { saveGeneratedItinerary } from '../lib/agent/itineraryPersistence'
+import type { TravelItinerary } from '../lib/agent/types'
 import { chatEngine } from '../lib/chat/chatEngine'
 import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
 import { validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
@@ -414,6 +416,52 @@ export default function ChatPage() {
     if (!result.ready) setActionError(result.reason ?? 'تعذر رفع الصورة')
   }
 
+  const sendAgentCommand = async (content: string) => {
+    if (!activeId || isStreaming || voiceBusy || !online) return
+    setDraft('')
+    await runGeneration(async (handlers) => {
+      const result = await chatEngine.sendMessage({
+        conversationId: activeId,
+        content,
+        modality: 'text',
+      }, handlers)
+      setMessages((prev) => {
+        const withoutAssistant = prev.filter((m) => m.id !== result.assistant.id)
+        return [...withoutAssistant, result.user, result.assistant]
+      })
+    })
+  }
+
+  const handleSaveItinerary = async (itinerary: TravelItinerary) => {
+    setActionError(null)
+    try {
+      const saved = await saveGeneratedItinerary({ itinerary })
+      setActionError(null)
+      window.alert(
+        itinerary.locale === 'en'
+          ? `Saved “${saved.title}” to Saved Trips.`
+          : `تم حفظ «${saved.title}» في الرحلات المحفوظة.`,
+      )
+    } catch (e) {
+      logChatError('agent.save', e)
+      setActionError(e instanceof Error ? e.message : 'تعذر حفظ الخطة')
+    }
+  }
+
+  const handleRegenerateItinerary = async (messageId: string) => {
+    if (!activeId || isStreaming || voiceBusy || !online) return
+    await runGeneration(async (handlers) => {
+      // Prefer an explicit regenerate turn so conversation memory stays intact.
+      const result = await chatEngine.sendMessage({
+        conversationId: activeId,
+        content: 'Regenerate the itinerary with the same requirements',
+        modality: 'text',
+      }, handlers)
+      setMessages((prev) => [...prev.filter((m) => m.id !== result.assistant.id), result.user, result.assistant])
+      void messageId
+    })
+  }
+
   const handlePushStart = async () => {
     if (!activeId || !online) return
     setActionError(null)
@@ -483,9 +531,11 @@ export default function ChatPage() {
               المحادثات
             </button>
             <div className="min-w-0">
-              <h1 className="truncate text-base font-bold text-slate-900">محادثة رحّال</h1>
+              <h1 className="truncate text-base font-bold text-slate-900">وكيل سفر رحّال</h1>
               <p className="text-[10px] text-slate-400">
-                {online ? 'نص وصوت على نفس المحرك والسجل' : 'غير متصل — وضع القراءة فقط مؤقتاً'}
+                {online
+                  ? 'تخطيط رحلات منظم · نص وصوت على نفس المحرك'
+                  : 'غير متصل — وضع القراءة فقط مؤقتاً'}
               </p>
             </div>
           </div>
@@ -595,8 +645,11 @@ export default function ChatPage() {
                   </div>
                 )}
                 {!detailLoading && !detailError && messages.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-200 py-12 text-center">
-                    <p className="text-sm text-slate-500">لا توجد رسائل بعد. اكتب أو تحدّث بالأسفل.</p>
+                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-12 text-center">
+                    <p className="text-sm font-medium text-slate-700">ابدأ وكيل السفر</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      مثال: Plan a 7-day trip to Japan · عطلة عائلية بأقل من 3000 دولار · Weekend in Riyadh
+                    </p>
                   </div>
                 )}
                 <div className="space-y-3" aria-live="polite">
@@ -605,7 +658,11 @@ export default function ChatPage() {
                       key={message.id}
                       message={message}
                       isStreaming={message.status === 'streaming'}
+                      busy={isStreaming || voiceBusy}
                       onRetry={(id) => void handleRetry(id)}
+                      onSaveItinerary={(itinerary) => void handleSaveItinerary(itinerary)}
+                      onRegenerateItinerary={(id) => void handleRegenerateItinerary(id)}
+                      onEditItinerary={(patchText) => void sendAgentCommand(patchText)}
                     />
                   ))}
                 </div>
@@ -641,7 +698,7 @@ export default function ChatPage() {
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                         rows={2}
-                        placeholder="اسأل رحّال عن وجهتك، الميزانية، أو خطة السفر..."
+                        placeholder="Plan a 7-day trip to Japan / خطط رحلة 7 أيام إلى اليابان..."
                         className="min-h-[44px] w-full resize-none rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400/20"
                         disabled={!activeId || voiceBusy || !online}
                       />
