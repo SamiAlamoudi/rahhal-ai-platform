@@ -72,12 +72,10 @@ function kyotoLocation() {
 describe('Phase P Google Maps ProviderAdapter', () => {
   beforeEach(() => {
     vi.unstubAllEnvs()
-    delete process.env.GOOGLE_MAPS_API_KEY
   })
 
   afterEach(() => {
     vi.unstubAllEnvs()
-    delete process.env.GOOGLE_MAPS_API_KEY
     vi.restoreAllMocks()
   })
 
@@ -96,8 +94,10 @@ describe('Phase P Google Maps ProviderAdapter', () => {
   })
 
   it('becomes available with server-side API key (never VITE_*)', () => {
-    process.env.GOOGLE_MAPS_API_KEY = 'test-google-key'
-    const config = resolveGoogleMapsProviderConfig({ enabled: true })
+    const config = resolveGoogleMapsProviderConfig({
+      enabled: true,
+      apiKey: 'test-google-key',
+    })
     expect(config.apiKey).toBe('test-google-key')
     expect(isGoogleMapsConfigured(config)).toBe(true)
     const adapter = createGoogleMapsProviderAdapter({ config })

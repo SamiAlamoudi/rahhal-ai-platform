@@ -20,14 +20,13 @@ export interface GoogleMapsProviderConfig {
 
 function readProcessEnv(name: string): string | null {
   try {
-    if (typeof process !== 'undefined' && process.env?.[name]) {
-      const value = process.env[name]?.trim()
-      return value || null
-    }
+    const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    const value = proc?.env?.[name]
+    if (value === undefined || value === null || value === '') return null
+    return String(value)
   } catch {
-    /* ignore */
+    return null
   }
-  return null
 }
 
 function readViteEnv(name: string): string | null {

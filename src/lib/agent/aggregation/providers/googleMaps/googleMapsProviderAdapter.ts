@@ -308,8 +308,8 @@ async function searchGoogleMapsRoutes(
         if (leg) {
           legs.push({
             ...leg,
-            from: from.label,
-            to: to.label,
+            from: displayName(from),
+            to: displayName(to),
             fromLocation: from,
             toLocation: to,
           })
@@ -317,8 +317,8 @@ async function searchGoogleMapsRoutes(
           // Geodesic fallback when Distance Matrix returns no element.
           const distanceKm = haversineKm(from, to) ?? 12
           legs.push({
-            from: from.label,
-            to: to.label,
+            from: displayName(from),
+            to: displayName(to),
             mode,
             distanceKm: Math.round(distanceKm * 10) / 10,
             durationMinutes: Math.max(1, Math.round(distanceKm * 3)),
@@ -370,6 +370,10 @@ async function withTimezone(
 
 async function firstOf<T>(fn: () => Promise<T>): Promise<T> {
   return fn()
+}
+
+function displayName(location: CanonicalLocation): string {
+  return location.name || location.city || location.label
 }
 
 function coordsOrLabel(location: CanonicalLocation): string {
