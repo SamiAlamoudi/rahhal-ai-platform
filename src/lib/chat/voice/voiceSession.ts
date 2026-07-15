@@ -5,6 +5,7 @@
 
 import { chatEngine, type StreamHandlers } from '../chatEngine'
 import type { ChatMessage } from '../chatTypes'
+import { isBenignChatError, logChatError } from '../chatLogger'
 import { createSpeechToTextProvider, createTextToSpeechProvider } from './voiceProviderFactory'
 import { queryMicrophonePermission, requestMicrophoneAccess } from './microphonePermission'
 import type {
@@ -41,7 +42,7 @@ export interface VoiceSession {
   stopPushToTalkAndSend: (conversationId: string) => Promise<ChatMessage | null>
   startHandsFree: (conversationId: string) => Promise<void>
   stopListening: () => Promise<void>
-  interrupt: (abortStream?: () => void) => void
+  interrupt: (abortStream?: () => void, opts?: { resumeHandsFree?: boolean }) => void
   speakText: (text: string) => Promise<void>
   dispose: () => void
 }
@@ -53,7 +54,6 @@ export interface CreateVoiceSessionOptions {
   mode?: VoiceInputMode
   callbacks?: VoiceSessionCallbacks
   sendTurn?: typeof chatEngine.sendMessage
-  /** Test seam — defaults to real browser permission helpers */
   requestPermission?: () => Promise<MicrophonePermissionState>
 }
 
@@ -77,10 +77,20 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   let activeAbort: AbortController | null = null
   let listening = false
   let sending = false
+  let intentionalAbort = false
+  let resumeHandsFreeAfterInterrupt = false
 
   const setStatus = (next: VoiceSessionStatus) => {
+    if (disposed) return
     status = next
     callbacks.onStatus?.(next)
+  }
+
+  const clearSttHandlers = () => {
+    stt.onPartial = undefined
+    stt.onFinal = undefined
+    stt.onError = undefined
+    stt.onEnd = undefined
   }
 
   const ensureMicPermission = async (): Promise<MicrophonePermissionState> => {
@@ -89,7 +99,9 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     callbacks.onPermission?.(state)
     if (state.state !== 'granted') {
       setStatus('error')
-      callbacks.onError?.(state.error || 'يلزم إذن الميكروفون للمتابعة')
+      if (!isBenignChatError(state.error)) {
+        callbacks.onError?.(state.error || 'يلزم إذن الميكروفون للمتابعة')
+      }
     } else if (status === 'requesting_permission') {
       setStatus('idle')
     }
@@ -97,12 +109,14 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   }
 
   const startListening = async (continuous: boolean) => {
+    if (disposed) return
     if (!stt.isSupported()) {
       throw new Error('التعرف على الكلام غير متاح')
     }
     const permission = await ensureMicPermission()
     if (permission.state !== 'granted') return
     partial = ''
+    intentionalAbort = false
     listening = true
     setStatus('listening')
     await stt.start({
@@ -110,6 +124,18 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       continuous,
       interimResults: true,
     })
+  }
+
+  const maybeResumeHandsFree = async () => {
+    if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
+    try {
+      setStatus('reconnecting')
+      await startListening(true)
+    } catch (e) {
+      logChatError('voice.resume', e)
+      callbacks.onError?.(e instanceof Error ? e.message : 'تعذر استئناف الاستماع')
+      setStatus('error')
+    }
   }
 
   const sendTranscript = async (conversationId: string, transcript: string): Promise<ChatMessage | null> => {
@@ -121,6 +147,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
 
     sending = true
     setStatus('processing')
+    intentionalAbort = true
     stt.abort()
     listening = false
     activeAbort?.abort()
@@ -135,38 +162,46 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       },
       onComplete: async (message) => {
         callbacks.onComplete?.(message)
-        if (message.content.trim() && !controller.signal.aborted) {
+        if (message.content.trim() && !controller.signal.aborted && !disposed) {
           setStatus('speaking')
           try {
             await tts.speak({ locale, text: stripMarkdownForSpeech(message.content), interrupt: true })
           } catch (e) {
-            callbacks.onError?.(e instanceof Error ? e.message : 'تعذر تشغيل الرد الصوتي')
+            if (!isBenignChatError(e) && !disposed) {
+              logChatError('voice.tts', e)
+              callbacks.onError?.(e instanceof Error ? e.message : 'تعذر تشغيل الرد الصوتي')
+            }
           }
         }
         sending = false
-        if (controller.signal.aborted) {
+        activeAbort = null
+        if (controller.signal.aborted || disposed) {
           setStatus('idle')
+          if (resumeHandsFreeAfterInterrupt) {
+            resumeHandsFreeAfterInterrupt = false
+            await maybeResumeHandsFree()
+          }
           return
         }
         setStatus('idle')
-        if (mode === 'hands_free' && handsFreeConversationId && !disposed) {
-          try {
-            setStatus('reconnecting')
-            await startListening(true)
-          } catch (e) {
-            callbacks.onError?.(e instanceof Error ? e.message : 'تعذر استئناف الاستماع')
-            setStatus('error')
-          }
+        if (mode === 'hands_free' && handsFreeConversationId) {
+          await maybeResumeHandsFree()
         }
       },
       onError: (message, error) => {
         sending = false
+        activeAbort = null
         callbacks.onStreamError?.(message, error)
-        if (error !== 'cancelled') {
+        if (!isBenignChatError(error)) {
+          logChatError('voice.stream', error)
           callbacks.onError?.(error)
           setStatus('error')
         } else {
           setStatus('idle')
+          if (resumeHandsFreeAfterInterrupt) {
+            resumeHandsFreeAfterInterrupt = false
+            void maybeResumeHandsFree()
+          }
         }
       },
     }
@@ -181,18 +216,29 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       return result.assistant
     } catch (e) {
       sending = false
-      const err = e instanceof Error ? e.message : 'تعذر إرسال الرسالة الصوتية'
-      callbacks.onError?.(err)
-      setStatus('error')
+      activeAbort = null
+      if (!isBenignChatError(e)) {
+        logChatError('voice.send', e)
+        callbacks.onError?.(e instanceof Error ? e.message : 'تعذر إرسال الرسالة الصوتية')
+        setStatus('error')
+      } else {
+        setStatus('idle')
+        if (resumeHandsFreeAfterInterrupt) {
+          resumeHandsFreeAfterInterrupt = false
+          void maybeResumeHandsFree()
+        }
+      }
       return null
     }
   }
 
   stt.onPartial = (event) => {
+    if (disposed) return
     partial = event.transcript
     callbacks.onPartialTranscript?.(partial)
   }
   stt.onFinal = (event) => {
+    if (disposed) return
     partial = event.transcript
     callbacks.onFinalTranscript?.(event.transcript)
     if (
@@ -206,11 +252,20 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     }
   }
   stt.onError = (error) => {
+    if (disposed || intentionalAbort || isBenignChatError(error) || error === 'aborted') {
+      return
+    }
+    logChatError('voice.stt', error)
     callbacks.onError?.(mapSttError(error))
     setStatus('error')
   }
   stt.onEnd = () => {
     listening = false
+    if (disposed) return
+    if (status === 'listening' && mode === 'hands_free' && handsFreeConversationId && !sending) {
+      void maybeResumeHandsFree()
+      return
+    }
     if (status === 'listening' && mode !== 'hands_free') setStatus('idle')
   }
 
@@ -221,7 +276,10 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     getPartialTranscript: () => partial,
     setMode(next) {
       mode = next
-      if (next !== 'hands_free') handsFreeConversationId = null
+      if (next !== 'hands_free') {
+        handsFreeConversationId = null
+        resumeHandsFreeAfterInterrupt = false
+      }
     },
     setLocale(next) {
       locale = normalizeVoiceLocale(next)
@@ -232,10 +290,12 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       tts.stop()
       mode = 'push_to_talk'
       handsFreeConversationId = null
+      resumeHandsFreeAfterInterrupt = false
       await startListening(false)
     },
     async stopPushToTalkAndSend(conversationId) {
       if (disposed) return null
+      intentionalAbort = true
       const transcript = ((await stt.stop()) || partial).trim()
       listening = false
       callbacks.onFinalTranscript?.(transcript)
@@ -246,9 +306,12 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       tts.stop()
       mode = 'hands_free'
       handsFreeConversationId = conversationId
+      resumeHandsFreeAfterInterrupt = false
       await startListening(true)
     },
     async stopListening() {
+      intentionalAbort = true
+      resumeHandsFreeAfterInterrupt = false
       handsFreeConversationId = null
       if (listening) {
         try {
@@ -262,27 +325,47 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       listening = false
       if (status === 'listening' || status === 'reconnecting') setStatus('idle')
     },
-    interrupt(abortStream) {
+    interrupt(abortStream, opts) {
+      intentionalAbort = true
+      const keepHandsFree = opts?.resumeHandsFree ?? (mode === 'hands_free' && !!handsFreeConversationId)
+      const wasSending = sending
       tts.stop()
       stt.abort()
       listening = false
       sending = false
       activeAbort?.abort()
+      activeAbort = null
       abortStream?.()
       setStatus('idle')
+      if (keepHandsFree && wasSending) {
+        // Resume after the aborted stream handlers settle
+        resumeHandsFreeAfterInterrupt = true
+      } else {
+        resumeHandsFreeAfterInterrupt = false
+        if (keepHandsFree) void maybeResumeHandsFree()
+      }
     },
     async speakText(text) {
+      if (disposed) return
       setStatus('speaking')
-      await tts.speak({ locale, text: stripMarkdownForSpeech(text), interrupt: true })
-      setStatus('idle')
+      try {
+        await tts.speak({ locale, text: stripMarkdownForSpeech(text), interrupt: true })
+      } catch (e) {
+        if (!isBenignChatError(e)) throw e
+      }
+      if (!disposed) setStatus('idle')
     },
     dispose() {
       disposed = true
+      intentionalAbort = true
+      resumeHandsFreeAfterInterrupt = false
       handsFreeConversationId = null
       tts.stop()
       stt.abort()
       activeAbort?.abort()
-      setStatus('idle')
+      activeAbort = null
+      clearSttHandlers()
+      status = 'idle'
     },
   }
 }

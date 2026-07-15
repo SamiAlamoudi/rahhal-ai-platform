@@ -3,6 +3,8 @@ import { speechLangForLocale } from './voiceTypes'
 
 export function createWebTextToSpeechProvider(): TextToSpeechProvider {
   let speaking = false
+  let generation = 0
+  let stopped = false
 
   return {
     providerId: 'web-speech-tts',
@@ -11,6 +13,7 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
       if (typeof window === 'undefined' || !window.speechSynthesis) {
         throw new Error('قراءة الصوت غير مدعومة في هذا المتصفح')
       }
+      stopped = false
       if (options.interrupt !== false) {
         window.speechSynthesis.cancel()
       }
@@ -20,20 +23,28 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
       const match = voices.find((v) => v.lang?.toLowerCase().startsWith(options.locale === 'ar' ? 'ar' : 'en'))
       if (match) utterance.voice = match
 
+      const token = ++generation
       await new Promise<void>((resolve, reject) => {
         speaking = true
         utterance.onend = () => {
-          speaking = false
+          if (token === generation) speaking = false
           resolve()
         }
         utterance.onerror = () => {
-          speaking = false
+          if (token === generation) speaking = false
+          // Intentional cancel/stop should not surface as failure
+          if (stopped || token !== generation) {
+            resolve()
+            return
+          }
           reject(new Error('تعذر تشغيل الصوت'))
         }
         window.speechSynthesis.speak(utterance)
       })
     },
     stop() {
+      stopped = true
+      generation += 1
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel()
       }
