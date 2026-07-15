@@ -4,6 +4,8 @@ import { getBookingOrchestrator } from '../lib/booking'
 import type { BookingSession, BookingItem, BookingItemType } from '../lib/booking/bookingTypes'
 import type { BookingAction } from '../lib/booking/bookingAction'
 import type { NormalizedTravelOption } from '../utils/searchOrchestrator'
+import { savedTripRepository } from '../lib/repositories/savedTripRepository'
+import { buildSavedTripData, buildSavedTripTitle } from '../lib/savedTrips/savedTripHelpers'
 
 interface SelectedItem {
   option: NormalizedTravelOption
@@ -144,8 +146,39 @@ export default function BookingReview() {
     }
   }
 
-  const handleSaveTrip = () => {
-    setSaved(true)
+  const handleSaveTrip = async () => {
+    if (!session) return
+    setError(null)
+    try {
+      const destination =
+        session.items.find((item) => item.type === 'hotel')?.title
+        ?? session.items.find((item) => item.type === 'flight')?.title
+        ?? session.items[0]?.title
+        ?? 'رحلة محفوظة'
+      const tripData = buildSavedTripData({
+        currency: session.currency,
+        travelSessionId: session.travelSessionId,
+        bookingSessionId: session.id,
+        items: session.items.map((item) => ({
+          type: item.type,
+          title: item.title,
+          providerName: item.providerName,
+          price: item.price,
+          currency: item.currency,
+          bookingUrl: item.bookingUrl,
+        })),
+      })
+      await savedTripRepository.create({
+        session_id: null,
+        title: buildSavedTripTitle(destination, session.items.length),
+        destination,
+        trip_data: tripData as unknown as Record<string, unknown>,
+      })
+      setSaved(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'تعذر حفظ الرحلة')
+      setSaved(false)
+    }
   }
 
   const handleEditSelection = () => {
@@ -302,10 +335,10 @@ export default function BookingReview() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={handleSaveTrip}
+              onClick={() => void handleSaveTrip()}
               className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
             >
-              حفظ الرحلة
+              {saved ? 'تم الحفظ' : 'حفظ الرحلة'}
             </button>
             <button
               type="button"
