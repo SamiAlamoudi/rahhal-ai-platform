@@ -54,7 +54,7 @@ describe('chatService integration', () => {
     vi.restoreAllMocks()
   })
 
-  it('lists and renames conversations', async () => {
+  it('lists, renames, and deletes conversations', async () => {
     vi.spyOn(conversationRepository, 'listByUser').mockResolvedValue([
       conversationRow({ id: 'c1', title: 'أ' }),
       conversationRow({ id: 'c2', title: 'ب' }),
@@ -62,12 +62,38 @@ describe('chatService integration', () => {
     vi.spyOn(conversationRepository, 'update').mockResolvedValue(
       conversationRow({ id: 'c1', title: 'طوكيو' }),
     )
+    const deleteSpy = vi.spyOn(conversationRepository, 'delete').mockResolvedValue(true)
 
     const listed = await chatService.listConversations()
     expect(listed).toHaveLength(2)
 
     const renamed = await chatService.renameConversation('c1', 'طوكيو')
     expect(renamed.title).toBe('طوكيو')
+
+    await chatService.deleteConversation('c2')
+    expect(deleteSpy).toHaveBeenCalledWith('c2')
+  })
+
+  it('getConversationDetail maps history for text modality (voice-ready shape)', async () => {
+    vi.spyOn(conversationRepository, 'getById').mockResolvedValue(
+      conversationRow({ id: 'c1', modality_default: 'text' }),
+    )
+    vi.spyOn(messageRepository, 'listByConversation').mockResolvedValue([
+      messageRow({ id: 'u1', role: 'user', content: 'مرحبا', modality: 'text' }),
+      messageRow({
+        id: 'a1',
+        role: 'assistant',
+        content: 'أهلا',
+        modality: 'text',
+        audio_url: null,
+      }),
+    ])
+
+    const detail = await chatService.getConversationDetail('c1')
+    expect(detail.conversation.modalityDefault).toBe('text')
+    expect(detail.messages).toHaveLength(2)
+    expect(detail.messages[1].audioUrl).toBeNull()
+    expect(detail.messages[1].imageUrl).toBeNull()
   })
 
   it('createConversation validates title', async () => {
