@@ -129,3 +129,34 @@ export type {
   BookingLockRow,
   CouponRow,
 } from './paymentRowTypes'
+
+/** Phase S — Payment Orchestration layer */
+export {
+  PaymentOrchestrator,
+  getPaymentOrchestrator,
+  resetPaymentOrchestrator,
+  createMockPaymentAdapter,
+  PaymentProviderAdapter,
+  prepareBookingPayment,
+  bookingItemToCheckoutItem,
+  canTransitionPaymentSession,
+  assertCanTransitionPaymentSession,
+  transitionPaymentSession,
+  applyPaymentSessionEvent,
+  isTerminalPaymentStatus,
+  PAYMENT_SESSION_TRANSITIONS,
+  PaymentSessionTransitionError,
+} from './orchestration'
+export type {
+  PaymentAdapter,
+  PaymentAdapterCapabilities,
+  CreatePaymentSessionInput,
+  PaymentOrchestratorOptions,
+  PaymentFlowStartResult,
+  PaymentStatusSyncResult,
+  PaymentSessionEvent,
+  BookingPaymentBridgeInput,
+  BookingPaymentPrepareResult,
+  TransitionPaymentSessionInput,
+  TransitionPaymentSessionResult,
+} from './orchestration'
