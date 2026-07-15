@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient'
 import { auditLogRepository } from '../repositories/auditLogRepository'
 import { preferenceRepository } from '../repositories/preferenceRepository'
+import { mapAuthErrorMessage } from './authValidation'
 
 export interface SignUpResult {
   success: boolean
@@ -14,6 +15,15 @@ export interface SignInResult {
 }
 
 export interface ForgotPasswordResult {
+  success: boolean
+  error: string | null
+}
+
+export interface UpdateProfileInput {
+  fullName: string
+}
+
+export interface AuthActionResult {
   success: boolean
   error: string | null
 }
@@ -67,6 +77,61 @@ export const authService = {
     if (error) {
       return { success: false, error: error.message }
     }
+    return { success: true, error: null }
+  },
+
+  async updateProfile(input: UpdateProfileInput): Promise<AuthActionResult> {
+    const { error } = await supabase.auth.updateUser({
+      data: { full_name: input.fullName },
+    })
+    if (error) {
+      return { success: false, error: mapAuthErrorMessage(error) }
+    }
+    try {
+      await auditLogRepository.create({ action: 'update_profile', entity_type: 'auth' })
+    } catch { }
+    return { success: true, error: null }
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<AuthActionResult> {
+    const user = await this.getCurrentUser()
+    const email = user?.email
+    if (!email) {
+      return { success: false, error: 'تعذر التحقق من هوية المستخدم' }
+    }
+
+    const { error: reauthError } = await supabase.auth.signInWithPassword({
+      email,
+      password: currentPassword,
+    })
+    if (reauthError) {
+      return { success: false, error: mapAuthErrorMessage(reauthError) }
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) {
+      return { success: false, error: mapAuthErrorMessage(error) }
+    }
+    try {
+      await auditLogRepository.create({ action: 'change_password', entity_type: 'auth' })
+    } catch { }
+    return { success: true, error: null }
+  },
+
+  async deleteAccount(): Promise<AuthActionResult> {
+    try {
+      await auditLogRepository.create({ action: 'delete_account', entity_type: 'auth' })
+    } catch { }
+
+    const { error } = await supabase.rpc('delete_own_account')
+    if (error) {
+      return { success: false, error: mapAuthErrorMessage(error) }
+    }
+
+    try {
+      await supabase.auth.signOut()
+    } catch { }
+
     return { success: true, error: null }
   },
 

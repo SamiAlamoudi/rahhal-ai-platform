@@ -1,7 +1,14 @@
 export { AuthProvider, useAuth } from './AuthContext'
 export { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './ProtectedRoute'
 export { isAdminUser } from './adminAccess'
-export { authService, type SignUpResult, type SignInResult, type ForgotPasswordResult } from './authService'
+export {
+  authService,
+  type SignUpResult,
+  type SignInResult,
+  type ForgotPasswordResult,
+  type UpdateProfileInput,
+  type AuthActionResult,
+} from './authService'
 export {
   validateEmail,
   validatePassword,

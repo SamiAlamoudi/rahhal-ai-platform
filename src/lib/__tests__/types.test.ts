@@ -76,10 +76,17 @@ describe('Types: database row shapes', () => {
       preferred_language: 'ar',
       theme: 'light',
       notification_enabled: true,
+      notify_email: true,
+      notify_trip_updates: true,
+      notify_marketing: false,
+      privacy_analytics: true,
+      privacy_personalization: true,
+      privacy_share_activity: false,
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     }
     expect(row.preferred_currency).toBe('SAR')
+    expect(row.privacy_share_activity).toBe(false)
   })
 
   it('NotificationRow has all required fields', () => {
