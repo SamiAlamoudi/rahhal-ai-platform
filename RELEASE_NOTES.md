@@ -1,46 +1,59 @@
-# Release Notes — v1.0.0-rc1
+# Release Notes — Rahhal AI Platform v1.0.0
 
-**Status:** Release Candidate (staging validation only)  
+**Status:** Stable production release  
 **Date:** 2026-07-15  
+**Promoted from:** `v1.0.0-rc1` (validated)  
 **Payment mode:** `VITE_PAYMENT_PROVIDER=mock` (live payments disabled)  
 **Live travel providers:** OFF by default
 
-## What this RC includes
+## Highlights
 
-Rahhal `v1.0.0-rc1` freezes product features and focuses on release readiness:
+Rahhal AI Platform **v1.0.0** is the first stable release. It promotes the successfully validated release candidate after RC1 exit criteria were met:
 
-- Full library-style E2E coverage of the core user journey
-- Failure-path and resilience verification
-- Repeatable staging smoke suite
-- Release blocker checklist, known issues, rollback plan
-- Security verification for mock payment, secret hygiene, headers, masking, and rate limits
+- Core user journey covered end-to-end (auth, chat/voice, trip planning, search, decision scoring, My Trips, mock booking/payment/ticketing/notifications)
+- Failure-path and resilience coverage (timeouts, rate limits, circuit breaker, mock fallback, retries, DLQ, unauthorized access, session expiry, voice permission/interrupt)
+- Staging smoke suite for health/readiness, mock payment, live-provider defaults, env validation, and secret hygiene
+- Production-hardening ops layer (masking, security headers, rate limits, readiness probes)
+- Documented rollback plan and known issues
 
-## What is intentionally not included
+## Product posture (v1.0.0)
 
-- Final production tag `v1.0.0`
-- Live payment provider enablement
-- Live Amadeus / Booking.com / Maps / Weather by default
-- UI redesign or project rename
-- New product features beyond bug/test/doc hardening
+- Mock payment is the only enabled payment mode
+- Live Amadeus / Booking.com / Maps / Weather providers remain **disabled by default**
+- No project rename; public APIs and database contracts preserved from RC1
 
-## How to validate
+## Validation evidence
 
-```bash
-npm run test:rc1      # RC1 e2e + failure + smoke
-npm run test:run      # full unit/integration suite
-npm run typecheck
-npm run lint
-npm run build
-bash scripts/secret-hygiene-scan.sh
-```
+RC1 gates that justified promotion (see also `RC1_TEST_REPORT.md`):
 
-Follow `STAGING_SMOKE_TEST.md` on a staging host before any production consideration.
+| Check | Result |
+|-------|--------|
+| `npm run test:rc1` | PASS |
+| `npm run test:run` | PASS |
+| `npm run typecheck` | PASS |
+| `npm run lint` | PASS |
+| `npm run build` | PASS |
+| Secret hygiene scan | PASS |
+| CI Quality gates on PR #40 | PASS |
 
-## Approval gate
+## Upgrade / deploy notes
 
-Do **not** tag or release RC1 until:
+1. Deploy from tag `v1.0.0`
+2. Keep `VITE_PAYMENT_PROVIDER=mock`
+3. Keep `VITE_LIVE_PROVIDERS_ENABLED=false` unless an explicitly approved live-provider pilot is configured with server-side secrets
+4. Run staging readiness (`ops-health` / `/health.json`) before production traffic
+5. Keep `ROLLBACK_PLAN.md` nearby for incident response
 
-1. CI quality gates are green
-2. Staging smoke is signed off
-3. No Blocker/Critical items remain in `RELEASE_BLOCKERS.md`
-4. Explicit human approval is granted
+## Intentionally deferred
+
+- Live payment provider enablement (see `docs/PAYMENT_PRODUCTION_TODO.md`)
+- Default-on live travel providers
+- Browser Playwright/Cypress harness (documented in `KNOWN_ISSUES.md`)
+
+## Artifacts
+
+- `CHANGELOG.md`
+- `RELEASE_NOTES.md` (this file)
+- `RC1_TEST_REPORT.md`
+- `KNOWN_ISSUES.md`
+- `ROLLBACK_PLAN.md`
