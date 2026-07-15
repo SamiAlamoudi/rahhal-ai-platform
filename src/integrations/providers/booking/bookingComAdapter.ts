@@ -4,6 +4,7 @@ import { defaultCapabilities } from '../../../utils/contracts/capabilities'
 import type { ProviderMetadata } from '../../../utils/contracts/metadata'
 import { BookingComApiClient, type ApiClientConfig, type HotelSearchQuery } from './bookingComApiClient'
 import { normalizeBookingComResponse, normalizeToHotelModel, type Hotel } from './hotelNormalization'
+import { resolveBookingDestination } from './destinationResolution'
 
 const METADATA: ProviderMetadata = {
   id: 'booking-hotel-001',
@@ -28,12 +29,17 @@ export interface BookingComAdapterConfig {
   maxRetries: number
 }
 
-const DEST_ID_FALLBACK = -1746443
+function defaultCheckIn(): string {
+  const d = new Date()
+  d.setUTCDate(d.getUTCDate() + 14)
+  return d.toISOString().slice(0, 10)
+}
 
-function mapDestId(destination: string): number {
-  const n = parseInt(destination, 10)
-  if (!isNaN(n)) return n
-  return DEST_ID_FALLBACK
+function defaultCheckOut(checkIn: string, durationDays: number): string {
+  const days = durationDays > 0 ? durationDays : 3
+  const d = new Date(`${checkIn}T00:00:00.000Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
 }
 
 export class BookingComAdapter implements HotelProvider {
@@ -69,25 +75,75 @@ export class BookingComAdapter implements HotelProvider {
     }
   }
 
-  async searchHotels(req: ProviderRequest): Promise<ProviderResult<HotelOffer[]>> {
-    const start = Date.now()
+  private async buildHotelQuery(req: ProviderRequest): Promise<{
+    query: HotelSearchQuery | null
+    error: ProviderResult<never>['errors'][number] | null
+    resolveLatency: number
+  }> {
     const search = req.search
+    const resolved = await resolveBookingDestination(this.apiClient, search.destination)
 
-    const query: HotelSearchQuery = {
-      destType: 'city',
-      destId: mapDestId(search.destination),
-      checkIn: search.departureDate || '2026-10-15',
-      checkOut: search.returnDate || '2026-10-25',
-      adults: search.travelers.adults || 1,
-      children: search.travelers.children || 0,
-      rooms: 1,
-      currency: search.budgetCurrency || 'SAR',
-      maxResults: 10,
+    if (!resolved.destination) {
+      return {
+        query: null,
+        error: resolved.error ?? {
+          code: 'BOOKING_DEST_LOOKUP_FAILED',
+          category: 'provider',
+          severity: 'error',
+          message: 'Destination could not be resolved',
+          retryable: true,
+          timestamp: new Date().toISOString(),
+        },
+        resolveLatency: resolved.latency,
+      }
     }
 
+    const checkIn = search.departureDate || defaultCheckIn()
+    const checkOut = search.returnDate || defaultCheckOut(checkIn, search.durationDays)
+
+    return {
+      query: {
+        destType: resolved.destination.destType === 'airport'
+          || resolved.destination.destType === 'landmark'
+          || resolved.destination.destType === 'region'
+          || resolved.destination.destType === 'district'
+          || resolved.destination.destType === 'hotel'
+          ? resolved.destination.destType
+          : 'city',
+        destId: resolved.destination.destId,
+        checkIn,
+        checkOut,
+        adults: search.travelers.adults || 1,
+        children: search.travelers.children || 0,
+        rooms: 1,
+        currency: search.budgetCurrency || 'SAR',
+        maxResults: 10,
+      },
+      error: null,
+      resolveLatency: resolved.latency,
+    }
+  }
+
+  async searchHotels(req: ProviderRequest): Promise<ProviderResult<HotelOffer[]>> {
+    const start = Date.now()
     this.lastRequestAt = new Date().toISOString()
 
-    const result = await this.apiClient.searchHotels(query)
+    const built = await this.buildHotelQuery(req)
+    if (!built.query || built.error) {
+      const latency = Date.now() - start
+      this.lastLatency = latency
+      this.lastError = built.error?.message ?? 'Destination lookup failed'
+      this.lastResponseCount = 0
+      return errorResult<HotelOffer[]>(
+        METADATA.id,
+        METADATA.name,
+        built.error ? [built.error] : [],
+        latency,
+        'booking',
+      )
+    }
+
+    const result = await this.apiClient.searchHotels(built.query)
     const latency = Date.now() - start
     this.lastLatency = latency
 
@@ -110,7 +166,7 @@ export class BookingComAdapter implements HotelProvider {
       )
     }
 
-    const offers = normalizeBookingComResponse(result.data, METADATA.id, query.checkIn, query.checkOut)
+    const offers = normalizeBookingComResponse(result.data, METADATA.id, built.query.checkIn, built.query.checkOut)
     this.lastResponseCount = offers.length
     this.lastError = null
     return okResult(METADATA.id, METADATA.name, offers, latency, 'booking')
@@ -118,23 +174,23 @@ export class BookingComAdapter implements HotelProvider {
 
   async searchHotelsAsHotelModel(req: ProviderRequest): Promise<ProviderResult<Hotel[]>> {
     const start = Date.now()
-    const search = req.search
-
-    const query: HotelSearchQuery = {
-      destType: 'city',
-      destId: mapDestId(search.destination),
-      checkIn: search.departureDate || '2026-10-15',
-      checkOut: search.returnDate || '2026-10-25',
-      adults: search.travelers.adults || 1,
-      children: search.travelers.children || 0,
-      rooms: 1,
-      currency: search.budgetCurrency || 'SAR',
-      maxResults: 10,
-    }
-
     this.lastRequestAt = new Date().toISOString()
 
-    const result = await this.apiClient.searchHotels(query)
+    const built = await this.buildHotelQuery(req)
+    if (!built.query || built.error) {
+      const latency = Date.now() - start
+      this.lastLatency = latency
+      this.lastError = built.error?.message ?? 'Destination lookup failed'
+      return errorResult<Hotel[]>(
+        METADATA.id,
+        METADATA.name,
+        built.error ? [built.error] : [],
+        latency,
+        'booking',
+      )
+    }
+
+    const result = await this.apiClient.searchHotels(built.query)
     const latency = Date.now() - start
     this.lastLatency = latency
 
