@@ -3,7 +3,6 @@
  * Thin wrapper over TripPlannerService (no second orchestration).
  */
 
-import { createHash, randomUUID } from 'node:crypto'
 import type { TripPlannerService } from '../tripPlannerService'
 import type {
   TripPlannerPipelineEvent,
@@ -52,6 +51,29 @@ function canonicalize(value: unknown): unknown {
   return value
 }
 
+function fnv1aHex(input: string): string {
+  // Deterministic browser-safe hash for idempotency request binding.
+  let hash = 0x811c9dc5
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  // Expand to a longer hex token for stable keys.
+  let hash2 = 0x811c9dc5 ^ input.length
+  for (let i = input.length - 1; i >= 0; i -= 1) {
+    hash2 ^= input.charCodeAt(i)
+    hash2 = Math.imul(hash2, 0x01000193)
+  }
+  return `${(hash >>> 0).toString(16).padStart(8, '0')}${(hash2 >>> 0).toString(16).padStart(8, '0')}`
+}
+
+function newPlanId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  return `plan_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+}
+
 export function hashTripPlanRequest(dto: CreateTripPlanRequestDto, userId: string): string {
   // Exclude volatile / ownership fields from hash identity.
   const { userId: _u, idempotencyKey: _i, requestId: _r, ...rest } = dto
@@ -59,7 +81,7 @@ export function hashTripPlanRequest(dto: CreateTripPlanRequestDto, userId: strin
   void _i
   void _r
   const payload = JSON.stringify(canonicalize({ ...rest, userId }))
-  return createHash('sha256').update(payload).digest('hex')
+  return fnv1aHex(payload)
 }
 
 export function planProgress(plan: StoredApiPlan): number {
@@ -102,8 +124,11 @@ export function isRetryablePlan(plan: StoredApiPlan): boolean {
 export class TripPlannerPlanStore {
   private readonly byId = new Map<string, StoredApiPlan>()
   private readonly byIdempotency = new Map<string, string>()
+  private readonly service: TripPlannerService
 
-  constructor(private readonly service: TripPlannerService) {}
+  constructor(service: TripPlannerService) {
+    this.service = service
+  }
 
   get(planId: string): StoredApiPlan | undefined {
     return this.byId.get(planId)
@@ -168,7 +193,7 @@ export class TripPlannerPlanStore {
       input.idempotencyKey,
     )
     const abortController = new AbortController()
-    const planId = randomUUID()
+    const planId = newPlanId()
     const startedAt = new Date().toISOString()
     const plan: StoredApiPlan = {
       planId,

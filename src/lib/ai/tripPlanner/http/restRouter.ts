@@ -3,7 +3,6 @@
  * Transport only: auth → validate → TripPlannerService (via plan store) → response.
  */
 
-import { randomUUID } from 'node:crypto'
 import { createCorrelationId, setCorrelationId } from '../../../ops/logging/correlation'
 import { getLogger } from '../../../ops/logging/structuredLogger'
 import {
@@ -372,7 +371,13 @@ export async function handleTripPlannerRestRequest(
         'create',
       )
     }
-    const idempotencyKey = headerKey || `auto_${randomUUID()}`
+    const idempotencyKey =
+      headerKey ||
+      `auto_${
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+      }`
 
     // Transport + canonical domain validation before execution.
     const domainRequest = dtoToTripPlannerRequest(dto, user.id, idempotencyKey)
