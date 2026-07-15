@@ -6,6 +6,12 @@ export interface UpdatePreferencesInput {
   preferred_language?: string
   theme?: string
   notification_enabled?: boolean
+  notify_email?: boolean
+  notify_trip_updates?: boolean
+  notify_marketing?: boolean
+  privacy_analytics?: boolean
+  privacy_personalization?: boolean
+  privacy_share_activity?: boolean
 }
 
 export const preferenceRepository = {
