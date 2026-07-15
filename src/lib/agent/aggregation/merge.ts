@@ -28,6 +28,8 @@ function domainLimit(domain: AggregatableDomain): number {
       return 1
     case 'attractions':
       return 6
+    case 'transportation':
+      return 5
     default:
       return 5
   }

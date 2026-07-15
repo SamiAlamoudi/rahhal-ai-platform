@@ -33,6 +33,7 @@ describe('selectToolsForTurn', () => {
       'maps',
       'visa',
       'currency',
+      'transportation',
     ]))
   })
 

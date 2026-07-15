@@ -269,6 +269,33 @@ export function createMockAttractionsTool(
   })
 }
 
+export function createMockTransportationTool(
+  engine: AggregationEngine = createDefaultAggregationEngine(),
+): AgentTool {
+  return createAggregatedTool({
+    name: 'transportation',
+    domain: 'transportation',
+    providerId: 'aggregate-transportation',
+    timeoutMs: 1800,
+    engine,
+    inputSchema: schema('TransportationInput', {
+      ...destinationSchemaProps,
+      origin: { type: 'string' },
+      hubs: { type: 'array' },
+      currency: { type: 'string' },
+    }, ['destination']),
+    outputSchema: schema('TransportationOutput', {
+      options: { type: 'array' },
+    }, ['options']),
+    summarize: (ctx, data) => {
+      const options = Array.isArray(data.options) ? data.options : []
+      return ctx.locale === 'ar'
+        ? `تنقل مجمّع: ${options.length} خيار`
+        : `Aggregated transportation: ${options.length} options`
+    },
+  })
+}
+
 export function createAllMockTools(
   engine: AggregationEngine = createDefaultAggregationEngine(),
 ): AgentTool[] {
@@ -280,5 +307,6 @@ export function createAllMockTools(
     createMockCurrencyTool(engine),
     createMockVisaTool(engine),
     createMockAttractionsTool(engine),
+    createMockTransportationTool(engine),
   ]
 }

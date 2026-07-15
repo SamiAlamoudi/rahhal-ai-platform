@@ -66,12 +66,20 @@ export {
   createAggregationEngine,
   createDefaultAggregationEngine,
   createDefaultProviderRegistry,
+  createActiveMockProviderRegistry,
   createProviderRegistry,
+  createProviderAdapter,
   dedupeOffers,
   rankOffers,
   scoreOfferConfidence,
   mergeCompatibleOffers,
   createDefaultMockProviderAdapters,
+  createActiveMockProviderAdapters,
+  createFutureProviderStubs,
+  createMockRome2RioAdapter,
+  normalizeProviderError,
+  FUTURE_PROVIDER_CATALOG,
+  selectProviders,
 } from './aggregation'
 export type {
   AggregationEngine,
@@ -79,6 +87,10 @@ export type {
   AggregatableDomain,
   ProviderAdapter,
   ProviderRegistry,
+  ProviderCapabilities,
+  ProviderHealthSnapshot,
   NormalizedOffer,
   ProviderMetadata,
+  ProviderSelectionStrategy,
 } from './aggregation'
+export * as providerAdapters from './providers'

@@ -73,6 +73,14 @@ export function buildToolInput(
         interests: requirements.interests,
         locale,
       }
+    case 'transportation':
+      return {
+        destination,
+        origin: requirements.origin || 'RUH',
+        hubs: requirements.destinations.length > 0 ? requirements.destinations : [destination],
+        currency,
+        locale,
+      }
     default:
       return { destination, locale }
   }

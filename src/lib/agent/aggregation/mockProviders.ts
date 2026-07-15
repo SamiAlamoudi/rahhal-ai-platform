@@ -1,3 +1,5 @@
+import { createProviderAdapter } from './baseAdapter'
+import { FUTURE_PROVIDER_CATALOG } from './capabilities'
 import { moneyFromSeed, pick, stableHash } from '../tools/mockData'
 import type {
   AggregatableDomain,
@@ -14,8 +16,9 @@ function meta(
   domains: AggregatableDomain[],
   priority: number,
   reliability: number,
+  futureSlot = false,
 ): ProviderMetadata {
-  return { id, displayName, domains, priority, reliability, mocked: true }
+  return { id, displayName, domains, priority, reliability, mocked: true, futureSlot }
 }
 
 interface OfferDraft {
@@ -51,6 +54,7 @@ function ok(
       rankScore: 0,
     })),
     error: null,
+    errorCode: null,
     durationMs: Date.now() - started,
   }
 }
@@ -71,15 +75,15 @@ function createFlightAdapter(
   airlinePool: string[],
   priceBias: number,
 ): ProviderAdapter {
-  return {
+  return createProviderAdapter({
     metadata,
-    isAvailable: () => true,
-    supports: (domain) => metadata.domains.includes(domain),
+    capabilities: {
+      features: ['search', 'offer_normalize'],
+      supportsSearch: true,
+      rateLimitPerMinute: 60,
+    },
     async fetch(query) {
       const started = Date.now()
-      if (query.domain !== 'flights') {
-        return { providerId: metadata.id, status: 'skipped', items: [], error: 'unsupported_domain', durationMs: 0 }
-      }
       const origin = String(query.input.origin ?? 'RUH')
       const destination = String(query.input.destination ?? 'TYO')
       const travelers = Number(query.input.travelers ?? 2)
@@ -90,13 +94,13 @@ function createFlightAdapter(
       const durationHours = 5 + (stableHash(`${metadata.id}-dur`) % 9)
       const price = moneyFromSeed(`${metadata.id}-${origin}-${to}`, 600 + priceBias, 180)
       const fingerprint = `flight:${origin}:${to}:${stops}:${Math.round(price / 50)}`
-      return ok(metadata.id, started, [{
+      return ok(String(metadata.id), started, [{
         domain: 'flights',
         fingerprint,
         title: `${airline} ${origin}→${to}`,
         price,
         currency,
-        providerId: metadata.id,
+        providerId: String(metadata.id),
         scoreHints: {
           priceCompetitiveness: clamp01(1 - (price - 500) / 800),
           durationQuality: clamp01(1 - durationHours / 20),
@@ -116,7 +120,7 @@ function createFlightAdapter(
         },
       }])
     },
-  }
+  })
 }
 
 function createHotelAdapter(
@@ -124,30 +128,30 @@ function createHotelAdapter(
   nameSuffix: string,
   nightlyBias: number,
 ): ProviderAdapter {
-  return {
+  return createProviderAdapter({
     metadata,
-    isAvailable: () => true,
-    supports: (domain) => metadata.domains.includes(domain),
+    capabilities: {
+      features: ['search', 'stay_normalize'],
+      supportsSearch: true,
+      rateLimitPerMinute: 60,
+    },
     async fetch(query) {
       const started = Date.now()
-      if (query.domain !== 'hotels') {
-        return { providerId: metadata.id, status: 'skipped', items: [], error: 'unsupported_domain', durationMs: 0 }
-      }
       const destination = String(query.input.destination ?? 'City')
       const nights = Number(query.input.nights ?? 3)
       const currency = String(query.input.currency ?? 'USD')
       const nightly = moneyFromSeed(`${metadata.id}-${destination}`, 120 + nightlyBias, 50)
       const fingerprint = `hotel:${destination.toLowerCase()}:central:${Math.round(nightly / 20)}`
-      return ok(metadata.id, started, [{
+      return ok(String(metadata.id), started, [{
         domain: 'hotels',
         fingerprint,
         title: `${destination} ${nameSuffix}`,
         price: nightly,
         currency,
-        providerId: metadata.id,
+        providerId: String(metadata.id),
         scoreHints: {
           priceCompetitiveness: clamp01(1 - nightly / 400),
-          rating: 0.7 + (stableHash(metadata.id) % 20) / 100,
+          rating: 0.7 + (stableHash(String(metadata.id)) % 20) / 100,
           relevance: 0.8,
         },
         payload: {
@@ -158,11 +162,11 @@ function createHotelAdapter(
           nights,
           total: nightly * nights,
           currency,
-          score: 8 + (stableHash(metadata.id) % 10) / 10,
+          score: 8 + (stableHash(String(metadata.id)) % 10) / 10,
         },
       }])
     },
-  }
+  })
 }
 
 export function createMockAmadeusAdapter(): ProviderAdapter {
@@ -199,10 +203,9 @@ export function createMockExpediaAdapter(): ProviderAdapter {
 
 export function createMockOpenWeatherAdapter(): ProviderAdapter {
   const metadata = meta('openweather', 'OpenWeather (mock)', ['weather'], 90, 0.92)
-  return {
+  return createProviderAdapter({
     metadata,
-    isAvailable: () => true,
-    supports: (domain) => domain === 'weather',
+    capabilities: { features: ['forecast_summary'], supportsRealtime: false, rateLimitPerMinute: 120 },
     async fetch(query) {
       const started = Date.now()
       const destination = String(query.input.destination ?? '')
@@ -210,39 +213,38 @@ export function createMockOpenWeatherAdapter(): ProviderAdapter {
       const season = month === '04' || destination.toLowerCase().includes('japan') ? 'spring' : 'mild'
       const averageHighC = 12 + (stableHash(`${destination}-${season}`) % 16)
       const summary = `${season} conditions in ${destination}: daytime ~${averageHighC}°C`
-      return ok(metadata.id, started, [{
+      return ok(String(metadata.id), started, [{
         domain: 'weather',
         fingerprint: `weather:${destination.toLowerCase()}:${season}`,
         title: summary,
         price: null,
         currency: null,
-        providerId: metadata.id,
+        providerId: String(metadata.id),
         scoreHints: { relevance: 0.95 },
         payload: { summary, averageHighC, season, destination, monthHint: month ? Number(month) : null },
       }])
     },
-  }
+  })
 }
 
 export function createMockGoogleMapsAdapter(): ProviderAdapter {
   const metadata = meta('google_maps', 'Google Maps (mock)', ['maps'], 80, 0.9)
-  return {
+  return createProviderAdapter({
     metadata,
-    isAvailable: () => true,
-    supports: (domain) => domain === 'maps',
+    capabilities: { features: ['route_legs', 'directions'], rateLimitPerMinute: 100 },
     async fetch(query) {
       const started = Date.now()
       const hubs = Array.isArray(query.input.hubs) ? query.input.hubs.map(String) : [String(query.input.destination ?? 'City')]
       const from = hubs[0]
       const to = hubs[1] ?? hubs[0]
       const distanceKm = 12 + (stableHash(`gmap-${from}-${to}`) % 80)
-      return ok(metadata.id, started, [{
+      return ok(String(metadata.id), started, [{
         domain: 'maps',
         fingerprint: `maps:${from}:${to}:transit`,
         title: `${from} → ${to}`,
         price: null,
         currency: null,
-        providerId: metadata.id,
+        providerId: String(metadata.id),
         scoreHints: { relevance: 0.9, durationQuality: 0.8 },
         payload: {
           from,
@@ -253,28 +255,26 @@ export function createMockGoogleMapsAdapter(): ProviderAdapter {
         },
       }])
     },
-  }
+  })
 }
 
 export function createMockOpenStreetMapAdapter(): ProviderAdapter {
   const metadata = meta('openstreetmap', 'OpenStreetMap (mock)', ['maps'], 60, 0.8)
-  return {
+  return createProviderAdapter({
     metadata,
-    isAvailable: () => true,
-    supports: (domain) => domain === 'maps',
+    capabilities: { features: ['route_legs'], rateLimitPerMinute: 90 },
     async fetch(query) {
       const started = Date.now()
       const destination = String(query.input.destination ?? 'City')
-      // Intentional near-duplicate fingerprint branch for dedupe tests against google_maps style
       const from = destination
       const to = destination
-      return ok(metadata.id, started, [{
+      return ok(String(metadata.id), started, [{
         domain: 'maps',
         fingerprint: `maps:${from}:${to}:walk_and_metro`,
         title: `${destination} local loop`,
         price: null,
         currency: null,
-        providerId: metadata.id,
+        providerId: String(metadata.id),
         scoreHints: { relevance: 0.75, durationQuality: 0.7 },
         payload: {
           from,
@@ -285,15 +285,14 @@ export function createMockOpenStreetMapAdapter(): ProviderAdapter {
         },
       }])
     },
-  }
+  })
 }
 
 export function createMockExchangeRateAdapter(): ProviderAdapter {
   const metadata = meta('exchangerate', 'ExchangeRate (mock)', ['currency'], 70, 0.9)
-  return {
+  return createProviderAdapter({
     metadata,
-    isAvailable: () => true,
-    supports: (domain) => domain === 'currency',
+    capabilities: { features: ['convert'], supportsSearch: false, rateLimitPerMinute: 120 },
     async fetch(query) {
       const started = Date.now()
       const amount = Number(query.input.amount ?? 1000)
@@ -301,26 +300,25 @@ export function createMockExchangeRateAdapter(): ProviderAdapter {
       const to = String(query.input.toCurrency ?? 'USD')
       const rate = from === to ? 1 : from === 'USD' && to === 'JPY' ? 150 : 3.2
       const convertedAmount = Math.round(amount * rate * 100) / 100
-      return ok(metadata.id, started, [{
+      return ok(String(metadata.id), started, [{
         domain: 'currency',
         fingerprint: `fx:${from}:${to}:${amount}`,
         title: `${amount} ${from} → ${convertedAmount} ${to}`,
         price: convertedAmount,
         currency: to,
-        providerId: metadata.id,
+        providerId: String(metadata.id),
         scoreHints: { relevance: 1 },
         payload: { amount, fromCurrency: from, toCurrency: to, rate, convertedAmount },
       }])
     },
-  }
+  })
 }
 
 export function createMockVisaInfoAdapter(): ProviderAdapter {
   const metadata = meta('visa_info', 'Visa Info (mock)', ['visa'], 65, 0.85)
-  return {
+  return createProviderAdapter({
     metadata,
-    isAvailable: () => true,
-    supports: (domain) => domain === 'visa',
+    capabilities: { features: ['guidance'], supportsSearch: false, rateLimitPerMinute: 40 },
     async fetch(query) {
       const started = Date.now()
       const destination = String(query.input.destination ?? '')
@@ -328,26 +326,25 @@ export function createMockVisaInfoAdapter(): ProviderAdapter {
       const guidance = destination.toLowerCase().includes('japan')
         ? 'Mock: many Saudi travelers use visa waiver / eVisa paths for short Japan trips — confirm before booking.'
         : `Mock visa guidance for ${nationality} travelers to ${destination}. Confirm official rules before travel.`
-      return ok(metadata.id, started, [{
+      return ok(String(metadata.id), started, [{
         domain: 'visa',
         fingerprint: `visa:${nationality}:${destination.toLowerCase()}`,
         title: `Visa guidance · ${destination}`,
         price: null,
         currency: null,
-        providerId: metadata.id,
+        providerId: String(metadata.id),
         scoreHints: { relevance: 0.9 },
         payload: { status: 'check_required', guidance, destination, nationality },
       }])
     },
-  }
+  })
 }
 
 export function createMockAttractionsCatalogAdapter(): ProviderAdapter {
   const metadata = meta('attractions_catalog', 'Attractions Catalog (mock)', ['attractions'], 70, 0.87)
-  return {
+  return createProviderAdapter({
     metadata,
-    isAvailable: () => true,
-    supports: (domain) => domain === 'attractions',
+    capabilities: { features: ['catalog_search'], supportsSearch: true, rateLimitPerMinute: 60 },
     async fetch(query) {
       const started = Date.now()
       const destination = String(query.input.destination ?? 'City')
@@ -356,7 +353,7 @@ export function createMockAttractionsCatalogAdapter(): ProviderAdapter {
         ? ['Senso-ji', 'Shibuya Crossing', 'Meiji Shrine', 'teamLab Planets']
         : [`${destination} Old Town`, `${destination} Market`, `${destination} Viewpoint`]
       return ok(
-        metadata.id,
+        String(metadata.id),
         started,
         titles.map((title, index) => ({
           domain: 'attractions' as const,
@@ -364,7 +361,7 @@ export function createMockAttractionsCatalogAdapter(): ProviderAdapter {
           title,
           price: null,
           currency: null,
-          providerId: metadata.id,
+          providerId: String(metadata.id),
           scoreHints: { relevance: 0.9 - index * 0.05 },
           payload: {
             id: `att_${index}_${stableHash(title)}`,
@@ -375,33 +372,94 @@ export function createMockAttractionsCatalogAdapter(): ProviderAdapter {
         })),
       )
     },
-  }
+  })
 }
 
-/** Future provider slots registered as unavailable (interfaces only). */
+export function createMockRome2RioAdapter(): ProviderAdapter {
+  const metadata = meta('rome2rio', 'Rome2Rio (mock)', ['transportation'], 78, 0.88)
+  return createProviderAdapter({
+    metadata,
+    capabilities: {
+      features: ['intercity_options', 'multimodal'],
+      supportsSearch: true,
+      rateLimitPerMinute: 50,
+    },
+    async fetch(query) {
+      const started = Date.now()
+      const destination = String(query.input.destination ?? 'City')
+      const origin = String(query.input.origin ?? 'Your city')
+      const hubs = Array.isArray(query.input.hubs) ? query.input.hubs.map(String) : []
+      const currency = String(query.input.currency ?? 'USD')
+      const segments = hubs.length >= 2
+        ? [{ from: hubs[0], to: hubs[1], mode: 'train' as const }]
+        : [{ from: origin, to: destination, mode: 'private_transfer' as const }]
+
+      return ok(
+        String(metadata.id),
+        started,
+        segments.map((segment, index) => {
+          const price = moneyFromSeed(`${metadata.id}-${segment.from}-${segment.to}`, 35, 40)
+          return {
+            domain: 'transportation' as const,
+            fingerprint: `transport:${segment.mode}:${segment.from}:${segment.to}`,
+            title: `${segment.mode} ${segment.from} → ${segment.to}`,
+            price,
+            currency,
+            providerId: String(metadata.id),
+            scoreHints: { relevance: 0.88 - index * 0.05, durationQuality: 0.8 },
+            payload: {
+              mode: segment.mode,
+              from: segment.from,
+              to: segment.to,
+              durationMinutes: 40 + (stableHash(segment.to) % 90),
+              estimatedCost: price,
+              currency,
+              notes: 'Mock multimodal transport option (Rome2Rio adapter)',
+            },
+          }
+        }),
+      )
+    },
+  })
+}
+
+/** Future provider slots registered as unavailable (architecture only — no live HTTP). */
 export function createUnavailableProviderStub(
   id: ProviderMetadata['id'],
   displayName: string,
   domains: AggregatableDomain[],
+  features: string[] = [],
 ): ProviderAdapter {
-  const metadata = meta(id, displayName, domains, 10, 0.5)
-  return {
-    metadata: { ...metadata, mocked: true },
+  return createProviderAdapter({
+    metadata: meta(id, displayName, domains, 10, 0.5, true),
     isAvailable: () => false,
-    supports: (domain) => domains.includes(domain),
+    capabilities: {
+      features: features.length ? features : ['future'],
+      futureSlot: true,
+      mocked: true,
+      supportsSearch: true,
+      rateLimitPerMinute: null,
+    },
     async fetch() {
       return {
-        providerId: id,
+        providerId: String(id),
         status: 'skipped',
         items: [],
         error: 'not_configured',
+        errorCode: 'not_configured',
         durationMs: 0,
       }
     },
-  }
+  })
 }
 
-export function createDefaultMockProviderAdapters(): ProviderAdapter[] {
+export function createFutureProviderStubs(): ProviderAdapter[] {
+  return FUTURE_PROVIDER_CATALOG.map((entry) =>
+    createUnavailableProviderStub(entry.id, entry.displayName, entry.domains, entry.features))
+}
+
+/** Active mock adapters — default runtime path for the Travel Agent. */
+export function createActiveMockProviderAdapters(): ProviderAdapter[] {
   return [
     createMockAmadeusAdapter(),
     createMockDuffelAdapter(),
@@ -413,6 +471,15 @@ export function createDefaultMockProviderAdapters(): ProviderAdapter[] {
     createMockExchangeRateAdapter(),
     createMockVisaInfoAdapter(),
     createMockAttractionsCatalogAdapter(),
+    createMockRome2RioAdapter(),
+  ]
+}
+
+/** Default registry population: active mocks + future architecture slots. */
+export function createDefaultMockProviderAdapters(): ProviderAdapter[] {
+  return [
+    ...createActiveMockProviderAdapters(),
+    ...createFutureProviderStubs(),
   ]
 }
 
@@ -423,8 +490,7 @@ function clamp01(value: number): number {
 /** Exported helper for tests that want intentional duplicates across providers */
 export function createDuplicateFlightAdapterForTests(): ProviderAdapter {
   const amadeus = createMockAmadeusAdapter()
-  return {
-    ...amadeus,
+  return createProviderAdapter({
     metadata: {
       ...amadeus.metadata,
       id: 'duffel_dup_test',
@@ -440,9 +506,8 @@ export function createDuplicateFlightAdapterForTests(): ProviderAdapter {
         items: result.items.map((item) => ({
           ...item,
           providerId: 'duffel_dup_test',
-          // same fingerprint → dedupe
         })),
       }
     },
-  }
+  })
 }

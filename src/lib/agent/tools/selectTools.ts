@@ -30,7 +30,7 @@ export function selectToolsForTurn(input: {
   const flightsOnly = requirements.packageScope === 'flights_only'
   const selected: AgentToolName[] = flightsOnly
     ? ['weather', 'flights', 'maps']
-    : ['weather', 'attractions', 'maps', 'flights', 'hotels']
+    : ['weather', 'attractions', 'maps', 'flights', 'hotels', 'transportation']
 
   if (requirements.budgetAmount != null || requirements.budgetCurrency || requirements.budgetFlexible) {
     selected.push('currency')

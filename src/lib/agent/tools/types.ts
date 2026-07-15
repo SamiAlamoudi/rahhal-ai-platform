@@ -13,6 +13,7 @@ export type AgentToolName =
   | 'visa'
   | 'currency'
   | 'attractions'
+  | 'transportation'
   | 'local_recommendations'
 
 export type AgentToolStatus = 'ok' | 'skipped' | 'unavailable' | 'error' | 'timeout'

@@ -64,6 +64,9 @@ export function mergeToolResultsIntoPlan(
       case 'local_recommendations':
         next = mergeAttractions(next, result)
         break
+      case 'transportation':
+        next = mergeTransportation(next, result)
+        break
       default:
         break
     }
@@ -247,5 +250,36 @@ function mergeAttractions(plan: TripPlan, result: AgentToolResult): TripPlan {
     attractions,
     dailyItinerary,
     activities: dailyItinerary,
+  }
+}
+
+function mergeTransportation(plan: TripPlan, result: AgentToolResult): TripPlan {
+  const data = result.data as {
+    options?: Array<{
+      mode?: string
+      from?: string
+      to?: string
+      notes?: string
+      estimatedCost?: number | null
+      currency?: string | null
+    }>
+  } | undefined
+  if (!data?.options?.length) return plan
+
+  const extra: TransportationItem[] = data.options.map((option) => ({
+    mode: String(option.mode ?? 'transfer'),
+    from: String(option.from ?? plan.destinations[0] ?? 'Origin'),
+    to: String(option.to ?? plan.destinations[0] ?? 'Destination'),
+    notes: option.notes ?? 'From transportation provider adapter (mock)',
+    estimatedCost: typeof option.estimatedCost === 'number' ? option.estimatedCost : null,
+    currency: option.currency ?? plan.estimatedBudget.currency,
+  }))
+
+  return {
+    ...plan,
+    transportation: [
+      ...plan.transportation,
+      ...extra.filter((row) => row.mode !== 'flight'),
+    ],
   }
 }
