@@ -2,10 +2,24 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
+import VoiceComposer from '../components/chat/VoiceComposer'
 import { chatEngine } from '../lib/chat/chatEngine'
 import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
 import { validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
 import type { ChatConversation, ChatMessage } from '../lib/chat/chatTypes'
+import { createSpeechToTextProvider, createTextToSpeechProvider } from '../lib/chat/voice/voiceProviderFactory'
+import { createVoiceSession, type CreateVoiceSessionOptions, type VoiceSession } from '../lib/chat/voice/voiceSession'
+import type { VoiceInputMode, VoiceLocale, VoiceSessionStatus } from '../lib/chat/voice/voiceTypes'
+
+type ComposerMode = 'text' | 'voice'
+
+function buildVoiceSession(callbacks: CreateVoiceSessionOptions['callbacks']): VoiceSession {
+  return createVoiceSession({
+    stt: createSpeechToTextProvider(),
+    tts: createTextToSpeechProvider(),
+    callbacks,
+  })
+}
 
 export default function ChatPage() {
   const navigate = useNavigate()
@@ -21,8 +35,16 @@ export default function ChatPage() {
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [composerMode, setComposerMode] = useState<ComposerMode>('text')
+  const [voiceStatus, setVoiceStatus] = useState<VoiceSessionStatus>('idle')
+  const [voiceMode, setVoiceMode] = useState<VoiceInputMode>('push_to_talk')
+  const [voiceLocale, setVoiceLocale] = useState<VoiceLocale>('ar')
+  const [partialTranscript, setPartialTranscript] = useState('')
+  const [micError, setMicError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const voiceRef = useRef<VoiceSession | null>(null)
+  const activeIdRef = useRef<string | null>(null)
 
   const filtered = useMemo(
     () => chatEngine.searchConversations(conversations, query),
@@ -30,9 +52,20 @@ export default function ChatPage() {
   )
 
   const isStreaming = messages.some((m) => m.status === 'streaming') || sending
+  const voiceBusy = voiceStatus === 'processing' || voiceStatus === 'speaking'
 
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [])
+
+  const upsertMessage = useCallback((message: ChatMessage) => {
+    setMessages((prev) => {
+      const idx = prev.findIndex((m) => m.id === message.id)
+      if (idx === -1) return [...prev, message]
+      const next = [...prev]
+      next[idx] = message
+      return next
+    })
   }, [])
 
   const loadConversations = useCallback(async (preferId?: string | null) => {
@@ -43,7 +76,9 @@ export default function ChatPage() {
       setConversations(rows)
       const nextId = preferId && rows.some((r) => r.id === preferId)
         ? preferId
-        : (activeId && rows.some((r) => r.id === activeId) ? activeId : rows[0]?.id ?? null)
+        : (activeIdRef.current && rows.some((r) => r.id === activeIdRef.current)
+          ? activeIdRef.current
+          : rows[0]?.id ?? null)
       setActiveId(nextId)
     } catch (e) {
       setListError(e instanceof Error ? e.message : 'تعذر تحميل المحادثات')
@@ -51,7 +86,7 @@ export default function ChatPage() {
     } finally {
       setListLoading(false)
     }
-  }, [activeId])
+  }, [])
 
   const loadDetail = useCallback(async (id: string) => {
     setDetailLoading(true)
@@ -71,9 +106,12 @@ export default function ChatPage() {
   }, [])
 
   useEffect(() => {
+    activeIdRef.current = activeId
+  }, [activeId])
+
+  useEffect(() => {
     void loadConversations()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
-  }, [])
+  }, [loadConversations])
 
   useEffect(() => {
     if (!activeId) {
@@ -85,17 +123,43 @@ export default function ChatPage() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, scrollToBottom])
+  }, [messages, partialTranscript, scrollToBottom])
 
-  const upsertMessage = (message: ChatMessage) => {
-    setMessages((prev) => {
-      const idx = prev.findIndex((m) => m.id === message.id)
-      if (idx === -1) return [...prev, message]
-      const next = [...prev]
-      next[idx] = message
-      return next
+  useEffect(() => {
+    const session = buildVoiceSession({
+      onStatus: setVoiceStatus,
+      onPartialTranscript: setPartialTranscript,
+      onFinalTranscript: setPartialTranscript,
+      onPermission: (state) => {
+        if (state.state !== 'granted') setMicError(state.error || 'يلزم إذن الميكروفون')
+        else setMicError(null)
+      },
+      onError: (error) => setActionError(error),
+      onAssistantCreate: upsertMessage,
+      onDelta: upsertMessage,
+      onComplete: (message) => {
+        upsertMessage(message)
+        void loadConversations(activeIdRef.current)
+      },
+      onStreamError: (message, error) => {
+        upsertMessage(message)
+        if (error !== 'cancelled') setActionError(error)
+      },
     })
-  }
+    voiceRef.current = session
+    return () => {
+      session.dispose()
+      voiceRef.current = null
+    }
+  }, [loadConversations, upsertMessage])
+
+  useEffect(() => {
+    voiceRef.current?.setLocale(voiceLocale)
+  }, [voiceLocale])
+
+  useEffect(() => {
+    voiceRef.current?.setMode(voiceMode)
+  }, [voiceMode])
 
   const handleCreate = async () => {
     setActionError(null)
@@ -148,6 +212,7 @@ export default function ChatPage() {
     abortRef.current?.abort()
     abortRef.current = null
     setSending(false)
+    voiceRef.current?.interrupt()
   }
 
   const runGeneration = async (
@@ -175,9 +240,7 @@ export default function ChatPage() {
         },
         onError: (message, error) => {
           upsertMessage(message)
-          if (error !== 'cancelled') {
-            setActionError(error)
-          }
+          if (error !== 'cancelled') setActionError(error)
         },
       })
     } catch (e) {
@@ -190,7 +253,7 @@ export default function ChatPage() {
 
   const handleSend = async (e: FormEvent) => {
     e.preventDefault()
-    if (!activeId || isStreaming) return
+    if (!activeId || isStreaming || voiceBusy) return
     const validation = validateUserMessage(draft)
     if (validation) {
       setActionError(validation)
@@ -198,7 +261,6 @@ export default function ChatPage() {
     }
     const content = draft
     setDraft('')
-    // optimistic user bubble until persisted id arrives
     const tempId = `temp-${Date.now()}`
     setMessages((prev) => [
       ...prev,
@@ -233,7 +295,7 @@ export default function ChatPage() {
   }
 
   const handleRetry = async (assistantMessageId: string) => {
-    if (!activeId || isStreaming) return
+    if (!activeId || isStreaming || voiceBusy) return
     await runGeneration(async (handlers) => {
       const updated = await chatEngine.retryAssistantMessage(activeId, assistantMessageId, handlers)
       upsertMessage(updated)
@@ -252,8 +314,46 @@ export default function ChatPage() {
       mimeType: 'image/png',
       sizeBytes: 1024,
     })
-    if (!result.ready) {
-      setActionError(result.reason ?? 'تعذر رفع الصورة')
+    if (!result.ready) setActionError(result.reason ?? 'تعذر رفع الصورة')
+  }
+
+  const handlePushStart = async () => {
+    if (!activeId) return
+    setActionError(null)
+    try {
+      await voiceRef.current?.startPushToTalk()
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'تعذر بدء الاستماع')
+    }
+  }
+
+  const handlePushEnd = async () => {
+    if (!activeId) return
+    setSending(true)
+    try {
+      await voiceRef.current?.stopPushToTalkAndSend(activeId)
+      await loadConversations(activeId)
+      await loadDetail(activeId)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'تعذر إرسال الرسالة الصوتية')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleToggleHandsFree = async () => {
+    if (!activeId || !voiceRef.current) return
+    setActionError(null)
+    if (voiceStatus === 'listening' && voiceMode === 'hands_free') {
+      await voiceRef.current.stopListening()
+      return
+    }
+    try {
+      voiceRef.current.setMode('hands_free')
+      setVoiceMode('hands_free')
+      await voiceRef.current.startHandsFree(activeId)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'تعذر تشغيل حر اليدين')
     }
   }
 
@@ -281,16 +381,37 @@ export default function ChatPage() {
             </button>
             <div className="min-w-0">
               <h1 className="truncate text-base font-bold text-slate-900">محادثة رحّال</h1>
-              <p className="text-[10px] text-slate-400">محرك محادثة مشترك — الصوت لاحقاً بنفس النظام</p>
+              <p className="text-[10px] text-slate-400">نص وصوت على نفس المحرك والسجل</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void handleCreate()}
-            className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-700"
-          >
-            محادثة جديدة
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => {
+                  setComposerMode('text')
+                  void voiceRef.current?.stopListening()
+                }}
+                className={`rounded-md px-2.5 py-1 ${composerMode === 'text' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+              >
+                كتابة
+              </button>
+              <button
+                type="button"
+                onClick={() => setComposerMode('voice')}
+                className={`rounded-md px-2.5 py-1 ${composerMode === 'voice' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+              >
+                صوت
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleCreate()}
+              className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-700"
+            >
+              محادثة جديدة
+            </button>
+          </div>
         </div>
       </header>
 
@@ -327,7 +448,7 @@ export default function ChatPage() {
 
           {!activeId && !listLoading && (
             <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center">
-              <p className="text-sm text-slate-500">ابدأ محادثة جديدة لتخطيط رحلتك مع رحّال</p>
+              <p className="text-sm text-slate-500">ابدأ محادثة ثم بدّل بين الكتابة والصوت في أي وقت</p>
               <button
                 type="button"
                 onClick={() => void handleCreate()}
@@ -358,7 +479,7 @@ export default function ChatPage() {
                 )}
                 {!detailLoading && !detailError && messages.length === 0 && (
                   <div className="rounded-2xl border border-dashed border-slate-200 py-12 text-center">
-                    <p className="text-sm text-slate-500">لا توجد رسائل بعد. اكتب سؤالك بالأسفل.</p>
+                    <p className="text-sm text-slate-500">لا توجد رسائل بعد. اكتب أو تحدّث بالأسفل.</p>
                   </div>
                 )}
                 <div className="space-y-3">
@@ -374,50 +495,68 @@ export default function ChatPage() {
                 <div ref={bottomRef} />
               </div>
 
-              <form
-                onSubmit={(e) => void handleSend(e)}
-                className="border-t border-slate-100 bg-white/90 px-4 py-3 backdrop-blur-md sm:px-6"
-              >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                  <label className="sr-only" htmlFor="chat-draft">رسالتك</label>
-                  <textarea
-                    id="chat-draft"
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    rows={2}
-                    placeholder="اسأل رحّال عن وجهتك، الميزانية، أو خطة السفر..."
-                    className="min-h-[44px] w-full resize-none rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400/20"
-                    disabled={!activeId}
+              <div className="border-t border-slate-100 bg-white/90 px-4 py-3 backdrop-blur-md sm:px-6">
+                {composerMode === 'voice' ? (
+                  <VoiceComposer
+                    enabled={!!activeId && !isStreaming}
+                    status={voiceStatus}
+                    mode={voiceMode}
+                    locale={voiceLocale}
+                    partialTranscript={partialTranscript}
+                    permissionError={micError}
+                    busy={isStreaming || voiceBusy}
+                    onModeChange={setVoiceMode}
+                    onLocaleChange={setVoiceLocale}
+                    onPushStart={() => void handlePushStart()}
+                    onPushEnd={() => void handlePushEnd()}
+                    onToggleHandsFree={() => void handleToggleHandsFree()}
+                    onInterrupt={stopGeneration}
+                    onRequestPermission={() => void voiceRef.current?.ensureMicPermission()}
                   />
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleAttachImage()}
-                      disabled={!activeId || isStreaming}
-                      title="مرفقات الصور (بنية جاهزة — التخزين لاحقاً)"
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-40"
-                    >
-                      صورة
-                    </button>
-                    {isStreaming && (
-                      <button
-                        type="button"
-                        onClick={stopGeneration}
-                        className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-100"
-                      >
-                        إيقاف
-                      </button>
-                    )}
-                    <button
-                      type="submit"
-                      disabled={!activeId || isStreaming || !draft.trim()}
-                      className="rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700 disabled:bg-slate-300"
-                    >
-                      {sending ? 'جاري الإرسال...' : 'إرسال'}
-                    </button>
-                  </div>
-                </div>
-              </form>
+                ) : (
+                  <form onSubmit={(e) => void handleSend(e)}>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <label className="sr-only" htmlFor="chat-draft">رسالتك</label>
+                      <textarea
+                        id="chat-draft"
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        rows={2}
+                        placeholder="اسأل رحّال عن وجهتك، الميزانية، أو خطة السفر..."
+                        className="min-h-[44px] w-full resize-none rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400/20"
+                        disabled={!activeId || voiceBusy}
+                      />
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleAttachImage()}
+                          disabled={!activeId || isStreaming || voiceBusy}
+                          title="مرفقات الصور (بنية جاهزة — التخزين لاحقاً)"
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-40"
+                        >
+                          صورة
+                        </button>
+                        {(isStreaming || voiceBusy) && (
+                          <button
+                            type="button"
+                            onClick={stopGeneration}
+                            className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-100"
+                          >
+                            إيقاف
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          disabled={!activeId || isStreaming || voiceBusy || !draft.trim()}
+                          className="rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700 disabled:bg-slate-300"
+                        >
+                          {sending ? 'جاري الإرسال...' : 'إرسال'}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                )}
+              </div>
             </>
           )}
         </section>

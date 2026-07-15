@@ -26,3 +26,12 @@ export {
   validateUserMessage,
   parseMarkdownBlocks,
 } from './chatHelpers'
+export { createVoiceSession, stripMarkdownForSpeech } from './voice/voiceSession'
+export { createSpeechToTextProvider, createTextToSpeechProvider } from './voice/voiceProviderFactory'
+export type {
+  VoiceInputMode,
+  VoiceLocale,
+  VoiceSessionStatus,
+  SpeechToTextProvider,
+  TextToSpeechProvider,
+} from './voice/voiceTypes'
