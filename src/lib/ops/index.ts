@@ -44,6 +44,84 @@ export {
   type ProbeStatus,
   type HealthProbeOptions,
 } from './observability/health'
+export {
+  collectMonitoringSnapshot,
+  recordFrontendError,
+  recordAuthFailure,
+  recordDatabaseError,
+  recordEdgeFunctionFailure,
+  recordBookingFailure,
+  recordPaymentMockFailure,
+  recordTicketingFailure,
+  recordNotificationFailure,
+  recordSlowRequest,
+  recordQueueBacklog,
+  recordSecretValidationFailure,
+  recordAppUnavailable,
+  type MonitoringSnapshot,
+  type MonitoringOptions,
+  type AffectedService,
+} from './observability/monitoring'
+
+export {
+  type AlertSeverity,
+  type AlertConditionId,
+  type AlertEvent,
+  type AlertSink,
+  ALERT_SEVERITY_ORDER,
+  DEFAULT_ALERT_RULES,
+  evaluateAlertRules,
+  highestSeverity,
+  MockAlertDispatcher,
+  CompositeAlertDispatcher,
+  getAlertDispatcher,
+  setAlertDispatcher,
+  resetAlertDispatcher,
+  dispatchAlerts,
+} from './alerting'
+
+export {
+  type IncidentSeverity,
+  type IncidentStatus,
+  type IncidentTimelineEntry,
+  type IncidentRecord,
+  INCIDENT_STATUS_TRANSITIONS,
+  canTransitionIncidentStatus,
+  IncidentRepository,
+  getIncidentRepository,
+  resetIncidentRepository,
+  IncidentManager,
+  getIncidentManager,
+  resetIncidentManager,
+} from './incidents'
+
+export {
+  type FeedbackKind,
+  type FeedbackPriority,
+  type FeedbackStatus,
+  type BugReport,
+  type FeatureRequest,
+  type UserRating,
+  type UsabilityIssue,
+  type FeedbackPayload,
+  type FeedbackRecord,
+  type SubmitFeedbackInput,
+  FeedbackRepository,
+  getFeedbackRepository,
+  resetFeedbackRepository,
+  FeedbackManager,
+  getFeedbackManager,
+  resetFeedbackManager,
+} from './feedback'
+
+export {
+  type ReleaseAction,
+  type PatchReleaseDecision,
+  type PatchReleaseInput,
+  evaluatePatchRelease,
+  shouldRollback,
+  isPatchEligible,
+} from './release'
 
 export {
   validateEnvironment,
