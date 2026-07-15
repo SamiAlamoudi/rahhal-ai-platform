@@ -68,6 +68,15 @@ export class AmadeusClientCredentialsAuth {
     this.cachedToken = null
   }
 
+  /**
+   * Force OAuth token refresh (client_credentials re-acquire).
+   * Used after 401 / expired access tokens — Amadeus does not use refresh_token grants.
+   */
+  async refreshToken(): Promise<OAuthResult> {
+    this.clearToken()
+    return this.getToken()
+  }
+
   async getToken(): Promise<OAuthResult> {
     if (this.getTokenStatus() === 'valid' && this.cachedToken) {
       return { token: this.cachedToken, error: null, latency: 0, fromCache: true }

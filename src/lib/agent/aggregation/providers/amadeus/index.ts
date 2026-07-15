@@ -11,5 +11,9 @@ export {
   type AmadeusProviderConfig,
   type AmadeusEnvironment,
 } from './config'
-export { createAmadeusAuthClient, AmadeusClientCredentialsAuth } from './auth'
+export {
+  createAmadeusAuthClient,
+  AmadeusClientCredentialsAuth,
+  type AmadeusAuthClient,
+} from './auth'
 export { flightOffersToNormalizedOffers } from './normalizeToOffer'

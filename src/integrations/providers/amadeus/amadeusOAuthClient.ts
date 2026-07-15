@@ -92,6 +92,12 @@ export class AmadeusOAuthClient {
     this.cachedToken = null
   }
 
+  /** Force access-token refresh via the server proxy (no client secrets in SPA). */
+  async refreshToken(): Promise<OAuthResult> {
+    this.clearToken()
+    return this.getToken()
+  }
+
   async getToken(): Promise<OAuthResult> {
     if (this.isTokenValid() && this.cachedToken) {
       log('info', 'Using cached token', { remainingMs: this.getTokenRemainingLifetime() })

@@ -5,6 +5,10 @@ import { mergeCompatibleOffers } from './merge'
 import { rankOffers } from './ranking'
 import { DEFAULT_RETRY_POLICY, withRetry } from './retry'
 import { selectNextFallback } from './selection'
+import type { CircuitBreaker } from './liveIntegration/circuitBreaker'
+import type { ProviderMetrics } from './liveIntegration/metrics'
+import type { ProviderRateLimiter } from './liveIntegration/rateLimiter'
+import type { ProviderSelectionLog } from './liveIntegration/selectionLog'
 import type {
   AggregationEngine,
   AggregationQuery,
@@ -18,6 +22,14 @@ import type {
   RetryPolicy,
 } from './types'
 
+/** Optional Phase W hooks — circuit breaker / metrics / selection logs / rate limiter. */
+export interface LiveIntegrationEngineHooks {
+  circuitBreaker?: CircuitBreaker
+  metrics?: ProviderMetrics
+  selectionLog?: ProviderSelectionLog
+  rateLimiter?: ProviderRateLimiter
+}
+
 export interface CreateAggregationEngineOptions {
   registry: ProviderRegistry
   /** Per-provider timeout in ms */
@@ -25,6 +37,8 @@ export interface CreateAggregationEngineOptions {
   selectionStrategy?: ProviderSelectionStrategy
   retryPolicy?: RetryPolicy
   rateLimitPolicy?: RateLimitPolicy
+  /** Phase W live integration observability hooks. */
+  liveIntegration?: LiveIntegrationEngineHooks
 }
 
 const DEFAULT_RATE_LIMIT: RateLimitPolicy = {
@@ -39,6 +53,7 @@ export function createAggregationEngine(
   const selectionStrategy = options.selectionStrategy ?? 'parallel'
   const retryPolicy = options.retryPolicy ?? DEFAULT_RETRY_POLICY
   const rateLimitPolicy = options.rateLimitPolicy ?? DEFAULT_RATE_LIMIT
+  const live = options.liveIntegration
 
   return {
     async aggregate(query: AggregationQuery): Promise<AggregationResult> {
@@ -54,7 +69,28 @@ export function createAggregationEngine(
         options.registry.list().map((meta) => [String(meta.id), meta]),
       )
 
+      live?.selectionLog?.append({
+        level: 'info',
+        domain: query.domain,
+        event: 'selection.start',
+        message: `Selecting providers for ${query.domain} (${activeStrategy})`,
+        providerId: null,
+        strategy: activeStrategy,
+        metadata: {
+          candidateIds: adapters.map((a) => String(a.metadata.id)),
+        },
+      })
+
       if (adapters.length === 0) {
+        live?.selectionLog?.append({
+          level: 'warn',
+          domain: query.domain,
+          event: 'selection.empty',
+          message: `No providers available for ${query.domain}`,
+          providerId: null,
+          strategy: activeStrategy,
+          metadata: {},
+        })
         return emptyResult(query.domain, started, activeStrategy)
       }
 
@@ -79,7 +115,28 @@ export function createAggregationEngine(
           settled.push(result)
           if (result.status === 'ok' && result.items.length > 0) break
           const following = selectNextFallback(adapters, tried)
-          if (following) fallbacksUsed += 1
+          if (following) {
+            fallbacksUsed += 1
+            live?.metrics?.recordRequest(result.providerId, {
+              status: result.status === 'ok' ? 'ok' : (result.status === 'timeout' ? 'timeout' : result.status === 'rate_limited' ? 'rate_limited' : 'error'),
+              durationMs: result.durationMs,
+              retries: retryCount,
+              fallback: true,
+            })
+            live?.selectionLog?.append({
+              level: 'warn',
+              domain: query.domain,
+              event: 'selection.fallback',
+              message: `Falling back from ${result.providerId} → ${String(following.metadata.id)}`,
+              providerId: String(following.metadata.id),
+              strategy: activeStrategy,
+              metadata: {
+                from: result.providerId,
+                status: result.status,
+                errorCode: result.errorCode,
+              },
+            })
+          }
           next = following
         }
       } else {

@@ -27,7 +27,38 @@ export {
   createDefaultProviderRegistry,
   createActiveMockProviderRegistry,
   createDefaultProviderAdapters,
+  createLiveIntegration,
+  createLiveIntegrationEngine,
+  createLiveProviderRegistry,
+  createLiveProviderAdapters,
 } from './factory'
+export {
+  resolveProviderFeatureFlags,
+  isLiveProviderFlagEnabled,
+  liveFlagKeyForProviderId,
+  mockFallbackIdForLiveProvider,
+  createCircuitBreaker,
+  createProviderMetrics,
+  createProviderSelectionLog,
+  createProviderRateLimiter,
+  resolveLiveProviderEnvironment,
+  wrapAdapterForLiveIntegration,
+} from './liveIntegration'
+export type {
+  LiveProviderFlagKey,
+  ProviderFeatureFlags,
+  CircuitBreaker,
+  CircuitBreakerSnapshot,
+  CircuitState,
+  ProviderMetrics,
+  ProviderMetricCounters,
+  ProviderSelectionLog,
+  ProviderSelectionLogEntry,
+  ProviderRateLimiter,
+  LiveIntegrationContext,
+  CreateLiveIntegrationOptions,
+  LiveProviderEnvironment,
+} from './liveIntegration'
 export {
   createAmadeusProviderAdapter,
   resolveAmadeusProviderConfig,
@@ -36,11 +67,14 @@ export {
   SANDBOX_HOST,
   PRODUCTION_HOST,
   flightOffersToNormalizedOffers,
+  createAmadeusAuthClient,
+  AmadeusClientCredentialsAuth,
 } from './providers/amadeus'
 export type {
   AmadeusProviderConfig,
   AmadeusEnvironment,
   CreateAmadeusProviderAdapterOptions,
+  AmadeusAuthClient,
 } from './providers/amadeus'
 export {
   createBookingComProviderAdapter,
