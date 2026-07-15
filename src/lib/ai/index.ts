@@ -1,5 +1,5 @@
 /**
- * Phase AB–AF — AI enhancement through Unified Trip Planner Pipeline v1.
+ * Phase AB–AG — AI enhancement through Trip Planner API Layer v1.
  * Additive library surface; no UI; no breaking TripPlan / ProviderAdapter changes.
  */
 
@@ -192,4 +192,18 @@ export {
   createTripPlannerService,
   resetTripPlannerCounters,
   resetTripPlannerTestSingletons,
+} from './tripPlanner'
+
+export {
+  type TripPlannerApiAction,
+  type TripPlannerApiErrorBody,
+  type TripPlannerAuthUser,
+  type TripPlannerAuthResolver,
+  type TripPlannerHttpHandlerOptions,
+  extractBearerToken,
+  createDevTokenAuthResolver,
+  createSupabaseJwtAuthResolver,
+  assertUserOwnsRequest,
+  handleTripPlannerHttpRequest,
+  createTripPlannerHttpHandler,
 } from './tripPlanner'
