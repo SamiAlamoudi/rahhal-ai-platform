@@ -27,11 +27,25 @@ jobs:
       - name: Secret / env hygiene scan
         run: |
           set -euo pipefail
-          # Fail if forbidden client-side secret env keys appear as assignments in tracked source.
-          if grep -RInE \
-            --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist \
-            'VITE_AMADEUS_CLIENT_SECRET\s*=|VITE_GOOGLE_MAPS_API_KEY\s*=|VITE_OPENWEATHER_API_KEY\s*=|VITE_MOYASAR_SECRET' \
-            . ; then
+          # Fail only on real assignments of forbidden client-side secrets
+          # (KEY=non-empty-value). Ignore docs, the CI definition itself,
+          # comment lines, and string-name allow/deny lists.
+          matches="$(
+            grep -RInE \
+              --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist \
+              --exclude='*.md' \
+              --exclude='ci.yml' \
+              '(VITE_AMADEUS_CLIENT_SECRET|VITE_GOOGLE_MAPS_API_KEY|VITE_OPENWEATHER_API_KEY|VITE_MOYASAR_SECRET(_KEY)?)\s*=\s*[^[:space:]#]+' \
+              . || true
+          )"
+          filtered="$(
+            printf '%s\n' "$matches" \
+              | grep -vE ':[0-9]+:[[:space:]]*#' \
+              | grep -vE 'vi\.stubEnv|must not be set|Forbidden|NEVER set' \
+              || true
+          )"
+          if [ -n "$(printf '%s' "$filtered" | tr -d '[:space:]')" ]; then
+            printf '%s\n' "$filtered" >&2
             echo "Forbidden client-side secret patterns found" >&2
             exit 1
           fi
