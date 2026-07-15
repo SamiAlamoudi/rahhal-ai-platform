@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import TravelConversationCard from '../components/TravelConversationCard'
 import QuickActions from '../components/QuickActions'
 
@@ -27,10 +27,40 @@ export default function Home() {
             </div>
           </div>
           <nav className="hidden items-center gap-1 sm:flex">
-            <a className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900" href="#">الرئيسية</a>
-            <button onClick={() => navigate('/search')} className="rounded-lg px-3 py-2 text-sm font-medium text-primary-600 transition-colors hover:bg-primary-50 hover:text-primary-700">مساحة البحث</button>
-            <a className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900" href="#">رحلاتي</a>
-            <a className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900" href="#">الاستكشاف</a>
+            <Link
+              to="/"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+            >
+              الرئيسية
+            </Link>
+            <button
+              type="button"
+              onClick={() => navigate('/search')}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-primary-600 transition-colors hover:bg-primary-50 hover:text-primary-700"
+            >
+              مساحة البحث
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/my-trips')}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+            >
+              رحلاتي
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/saved-trips')}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+            >
+              المحفوظة
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/settings')}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+            >
+              الإعدادات
+            </button>
           </nav>
         </div>
       </header>

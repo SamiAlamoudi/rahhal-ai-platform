@@ -1,32 +1,67 @@
-# React + TypeScript + Vite
+# رحّال (Rahhal) — AI Travel Decision Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Arabic RTL travel planning SPA: conversation-driven requirements → live flight/hotel search → booking session → (optional) in-app checkout.
 
-Currently, two official plugins are available:
+> Marketing says “AI”; the conversation/scoring layer is **rule-based** (not LLM). LLM assistance is optional future work.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Stack
 
-## React Compiler
+| Layer | Technology |
+|-------|------------|
+| UI | React 19, React Router 7, Tailwind CSS 4, Arabic RTL |
+| Build | Vite 8, TypeScript |
+| Backend | Supabase Auth + Postgres + RLS |
+| Providers | Amadeus (flights), Booking.com RapidAPI (hotels), RentalCars, OpenWeather |
+| Payments | Moyasar hosted checkout via Edge Functions — **frozen for production** pending business verification (see below) |
+| Tests | Vitest unit tests |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Local setup
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+cp .env.example .env.local
+# Fill VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY (required for auth & persistence)
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Vite dev server |
+| `npm run build` | Typecheck + production build |
+| `npm run lint` | Oxlint |
+| `npm run test:run` | Vitest once |
+
+## Product phases (roadmap)
+
+| Phase | Focus | Status |
+|-------|--------|--------|
+| A | Docs, env, CI hygiene | Done |
+| B | Live search via integrations | Done (`orchestrateLiveSearch` / `planTrip`) |
+| C | Persist booking/checkout | Done |
+| D | Real PSP (Moyasar) | **Code complete — production enablement frozen** |
+| E | Saved trips, settings, admin RBAC | In this PR |
+| F | Catalog clarity / optional LLM | Catalog status flags; adapters still deferred |
+| G | CI/E2E/ops | Partial |
+
+## Payments freeze (Phase D)
+
+Moyasar hosted checkout is implemented and must not be removed. Production go-live is blocked on business verification.
+
+**TODO checklist:** [docs/PAYMENT_PRODUCTION_TODO.md](docs/PAYMENT_PRODUCTION_TODO.md)
+
+- Business verification
+- Live API keys
+- Live webhook
+- Final sandbox verification
+
+Until then keep `VITE_PAYMENT_PROVIDER=mock` (default). Do not put `MOYASAR_SECRET_KEY` in `VITE_*`.
+
+## Security notes
+
+- Do not commit `.env.local` or provider secrets.
+- `/admin` requires authenticated user **and** admin role (`app_metadata.role === 'admin'` or `VITE_ADMIN_USER_IDS`).
+- Moyasar secrets are Edge Function secrets only.
+
+## License
+
+Private — Rahhal project.

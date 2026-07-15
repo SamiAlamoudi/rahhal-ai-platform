@@ -15,6 +15,8 @@ import IntegrationDiagnostics from './pages/IntegrationDiagnostics.tsx'
 import BookingReview from './pages/BookingReview.tsx'
 import BookingReturn from './pages/BookingReturn.tsx'
 import MyTrips from './pages/MyTrips.tsx'
+import SavedTrips from './pages/SavedTrips.tsx'
+import Settings from './pages/Settings.tsx'
 import CheckoutPage from './pages/CheckoutPage.tsx'
 import CheckoutReviewPage from './pages/CheckoutReviewPage.tsx'
 import CheckoutPaymentPage from './pages/CheckoutPaymentPage.tsx'
@@ -40,7 +42,7 @@ function ResultsRoute() {
   return <ResultsPage {...state} />
 }
 import { AuthProvider } from './lib/auth/AuthContext.tsx'
-import { ProtectedRoute, PublicOnlyRoute } from './lib/auth/ProtectedRoute.tsx'
+import { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './lib/auth/ProtectedRoute.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -87,15 +89,25 @@ createRoot(document.getElementById('root')!).render(
               <MyTrips />
             </ProtectedRoute>
           } />
-          <Route path="/admin" element={
+          <Route path="/saved-trips" element={
             <ProtectedRoute>
-              <AdminDashboard />
+              <SavedTrips />
             </ProtectedRoute>
           } />
-          <Route path="/admin/checkout" element={
+          <Route path="/settings" element={
             <ProtectedRoute>
-              <CheckoutAdminDashboard />
+              <Settings />
             </ProtectedRoute>
+          } />
+          <Route path="/admin" element={
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
+          } />
+          <Route path="/admin/checkout" element={
+            <AdminRoute>
+              <CheckoutAdminDashboard />
+            </AdminRoute>
           } />
           <Route path="/checkout" element={
             <ProtectedRoute>

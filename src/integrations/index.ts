@@ -105,3 +105,11 @@ export {
   type WeatherTravelScore,
 } from './weather'
 export { OpenWeatherApiClient, type OpenWeatherResponse, type OpenWeatherForecastItem } from './api'
+export {
+  DEFERRED_CATALOG_DOMAINS,
+  getCatalogStatus,
+  isDeferredCatalogDomain,
+  type CatalogAvailability,
+  type CatalogDomain,
+  type CatalogDomainStatus,
+} from './catalogStatus'
