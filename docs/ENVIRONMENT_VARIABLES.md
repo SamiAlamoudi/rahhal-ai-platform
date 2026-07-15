@@ -15,6 +15,17 @@ Templates:
 | `VITE_SUPABASE_ANON_KEY` | SPA invoke / auth | required for auth |
 | `VITE_PAYMENT_PROVIDER` | Payment adapter | **`mock`** |
 | `VITE_LIVE_PROVIDERS_ENABLED` | Master live-provider switch | **`false`** |
+| `VITE_LIVE_FLIGHTS_ENABLED` | Live flights capability (Phase AI) | **`false`** |
+| `VITE_LIVE_HOTELS_ENABLED` | Live hotels capability (Phase AI) | **`false`** |
+| `VITE_LIVE_ACTIVITIES_ENABLED` | Live activities capability (Phase AI) | **`false`** |
+| `VITE_LIVE_TRANSPORT_ENABLED` | Live transport capability (Phase AI) | **`false`** |
+| `VITE_LIVE_PAYMENTS_ENABLED` | Live payments capability (Phase AI) | **`false`** (must stay off) |
+| `VITE_REQUEST_TIMEOUT_MS` | Default request timeout | `30000` |
+| `VITE_PLANNING_TIMEOUT_MS` | Trip planning timeout | `30000` |
+| `VITE_BOOKING_TIMEOUT_MS` | Booking timeout | `20000` |
+| `VITE_PROVIDER_TIMEOUT_MS` | Provider call timeout | `8000` |
+| `VITE_OTEL_ENABLED` | Enable OTel hooks registration | `false` |
+| `VITE_CORS_ALLOWLIST` | Comma-separated CORS origins | empty = permissive dev |
 | `VITE_PROVIDER_MOCK_FALLBACK` | Keep mocks for fallback | `true` |
 | `VITE_FLIGHT_PROVIDER` / `VITE_AMADEUS_ENABLED` | Flights selection | `mock` / `false` |
 | `VITE_HOTEL_ADAPTER` / `VITE_BOOKING_PROVIDER` | Hotels | `mock` for staging template |
