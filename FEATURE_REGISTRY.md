@@ -27,6 +27,11 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ai.analytics` | experimental | yes | Privacy-gated anonymous metrics |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |
+| `live.flights` | stable | **no** | Phase AI — requires master; OFF by default |
+| `live.hotels` | stable | **no** | Phase AI — requires master; OFF by default |
+| `live.activities` | experimental | **no** | Phase AI — no live adapter yet |
+| `live.transport` | experimental | **no** | Phase AI — no live adapter yet |
+| `live.payments` | deprecated | **no** | Phase AI — forced OFF while mock payment freeze holds |
 
 ## Usage
 
