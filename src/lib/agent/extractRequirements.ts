@@ -3,6 +3,7 @@ import type {
   AgentLocale,
   BudgetStyle,
   PackageScope,
+  RegenerateScope,
   TravelerType,
   TripRequirements,
 } from './types'
@@ -38,7 +39,13 @@ export function extractFromUserText(
   const patch: Partial<TripRequirements> = {}
 
   const regenerateDay = matchRegenerateDay(lower, normalized)
-  if (regenerateDay != null) patch.regenerateDay = regenerateDay
+  if (regenerateDay != null) {
+    patch.regenerateDay = regenerateDay
+    patch.regenerateScope = 'day'
+  }
+
+  const regenerateScope = matchRegenerateScope(lower, normalized, intent)
+  if (regenerateScope) patch.regenerateScope = regenerateScope
 
   const destination = matchDestination(lower)
   if (destination) {
@@ -140,6 +147,12 @@ function detectIntent(lower: string, original: string, locale: AgentLocale): Age
   ) {
     return 'regenerate_day'
   }
+  if (
+    /\bregenerate\b|\bredo\b|\brefresh\b|أعد إنشاء|اعد انشاء|أعد توليد|اعد توليد|جدّد|جدد/.test(lower)
+    && /\bflight|flights|hotel|hotels|activit|attraction|طيران|فنادق|فندق|أنشطة|انشطة|معالم/.test(lower + original)
+  ) {
+    return 'regenerate'
+  }
   if (/\bregenerate\b|أعد إنشاء|اعد انشاء|أعد توليد|اعد توليد|جدّد الخطة|جدد الخطة/.test(lower)) {
     return 'regenerate'
   }
@@ -152,6 +165,24 @@ function detectIntent(lower: string, original: string, locale: AgentLocale): Age
   }
   void locale
   return 'answer'
+}
+
+function matchRegenerateScope(
+  lower: string,
+  original: string,
+  intent: AgentIntent,
+): RegenerateScope | null {
+  if (intent === 'regenerate_day') return 'day'
+  if (intent !== 'regenerate' && !/\bregenerate\b|\bredo\b|جدد|جدّد|أعد|اعد/.test(lower + original)) {
+    return null
+  }
+  if (/\bflight|flights|طيران/.test(lower) || /طيران/.test(original)) return 'flight'
+  if (/\bhotel|hotels|stay|stays|فندق|فنادق/.test(lower) || /فندق|فنادق/.test(original)) return 'hotel'
+  if (/\bactivit|attraction|معالم|أنشطة|انشطة/.test(lower) || /معالم|أنشطة|انشطة/.test(original)) {
+    return 'activities'
+  }
+  if (intent === 'regenerate') return 'whole'
+  return null
 }
 
 function matchRegenerateDay(lower: string, original: string): number | null {

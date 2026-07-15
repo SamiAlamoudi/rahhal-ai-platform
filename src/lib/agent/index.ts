@@ -8,6 +8,8 @@ export type {
   AgentIntent,
   AccommodationRecommendation,
   AgentToolRunSummary,
+  RegenerateScope,
+  TripDecision,
 } from './types'
 export { emptyMemory, emptyRequirements, withTripPlan, INTAKE_FIELD_ORDER } from './types'
 export { createTravelAgentProvider, travelAgentProvider } from './travelAgentProvider'
@@ -47,6 +49,18 @@ export { createToolExecutor } from './tools/executor'
 export { selectToolsForTurn } from './tools/selectTools'
 export { mergeToolResultsIntoPlan } from './tools/mergeToolResults'
 export { buildToolInput } from './tools/buildToolInput'
+export {
+  applyIntelligentDecisions,
+  detectTripConflicts,
+  scoreFlightCandidate,
+  scoreHotelCandidate,
+  computeTripScores,
+} from './decision'
+export type {
+  TripDecisionScores,
+  DecisionRationale,
+  DecisionConflict,
+} from './decision'
 export type {
   AgentTool,
   AgentToolName,

@@ -5,6 +5,7 @@
 
 import type { ChatMessage } from '../chat/chatTypes'
 import { applyTripPlanEdits, buildTripPlan, regenerateTripDay } from './buildItinerary'
+import { applyIntelligentDecisions } from './decision'
 import { extractFromUserText } from './extractRequirements'
 import {
   buildEditAck,
@@ -29,6 +30,7 @@ import type {
   AgentMemory,
   AgentProviderMeta,
   AgentToolRunSummary,
+  RegenerateScope,
   TripPlan,
   TripRequirements,
 } from './types'
@@ -69,6 +71,13 @@ export interface TravelAgentService {
     plan: TripPlan
     day: number
     locale: AgentMemory['locale']
+    signal?: AbortSignal
+  }): Promise<TripPlan>
+  regenerateScoped(input: {
+    conversationId: string
+    memory: AgentMemory
+    scope: Exclude<RegenerateScope, 'day' | 'whole'>
+    signal?: AbortSignal
   }): Promise<TripPlan>
   editPlan(input: {
     conversationId: string
@@ -149,7 +158,8 @@ export function createTravelAgentService(
       locale: input.memory.locale,
       seed: input.seed,
     })
-    const plan = mergeToolResultsIntoPlan(base, batch.results)
+    const merged = mergeToolResultsIntoPlan(base, batch.results)
+    const plan = applyIntelligentDecisions(merged, batch.results, input.memory.requirements)
     return { plan, batch }
   }
 
@@ -201,12 +211,30 @@ export function createTravelAgentService(
           memory.phase = 'planned'
         }
       } else if (extracted.intent === 'regenerate_day' && memory.tripPlan) {
+        const existingPlan = memory.tripPlan
         const day = extracted.patch.regenerateDay
           ?? memory.requirements.regenerateDay
           ?? 1
-        const plan = regenerateTripDay(memory.tripPlan, day, memory.locale)
-        memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, plan)
-        reply = formatTripPlanReply(plan, memory.locale)
+        memory = {
+          ...memory,
+          requirements: {
+            ...memory.requirements,
+            regenerateDay: day,
+            regenerateScope: 'day',
+          },
+          lastIntent: 'regenerate_day',
+          missingFields: [],
+        }
+        const refreshedDay = regenerateTripDay(existingPlan, day, memory.locale)
+        const ran = await runToolsForPlan({
+          memory,
+          conversationId: input.conversationId,
+          signal: input.signal,
+          basePlan: refreshedDay,
+        })
+        toolBatch = ran.batch
+        memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, ran.plan)
+        reply = formatTripPlanReply(ran.plan, memory.locale)
       } else if (extracted.intent === 'edit' && !hasPlanningPatch(extracted.patch) && memory.tripPlan) {
         reply = buildEditAck(memory.locale)
         memory.phase = 'editing'
@@ -214,10 +242,23 @@ export function createTravelAgentService(
         (extracted.intent === 'regenerate' || extracted.intent === 'edit' || extracted.intent === 'plan' || extracted.intent === 'answer')
         && memory.missingFields.length === 0
       ) {
+        const scope = memory.requirements.regenerateScope
+          ?? extracted.patch.regenerateScope
+          ?? (extracted.intent === 'regenerate' ? 'whole' : null)
+        memory = {
+          ...memory,
+          requirements: {
+            ...memory.requirements,
+            regenerateScope: scope,
+          },
+        }
+        const scoped = scope === 'flight' || scope === 'hotel' || scope === 'activities'
         const basePlan = memory.tripPlan && extracted.intent === 'edit'
           ? applyTripPlanEdits(memory.tripPlan, extracted.patch, memory.locale)
+          : (scoped && memory.tripPlan ? memory.tripPlan : undefined)
+        const seed = extracted.intent === 'regenerate' && (!scope || scope === 'whole')
+          ? `regen-${Date.now()}`
           : undefined
-        const seed = extracted.intent === 'regenerate' ? `regen-${Date.now()}` : undefined
         const ran = await runToolsForPlan({
           memory,
           conversationId: input.conversationId,
@@ -271,8 +312,47 @@ export function createTravelAgentService(
       return ran.plan
     },
 
-    async regenerateDay({ plan, day, locale }) {
-      return regenerateTripDay(plan, day, locale)
+    async regenerateDay({ conversationId, plan, day, locale, signal }) {
+      const memory: AgentMemory = {
+        locale,
+        phase: 'editing',
+        requirements: {
+          ...plan.requirements,
+          regenerateDay: day,
+          regenerateScope: 'day',
+        },
+        tripPlan: plan,
+        itinerary: plan,
+        missingFields: [],
+        lastIntent: 'regenerate_day',
+      }
+      const refreshedDay = regenerateTripDay(plan, day, locale)
+      const ran = await runToolsForPlan({
+        memory,
+        conversationId,
+        signal,
+        basePlan: refreshedDay,
+      })
+      return ran.plan
+    },
+
+    async regenerateScoped({ conversationId, memory, scope, signal }) {
+      const nextMemory: AgentMemory = {
+        ...memory,
+        lastIntent: 'regenerate',
+        missingFields: [],
+        requirements: {
+          ...memory.requirements,
+          regenerateScope: scope,
+        },
+      }
+      const ran = await runToolsForPlan({
+        memory: nextMemory,
+        conversationId,
+        signal,
+        basePlan: memory.tripPlan ?? undefined,
+      })
+      return ran.plan
     },
 
     async editPlan({ conversationId, plan, patch, locale, signal }) {

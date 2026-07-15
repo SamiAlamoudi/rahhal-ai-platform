@@ -285,6 +285,47 @@ export function formatTripPlanReply(plan: TripPlan, locale: AgentLocale): string
     for (const item of plan.packingSuggestions) lines.push(`- ${item}`)
   }
 
+  if (plan.decision) {
+    const d = plan.decision
+    lines.push('')
+    lines.push(t(locale, { ar: '### محرك القرار', en: '### Decision engine' }))
+    lines.push(t(locale, {
+      ar: `الدرجة الإجمالية: **${d.scores.overall}/100** (طيران ${d.scores.flight} · فندق ${d.scores.hotel} · أيام ${d.scores.dailyItinerary} · ميزانية ${d.scores.budget} · راحة ${d.scores.comfort} · كفاءة الوقت ${d.scores.timeEfficiency})`,
+      en: `Overall score: **${d.scores.overall}/100** (flight ${d.scores.flight} · hotel ${d.scores.hotel} · days ${d.scores.dailyItinerary} · budget ${d.scores.budget} · comfort ${d.scores.comfort} · time ${d.scores.timeEfficiency})`,
+    }))
+    if (d.flight) {
+      lines.push(`- ${d.flight.whySelected} (${t(locale, { ar: 'ثقة', en: 'confidence' })} ${Math.round(d.flight.confidence * 100)}%)`)
+      for (const reason of d.flight.whyAlternativesRejected.slice(0, 2)) {
+        lines.push(`  - ${t(locale, { ar: 'مرفوض', en: 'Rejected' })}: ${reason}`)
+      }
+      if (d.flight.estimatedSavings != null) {
+        lines.push(`  - ${t(locale, { ar: 'توفير تقديري', en: 'Est. savings' })}: ${d.flight.estimatedSavings} ${d.flight.currency ?? ''}`)
+      }
+      if (d.flight.estimatedTimeSavedMinutes != null) {
+        lines.push(`  - ${t(locale, { ar: 'وقت موفّر', en: 'Est. time saved' })}: ${d.flight.estimatedTimeSavedMinutes} min`)
+      }
+    }
+    if (d.hotel) {
+      lines.push(`- ${d.hotel.whySelected} (${t(locale, { ar: 'ثقة', en: 'confidence' })} ${Math.round(d.hotel.confidence * 100)}%)`)
+      for (const reason of d.hotel.whyAlternativesRejected.slice(0, 2)) {
+        lines.push(`  - ${t(locale, { ar: 'مرفوض', en: 'Rejected' })}: ${reason}`)
+      }
+    }
+    if (d.activities) {
+      lines.push(`- ${d.activities.whySelected}`)
+    }
+    if (d.conflicts.length) {
+      lines.push(t(locale, { ar: 'تعارضات مكتشفة:', en: 'Conflicts detected:' }))
+      for (const conflict of d.conflicts.slice(0, 4)) {
+        lines.push(`- [${conflict.severity}] ${conflict.message}${conflict.suggestion ? ` → ${conflict.suggestion}` : ''}`)
+      }
+    }
+    if (d.suggestions.length) {
+      lines.push(t(locale, { ar: 'بدائل مقترحة:', en: 'Better alternatives:' }))
+      for (const tip of d.suggestions.slice(0, 4)) lines.push(`- ${tip}`)
+    }
+  }
+
   if (plan.notes.length) {
     lines.push('')
     lines.push(t(locale, { ar: '### ملاحظات إضافية', en: '### Additional notes' }))
@@ -293,13 +334,8 @@ export function formatTripPlanReply(plan: TripPlan, locale: AgentLocale): string
 
   lines.push('')
   lines.push(t(locale, {
-    ar: 'تم بناء هذه الخطة عبر أدوات الوكيل التجريبية (طيران/فنادق/طقس/معالم…) دون اتصالات مزود حقيقية بعد.',
-    en: 'This plan used the agent tool layer (flights/hotels/weather/attractions…) with mock adapters — no live provider APIs yet.',
-  }))
-  lines.push('')
-  lines.push(t(locale, {
-    ar: 'يمكنك إعادة توليد الخطة كاملة أو يوماً واحداً، وتعديل الميزانية/الوجهة/التواريخ/عدد المسافرين من الأزرار أو بالمحادثة.',
-    en: 'You can regenerate the whole trip or one day, and edit budget / destination / dates / traveler count via the actions or chat.',
+    ar: 'يمكنك إعادة توليد الخطة كاملة، أو يوماً، أو الطيران فقط، أو الفندق فقط، أو الأنشطة فقط عبر المحادثة.',
+    en: 'You can regenerate the whole trip, a single day, flights only, hotels only, or activities only via chat.',
   }))
   return lines.join('\n')
 }

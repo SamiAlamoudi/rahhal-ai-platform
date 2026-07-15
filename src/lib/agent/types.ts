@@ -2,6 +2,9 @@
  * Travel AI Agent foundation models — structured planning over the shared chatEngine.
  */
 
+import type { TripDecision } from './decision/types'
+
+export type { TripDecision }
 export type AgentLocale = 'ar' | 'en'
 
 export type TravelerType = 'solo' | 'couple' | 'family' | 'friends' | 'business'
@@ -20,6 +23,14 @@ export type AgentIntent =
   | 'edit'
   | 'save'
   | 'unknown'
+
+/** Scoped regeneration target for the Intelligent Decision Engine. */
+export type RegenerateScope =
+  | 'whole'
+  | 'day'
+  | 'flight'
+  | 'hotel'
+  | 'activities'
 
 export interface TripRequirements {
   destination: string | null
@@ -43,6 +54,8 @@ export interface TripRequirements {
   tripPurpose: 'leisure' | 'honeymoon' | 'business' | 'family' | null
   /** When intent is regenerate_day — 1-based day index. */
   regenerateDay: number | null
+  /** Scoped regenerate: whole trip, day, flight, hotel, or activities. */
+  regenerateScope: RegenerateScope | null
 }
 
 export interface ItineraryActivity {
@@ -149,6 +162,11 @@ export interface TripPlan {
   conversationId: string
   requirements: TripRequirements
   updatedAt: string
+  /**
+   * Optional Intelligent Decision Engine enrichment.
+   * Core TripPlan fields remain the canonical plan; this explains rankings.
+   */
+  decision?: TripDecision | null
 }
 
 /** @deprecated Prefer TripPlan — kept for MVP compatibility. */
@@ -219,6 +237,7 @@ export function emptyRequirements(): TripRequirements {
     notes: null,
     tripPurpose: null,
     regenerateDay: null,
+    regenerateScope: null,
   }
 }
 
