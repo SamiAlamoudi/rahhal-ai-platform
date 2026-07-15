@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { runProvidersCheck } from '../lib/agent/aggregation/providerEnablement/cli'
+import { runProvidersCheck } from '../agent/aggregation/providerEnablement/cli'
 
 describe('providers:check', () => {
   it('runs configuration/readiness validation without network calls', async () => {
