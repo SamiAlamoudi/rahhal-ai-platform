@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
-import { chatService } from '../lib/chat/chatService'
-import { filterConversations, validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
+import { chatEngine } from '../lib/chat/chatEngine'
+import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
+import { validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
 import type { ChatConversation, ChatMessage } from '../lib/chat/chatTypes'
 
 export default function ChatPage() {
@@ -24,7 +25,7 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement | null>(null)
 
   const filtered = useMemo(
-    () => filterConversations(conversations, query),
+    () => chatEngine.searchConversations(conversations, query),
     [conversations, query],
   )
 
@@ -38,7 +39,7 @@ export default function ChatPage() {
     setListLoading(true)
     setListError(null)
     try {
-      const rows = await chatService.listConversations()
+      const rows = await chatEngine.listConversations()
       setConversations(rows)
       const nextId = preferId && rows.some((r) => r.id === preferId)
         ? preferId
@@ -56,7 +57,7 @@ export default function ChatPage() {
     setDetailLoading(true)
     setDetailError(null)
     try {
-      const detail = await chatService.getConversationDetail(id)
+      const detail = await chatEngine.getConversationDetail(id)
       setMessages(detail.messages)
       setConversations((prev) =>
         prev.map((c) => (c.id === detail.conversation.id ? detail.conversation : c)),
@@ -99,7 +100,7 @@ export default function ChatPage() {
   const handleCreate = async () => {
     setActionError(null)
     try {
-      const created = await chatService.createConversation()
+      const created = await chatEngine.createConversation()
       setConversations((prev) => [created, ...prev])
       setActiveId(created.id)
       setMessages([])
@@ -120,7 +121,7 @@ export default function ChatPage() {
     }
     setActionError(null)
     try {
-      const renamed = await chatService.renameConversation(id, nextTitle)
+      const renamed = await chatEngine.renameConversation(id, nextTitle)
       setConversations((prev) => prev.map((c) => (c.id === id ? renamed : c)))
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'تعذر إعادة التسمية')
@@ -131,7 +132,7 @@ export default function ChatPage() {
     if (!window.confirm('حذف هذه المحادثة وجميع رسائلها؟')) return
     setActionError(null)
     try {
-      await chatService.deleteConversation(id)
+      await chatEngine.deleteConversation(id)
       const remaining = conversations.filter((c) => c.id !== id)
       setConversations(remaining)
       if (activeId === id) {
@@ -208,6 +209,8 @@ export default function ChatPage() {
         modality: 'text',
         content: content.trim(),
         audioUrl: null,
+        imageUrl: null,
+        attachments: [],
         status: 'complete',
         error: null,
         providerMeta: {},
@@ -217,7 +220,11 @@ export default function ChatPage() {
     ])
 
     await runGeneration(async (handlers) => {
-      const result = await chatService.sendUserMessage(activeId, content, handlers)
+      const result = await chatEngine.sendMessage({
+        conversationId: activeId,
+        content,
+        modality: 'text',
+      }, handlers)
       setMessages((prev) => {
         const withoutTemp = prev.filter((m) => m.id !== tempId && m.id !== result.assistant.id)
         return [...withoutTemp, result.user, result.assistant]
@@ -228,9 +235,26 @@ export default function ChatPage() {
   const handleRetry = async (assistantMessageId: string) => {
     if (!activeId || isStreaming) return
     await runGeneration(async (handlers) => {
-      const updated = await chatService.retryAssistantMessage(activeId, assistantMessageId, handlers)
+      const updated = await chatEngine.retryAssistantMessage(activeId, assistantMessageId, handlers)
       upsertMessage(updated)
     })
+  }
+
+  const handleAttachImage = async () => {
+    if (!activeId) return
+    if (!CHAT_ATTACHMENTS_ENABLED) {
+      setActionError('مرفقات الصور جاهزة معمارياً وستُفعَّل بعد تجهيز التخزين')
+      return
+    }
+    const result = await uploadChatAttachment({
+      conversationId: activeId,
+      fileName: 'image.png',
+      mimeType: 'image/png',
+      sizeBytes: 1024,
+    })
+    if (!result.ready) {
+      setActionError(result.reason ?? 'تعذر رفع الصورة')
+    }
   }
 
   return (
@@ -257,7 +281,7 @@ export default function ChatPage() {
             </button>
             <div className="min-w-0">
               <h1 className="truncate text-base font-bold text-slate-900">محادثة رحّال</h1>
-              <p className="text-[10px] text-slate-400">أساس الدردشة النصية — الصوت لاحقاً</p>
+              <p className="text-[10px] text-slate-400">محرك محادثة مشترك — الصوت لاحقاً بنفس النظام</p>
             </div>
           </div>
           <button
@@ -366,6 +390,15 @@ export default function ChatPage() {
                     disabled={!activeId}
                   />
                   <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleAttachImage()}
+                      disabled={!activeId || isStreaming}
+                      title="مرفقات الصور (بنية جاهزة — التخزين لاحقاً)"
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-40"
+                    >
+                      صورة
+                    </button>
                     {isStreaming && (
                       <button
                         type="button"

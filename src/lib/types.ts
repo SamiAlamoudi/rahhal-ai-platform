@@ -138,6 +138,7 @@ export interface ConversationRow {
   title: string
   modality_default: ChatModality | string
   travel_session_id: string | null
+  last_message_preview: string
   created_at: string
   updated_at: string
 }
@@ -150,6 +151,8 @@ export interface MessageRow {
   modality: ChatModality | string
   content: string
   audio_url: string | null
+  image_url: string | null
+  attachments: unknown[] | Record<string, unknown>[] | null
   status: ChatMessageStatus | string
   error: string | null
   provider_meta: Record<string, unknown>

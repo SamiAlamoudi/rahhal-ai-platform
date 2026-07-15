@@ -58,14 +58,20 @@ export default function ConversationSidebar({
         )}
         {!loading && conversations.length === 0 && (
           <div className="rounded-xl border border-dashed border-slate-200 px-3 py-8 text-center">
-            <p className="text-xs text-slate-500">لا توجد محادثات بعد</p>
-            <button
-              type="button"
-              onClick={onCreate}
-              className="mt-3 text-xs font-medium text-primary-600 underline"
-            >
-              ابدأ محادثة
-            </button>
+            <p className="text-xs text-slate-500">
+              {query.trim()
+                ? 'لا نتائج مطابقة لبحثك'
+                : 'لا توجد محادثات بعد'}
+            </p>
+            {!query.trim() && (
+              <button
+                type="button"
+                onClick={onCreate}
+                className="mt-3 text-xs font-medium text-primary-600 underline"
+              >
+                ابدأ محادثة
+              </button>
+            )}
           </div>
         )}
         <ul className="space-y-1">
@@ -89,6 +95,11 @@ export default function ConversationSidebar({
                     <p className={`truncate text-sm font-medium ${active ? 'text-primary-800' : 'text-slate-800'}`}>
                       {conversation.title}
                     </p>
+                    {conversation.lastMessagePreview ? (
+                      <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                        {conversation.lastMessagePreview}
+                      </p>
+                    ) : null}
                     <p className="mt-0.5 text-[10px] text-slate-400">
                       {new Date(conversation.updatedAt).toLocaleDateString('ar-SA')}
                     </p>

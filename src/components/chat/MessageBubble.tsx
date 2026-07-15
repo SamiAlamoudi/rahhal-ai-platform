@@ -13,6 +13,9 @@ export default function MessageBubble({ message, isStreaming = false, onRetry }:
   const [copied, setCopied] = useState(false)
   const isUser = message.role === 'user'
   const showActions = message.role === 'assistant' && message.status !== 'streaming' && !isStreaming
+  const imageUrl = message.imageUrl
+    || message.attachments.find((a) => a.kind === 'image')?.url
+    || null
 
   const handleCopy = async () => {
     const ok = await copyTextToClipboard(message.content)
@@ -34,14 +37,24 @@ export default function MessageBubble({ message, isStreaming = false, onRetry }:
         <div className="mb-1 text-[10px] font-medium opacity-70">
           {isUser ? 'أنت' : 'رحّال'}
           {message.modality === 'audio' ? ' · صوت' : ''}
+          {imageUrl ? ' · صورة' : ''}
         </div>
+
+        {imageUrl && (
+          <div className="mb-2 overflow-hidden rounded-xl border border-white/20">
+            <img
+              src={imageUrl}
+              alt="مرفق المحادثة"
+              className="max-h-56 w-full object-cover"
+              loading="lazy"
+            />
+          </div>
+        )}
 
         {isUser ? (
           <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
         ) : (
-          <div className={isUser ? '' : '[&_strong]:text-slate-900'}>
-            <MarkdownContent content={message.content || (isStreaming ? '…' : '')} />
-          </div>
+          <MarkdownContent content={message.content || (isStreaming ? '…' : '')} />
         )}
 
         {(message.status === 'error' || message.status === 'cancelled') && (

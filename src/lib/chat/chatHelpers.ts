@@ -10,13 +10,22 @@ export function titleFromFirstMessage(content: string, fallback = 'محادثة 
   return trimmed.length > 42 ? `${trimmed.slice(0, 42)}…` : trimmed
 }
 
+export function buildMessagePreview(content: string, maxLen = 80): string {
+  const trimmed = content.trim().replace(/\s+/g, ' ')
+  if (!trimmed) return ''
+  return trimmed.length > maxLen ? `${trimmed.slice(0, maxLen)}…` : trimmed
+}
+
 export function filterConversations(
   conversations: ChatConversation[],
   query: string,
 ): ChatConversation[] {
   const q = query.trim().toLowerCase()
   if (!q) return conversations
-  return conversations.filter((c) => c.title.toLowerCase().includes(q))
+  return conversations.filter((c) => {
+    const haystack = `${c.title} ${c.lastMessagePreview}`.toLowerCase()
+    return haystack.includes(q)
+  })
 }
 
 export function validateConversationTitle(title: string): string | null {

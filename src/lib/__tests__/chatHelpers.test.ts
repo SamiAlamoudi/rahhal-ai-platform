@@ -14,6 +14,7 @@ function conversation(partial: Partial<ChatConversation> & Pick<ChatConversation
   return {
     modalityDefault: 'text',
     travelSessionId: null,
+    lastMessagePreview: '',
     createdAt: '2026-07-15T00:00:00.000Z',
     updatedAt: '2026-07-15T00:00:00.000Z',
     ...partial,
@@ -25,6 +26,8 @@ function message(partial: Partial<ChatMessage> & Pick<ChatMessage, 'id' | 'role'
     conversationId: 'c1',
     modality: 'text',
     audioUrl: null,
+    imageUrl: null,
+    attachments: [],
     status: 'complete',
     error: null,
     providerMeta: {},
@@ -43,12 +46,13 @@ describe('chatHelpers', () => {
     expect(validateUserMessage('خطة سفر')).toBeNull()
   })
 
-  it('filters conversations by title', () => {
+  it('filters conversations by title and preview', () => {
     const rows = [
-      conversation({ id: '1', title: 'طوكيو' }),
-      conversation({ id: '2', title: 'دبي' }),
+      conversation({ id: '1', title: 'طوكيو', lastMessagePreview: 'فنادق وسط المدينة' }),
+      conversation({ id: '2', title: 'دبي', lastMessagePreview: 'عطلة قصيرة' }),
     ]
     expect(filterConversations(rows, 'دبي')).toHaveLength(1)
+    expect(filterConversations(rows, 'فنادق')).toHaveLength(1)
     expect(filterConversations(rows, '')).toHaveLength(2)
   })
 
