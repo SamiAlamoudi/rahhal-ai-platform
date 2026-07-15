@@ -94,7 +94,7 @@ describe('aggregation engine', () => {
     const adapters = createDefaultMockProviderAdapters()
     const ids = adapters.map((a) => a.metadata.id)
     expect(ids).toEqual(expect.arrayContaining([
-      'amadeus',
+      'amadeus_mock',
       'duffel',
       'booking_com',
       'expedia',
@@ -104,6 +104,7 @@ describe('aggregation engine', () => {
       'exchangerate',
       'visa_info',
       'attractions_catalog',
+      'rome2rio',
     ]))
   })
 })

@@ -17,6 +17,7 @@ export type AggregatableDomain =
 export type KnownProviderId =
   // Flights
   | 'amadeus'
+  | 'amadeus_mock'
   | 'duffel'
   | 'skyscanner'
   // Hotels
@@ -121,6 +122,8 @@ export interface AggregationQuery {
   input: Record<string, unknown>
   locale: 'ar' | 'en'
   signal?: AbortSignal
+  /** Optional per-query override (e.g. flights → Amadeus then mock). */
+  selectionStrategy?: ProviderSelectionStrategy
 }
 
 export interface ProviderFetchResult {

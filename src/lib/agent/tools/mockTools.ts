@@ -35,6 +35,7 @@ function createAggregatedTool(input: {
   inputSchema: ToolJsonSchema
   outputSchema: ToolJsonSchema
   engine: AggregationEngine
+  selectionStrategy?: 'parallel' | 'priority_fallback'
   enrichInput?: (ctx: AgentToolContext) => Record<string, unknown>
   summarize: (ctx: AgentToolContext, data: Record<string, unknown>, conf: number) => string
 }): AgentTool {
@@ -57,6 +58,7 @@ function createAggregatedTool(input: {
         input: queryInput,
         locale: ctx.locale,
         signal: ctx.signal,
+        selectionStrategy: input.selectionStrategy,
       })
 
       if (aggregated.meta.providersSucceeded === 0) {
@@ -91,7 +93,9 @@ export function createMockFlightSearchTool(
     name: 'flights',
     domain: 'flights',
     providerId: 'aggregate-flights',
-    timeoutMs: 2000,
+    timeoutMs: 5000,
+    // Real Amadeus (when available) then mock flights automatically.
+    selectionStrategy: 'priority_fallback',
     engine,
     inputSchema: schema('FlightSearchInput', {
       ...destinationSchemaProps,

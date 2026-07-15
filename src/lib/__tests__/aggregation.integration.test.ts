@@ -45,7 +45,8 @@ describe('aggregation + travel agent integration', () => {
       offers?: unknown[]
       aggregation?: { providersSucceeded?: number; providersQueried?: number }
     }
-    expect(flightData.aggregation?.providersQueried).toBeGreaterThanOrEqual(2)
+    // Flights use priority_fallback (Amadeus → mock); hotels remain multi-provider.
+    expect(flightData.aggregation?.providersQueried).toBeGreaterThanOrEqual(1)
     expect(flightData.aggregation?.providersSucceeded).toBeGreaterThanOrEqual(1)
     expect((flightData.offers ?? []).length).toBeGreaterThan(0)
 

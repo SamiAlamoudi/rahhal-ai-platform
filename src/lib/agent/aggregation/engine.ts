@@ -43,9 +43,10 @@ export function createAggregationEngine(
   return {
     async aggregate(query: AggregationQuery): Promise<AggregationResult> {
       const started = Date.now()
+      const activeStrategy = query.selectionStrategy ?? selectionStrategy
       const adapters = options.registry.select({
         domain: query.domain,
-        strategy: selectionStrategy,
+        strategy: activeStrategy,
         includeFutureSlots: false,
         excludeUnhealthy: true,
       })
@@ -54,14 +55,14 @@ export function createAggregationEngine(
       )
 
       if (adapters.length === 0) {
-        return emptyResult(query.domain, started, selectionStrategy)
+        return emptyResult(query.domain, started, activeStrategy)
       }
 
       let settled: ProviderFetchResult[] = []
       let retries = 0
       let fallbacksUsed = 0
 
-      if (selectionStrategy === 'priority_fallback') {
+      if (activeStrategy === 'priority_fallback') {
         const tried = new Set<string>()
         let next = selectNextFallback(adapters, tried)
         while (next) {
@@ -143,7 +144,7 @@ export function createAggregationEngine(
           providersQueried: settled.length,
           providersSucceeded: settled.filter((r) => r.status === 'ok').length,
           duplicatesRemoved: deduped.duplicatesRemoved,
-          selectionStrategy,
+          selectionStrategy: activeStrategy,
           retries,
           fallbacksUsed,
         },

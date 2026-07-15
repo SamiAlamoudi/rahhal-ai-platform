@@ -7,6 +7,7 @@ import {
   createMockDuffelAdapter,
   createMockRome2RioAdapter,
   createDefaultMockProviderAdapters,
+  createDefaultProviderAdapters,
   createFutureProviderStubs,
   createUnavailableProviderStub,
   normalizeProviderError,
@@ -49,12 +50,12 @@ describe('Phase M provider adapter architecture', () => {
   })
 
   it('supports capability discovery for active and future providers', () => {
-    const registry = createProviderRegistry(createDefaultMockProviderAdapters())
+    const registry = createProviderRegistry(createDefaultProviderAdapters())
     const all = registry.discoverCapabilities()
     expect(all.length).toBeGreaterThan(10)
     const flights = registry.discoverCapabilities('flights')
     const ids = flights.map((c) => c.providerId)
-    expect(ids).toEqual(expect.arrayContaining(['amadeus', 'duffel', 'skyscanner']))
+    expect(ids).toEqual(expect.arrayContaining(['amadeus', 'amadeus_mock', 'duffel', 'skyscanner']))
     expect(flights.find((c) => c.providerId === 'skyscanner')?.futureSlot).toBe(true)
     expect(FUTURE_PROVIDER_CATALOG.map((f) => f.id)).toEqual(expect.arrayContaining([
       'skyscanner',
@@ -76,7 +77,7 @@ describe('Phase M provider adapter architecture', () => {
       createUnavailableProviderStub('skyscanner', 'Skyscanner', ['flights'], ['search']),
     ])
     const selected = registry.select({ domain: 'flights' })
-    expect(selected.map((a) => a.metadata.id)).toEqual(['amadeus', 'duffel'])
+    expect(selected.map((a) => a.metadata.id)).toEqual(['duffel', 'amadeus_mock'])
     expect(selected[0].metadata.priority).toBeGreaterThan(selected[1].metadata.priority)
     expect(selectProviders(registry, { domain: 'flights' })).toHaveLength(2)
   })
@@ -311,15 +312,15 @@ describe('Phase M provider adapter architecture', () => {
       createMockDuffelAdapter(),
     ])
     for (let i = 0; i < 3; i += 1) {
-      registry.recordOutcome('amadeus', {
-        providerId: 'amadeus',
+      registry.recordOutcome('amadeus_mock', {
+        providerId: 'amadeus_mock',
         status: 'error',
         items: [],
         errorCode: 'upstream_error',
         durationMs: 1,
       })
     }
-    expect(registry.getHealthStatus('amadeus')[0]?.status).toBe('unhealthy')
+    expect(registry.getHealthStatus('amadeus_mock')[0]?.status).toBe('unhealthy')
     const selected = registry.select({ domain: 'flights', excludeUnhealthy: true })
     expect(selected.map((a) => a.metadata.id)).toEqual(['duffel'])
     vi.useRealTimers()
