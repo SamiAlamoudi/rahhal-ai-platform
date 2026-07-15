@@ -65,6 +65,15 @@ Keep `VITE_PAYMENT_PROVIDER=mock` until verification and live credentials are co
 - PayPal
 - Other regional and international payment methods as merchant eligibility allows
 
+### Providers to keep supported through the abstraction layer
+- Stripe
+- Moyasar
+- Apple Pay / Google Pay / Mada / STC Pay (as provider-capable method rails)
+- Bank Transfer
+- Tabby / Tamara
+- PayPal
+- Other providers added behind the same payment provider factory — never hardcode checkout to one PSP
+
 ### Provider-agnostic adapter architecture (required)
 
 Future checkout must keep a **provider-agnostic adapter layer** so methods can be

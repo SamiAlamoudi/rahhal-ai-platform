@@ -1,21 +1,39 @@
 import { useState } from 'react'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import { copyTextToClipboard } from '../../lib/chat/chatHelpers'
+import { isAgentProviderMeta } from '../../lib/agent/memory'
+import type { TravelItinerary } from '../../lib/agent/types'
 import MarkdownContent from './MarkdownContent'
+import ItineraryActions from './ItineraryActions'
 
 interface MessageBubbleProps {
   message: ChatMessage
   isStreaming?: boolean
+  busy?: boolean
   onRetry?: (messageId: string) => void
+  onSaveItinerary?: (itinerary: TravelItinerary, messageId: string) => void
+  onRegenerateItinerary?: (messageId: string) => void
+  onEditItinerary?: (patchText: string) => void
 }
 
-export default function MessageBubble({ message, isStreaming = false, onRetry }: MessageBubbleProps) {
+export default function MessageBubble({
+  message,
+  isStreaming = false,
+  busy = false,
+  onRetry,
+  onSaveItinerary,
+  onRegenerateItinerary,
+  onEditItinerary,
+}: MessageBubbleProps) {
   const [copied, setCopied] = useState(false)
   const isUser = message.role === 'user'
   const showActions = message.role === 'assistant' && message.status !== 'streaming' && !isStreaming
   const imageUrl = message.imageUrl
     || message.attachments.find((a) => a.kind === 'image')?.url
     || null
+  const itinerary = isAgentProviderMeta(message.providerMeta)
+    ? message.providerMeta.itinerary
+    : null
 
   const handleCopy = async () => {
     const ok = await copyTextToClipboard(message.content)
@@ -35,7 +53,7 @@ export default function MessageBubble({ message, isStreaming = false, onRetry }:
         }`}
       >
         <div className="mb-1 text-[10px] font-medium opacity-70">
-          {isUser ? 'أنت' : 'رحّال'}
+          {isUser ? 'أنت' : 'وكيل سفر رحّال'}
           {message.modality === 'audio' ? ' · صوت / نصّ الكلام' : ''}
           {imageUrl ? ' · صورة' : ''}
         </div>
@@ -67,6 +85,16 @@ export default function MessageBubble({ message, isStreaming = false, onRetry }:
           <p className={`mt-2 text-xs ${isUser ? 'text-primary-100' : 'text-rose-600'}`}>
             {message.status === 'cancelled' ? 'تم إيقاف التوليد' : (message.error || 'فشل التوليد')}
           </p>
+        )}
+
+        {showActions && itinerary && onSaveItinerary && onRegenerateItinerary && onEditItinerary && (
+          <ItineraryActions
+            itinerary={itinerary}
+            busy={busy}
+            onSave={() => onSaveItinerary(itinerary, message.id)}
+            onRegenerate={() => onRegenerateItinerary(message.id)}
+            onEditSubmit={onEditItinerary}
+          />
         )}
 
         {showActions && (

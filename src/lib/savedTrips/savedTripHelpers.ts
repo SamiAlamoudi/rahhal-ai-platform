@@ -1,4 +1,5 @@
 import type { SavedTripRow } from '../types'
+import type { TravelItinerary } from '../agent/types'
 
 export interface SavedTripItemSnapshot {
   type: string
@@ -16,6 +17,8 @@ export interface SavedTripData {
   bookingSessionId: string | null
   savedFrom: string
   total: number | null
+  /** Structured Travel AI Agent itinerary when saved from chat. */
+  agentItinerary?: TravelItinerary | null
 }
 
 export function buildSavedTripTitle(destination: string, itemCount: number): string {
@@ -46,6 +49,7 @@ export function buildSavedTripData(input: {
     bookingSessionId: input.bookingSessionId,
     savedFrom: input.savedFrom ?? 'booking_review',
     total: input.items.length > 0 ? total : null,
+    agentItinerary: null,
   }
 }
 
@@ -71,6 +75,8 @@ export function parseSavedTripData(raw: Record<string, unknown> | null | undefin
   const totalFromRaw = typeof raw?.total === 'number' && Number.isFinite(raw.total) ? raw.total : null
   const computed = items.reduce((sum, item) => sum + item.price, 0)
 
+  const agentItinerary = isTravelItinerary(raw?.agentItinerary) ? raw.agentItinerary : null
+
   return {
     currency,
     items,
@@ -78,7 +84,19 @@ export function parseSavedTripData(raw: Record<string, unknown> | null | undefin
     bookingSessionId: typeof raw?.bookingSessionId === 'string' ? raw.bookingSessionId : null,
     savedFrom: typeof raw?.savedFrom === 'string' ? raw.savedFrom : 'unknown',
     total: totalFromRaw ?? (items.length > 0 ? computed : null),
+    agentItinerary,
   }
+}
+
+function isTravelItinerary(value: unknown): value is TravelItinerary {
+  if (!value || typeof value !== 'object') return false
+  const row = value as Record<string, unknown>
+  return typeof row.id === 'string'
+    && typeof row.title === 'string'
+    && Array.isArray(row.destinations)
+    && Array.isArray(row.activities)
+    && !!row.estimatedBudget
+    && typeof row.estimatedBudget === 'object'
 }
 
 export function filterSavedTrips(trips: SavedTripRow[], query: string): SavedTripRow[] {

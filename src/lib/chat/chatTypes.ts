@@ -38,6 +38,8 @@ export interface ChatStreamChunk {
   type: 'delta' | 'done' | 'error'
   text?: string
   error?: string
+  /** Optional structured metadata attached on `done` (e.g. Travel AI Agent itinerary). */
+  meta?: Record<string, unknown>
 }
 
 export interface ChatCompletionRequest {

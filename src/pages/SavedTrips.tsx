@@ -186,10 +186,10 @@ export default function SavedTrips() {
             </p>
             <button
               type="button"
-              onClick={() => (query.trim() ? setQuery('') : navigate('/search'))}
+              onClick={() => (query.trim() ? setQuery('') : navigate('/chat'))}
               className="mt-4 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700"
             >
-              {query.trim() ? 'مسح البحث' : 'ابدأ التخطيط لرحلة'}
+              {query.trim() ? 'مسح البحث' : 'ابدأ مع وكيل السفر'}
             </button>
           </div>
         ) : null}
@@ -245,6 +245,11 @@ export default function SavedTrips() {
                           <p className="mt-1 text-sm text-slate-600">{trip.destination || '—'}</p>
                           <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
                             <span>{new Date(trip.created_at).toLocaleDateString('ar-SA')}</span>
+                            {data.agentItinerary && (
+                              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">
+                                خطة وكيل السفر
+                              </span>
+                            )}
                             {data.items.length > 0 && (
                               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
                                 {data.items.length} عنصر
@@ -278,7 +283,7 @@ export default function SavedTrips() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate('/search')}
+                        onClick={() => navigate(data.agentItinerary ? '/chat' : '/search')}
                         className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
                       >
                         متابعة التخطيط
@@ -295,10 +300,37 @@ export default function SavedTrips() {
                   </div>
 
                   {expanded && (
-                    <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3">
-                      {data.items.length === 0 ? (
+                    <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3 space-y-3">
+                      {data.agentItinerary && (
+                        <div className="rounded-xl border border-emerald-100 bg-white px-3 py-3 text-sm text-slate-700">
+                          <p className="font-bold text-slate-900">{data.agentItinerary.title}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {data.agentItinerary.destinations.join('، ')}
+                            {' · '}
+                            {data.agentItinerary.durationDays} أيام
+                            {' · '}
+                            {data.agentItinerary.estimatedBudget.amount.toLocaleString('en-US')}{' '}
+                            {data.agentItinerary.estimatedBudget.currency}
+                          </p>
+                          <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                            {data.agentItinerary.activities.slice(0, 5).map((day) => (
+                              <li key={`${trip.id}-day-${day.day}`}>
+                                {day.title}: {day.activities.map((a) => a.title).join(' · ')}
+                              </li>
+                            ))}
+                          </ul>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/chat')}
+                            className="mt-3 text-xs font-medium text-primary-700 underline"
+                          >
+                            فتح وكيل السفر للتعديل
+                          </button>
+                        </div>
+                      )}
+                      {data.items.length === 0 && !data.agentItinerary ? (
                         <p className="text-sm text-slate-500">لا توجد عناصر محفوظة داخل هذه الرحلة.</p>
-                      ) : (
+                      ) : data.items.length > 0 ? (
                         <ul className="space-y-2">
                           {data.items.map((item, index) => (
                             <li
@@ -320,7 +352,7 @@ export default function SavedTrips() {
                             </li>
                           ))}
                         </ul>
-                      )}
+                      ) : null}
                     </div>
                   )}
                 </article>
