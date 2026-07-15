@@ -1,5 +1,6 @@
 /**
- * Phase AB — RankingEngine foundation (deterministic, interface-first).
+ * Phase AC — RankingEngine with weighted ranking, tie-breaking, and
+ * deterministic ordering.
  */
 
 import { defaultPreferenceWeights } from '../preferences/types'
@@ -14,6 +15,11 @@ function normalizeScore(value: number | null | undefined, fallback = 0.5): numbe
   if (value == null || Number.isNaN(value)) return fallback
   if (value > 1) return clamp01(value / 100)
   return clamp01(value)
+}
+
+export interface RankingOptions {
+  /** Stable locale for explanation text. */
+  locale?: 'ar' | 'en'
 }
 
 export class DefaultRankingEngine implements RankingEngine {
@@ -54,8 +60,31 @@ export class DefaultRankingEngine implements RankingEngine {
       }
     })
 
-    return ranked.sort((a, b) => b.rankScore - a.rankScore || b.confidence - a.confidence)
+    return stableSort(ranked)
   }
+}
+
+/** Deterministic ordering: score → confidence → kind → id. */
+export function stableSort(items: RankedItem[]): RankedItem[] {
+  return [...items].sort((a, b) => {
+    if (b.rankScore !== a.rankScore) return b.rankScore - a.rankScore
+    if (b.confidence !== a.confidence) return b.confidence - a.confidence
+    if (a.kind !== b.kind) return a.kind.localeCompare(b.kind)
+    return a.id.localeCompare(b.id)
+  })
+}
+
+/** Break ties using a secondary key without mutating scores. */
+export function breakTies(items: RankedItem[], preferKinds: RankedItem['kind'][] = []): RankedItem[] {
+  const priority = new Map(preferKinds.map((k, i) => [k, preferKinds.length - i]))
+  return [...items].sort((a, b) => {
+    if (b.rankScore !== a.rankScore) return b.rankScore - a.rankScore
+    const pa = priority.get(a.kind) ?? 0
+    const pb = priority.get(b.kind) ?? 0
+    if (pb !== pa) return pb - pa
+    if (b.confidence !== a.confidence) return b.confidence - a.confidence
+    return a.id.localeCompare(b.id)
+  })
 }
 
 function buildExplanation(
@@ -78,3 +107,6 @@ function buildExplanation(
 export function createRankingEngine(): RankingEngine {
   return new DefaultRankingEngine()
 }
+
+/** Alias used by Phase AC naming. */
+export class RankingEngineImpl extends DefaultRankingEngine {}
