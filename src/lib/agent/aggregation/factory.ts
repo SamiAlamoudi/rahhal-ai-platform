@@ -6,18 +6,21 @@ import {
 import { createAmadeusProviderAdapter } from './providers/amadeus'
 import { createBookingComProviderAdapter } from './providers/booking'
 import { createGoogleMapsProviderAdapter } from './providers/googleMaps'
+import { createOpenWeatherProviderAdapter } from './providers/openWeather'
 import { createProviderRegistry } from './providerRegistry'
 import type { AggregationEngine, ProviderAdapter, ProviderRegistry } from './types'
 
 /**
  * Full default provider set for the Travel Agent:
- * Amadeus / Booking.com / Google Maps (real, when configured) → mock fallbacks + other domain mocks.
+ * Amadeus / Booking.com / Google Maps / OpenWeather (real, when configured)
+ * → mock fallbacks + other domain mocks.
  */
 export function createDefaultProviderAdapters(): ProviderAdapter[] {
   return [
     createAmadeusProviderAdapter(),
     createBookingComProviderAdapter(),
     createGoogleMapsProviderAdapter(),
+    createOpenWeatherProviderAdapter(),
     ...createDefaultMockProviderAdapters(),
   ]
 }

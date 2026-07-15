@@ -210,6 +210,13 @@ export function formatTripPlanReply(plan: TripPlan, locale: AgentLocale): string
   for (const day of plan.dailyItinerary) {
     lines.push('')
     lines.push(`**${day.title}** — ${day.location}`)
+    if (day.weather) {
+      const advice = day.weather.advice ? ` · ${day.weather.advice}` : ''
+      lines.push(t(locale, {
+        ar: `_الطقس: ${day.weather.summary}${advice}_`,
+        en: `_Weather: ${day.weather.summary}${advice}_`,
+      }))
+    }
     for (const activity of day.activities) {
       const time = activity.time ? `${activity.time} · ` : ''
       const desc = activity.description ? ` — ${activity.description}` : ''

@@ -204,7 +204,7 @@ export function createMockExpediaAdapter(): ProviderAdapter {
 }
 
 export function createMockOpenWeatherAdapter(): ProviderAdapter {
-  const metadata = meta('openweather', 'OpenWeather (mock)', ['weather'], 90, 0.92)
+  const metadata = meta('openweather_mock', 'OpenWeather (mock)', ['weather'], 45, 0.92)
   return createProviderAdapter({
     metadata,
     capabilities: { features: ['forecast_summary'], supportsRealtime: false, rateLimitPerMinute: 120 },
@@ -223,7 +223,14 @@ export function createMockOpenWeatherAdapter(): ProviderAdapter {
         currency: null,
         providerId: String(metadata.id),
         scoreHints: { relevance: 0.95 },
-        payload: { summary, averageHighC, season, destination, monthHint: month ? Number(month) : null },
+        payload: {
+          summary,
+          averageHighC,
+          season,
+          destination,
+          monthHint: month ? Number(month) : null,
+          source: 'openweather_mock',
+        },
       }])
     },
   })
