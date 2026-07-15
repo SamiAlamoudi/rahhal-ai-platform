@@ -46,7 +46,8 @@ npm run dev
 | H.5 | Chat & voice polish (no new features) | Streaming coalesce, mic UX, interrupt/resume, offline/recovery, a11y, tests |
 | I | Travel AI Agent foundation | Orchestration service, TripPlan model, LLM/tool adapters, chat+voice via chatEngine |
 | J | Tool execution framework | Mock flights/hotels/weather/maps/currency/visa/attractions + auto tool selection |
-| K | CI/E2E/ops | Partial |
+| K | Multi-provider aggregation | Parallel mock provider query, normalize, dedupe, rank, confidence, merge |
+| L | CI/E2E/ops | Partial |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).
 

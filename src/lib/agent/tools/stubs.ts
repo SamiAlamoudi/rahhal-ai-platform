@@ -1,3 +1,4 @@
+import { createDefaultAggregationEngine } from '../aggregation'
 import type { AgentTool, AgentToolName, ToolJsonSchema } from './types'
 import { createAgentToolRegistry } from './registry'
 import { createAllMockTools } from './mockTools'
@@ -45,11 +46,12 @@ export function createUnavailableAgentToolRegistry() {
 }
 
 /**
- * Default Phase J registry: deterministic mock tools with production-ready schemas.
- * Real vendors (Amadeus, Duffel, Booking.com, OpenWeather, …) replace these adapters later.
+ * Default tool registry: tools call the multi-provider Aggregation Engine
+ * (mock Amadeus/Duffel/Booking/… adapters). Real vendor HTTP comes later.
  */
 export function createMockAgentToolRegistry() {
-  const registry = createAgentToolRegistry(createAllMockTools())
+  const engine = createDefaultAggregationEngine()
+  const registry = createAgentToolRegistry(createAllMockTools(engine))
   // Keep local_recommendations as an unavailable extension slot
   registry.register(createStubTool('local_recommendations'))
   return registry

@@ -29,7 +29,7 @@ describe('tool executor', () => {
     })
     expect(batch.selected).toEqual(['weather', 'flights'])
     expect(batch.okCount).toBe(2)
-    expect(batch.results.every((r) => r.meta?.providerId.startsWith('mock-'))).toBe(true)
+    expect(batch.results.every((r) => r.meta?.providerId.startsWith('aggregate-'))).toBe(true)
     expect(batch.results.every((r) => typeof r.meta?.timeoutMs === 'number')).toBe(true)
   })
 

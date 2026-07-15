@@ -58,3 +58,23 @@ export {
   getDefaultAgentLlmProviderId,
 } from './llm/factory'
 export type { AgentLlmProvider, AgentLlmProviderId, AgentLlmRegistry } from './llm/types'
+export {
+  createAggregationEngine,
+  createDefaultAggregationEngine,
+  createDefaultProviderRegistry,
+  createProviderRegistry,
+  dedupeOffers,
+  rankOffers,
+  scoreOfferConfidence,
+  mergeCompatibleOffers,
+  createDefaultMockProviderAdapters,
+} from './aggregation'
+export type {
+  AggregationEngine,
+  AggregationResult,
+  AggregatableDomain,
+  ProviderAdapter,
+  ProviderRegistry,
+  NormalizedOffer,
+  ProviderMetadata,
+} from './aggregation'
