@@ -51,8 +51,10 @@ describe('mergeToolResultsIntoPlan', () => {
 
     const merged = mergeToolResultsIntoPlan(base, results)
     expect(merged.transportation.some((t) => t.mode === 'flight' && t.estimatedCost === 700)).toBe(true)
+    expect(merged.flights.some((f) => f.estimatedCost === 700)).toBe(true)
     expect(merged.accommodations[0]?.name).toBe('Tokyo Stay')
-    expect(merged.notes.some((n) => /Weather|الطقس|spring/i.test(n))).toBe(true)
+    expect(merged.weatherNotes.some((n) => /Weather|الطقس|spring/i.test(n))).toBe(true)
+    expect(merged.attractions.some((a) => a.title === 'Senso-ji')).toBe(true)
     expect(merged.dailyItinerary.some((d) => d.activities.some((a) => a.title === 'Senso-ji'))).toBe(true)
   })
 })

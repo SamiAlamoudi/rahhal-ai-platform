@@ -464,6 +464,19 @@ export default function ChatPage() {
     })
   }
 
+  const handleRegenerateDay = async (messageId: string, day: number) => {
+    if (!activeId || isStreaming || voiceBusy || !online) return
+    await runGeneration(async (handlers) => {
+      const result = await chatEngine.sendMessage({
+        conversationId: activeId,
+        content: `Regenerate day ${day}`,
+        modality: 'text',
+      }, handlers)
+      setMessages((prev) => [...prev.filter((m) => m.id !== result.assistant.id), result.user, result.assistant])
+      void messageId
+    })
+  }
+
   const handlePushStart = async () => {
     if (!activeId || !online) return
     setActionError(null)
@@ -650,7 +663,7 @@ export default function ChatPage() {
                   <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-12 text-center">
                     <p className="text-sm font-medium text-slate-700">ابدأ وكيل السفر</p>
                     <p className="mt-1 text-sm text-slate-500">
-                      مثال: Plan a 7-day trip to Japan · عطلة عائلية بأقل من 3000 دولار · Weekend in Riyadh
+                      مثال: I want to travel to Japan — الوكيل يسأل عن التوقيت والميزانية والمسافرين ثم يبني الخطة
                     </p>
                   </div>
                 )}
@@ -664,6 +677,7 @@ export default function ChatPage() {
                       onRetry={(id) => void handleRetry(id)}
                       onSaveItinerary={(itinerary) => void handleSaveItinerary(itinerary)}
                       onRegenerateItinerary={(id) => void handleRegenerateItinerary(id)}
+                      onRegenerateDay={(id, day) => void handleRegenerateDay(id, day)}
                       onEditItinerary={(patchText) => void sendAgentCommand(patchText)}
                     />
                   ))}

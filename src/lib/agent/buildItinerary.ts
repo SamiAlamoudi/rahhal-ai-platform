@@ -1,7 +1,9 @@
 import type {
   AccommodationRecommendation,
   AgentLocale,
+  AttractionItem,
   EstimatedBudget,
+  FlightRecommendation,
   ItineraryDay,
   TransportationItem,
   TripPlan,
@@ -78,6 +80,7 @@ export function buildTripPlan(input: {
     interests: input.requirements.interests,
     travelerType: input.requirements.travelerType,
     tripPurpose: input.requirements.tripPurpose,
+    weatherPreference: input.requirements.weatherPreference,
     seed: input.seed ?? `${destination}-${durationDays}`,
   })
 
@@ -87,16 +90,33 @@ export function buildTripPlan(input: {
     origin: input.requirements.origin,
     locale: input.locale,
     currency: input.requirements.budgetCurrency || 'USD',
+    packageScope: input.requirements.packageScope,
   })
 
-  const accommodations = buildAccommodations({
-    destination,
-    destinations,
-    locale: input.locale,
-    travelerType: input.requirements.travelerType,
-    tripPurpose: input.requirements.tripPurpose,
-    currency: input.requirements.budgetCurrency || 'USD',
-  })
+  const flights = transportation
+    .filter((row) => row.mode === 'flight')
+    .map((row): FlightRecommendation => ({
+      from: row.from,
+      to: row.to,
+      airline: null,
+      stops: null,
+      estimatedCost: row.estimatedCost,
+      currency: row.currency,
+      notes: row.notes,
+    }))
+
+  const accommodations = input.requirements.packageScope === 'flights_only'
+    ? []
+    : buildAccommodations({
+      destination,
+      destinations,
+      locale: input.locale,
+      travelerType: input.requirements.travelerType,
+      tripPurpose: input.requirements.tripPurpose,
+      hotelPreference: input.requirements.hotelPreference,
+      budgetStyle: input.requirements.budgetStyle,
+      currency: input.requirements.budgetCurrency || 'USD',
+    })
 
   const estimatedBudget = estimateBudget({
     requirements: input.requirements,
@@ -105,15 +125,40 @@ export function buildTripPlan(input: {
     destinations,
   })
 
+  const attractions = buildAttractionSeeds({
+    destination,
+    destinations,
+    interests: input.requirements.interests,
+    locale: input.locale,
+    packageScope: input.requirements.packageScope,
+  })
+
+  const weatherNotes = buildWeatherNotes(input.requirements, input.locale)
+  const visaNotes = buildVisaNotes(destination, input.locale)
+  const travelTips = buildTravelTips(input.requirements, input.locale)
+  const packingSuggestions = buildPackingSuggestions(input.requirements, input.locale)
+
   const title = input.locale === 'ar'
     ? `رحلة ${durationDays} ${durationDays === 1 ? 'يوم' : 'أيام'} إلى ${destination}`
     : `${durationDays}-day trip to ${destination}`
+
+  const summary = buildSummary({
+    locale: input.locale,
+    destination,
+    durationDays,
+    travelers,
+    travelerType: input.requirements.travelerType,
+    budgetStyle: input.requirements.budgetStyle,
+    packageScope: input.requirements.packageScope,
+    interests: input.requirements.interests,
+  })
 
   const notes = buildNotes(input.requirements, input.locale, estimatedBudget, travelers == null)
 
   return {
     id: `plan_${hashSeed(`${input.conversationId}:${destination}:${durationDays}:${input.seed ?? ''}`)}`,
     title,
+    summary,
     locale: input.locale,
     destinations,
     startDate: input.requirements.startDate,
@@ -125,7 +170,13 @@ export function buildTripPlan(input: {
     dailyItinerary,
     activities: dailyItinerary,
     transportation,
+    flights,
     accommodations,
+    attractions,
+    weatherNotes,
+    visaNotes,
+    travelTips,
+    packingSuggestions,
     estimatedBudget,
     estimatedCosts: estimatedBudget,
     notes,
@@ -165,6 +216,52 @@ export function applyTripPlanEdits(
 /** @deprecated Prefer applyTripPlanEdits */
 export const applyItineraryEdits = applyTripPlanEdits
 
+/** Rebuild a single day while keeping the rest of the plan. */
+export function regenerateTripDay(
+  plan: TripPlan,
+  dayNumber: number,
+  locale: AgentLocale,
+  seed?: string,
+): TripPlan {
+  const dayIndex = Math.max(1, Math.min(plan.durationDays, dayNumber))
+  const rebuilt = buildTripPlan({
+    requirements: plan.requirements,
+    conversationId: plan.conversationId,
+    locale,
+    seed: seed ?? `day-${dayIndex}-${Date.now()}`,
+  })
+  const replacement = rebuilt.dailyItinerary.find((d) => d.day === dayIndex)
+  if (!replacement) return rebuilt
+
+  const dailyItinerary = plan.dailyItinerary.map((day) => (
+    day.day === dayIndex
+      ? {
+        ...replacement,
+        title: locale === 'ar'
+          ? `اليوم ${dayIndex}: ${replacement.location} (محدّث)`
+          : `Day ${dayIndex}: ${replacement.location} (refreshed)`,
+      }
+      : day
+  ))
+
+  return {
+    ...plan,
+    id: `plan_${hashSeed(`${plan.id}:day-${dayIndex}:${seed ?? Date.now()}`)}`,
+    dailyItinerary,
+    activities: dailyItinerary,
+    summary: locale === 'ar'
+      ? `${plan.summary} — تم تحديث اليوم ${dayIndex}.`
+      : `${plan.summary} — Day ${dayIndex} refreshed.`,
+    notes: [
+      ...plan.notes.filter((n) => !/refreshed day|تحديث اليوم/i.test(n)),
+      locale === 'ar'
+        ? `تم إعادة توليد اليوم ${dayIndex} فقط مع الإبقاء على بقية الخطة.`
+        : `Regenerated day ${dayIndex} only; the rest of the plan was kept.`,
+    ],
+    updatedAt: new Date().toISOString(),
+  }
+}
+
 function resolveDuration(requirements: TripRequirements): number {
   if (requirements.durationDays != null) return Math.min(21, Math.max(1, requirements.durationDays))
   if (requirements.startDate && requirements.endDate) {
@@ -199,6 +296,7 @@ function buildDays(input: {
   interests: string[]
   travelerType: TripRequirements['travelerType']
   tripPurpose: TripRequirements['tripPurpose']
+  weatherPreference: string | null
   seed: string
 }): ItineraryDay[] {
   const playbook = CITY_PLAYBOOK[input.destination] ?? {
@@ -212,6 +310,11 @@ function buildDays(input: {
     const interest = input.interests[(day - 1) % Math.max(1, input.interests.length)] || null
     const family = input.travelerType === 'family' || input.tripPurpose === 'family'
     const business = input.travelerType === 'business' || input.tripPurpose === 'business'
+    const weatherBit = input.weatherPreference && input.weatherPreference !== 'flexible'
+      ? (input.locale === 'ar'
+        ? `مراعاة طقس ${input.weatherPreference}`
+        : `Prefer ${input.weatherPreference} outdoor blocks`)
+      : null
     days.push({
       day,
       title: input.locale === 'ar' ? `اليوم ${day}: ${hub}` : `Day ${day}: ${hub}`,
@@ -238,10 +341,13 @@ function buildDays(input: {
         {
           time: business ? '18:00' : '16:00',
           title: input.locale === 'ar' ? `مسائي في ${hub}` : `Afternoon in ${hub}`,
-          description: t(input.locale, {
-            ar: day === input.durationDays ? 'وقت مرن أو تسوق للهدايا' : 'نشاط اختياري أو استراحة',
-            en: day === input.durationDays ? 'Flexible time or souvenir shopping' : 'Optional activity or rest',
-          }),
+          description: [
+            t(input.locale, {
+              ar: day === input.durationDays ? 'وقت مرن أو تسوق للهدايا' : 'نشاط اختياري أو استراحة',
+              en: day === input.durationDays ? 'Flexible time or souvenir shopping' : 'Optional activity or rest',
+            }),
+            weatherBit,
+          ].filter(Boolean).join(' · '),
         },
       ],
     })
@@ -258,39 +364,53 @@ function buildAccommodations(input: {
   locale: AgentLocale
   travelerType: TripRequirements['travelerType']
   tripPurpose: TripRequirements['tripPurpose']
+  hotelPreference: string | null
+  budgetStyle: TripRequirements['budgetStyle']
   currency: string
 }): AccommodationRecommendation[] {
   const area = input.destinations[0] || input.destination
   const honeymoon = input.tripPurpose === 'honeymoon' || input.travelerType === 'couple'
   const business = input.tripPurpose === 'business' || input.travelerType === 'business'
   const family = input.tripPurpose === 'family' || input.travelerType === 'family'
-  const nightly = input.currency === 'SAR' ? 450 : input.currency === 'AED' ? 420 : 140
+  let nightly = input.currency === 'SAR' ? 450 : input.currency === 'AED' ? 420 : 140
+  if (input.budgetStyle === 'luxury') nightly = Math.round(nightly * 1.8)
+  if (input.budgetStyle === 'budget') nightly = Math.round(nightly * 0.65)
+
+  const pref = input.hotelPreference
+  const category: AccommodationRecommendation['category'] = pref === 'resort' || honeymoon
+    ? 'resort'
+    : pref === 'apartment' || family
+      ? 'apartment'
+      : pref === 'boutique'
+        ? 'boutique'
+        : 'hotel'
 
   const primary: AccommodationRecommendation = {
-    name: honeymoon
-      ? t(input.locale, { ar: `منتجع رومانسي قرب ${area}`, en: `Romantic resort near ${area}` })
-      : business
-        ? t(input.locale, { ar: `فندق أعمال في ${area}`, en: `Business hotel in ${area}` })
-        : family
-          ? t(input.locale, { ar: `شقة عائلية في ${area}`, en: `Family apartment in ${area}` })
-          : t(input.locale, { ar: `فندق وسط ${area}`, en: `Central hotel in ${area}` }),
-    area,
-    category: honeymoon ? 'resort' : family ? 'apartment' : business ? 'hotel' : 'boutique',
-    fit: honeymoon
-      ? t(input.locale, { ar: 'إطلالة خاصة وإيقاع هادئ', en: 'Private feel and quieter pacing' })
-      : business
-        ? t(input.locale, { ar: 'قريب من المواصلات وخدمات العمل', en: 'Near transit and work amenities' })
-        : family
-          ? t(input.locale, { ar: 'مساحة أكبر ومطبخ صغير', en: 'More space and a small kitchen' })
-          : t(input.locale, { ar: 'موقع مركزي للتنقل اليومي', en: 'Central base for daily exploring' }),
+    name: pref === 'central'
+      ? t(input.locale, { ar: `فندق وسط ${area}`, en: `Central hotel in ${area}` })
+      : honeymoon
+        ? t(input.locale, { ar: `منتجع رومانسي قرب ${area}`, en: `Romantic resort near ${area}` })
+        : business
+          ? t(input.locale, { ar: `فندق أعمال في ${area}`, en: `Business hotel in ${area}` })
+          : family
+            ? t(input.locale, { ar: `شقة عائلية في ${area}`, en: `Family apartment in ${area}` })
+            : t(input.locale, { ar: `إقامة في ${area}`, en: `Stay in ${area}` }),
+    area: pref === 'near_airport'
+      ? t(input.locale, { ar: `قرب المطار · ${area}`, en: `Near airport · ${area}` })
+      : area,
+    category,
+    fit: t(input.locale, {
+      ar: `مطابق لتفضيل ${pref || 'عام'} وأسلوب ${input.budgetStyle || 'متوسط'}`,
+      en: `Matches ${pref || 'general'} stay preference and ${input.budgetStyle || 'midrange'} style`,
+    }),
     estimatedNightly: nightly,
     currency: input.currency,
   }
 
   const secondary: AccommodationRecommendation = {
     name: t(input.locale, {
-      ar: `خيار متوسط الميزانية في ${area}`,
-      en: `Mid-budget stay in ${area}`,
+      ar: `خيار بديل في ${area}`,
+      en: `Alternate stay in ${area}`,
     }),
     area,
     category: 'hotel',
@@ -311,6 +431,7 @@ function buildTransportation(input: {
   origin: string | null
   locale: AgentLocale
   currency: string
+  packageScope: TripRequirements['packageScope']
 }): TransportationItem[] {
   const items: TransportationItem[] = [
     {
@@ -325,7 +446,7 @@ function buildTransportation(input: {
       currency: input.currency,
     },
   ]
-  if (input.destinations.length > 1) {
+  if (input.packageScope !== 'flights_only' && input.destinations.length > 1) {
     for (let i = 0; i < input.destinations.length - 1; i += 1) {
       items.push({
         mode: 'train_or_transfer',
@@ -340,18 +461,37 @@ function buildTransportation(input: {
       })
     }
   }
-  items.push({
-    mode: 'local',
-    from: input.destination,
-    to: input.destination,
-    notes: t(input.locale, {
-      ar: 'مترو/مشي/تطبيقات توصيل للتنقل اليومي',
-      en: 'Metro / walking / ride-hail for daily moves',
-    }),
-    estimatedCost: null,
-    currency: input.currency,
-  })
+  if (input.packageScope !== 'flights_only') {
+    items.push({
+      mode: 'local',
+      from: input.destination,
+      to: input.destination,
+      notes: t(input.locale, {
+        ar: 'مترو/مشي/تطبيقات توصيل للتنقل اليومي',
+        en: 'Metro / walking / ride-hail for daily moves',
+      }),
+      estimatedCost: null,
+      currency: input.currency,
+    })
+  }
   return items
+}
+
+function buildAttractionSeeds(input: {
+  destination: string
+  destinations: string[]
+  interests: string[]
+  locale: AgentLocale
+  packageScope: TripRequirements['packageScope']
+}): AttractionItem[] {
+  if (input.packageScope === 'flights_only') return []
+  const playbook = CITY_PLAYBOOK[input.destination]
+  const hubs = playbook?.hubs ?? input.destinations
+  return hubs.slice(0, 4).map((hub, index) => ({
+    title: input.locale === 'ar' ? `معلم في ${hub}` : `Highlight in ${hub}`,
+    tag: input.interests[index % Math.max(1, input.interests.length)] || playbook?.vibes[index] || null,
+    dayHint: index + 1,
+  }))
 }
 
 function estimateBudget(input: {
@@ -361,27 +501,133 @@ function estimateBudget(input: {
   destinations: string[]
 }): EstimatedBudget {
   const currency = input.requirements.budgetCurrency || 'USD'
-  const perDay = currency === 'SAR' ? 700 : currency === 'AED' ? 650 : 180
-  const stay = perDay * 0.55 * input.durationDays * input.travelers
-  const food = perDay * 0.25 * input.durationDays * input.travelers
-  const local = perDay * 0.12 * input.durationDays * input.travelers
-  const activities = perDay * 0.08 * input.durationDays * input.travelers
-  const multiCityBump = Math.max(0, input.destinations.length - 1) * (currency === 'USD' ? 120 : 400)
-  let amount = Math.round(stay + food + local + activities + multiCityBump)
-  if (input.requirements.budgetAmount != null) {
+  let perDay = currency === 'SAR' ? 700 : currency === 'AED' ? 650 : 180
+  if (input.requirements.budgetStyle === 'luxury') perDay = Math.round(perDay * 1.7)
+  if (input.requirements.budgetStyle === 'budget') perDay = Math.round(perDay * 0.7)
+  const flightsOnly = input.requirements.packageScope === 'flights_only'
+  const stay = flightsOnly ? 0 : perDay * 0.55 * input.durationDays * input.travelers
+  const food = flightsOnly ? 0 : perDay * 0.25 * input.durationDays * input.travelers
+  const local = flightsOnly ? 0 : perDay * 0.12 * input.durationDays * input.travelers
+  const activities = flightsOnly ? 0 : perDay * 0.08 * input.durationDays * input.travelers
+  const multiCityBump = flightsOnly
+    ? 0
+    : Math.max(0, input.destinations.length - 1) * (currency === 'USD' ? 120 : 400)
+  const flightPad = currency === 'USD' ? 650 : currency === 'SAR' ? 2400 : 2200
+  let amount = Math.round(stay + food + local + activities + multiCityBump + flightPad * input.travelers)
+  if (input.requirements.budgetAmount != null && !input.requirements.budgetFlexible) {
     amount = Math.min(amount, Math.round(input.requirements.budgetAmount))
   }
   return {
     amount,
     currency,
     breakdown: [
+      { label: 'flights', amount: Math.round(flightPad * input.travelers) },
       { label: 'stay', amount: Math.round(stay) },
       { label: 'food', amount: Math.round(food) },
       { label: 'local_transport', amount: Math.round(local) },
       { label: 'activities', amount: Math.round(activities) },
       { label: 'intercity', amount: Math.round(multiCityBump) },
-    ],
+    ].filter((row) => row.amount > 0 || row.label === 'flights'),
   }
+}
+
+function buildSummary(input: {
+  locale: AgentLocale
+  destination: string
+  durationDays: number
+  travelers: number | null
+  travelerType: TripRequirements['travelerType']
+  budgetStyle: TripRequirements['budgetStyle']
+  packageScope: TripRequirements['packageScope']
+  interests: string[]
+}): string {
+  const party = input.travelers != null
+    ? String(input.travelers)
+    : (input.locale === 'ar' ? 'مجموعة' : 'a group')
+  const style = input.budgetStyle || 'midrange'
+  const scope = input.packageScope === 'flights_only'
+    ? (input.locale === 'ar' ? 'طيران فقط' : 'flights-focused')
+    : (input.locale === 'ar' ? 'باقة كاملة' : 'full-package')
+  const interests = input.interests.length
+    ? input.interests.join(input.locale === 'ar' ? '، ' : ', ')
+    : (input.locale === 'ar' ? 'تجارب متنوعة' : 'mixed experiences')
+
+  return t(input.locale, {
+    ar: `خطة ${scope} لمدة ${input.durationDays} أيام إلى ${input.destination} لـ ${party} مسافر(ين) بأسلوب ${style}، مع تركيز على ${interests}.`,
+    en: `A ${scope} ${input.durationDays}-day plan to ${input.destination} for ${party} traveler(s) in a ${style} style, centered on ${interests}.`,
+  })
+}
+
+function buildWeatherNotes(requirements: TripRequirements, locale: AgentLocale): string[] {
+  const pref = requirements.weatherPreference || 'flexible'
+  return [
+    t(locale, {
+      ar: `تفضيل الطقس المسجّل: ${pref}. سيتم دمج ملاحظات أداة الطقس عند التوليد.`,
+      en: `Recorded weather preference: ${pref}. Weather tool notes merge in at generation time.`,
+    }),
+  ]
+}
+
+function buildVisaNotes(destination: string, locale: AgentLocale): string[] {
+  return [
+    t(locale, {
+      ar: `تحقق من متطلبات التأشيرة لـ ${destination} حسب جنسيتك قبل الحجز.`,
+      en: `Check visa requirements for ${destination} based on your nationality before booking.`,
+    }),
+  ]
+}
+
+function buildTravelTips(requirements: TripRequirements, locale: AgentLocale): string[] {
+  const tips = [
+    t(locale, {
+      ar: 'احجز المواصلات الداخلية مبكراً في المواسم المزدحمة.',
+      en: 'Book intercity transport early in busy seasons.',
+    }),
+    t(locale, {
+      ar: 'أبقِ يوم وصول خفيفاً لتعويض فرق التوقيت.',
+      en: 'Keep arrival day light to recover from jet lag.',
+    }),
+  ]
+  if (requirements.budgetStyle === 'luxury') {
+    tips.push(t(locale, {
+      ar: 'خصّص وقتاً لتجارب تناول طعام محجوزة مسبقاً.',
+      en: 'Leave room for reserved fine-dining experiences.',
+    }))
+  }
+  if (requirements.travelerType === 'family') {
+    tips.push(t(locale, {
+      ar: 'اختر أنشطة صباحية للعائلات واستراحات بعد الظهر.',
+      en: 'Prefer morning family activities and afternoon rest blocks.',
+    }))
+  }
+  if (requirements.packageScope === 'flights_only') {
+    tips.push(t(locale, {
+      ar: 'خطة الطيران فقط — أضف الفنادق لاحقاً إن رغبت.',
+      en: 'Flights-only plan — add hotels later if you want.',
+    }))
+  }
+  return tips
+}
+
+function buildPackingSuggestions(requirements: TripRequirements, locale: AgentLocale): string[] {
+  const weather = requirements.weatherPreference || 'flexible'
+  const items = [
+    t(locale, { ar: 'جواز سفر وشواحن', en: 'Passport and chargers' }),
+    t(locale, { ar: 'حذاء مريح للمشي', en: 'Comfortable walking shoes' }),
+  ]
+  if (weather === 'warm' || weather === 'hot') {
+    items.push(t(locale, { ar: 'ملابس خفيفة وواقي شمس', en: 'Light clothing and sunscreen' }))
+  } else if (weather === 'cool' || weather === 'cold') {
+    items.push(t(locale, { ar: 'طبقة دافئة وخفيفة', en: 'A light warm layer' }))
+  } else if (weather === 'rainy') {
+    items.push(t(locale, { ar: 'مظلة خفيفة أو معطف مطر', en: 'Compact umbrella or rain jacket' }))
+  } else {
+    items.push(t(locale, { ar: 'ملابس متعددة الطبقات', en: 'Layered outfits' }))
+  }
+  if (requirements.interests.includes('beach')) {
+    items.push(t(locale, { ar: 'ملابس سباحة', en: 'Swimwear' }))
+  }
+  return items
 }
 
 function buildNotes(
@@ -401,7 +647,12 @@ function buildNotes(
       en: 'Traveler count is unconfirmed — cost estimates use a provisional party size only.',
     }))
   }
-  if (requirements.budgetAmount != null) {
+  if (requirements.budgetFlexible) {
+    notes.push(t(locale, {
+      ar: 'الميزانية مرنة — الأرقام تقديرية فقط.',
+      en: 'Budget is flexible — figures are estimates only.',
+    }))
+  } else if (requirements.budgetAmount != null) {
     notes.push(t(locale, {
       ar: `الميزانية المستهدفة: ${requirements.budgetAmount} ${budget.currency}`,
       en: `Target budget: ${requirements.budgetAmount} ${budget.currency}`,
@@ -432,8 +683,8 @@ function buildNotes(
     }))
   }
   notes.push(t(locale, {
-    ar: 'أدوات الطيران/الفنادق/الطقس ستُربط لاحقاً دون تغيير محرك المحادثة.',
-    en: 'Flight/hotel/weather tools will plug in later without changing the chat engine.',
+    ar: 'أدوات الطيران/الفنادق/الطقس تستخدم محاكيات مزودين حالياً دون APIs حقيقية.',
+    en: 'Flight/hotel/weather tools currently use mock providers — no live APIs yet.',
   }))
   if (requirements.notes) notes.push(requirements.notes)
   return notes

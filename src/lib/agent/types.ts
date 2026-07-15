@@ -6,12 +6,17 @@ export type AgentLocale = 'ar' | 'en'
 
 export type TravelerType = 'solo' | 'couple' | 'family' | 'friends' | 'business'
 
+export type BudgetStyle = 'luxury' | 'midrange' | 'budget'
+
+export type PackageScope = 'flights_only' | 'full_package'
+
 export type AgentPhase = 'collecting' | 'planned' | 'editing'
 
 export type AgentIntent =
   | 'plan'
   | 'answer'
   | 'regenerate'
+  | 'regenerate_day'
   | 'edit'
   | 'save'
   | 'unknown'
@@ -27,9 +32,17 @@ export interface TripRequirements {
   travelerType: TravelerType | null
   budgetAmount: number | null
   budgetCurrency: string | null
+  /** True when the user said budget is flexible / no ceiling. */
+  budgetFlexible: boolean | null
+  budgetStyle: BudgetStyle | null
+  hotelPreference: string | null
+  packageScope: PackageScope | null
+  weatherPreference: string | null
   interests: string[]
   notes: string | null
   tripPurpose: 'leisure' | 'honeymoon' | 'business' | 'family' | null
+  /** When intent is regenerate_day — 1-based day index. */
+  regenerateDay: number | null
 }
 
 export interface ItineraryActivity {
@@ -63,6 +76,22 @@ export interface AccommodationRecommendation {
   currency: string
 }
 
+export interface AttractionItem {
+  title: string
+  tag: string | null
+  dayHint: number | null
+}
+
+export interface FlightRecommendation {
+  from: string
+  to: string
+  airline: string | null
+  stops: number | null
+  estimatedCost: number | null
+  currency: string | null
+  notes: string | null
+}
+
 export interface BudgetBreakdownLine {
   label: string
   amount: number
@@ -81,6 +110,7 @@ export interface EstimatedBudget {
 export interface TripPlan {
   id: string
   title: string
+  summary: string
   locale: AgentLocale
   destinations: string[]
   startDate: string | null
@@ -93,7 +123,13 @@ export interface TripPlan {
   /** Compatibility mirror of dailyItinerary for MVP callers. */
   activities: ItineraryDay[]
   transportation: TransportationItem[]
+  flights: FlightRecommendation[]
   accommodations: AccommodationRecommendation[]
+  attractions: AttractionItem[]
+  weatherNotes: string[]
+  visaNotes: string[]
+  travelTips: string[]
+  packingSuggestions: string[]
   estimatedBudget: EstimatedBudget
   /** Alias used in product copy / saved-trip payloads. */
   estimatedCosts: EstimatedBudget
@@ -136,6 +172,20 @@ export interface AgentProviderMeta {
   toolResults?: AgentToolRunSummary[]
 }
 
+/** Ordered intake slots for interactive trip planning (Phase L). */
+export const INTAKE_FIELD_ORDER: Array<keyof TripRequirements> = [
+  'destination',
+  'durationDays',
+  'budgetAmount',
+  'travelers',
+  'travelerType',
+  'interests',
+  'weatherPreference',
+  'budgetStyle',
+  'hotelPreference',
+  'packageScope',
+]
+
 export function emptyRequirements(): TripRequirements {
   return {
     destination: null,
@@ -148,9 +198,15 @@ export function emptyRequirements(): TripRequirements {
     travelerType: null,
     budgetAmount: null,
     budgetCurrency: null,
+    budgetFlexible: null,
+    budgetStyle: null,
+    hotelPreference: null,
+    packageScope: null,
+    weatherPreference: null,
     interests: [],
     notes: null,
     tripPurpose: null,
+    regenerateDay: null,
   }
 }
 

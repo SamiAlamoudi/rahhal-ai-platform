@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createTravelAgentService } from '../agent/travelAgentService'
 import type { ChatMessage } from '../chat/chatTypes'
+import { COMPLETE_LONDON_BUSINESS, COMPLETE_RIYADH_WEEKEND } from './agentTestFixtures'
 
 function user(content: string): ChatMessage {
   return {
@@ -29,32 +30,21 @@ describe('travelAgentService orchestration', () => {
     })
     expect(turn.memory.missingFields).toContain('durationDays')
     expect(turn.tripPlan).toBeNull()
-    expect(turn.reply.toLowerCase()).toMatch(/day|مدة|duration/)
+    expect(turn.reply.toLowerCase()).toMatch(/day|مدة|duration|when|متى/)
     expect(turn.meta.version).toBe(2)
   })
 
-  it('builds a business London plan once duration is known', async () => {
+  it('builds a business London plan once intake is complete', async () => {
     const service = createTravelAgentService()
-    const first = await service.planTurn({
+    const turn = await service.planTurn({
       conversationId: 'c1',
-      messages: [user('Business trip to London.')],
+      messages: [user(COMPLETE_LONDON_BUSINESS)],
     })
-    const assistant: ChatMessage = {
-      ...user('assistant'),
-      id: 'a1',
-      role: 'assistant',
-      content: first.reply,
-      providerMeta: first.meta as unknown as Record<string, unknown>,
-    }
-    const second = await service.planTurn({
-      conversationId: 'c1',
-      messages: [user('Business trip to London.'), assistant, user('4 days')],
-    })
-    expect(second.tripPlan?.destinations).toContain('London')
-    expect(second.tripPlan?.durationDays).toBe(4)
-    expect(second.tripPlan?.travelerType).toBe('business')
-    expect(second.tripPlan?.accommodations.length).toBeGreaterThan(0)
-    expect(second.reply).toMatch(/Accommodation|الإقامة|Daily itinerary|برنامج/)
+    expect(turn.tripPlan?.destinations).toContain('London')
+    expect(turn.tripPlan?.durationDays).toBe(4)
+    expect(turn.tripPlan?.travelerType).toBe('business')
+    expect(turn.tripPlan?.accommodations.length).toBeGreaterThan(0)
+    expect(turn.reply).toMatch(/Accommodation|Hotels|الفنادق|Daily itinerary|برنامج|Summary|الملخص/)
   })
 
   it('saves through orchestration using injected savePlan hook', async () => {
@@ -62,7 +52,7 @@ describe('travelAgentService orchestration', () => {
     const service = createTravelAgentService({ savePlan })
     const planned = await service.planTurn({
       conversationId: 'c1',
-      messages: [user('Weekend in Riyadh')],
+      messages: [user(COMPLETE_RIYADH_WEEKEND)],
     })
     expect(planned.tripPlan).toBeTruthy()
     const assistant: ChatMessage = {
@@ -74,7 +64,7 @@ describe('travelAgentService orchestration', () => {
     }
     const ack = await service.planTurn({
       conversationId: 'c1',
-      messages: [user('Weekend in Riyadh'), assistant, user('Save the plan')],
+      messages: [user(COMPLETE_RIYADH_WEEKEND), assistant, user('Save the plan')],
     })
     expect(savePlan).toHaveBeenCalled()
     expect(ack.reply).toMatch(/Saved|حفظ/)

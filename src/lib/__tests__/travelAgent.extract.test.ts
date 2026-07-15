@@ -61,4 +61,16 @@ describe('extractFromUserText', () => {
     expect(result.patch.durationDays).toBe(5)
     expect(result.patch.startDate).toMatch(/-04-01$/)
   })
+
+  it('parses planning style preferences and regenerate day', () => {
+    const result = extractFromUserText(
+      'mild weather, mid-range style, central hotel, full package',
+    )
+    expect(result.patch.weatherPreference).toBe('mild')
+    expect(result.patch.budgetStyle).toBe('midrange')
+    expect(result.patch.hotelPreference).toBe('central')
+    expect(result.patch.packageScope).toBe('full_package')
+    expect(extractFromUserText('Regenerate day 3').intent).toBe('regenerate_day')
+    expect(extractFromUserText('Regenerate day 3').patch.regenerateDay).toBe(3)
+  })
 })

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { createTravelAgentService } from '../agent/travelAgentService'
 import { createMockAgentToolRegistry } from '../agent/tools/stubs'
 import type { ChatMessage } from '../chat/chatTypes'
+import { COMPLETE_JAPAN_5D } from './agentTestFixtures'
 
 function user(content: string): ChatMessage {
   return {
@@ -29,7 +30,7 @@ describe('aggregation + travel agent integration', () => {
 
     const turn = await service.planTurn({
       conversationId: 'c1',
-      messages: [user('I want to spend 5 days in Japan next April.')],
+      messages: [user(COMPLETE_JAPAN_5D)],
     })
 
     expect(turn.tripPlan).toBeTruthy()

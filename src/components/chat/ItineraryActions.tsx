@@ -6,6 +6,7 @@ interface ItineraryActionsProps {
   busy?: boolean
   onSave: () => void
   onRegenerate: () => void
+  onRegenerateDay: (day: number) => void
   onEditSubmit: (patchText: string) => void
 }
 
@@ -14,10 +15,12 @@ export default function ItineraryActions({
   busy = false,
   onSave,
   onRegenerate,
+  onRegenerateDay,
   onEditSubmit,
 }: ItineraryActionsProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const [day, setDay] = useState(1)
   const locale = itinerary.locale
 
   return (
@@ -37,7 +40,7 @@ export default function ItineraryActions({
           onClick={onRegenerate}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
         >
-          {locale === 'en' ? 'Regenerate' : 'إعادة التوليد'}
+          {locale === 'en' ? 'Regenerate trip' : 'إعادة توليد الرحلة'}
         </button>
         <button
           type="button"
@@ -46,14 +49,80 @@ export default function ItineraryActions({
             setEditing((v) => !v)
             setDraft(
               locale === 'en'
-                ? `Edit: duration ${itinerary.durationDays} days, budget ${itinerary.estimatedBudget.amount} ${itinerary.estimatedBudget.currency}`
-                : `عدّل: المدة ${itinerary.durationDays} أيام، الميزانية ${itinerary.estimatedBudget.amount} ${itinerary.estimatedBudget.currency}`,
+                ? `Edit: destination ${itinerary.destinations[0] || ''}, duration ${itinerary.durationDays} days, budget ${itinerary.estimatedBudget.amount} ${itinerary.estimatedBudget.currency}, ${itinerary.travelers ?? 2} travelers`
+                : `عدّل: الوجهة ${itinerary.destinations[0] || ''}، المدة ${itinerary.durationDays} أيام، الميزانية ${itinerary.estimatedBudget.amount} ${itinerary.estimatedBudget.currency}، ${itinerary.travelers ?? 2} مسافرين`,
             )
           }}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
         >
           {locale === 'en' ? 'Edit' : 'تعديل'}
         </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-[11px] text-slate-500" htmlFor={`day-${itinerary.id}`}>
+          {locale === 'en' ? 'Regenerate day' : 'إعادة توليد يوم'}
+        </label>
+        <select
+          id={`day-${itinerary.id}`}
+          value={day}
+          disabled={busy}
+          onChange={(e) => setDay(Number(e.target.value))}
+          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700"
+        >
+          {Array.from({ length: itinerary.durationDays }, (_, i) => i + 1).map((n) => (
+            <option key={n} value={n}>
+              {locale === 'en' ? `Day ${n}` : `اليوم ${n}`}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onRegenerateDay(day)}
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+        >
+          {locale === 'en' ? 'Apply' : 'تطبيق'}
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <QuickEditButton
+          label={locale === 'en' ? 'Edit budget' : 'تعديل الميزانية'}
+          busy={busy}
+          onClick={() => onEditSubmit(
+            locale === 'en'
+              ? `Edit: budget ${itinerary.estimatedBudget.amount} ${itinerary.estimatedBudget.currency}`
+              : `عدّل: الميزانية ${itinerary.estimatedBudget.amount} ${itinerary.estimatedBudget.currency}`,
+          )}
+        />
+        <QuickEditButton
+          label={locale === 'en' ? 'Edit destination' : 'تعديل الوجهة'}
+          busy={busy}
+          onClick={() => onEditSubmit(
+            locale === 'en'
+              ? `Edit: destination ${itinerary.destinations[0] || 'Japan'}`
+              : `عدّل: الوجهة ${itinerary.destinations[0] || 'اليابان'}`,
+          )}
+        />
+        <QuickEditButton
+          label={locale === 'en' ? 'Edit dates' : 'تعديل التواريخ'}
+          busy={busy}
+          onClick={() => onEditSubmit(
+            locale === 'en'
+              ? `Edit: duration ${itinerary.durationDays} days${itinerary.startDate ? ` starting ${itinerary.startDate}` : ''}`
+              : `عدّل: المدة ${itinerary.durationDays} أيام${itinerary.startDate ? ` تبدأ ${itinerary.startDate}` : ''}`,
+          )}
+        />
+        <QuickEditButton
+          label={locale === 'en' ? 'Edit travelers' : 'تعديل المسافرين'}
+          busy={busy}
+          onClick={() => onEditSubmit(
+            locale === 'en'
+              ? `Edit: ${itinerary.travelers ?? 2} travelers`
+              : `عدّل: ${itinerary.travelers ?? 2} مسافرين`,
+          )}
+        />
       </div>
 
       <div className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
@@ -68,6 +137,9 @@ export default function ItineraryActions({
         <p>
           <span className="font-semibold">{locale === 'en' ? 'Days: ' : 'الأيام: '}</span>
           {itinerary.durationDays}
+          {itinerary.travelers != null
+            ? (locale === 'en' ? ` · ${itinerary.travelers} travelers` : ` · ${itinerary.travelers} مسافرين`)
+            : ''}
         </p>
       </div>
 
@@ -83,8 +155,8 @@ export default function ItineraryActions({
         >
           <label className="block text-[11px] text-slate-500" htmlFor={`edit-${itinerary.id}`}>
             {locale === 'en'
-              ? 'Describe the change (duration, budget, destination, notes)'
-              : 'صف التعديل (المدة، الميزانية، الوجهة، ملاحظات)'}
+              ? 'Describe the change (budget, destination, dates, travelers)'
+              : 'صف التعديل (الميزانية، الوجهة، التواريخ، عدد المسافرين)'}
           </label>
           <textarea
             id={`edit-${itinerary.id}`}
@@ -112,5 +184,26 @@ export default function ItineraryActions({
         </form>
       )}
     </div>
+  )
+}
+
+function QuickEditButton({
+  label,
+  busy,
+  onClick,
+}: {
+  label: string
+  busy: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={onClick}
+      className="rounded-lg border border-dashed border-slate-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+    >
+      {label}
+    </button>
   )
 }

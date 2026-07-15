@@ -9,7 +9,7 @@ export type {
   AccommodationRecommendation,
   AgentToolRunSummary,
 } from './types'
-export { emptyMemory, emptyRequirements, withTripPlan } from './types'
+export { emptyMemory, emptyRequirements, withTripPlan, INTAKE_FIELD_ORDER } from './types'
 export { createTravelAgentProvider, travelAgentProvider } from './travelAgentProvider'
 export { createTravelAgentService, travelAgentService } from './travelAgentService'
 export {
@@ -23,6 +23,9 @@ export {
   memoryFromMeta,
   isAgentProviderMeta,
   tripPlanFromMeta,
+  missingRequirementFields,
+  nextMissingIntakeField,
+  mergeRequirements,
 } from './memory'
 export { extractFromUserText } from './extractRequirements'
 export {
@@ -30,6 +33,7 @@ export {
   buildTravelItinerary,
   applyTripPlanEdits,
   applyItineraryEdits,
+  regenerateTripDay,
 } from './buildItinerary'
 export { formatTripPlanReply, formatItineraryReply } from './formatReply'
 export {

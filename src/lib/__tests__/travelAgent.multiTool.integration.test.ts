@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { createTravelAgentService } from '../agent/travelAgentService'
 import { createMockAgentToolRegistry } from '../agent/tools/stubs'
 import type { ChatMessage } from '../chat/chatTypes'
+import { COMPLETE_JAPAN_5D } from './agentTestFixtures'
 
 function user(content: string): ChatMessage {
   return {
@@ -22,14 +23,14 @@ function user(content: string): ChatMessage {
 }
 
 describe('multi-tool execution integration', () => {
-  it('for Japan 5-day April request: selects tools, executes mocks, merges one TripPlan', async () => {
+  it('for complete Japan intake: selects tools, executes mocks, merges one TripPlan', async () => {
     const service = createTravelAgentService({
       tools: createMockAgentToolRegistry(),
     })
 
     const turn = await service.planTurn({
       conversationId: 'c1',
-      messages: [user('I want to spend 5 days in Japan next April.')],
+      messages: [user(COMPLETE_JAPAN_5D)],
     })
 
     expect(turn.memory.missingFields).toEqual([])
@@ -53,6 +54,6 @@ describe('multi-tool execution integration', () => {
     expect(turn.tripPlan!.transportation.some((t) => t.mode === 'flight')).toBe(true)
     expect(turn.tripPlan!.accommodations.length).toBeGreaterThan(0)
     expect(turn.tripPlan!.notes.some((n) => /weather|Visa|Merged|طقس|تأشيرة/i.test(n))).toBe(true)
-    expect(turn.reply).toMatch(/Japan|اليابان|Daily itinerary|برنامج|Accommodation|الإقامة/)
+    expect(turn.reply).toMatch(/Japan|اليابان|Daily itinerary|برنامج|Hotels|الفنادق|Summary|الملخص/)
   })
 })

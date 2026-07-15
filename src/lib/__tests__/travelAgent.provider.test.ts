@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createTravelAgentProvider } from '../agent/travelAgentProvider'
 import type { ChatMessage } from '../chat/chatTypes'
+import { COMPLETE_RIYADH_WEEKEND, INTAKE_AFTER_DESTINATION } from './agentTestFixtures'
 
 function user(content: string): ChatMessage {
   return {
@@ -38,14 +39,14 @@ describe('travelAgentProvider', () => {
   it('asks follow-up when duration is missing', async () => {
     const provider = createTravelAgentProvider()
     const { text, meta } = await collect(provider, [user('Plan a trip to Japan')])
-    expect(text.toLowerCase()).toMatch(/day|يوم|duration|مدة/)
+    expect(text.toLowerCase()).toMatch(/day|يوم|duration|مدة|when|متى/)
     expect(meta?.kind).toBe('travel_agent')
     const memory = meta?.memory as { phase?: string; missingFields?: string[] }
     expect(memory.phase).toBe('collecting')
     expect(memory.missingFields).toContain('durationDays')
   })
 
-  it('produces itinerary after memory answers the missing field', async () => {
+  it('produces itinerary after memory answers the remaining intake fields', async () => {
     const provider = createTravelAgentProvider()
     const first = await collect(provider, [user('Plan a trip to Japan')])
     const assistant: ChatMessage = {
@@ -55,8 +56,12 @@ describe('travelAgentProvider', () => {
       content: first.text,
       providerMeta: first.meta ?? {},
     }
-    const second = await collect(provider, [user('Plan a trip to Japan'), assistant, user('7 days')])
-    expect(second.text).toMatch(/Day 1|اليوم 1/)
+    const second = await collect(provider, [
+      user('Plan a trip to Japan'),
+      assistant,
+      user(INTAKE_AFTER_DESTINATION),
+    ])
+    expect(second.text).toMatch(/Day 1|اليوم 1|Summary|الملخص/)
     expect(second.meta?.version).toBe(2)
     const tripPlan = (second.meta?.tripPlan ?? second.meta?.itinerary) as {
       durationDays?: number
@@ -71,7 +76,7 @@ describe('travelAgentProvider', () => {
   it('saves via injected hook on save intent', async () => {
     const saveItinerary = vi.fn(async () => ({ title: 'Saved trip' }))
     const provider = createTravelAgentProvider({ saveItinerary })
-    const planned = await collect(provider, [user('Weekend in Riyadh')])
+    const planned = await collect(provider, [user(COMPLETE_RIYADH_WEEKEND)])
     const assistant: ChatMessage = {
       ...user('assistant'),
       id: 'a1',
@@ -80,7 +85,7 @@ describe('travelAgentProvider', () => {
       providerMeta: planned.meta ?? {},
     }
     const saved = await collect(provider, [
-      user('Weekend in Riyadh'),
+      user(COMPLETE_RIYADH_WEEKEND),
       assistant,
       user('Save the plan'),
     ])
