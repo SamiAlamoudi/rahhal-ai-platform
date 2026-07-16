@@ -1,6 +1,10 @@
-# Known Issues — v1.0.0-rc1
+# Known Issues — v1.0.1
 
-Honest inventory of residual limitations for the release candidate.
+Honest inventory of residual limitations. Carry-forward from `v1.0.0` / RC1 unless noted.
+
+### Resolved in v1.0.1
+
+- Missing `npm run providers:check` script and CI Providers check step (restored via PR #56; packaged in this patch).
 
 ## Major
 
