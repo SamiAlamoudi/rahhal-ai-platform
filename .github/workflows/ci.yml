@@ -36,6 +36,9 @@ jobs:
       - name: Test
         run: npm run test:run
 
+      - name: Providers check
+        run: npm run providers:check
+
       - name: Build
         run: npm run build
 

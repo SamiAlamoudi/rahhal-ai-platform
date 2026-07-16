@@ -106,3 +106,8 @@ export {
 } from './performance/performanceToolkit'
 
 export { runStartup, type StartupOptions, type StartupResult } from './startup'
+export {
+  runProvidersCheck,
+  type ProvidersCheckOptions,
+  type ProvidersCheckResult,
+} from './providersCheck'
