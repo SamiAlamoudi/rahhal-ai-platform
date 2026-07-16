@@ -2,6 +2,26 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [1.0.1] — 2026-07-16
+
+### Fixed
+
+- Restored the missing `npm run providers:check` quality gate (merged via PR #56).
+- Added explicit **Providers check** step to GitHub Actions CI (after unit tests, before build).
+- Implemented config-only provider readiness validation using existing Phase W/X APIs:
+  - requires `VITE_PAYMENT_PROVIDER=mock`
+  - requires live providers master switch OFF by default
+  - requires mock fallback ON by default
+  - performs no network probes in the default path
+- Added failure-path coverage for non-mock payment and forbidden client-side secret env keys.
+
+### Notes
+
+- Patch/tooling release only — no application features, no UI changes, no API/DB contract changes.
+- Does **not** enable live travel providers.
+- Does **not** change payment behavior (mock remains the only enabled mode).
+- Package version set to `1.0.1`.
+
 ## [1.0.0] — 2026-07-15
 
 ### Released
