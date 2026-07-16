@@ -132,8 +132,7 @@ export async function runProvidersCheck(
   const paymentOk = paymentProvider === 'mock'
   const liveOff = flags.liveIntegrationEnabled === false && liveEnabled.length === 0
   const fallbackOn = flags.mockFallbackEnabled === true
-  const envOk = validation.ok || (paymentOk && !validation.errors.some((e) =>
-    e.includes('must not be set') || e.includes('VITE_PAYMENT_PROVIDER')))
+  const envOk = validation.ok
   const readyOk = readiness.checks.payment_provider_safe?.ok === true
 
   const exitCode = paymentOk && liveOff && fallbackOn && envOk && readyOk ? 0 : 1
@@ -143,6 +142,7 @@ export async function runProvidersCheck(
     if (!paymentOk) lines.push('  - payment provider must be mock')
     if (!liveOff) lines.push('  - live providers must be OFF by default')
     if (!fallbackOn) lines.push('  - mock fallback must be ON')
+    if (!envOk) lines.push('  - environment validation failed')
     if (!readyOk) lines.push('  - readiness payment_provider_safe check failed')
   } else {
     lines.push('providers:check OK')
