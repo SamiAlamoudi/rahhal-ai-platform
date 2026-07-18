@@ -16,7 +16,9 @@ Templates:
 | `VITE_PAYMENT_PROVIDER` | Payment adapter | **`mock`** |
 | `VITE_LIVE_PROVIDERS_ENABLED` | Master live-provider switch | **`false`** |
 | `VITE_PROVIDER_MOCK_FALLBACK` | Keep mocks for fallback | `true` |
-| `VITE_FLIGHT_PROVIDER` / `VITE_AMADEUS_ENABLED` | Flights selection | `mock` / `false` |
+| `VITE_FLIGHT_PROVIDER` / `VITE_AMADEUS_ENABLED` | Booking-funnel flights (`amadeus` opt-in) | `mock` / `false` |
+| `VITE_AMADEUS_BASE_URL` | Amadeus API host for funnel adapter | sandbox `https://test.api.amadeus.com` |
+| `VITE_AMADEUS_TOKEN_URL` | Optional Edge token proxy override | `{SUPABASE}/functions/v1/amadeus-token` |
 | `VITE_HOTEL_ADAPTER` / `VITE_BOOKING_PROVIDER` | Hotels | `mock` for staging template |
 | `VITE_MAPS_PROVIDER` | Maps | `mock` for staging template |
 | `VITE_WEATHER_PROVIDER` | Weather | `mock` for staging template |

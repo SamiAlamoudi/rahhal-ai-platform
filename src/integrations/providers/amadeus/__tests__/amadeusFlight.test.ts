@@ -697,6 +697,8 @@ describe('Flight Normalization', () => {
     expect(offer.bookingClass).toBe('M')
     expect(offer.travelTimeScore).toBeGreaterThan(0)
     expect(offer.overallFlightQuality).toBeGreaterThan(0)
+    expect(offer.bookingUrl).toContain('offerId=offer-001')
+    expect(offer.bookingUrl).toContain('env=sandbox')
   })
 
   it('normalizes a multi-stop flight offer', () => {

@@ -1,6 +1,15 @@
 export { AmadeusOAuthClient, type AmadeusToken, type OAuthClientConfig, type OAuthResult } from './amadeusOAuthClient'
 export { AMADEUS_DEFAULT_HOST, normalizeAmadeusHost, amadeusV1Url } from './amadeusHost'
 export {
+  AMADEUS_SANDBOX_HOST,
+  AMADEUS_PRODUCTION_HOST,
+  AMADEUS_FLIGHT_PROVIDER_ID,
+  isAmadeusSandboxHost,
+  buildAmadeusSandboxBookingUrl,
+  describeAmadeusSandboxReadiness,
+  type AmadeusSandboxReadiness,
+} from './amadeusSandbox'
+export {
   AmadeusFlightApiClient,
   type FlightSearchQuery,
   type ApiClientConfig as AmadeusApiClientConfig,

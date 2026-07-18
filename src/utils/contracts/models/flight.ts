@@ -31,4 +31,10 @@ export interface FlightOffer {
   itinerary: FlightItinerary
   familyFriendly: boolean
   cancellationPolicy: string | null
+  /**
+   * Optional provider deep-link for Rahhal redirect booking mode.
+   * Amadeus Self-Service search does not return a merchant checkout URL;
+   * adapters may supply a safe HTTPS handoff link carrying the offer id.
+   */
+  bookingUrl?: string | null
 }

@@ -73,5 +73,21 @@ describe('bookingSelectionMapper', () => {
     ])
     expect(multi).toHaveLength(2)
     expect(resolveProviderName(option({ providerIds: ['booking-com'] }))).toBe('Booking.com')
+    expect(resolveProviderName(option({ providerIds: ['amadeus-flight-001'] }))).toBe('Amadeus')
+  })
+
+  it('uses Amadeus sandbox bookingUrl from attributes for funnel handoff', () => {
+    const selected = toBookingSelectedItem(
+      option({
+        providerIds: ['amadeus-flight-001'],
+        attributes: {
+          bookingUrl: 'https://www.amadeus.com/book/flights?offerId=offer-1&source=rahhal&env=sandbox',
+          providerName: 'Amadeus Flights',
+        },
+      }),
+    )
+    expect(selected.providerName).toBe('Amadeus Flights')
+    expect(selected.bookingUrl).toContain('offerId=offer-1')
+    expect(selected.bookingUrl).toContain('env=sandbox')
   })
 })

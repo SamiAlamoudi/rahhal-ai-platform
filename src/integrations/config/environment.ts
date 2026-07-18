@@ -1,3 +1,5 @@
+import { AMADEUS_DEFAULT_HOST } from '../providers/amadeus/amadeusHost'
+
 export type ProviderAdapterType = 'mock' | 'amadeus' | 'booking' | 'rentalcars' | 'google-places' | 'openweather' | 'exchange-rate'
 
 export interface ProviderConfig {
@@ -139,7 +141,8 @@ function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType)
   const baseUrl = prefix === 'HOTEL'
     ? (readEnv(`VITE_${prefix}_BASE_URL`) ?? (bookingHost ? `https://${bookingHost}/api/v1` : null))
     : prefix === 'FLIGHT'
-      ? (readEnv('VITE_AMADEUS_BASE_URL') ?? readEnv(`VITE_${prefix}_BASE_URL`))
+      // Funnel defaults to Amadeus Sandbox host when adapter is amadeus; mock path ignores it.
+      ? (readEnv('VITE_AMADEUS_BASE_URL') ?? readEnv(`VITE_${prefix}_BASE_URL`) ?? AMADEUS_DEFAULT_HOST)
       : readEnv(`VITE_${prefix}_BASE_URL`)
 
   const tokenUrl = prefix === 'FLIGHT' ? resolveAmadeusTokenUrl() : null

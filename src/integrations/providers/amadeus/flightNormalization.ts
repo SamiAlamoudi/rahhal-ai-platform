@@ -6,6 +6,7 @@ import type {
   AmadeusDictionaries,
   AmadeusFareDetail,
 } from './amadeusFlightApiClient'
+import { buildAmadeusSandboxBookingUrl } from './amadeusSandbox'
 
 const CABIN_MAP: Record<string, CabinClass> = {
   ECONOMY: 'economy',
@@ -143,6 +144,7 @@ export function normalizeAmadeusFlightOffer(
   offer: AmadeusFlightOffer,
   dictionaries: AmadeusDictionaries | undefined,
   providerId: string,
+  options: { host?: string | null } = {},
 ): NormalizedFlightOffer {
   const firstItinerary = offer.itineraries[0]
   const fareDetails = offer.travelerPricings?.[0]?.fareDetailsBySegment
@@ -182,6 +184,7 @@ export function normalizeAmadeusFlightOffer(
     itinerary,
     familyFriendly: offer.numberOfBookableSeats >= 2,
     cancellationPolicy: refundable ? 'refundable' : 'non-refundable',
+    bookingUrl: buildAmadeusSandboxBookingUrl(offer.id, { host: options.host }),
     bookingClass,
     travelTimeScore: quality.travelTimeScore,
     overallFlightQuality: quality.overallFlightQuality,
@@ -191,9 +194,12 @@ export function normalizeAmadeusFlightOffer(
 export function normalizeAmadeusResponse(
   response: { data: AmadeusFlightOffer[]; dictionaries?: AmadeusDictionaries },
   providerId: string,
+  options: { host?: string | null } = {},
 ): NormalizedFlightOffer[] {
   if (!response.data || !Array.isArray(response.data)) return []
-  return response.data.map(offer => normalizeAmadeusFlightOffer(offer, response.dictionaries, providerId))
+  return response.data.map(offer =>
+    normalizeAmadeusFlightOffer(offer, response.dictionaries, providerId, options),
+  )
 }
 
 export type { AmadeusDictionaries }

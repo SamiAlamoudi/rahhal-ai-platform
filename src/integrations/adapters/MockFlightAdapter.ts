@@ -30,6 +30,7 @@ function buildOffers(): FlightOffer[] {
       rating: 4.7,
       familyFriendly: true,
       cancellationPolicy: 'free cancellation 24h',
+      bookingUrl: 'https://www.example.com/book/mock-flight/JAL-462',
       itinerary: {
         segments: [
           {
@@ -60,6 +61,7 @@ function buildOffers(): FlightOffer[] {
       rating: 4.5,
       familyFriendly: true,
       cancellationPolicy: 'non-refundable',
+      bookingUrl: 'https://www.example.com/book/mock-flight/QR-1166',
       itinerary: {
         segments: [
           {
@@ -90,6 +92,7 @@ function buildOffers(): FlightOffer[] {
       rating: 4.0,
       familyFriendly: true,
       cancellationPolicy: 'free cancellation 48h',
+      bookingUrl: 'https://www.example.com/book/mock-flight/SV-842',
       itinerary: {
         segments: [
           {
