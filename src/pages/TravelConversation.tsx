@@ -32,6 +32,7 @@ export default function TravelConversation() {
   const initialText = (location.state as { tripText?: string } | null)?.tripText ?? ''
 
   const { session: persistedSession, saveSession: persistSession, clearSession: clearPersistedSession, loading: sessionLoading } = useSessionPersistence()
+  const msgIdRef = useRef(3)
   const [session, setSession] = useState<TravelSession>(() => {
     if (persistedSession && persistedSession.completedFields.length > 0) return persistedSession
     if (initialText.trim()) return mergeTravelSession(createEmptyTravelSession(), initialText)
@@ -66,7 +67,6 @@ export default function TravelConversation() {
   const [orchestrationResult, setOrchestrationResult] = useState<SearchOrchestrationResult | null>(null)
   const [orchestrationError, setOrchestrationError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
-  const msgIdRef = useRef(3)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const completion = session.completionPercentage
