@@ -62,6 +62,17 @@ describe('extractFromUserText', () => {
     expect(result.patch.startDate).toMatch(/-04-01$/)
   })
 
+  it('parses ISO, slash, dash, and relative dates', () => {
+    expect(extractFromUserText('Travel on 2026-07-30').patch.startDate).toBe('2026-07-30')
+    expect(extractFromUserText('Travel on 30/07/2026').patch.startDate).toBe('2026-07-30')
+    expect(extractFromUserText('Travel on 30-07-2026').patch.startDate).toBe('2026-07-30')
+    expect(
+      extractFromUserText(
+        'أريد السفر إلى المغرب مع زوجتي لمدة أسبوع من مطار الرياض في تاريخ 2026-07-30 ميزانيتي 10000 ريال',
+      ).patch.startDate,
+    ).toBe('2026-07-30')
+  })
+
   it('parses planning style preferences and regenerate day', () => {
     const result = extractFromUserText(
       'mild weather, mid-range style, central hotel, full package',

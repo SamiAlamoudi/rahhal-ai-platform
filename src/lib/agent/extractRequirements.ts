@@ -250,10 +250,89 @@ function matchTravelers(lower: string, original: string): { count: number; type:
   return { count, type }
 }
 
-function matchDates(text: string): { start: string | null; end: string | null } {
-  const iso = [...text.matchAll(/\b(20\d{2}-\d{2}-\d{2})\b/g)].map((m) => m[1])
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+function toIsoDate(year: number, month: number, day: number): string | null {
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+  const dt = new Date(Date.UTC(year, month - 1, day))
+  if (
+    dt.getUTCFullYear() !== year
+    || dt.getUTCMonth() !== month - 1
+    || dt.getUTCDate() !== day
+  ) {
+    return null
+  }
+  return `${year}-${pad2(month)}-${pad2(day)}`
+}
+
+function formatUtcIso(date: Date): string {
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`
+}
+
+function addUtcDays(base: Date, days: number): Date {
+  const next = new Date(base.getTime())
+  next.setUTCDate(next.getUTCDate() + days)
+  return next
+}
+
+function addUtcMonths(base: Date, months: number): Date {
+  const next = new Date(base.getTime())
+  next.setUTCMonth(next.getUTCMonth() + months)
+  return next
+}
+
+function matchDates(
+  text: string,
+  now: Date = new Date(),
+): { start: string | null; end: string | null } {
+  const iso = [...text.matchAll(/(20\d{2}-\d{2}-\d{2})/g)].map((m) => m[1])
   if (iso.length >= 2) return { start: iso[0], end: iso[1] }
   if (iso.length === 1) return { start: iso[0], end: null }
+
+  const slashDates = [...text.matchAll(/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})/g)]
+  if (slashDates.length > 0) {
+    const parsed = slashDates.map((m) => {
+      let year = Number(m[3])
+      if (year < 100) year += 2000
+      return toIsoDate(year, Number(m[2]), Number(m[1]))
+    }).filter((v): v is string => !!v)
+    if (parsed.length >= 2) return { start: parsed[0], end: parsed[1] }
+    if (parsed.length === 1) return { start: parsed[0], end: null }
+  }
+
+  const dashDates = [...text.matchAll(/(?:^|[^\d])(\d{1,2})-(\d{1,2})-(20\d{2}|\d{2})(?:[^\d]|$)/g)]
+  if (dashDates.length > 0) {
+    const parsed = dashDates.map((m) => {
+      let year = Number(m[3])
+      if (year < 100) year += 2000
+      return toIsoDate(year, Number(m[2]), Number(m[1]))
+    }).filter((v): v is string => !!v)
+    if (parsed.length >= 2) return { start: parsed[0], end: parsed[1] }
+    if (parsed.length === 1) return { start: parsed[0], end: null }
+  }
+
+  const lower = text.toLowerCase()
+  if (/\btomorrow\b|غداً|غدا|بكره|بكرة/.test(lower) || /غدا/.test(text)) {
+    return { start: formatUtcIso(addUtcDays(now, 1)), end: null }
+  }
+  if (
+    /\bnext\s+week\b/.test(lower)
+    || /بعد\s*أسبوع|بعد\s*اسبوع/.test(text)
+    || /الأسبوع\s*القادم|الاسبوع\s*القادم|الأسبوع\s*المقبل|الاسبوع\s*المقبل/.test(text)
+  ) {
+    return { start: formatUtcIso(addUtcDays(now, 7)), end: null }
+  }
+  if (
+    /\bnext\s+month\b/.test(lower)
+    || /بعد\s*شهر/.test(text)
+    || /الشهر\s*القادم|الشهر\s*المقبل/.test(text)
+  ) {
+    return { start: formatUtcIso(addUtcMonths(now, 1)), end: null }
+  }
+
   return { start: null, end: null }
 }
 
