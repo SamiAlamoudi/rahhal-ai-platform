@@ -27,3 +27,8 @@ export {
 export { extractSoftSignals } from './softSignals'
 export { decideConciergeTurn } from './turnPolicy'
 export { buildConsultantReply, type ConsultantVoiceInput } from './consultantVoice'
+export {
+  buildConciergeRecommendations,
+  type ConciergeRecommendationInput,
+  type ConciergeRecommendationView,
+} from './recommendationBridge'
