@@ -60,6 +60,11 @@ const AIRPORT_ALIASES: Record<string, string> = {
   'marrakech': 'RAK',
   'الدار البيضاء': 'CMN',
   'casablanca': 'CMN',
+  'اكادير': 'AGA',
+  'أكادير': 'AGA',
+  'agadir': 'AGA',
+  'الرباط': 'RBA',
+  'rabat': 'RBA',
   // Europe / other common
   'لندن': 'LON',
   'london': 'LON',

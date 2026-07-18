@@ -20,7 +20,13 @@ const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
   { keys: ['cairo', 'القاهرة', 'egypt', 'مصر'], value: 'Cairo' },
   { keys: ['maldives', 'المالديف'], value: 'Maldives' },
   { keys: ['bali', 'بالي', 'indonesia', 'اندونيسيا', 'إندونيسيا'], value: 'Bali' },
-  { keys: ['morocco', 'marrakech', 'casablanca', 'المغرب', 'مراكش', 'الدار البيضاء'], value: 'Morocco' },
+  {
+    keys: [
+      'morocco', 'marrakech', 'casablanca', 'agadir', 'rabat',
+      'المغرب', 'مراكش', 'الدار البيضاء', 'اكادير', 'أكادير', 'الرباط',
+    ],
+    value: 'Morocco',
+  },
 ]
 
 export interface ExtractionResult {

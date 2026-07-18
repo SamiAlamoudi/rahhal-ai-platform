@@ -105,6 +105,127 @@ const DESTINATION_PROFILES: Record<string, DestinationProfile> = {
       'Try tagine and mint tea',
     ],
   },
+  marrakech: {
+    label: 'Marrakech',
+    country: 'Morocco',
+    city: 'Marrakech',
+    airportCode: 'RAK',
+    airportName: 'Marrakech Menara Airport',
+    hubAreas: ['Medina', 'Gueliz', 'Hivernage', 'Palmerie'],
+    timezone: 'Africa/Casablanca (UTC+1)',
+    language: 'Arabic / French',
+    localCurrency: 'MAD',
+    attractions: [
+      { name: 'Jemaa el-Fnaa Evening Experience', category: 'culture', location: 'Medina, Marrakech' },
+      { name: 'Atlas Mountains Day Trip', category: 'nature', location: 'High Atlas' },
+      { name: 'Majorelle Garden & Medina Walk', category: 'culture', location: 'Gueliz, Marrakech' },
+    ],
+    hotels: [
+      { brand: 'La Mamounia', area: 'Hivernage', stars: 5 },
+      { brand: 'Riad Kniza', area: 'Medina', stars: 4 },
+      { brand: 'Hotel Toulousain', area: 'Gueliz', stars: 3 },
+    ],
+    pois: [
+      { name: 'Jemaa el-Fnaa', category: 'landmark', lat: 31.6258, lng: -7.9891, rating: 4.7 },
+      { name: 'Koutoubia Mosque', category: 'landmark', lat: 31.624, lng: -7.9936, rating: 4.6 },
+      { name: 'Majorelle Garden', category: 'park', lat: 31.6417, lng: -8.0031, rating: 4.6 },
+    ],
+    tips: [
+      'Negotiate politely in souks',
+      'Dress modestly in medina areas',
+      'Try tagine and mint tea',
+    ],
+  },
+  casablanca: {
+    label: 'Casablanca',
+    country: 'Morocco',
+    city: 'Casablanca',
+    airportCode: 'CMN',
+    airportName: 'Mohammed V International Airport',
+    hubAreas: ['Corniche', 'Maarif', 'Habous', 'Ain Diab'],
+    timezone: 'Africa/Casablanca (UTC+1)',
+    language: 'Arabic / French',
+    localCurrency: 'MAD',
+    attractions: [
+      { name: 'Hassan II Mosque Tour', category: 'culture', location: 'Corniche, Casablanca' },
+      { name: 'Old Medina Walking Tour', category: 'culture', location: 'Medina, Casablanca' },
+      { name: 'Corniche Sunset Drive', category: 'entertainment', location: 'Ain Diab, Casablanca' },
+    ],
+    hotels: [
+      { brand: 'Four Seasons Casablanca', area: 'Corniche', stars: 5 },
+      { brand: 'Hyatt Regency', area: 'Maarif', stars: 4 },
+      { brand: 'Ibis Casa Voyageurs', area: 'Habous', stars: 3 },
+    ],
+    pois: [
+      { name: 'Hassan II Mosque', category: 'landmark', lat: 33.6086, lng: -7.6326, rating: 4.8 },
+      { name: 'Rick\'s Café', category: 'restaurant', lat: 33.605, lng: -7.62, rating: 4.4 },
+    ],
+    tips: [
+      'Hassan II Mosque is a must-see',
+      'Trams cover central Casablanca well',
+      'Book airport transfers ahead in peak season',
+    ],
+  },
+  agadir: {
+    label: 'Agadir',
+    country: 'Morocco',
+    city: 'Agadir',
+    airportCode: 'AGA',
+    airportName: 'Agadir Al Massira Airport',
+    hubAreas: ['Agadir Beach', 'Souk El Had', 'Marina', 'Taghazout'],
+    timezone: 'Africa/Casablanca (UTC+1)',
+    language: 'Arabic / French',
+    localCurrency: 'MAD',
+    attractions: [
+      { name: 'Agadir Beach Day', category: 'beach', location: 'Agadir Beach' },
+      { name: 'Souk El Had Market Tour', category: 'shopping', location: 'Souk El Had, Agadir' },
+      { name: 'Taghazout Surf Experience', category: 'adventure', location: 'Taghazout' },
+    ],
+    hotels: [
+      { brand: 'Riu Palace Tikida', area: 'Agadir Beach', stars: 5 },
+      { brand: 'Hyatt Place Taghazout', area: 'Taghazout', stars: 4 },
+      { brand: 'Hotel Atlantica', area: 'Marina', stars: 3 },
+    ],
+    pois: [
+      { name: 'Agadir Beach', category: 'beach', lat: 30.4202, lng: -9.5982, rating: 4.6 },
+      { name: 'Souk El Had', category: 'shopping', lat: 30.42, lng: -9.59, rating: 4.4 },
+    ],
+    tips: [
+      'Beaches are the main draw',
+      'Taghazout is popular for surfing',
+      'Evenings are lively along the corniche',
+    ],
+  },
+  rabat: {
+    label: 'Rabat',
+    country: 'Morocco',
+    city: 'Rabat',
+    airportCode: 'RBA',
+    airportName: 'Rabat-Salé Airport',
+    hubAreas: ['Hassan', 'Agdal', 'Kasbah of the Udayas', 'Ville Nouvelle'],
+    timezone: 'Africa/Casablanca (UTC+1)',
+    language: 'Arabic / French',
+    localCurrency: 'MAD',
+    attractions: [
+      { name: 'Kasbah of the Udayas Tour', category: 'culture', location: 'Kasbah of the Udayas, Rabat' },
+      { name: 'Hassan Tower Visit', category: 'culture', location: 'Hassan, Rabat' },
+      { name: 'Chellah Historical Site', category: 'culture', location: 'Chellah, Rabat' },
+    ],
+    hotels: [
+      { brand: 'Sofitel Jardin des Roses', area: 'Agdal', stars: 5 },
+      { brand: 'Hotel Farah Rabat', area: 'Ville Nouvelle', stars: 4 },
+      { brand: 'Riad Kalaa', area: 'Medina', stars: 3 },
+    ],
+    pois: [
+      { name: 'Kasbah of the Udayas', category: 'landmark', lat: 34.0319, lng: -6.8361, rating: 4.7 },
+      { name: 'Hassan Tower', category: 'landmark', lat: 34.0242, lng: -6.8227, rating: 4.6 },
+    ],
+    tips: [
+      'Rabat is quieter than Marrakech',
+      'Combine medina walks with coastal views',
+      'Trains connect Rabat and Casablanca easily',
+    ],
+  },
   paris: {
     label: 'Paris',
     country: 'France',
@@ -401,6 +522,8 @@ const CITY_AIRPORTS: Record<string, { code: string; name: string; label: string 
   morocco: { code: 'RAK', name: 'Marrakech Menara Airport', label: 'Marrakech' },
   marrakech: { code: 'RAK', name: 'Marrakech Menara Airport', label: 'Marrakech' },
   casablanca: { code: 'CMN', name: 'Mohammed V International Airport', label: 'Casablanca' },
+  agadir: { code: 'AGA', name: 'Agadir Al Massira Airport', label: 'Agadir' },
+  rabat: { code: 'RBA', name: 'Rabat-Salé Airport', label: 'Rabat' },
   bali: { code: 'DPS', name: 'Ngurah Rai International Airport', label: 'Bali' },
   maldives: { code: 'MLE', name: 'Velana International Airport', label: 'Malé' },
   newyork: { code: 'JFK', name: 'John F. Kennedy International Airport', label: 'New York' },
@@ -411,8 +534,11 @@ const ARABIC_ALIASES: Record<string, string> = {
   'اليابان': 'japan',
   'طوكيو': 'japan',
   'المغرب': 'morocco',
-  'مراكش': 'morocco',
-  'الدار البيضاء': 'morocco',
+  'مراكش': 'marrakech',
+  'الدار البيضاء': 'casablanca',
+  'اكادير': 'agadir',
+  'أكادير': 'agadir',
+  'الرباط': 'rabat',
   'باريس': 'paris',
   'فرنسا': 'paris',
   'لندن': 'london',
@@ -515,9 +641,11 @@ export function resolveDestinationProfile(destination: string): DestinationProfi
   if (DESTINATION_PROFILES[key]) return DESTINATION_PROFILES[key]
   // Country aliases that map to city profiles
   if (key.includes('japan') || key.includes('tokyo')) return DESTINATION_PROFILES.japan
-  if (key.includes('morocco') || key.includes('marrakech') || key.includes('casablanca')) {
-    return DESTINATION_PROFILES.morocco
-  }
+  if (key.includes('marrakech')) return DESTINATION_PROFILES.marrakech
+  if (key.includes('casablanca')) return DESTINATION_PROFILES.casablanca
+  if (key.includes('agadir')) return DESTINATION_PROFILES.agadir
+  if (key.includes('rabat')) return DESTINATION_PROFILES.rabat
+  if (key.includes('morocco')) return DESTINATION_PROFILES.morocco
   if (key.includes('paris') || key.includes('france')) return DESTINATION_PROFILES.paris
   if (key.includes('london') || key.includes('uk') || key.includes('britain')) {
     return DESTINATION_PROFILES.london
@@ -825,43 +953,159 @@ export function buildDestinationAwareInsight(
   }
 }
 
-export function buildDestinationAwareVehicles(
-  req: TravelSearchRequest,
-  providerId = 'mock-rental-001',
-): Vehicle[] {
-  const ctx = buildTripMockContext(req)
-  const pickup = `${ctx.destAirport.code} Airport`
-  const dropoffDate = ctx.returnDate || addDays(ctx.departureDate, Math.max(1, ctx.durationDays))
+interface RentalFleetDraft {
+  company: string
+  vehicleName: string
+  category: Vehicle['category']
+  transmission: Vehicle['transmission']
+  fuelType: Vehicle['fuelType']
+  seats: number
+  doors: number
+  luggageLarge: number
+  luggageSmall: number
+  price: number
+  pickupLocation: string
+  dropoffLocation: string
+  unlimitedMileage: boolean
+  insuranceIncluded: boolean
+  rating: number
+}
 
+function japanRentalFleet(): RentalFleetDraft[] {
   return [
     {
-      provider: 'mock',
-      providerId,
-      company: `${ctx.profile.city} Rent a Car`,
+      company: 'Toyota Rent a Car',
       vehicleName: 'Toyota Corolla',
       category: 'compact',
       transmission: 'automatic',
       fuelType: 'petrol',
       seats: 5,
       doors: 4,
-      airConditioning: true,
       luggageLarge: 2,
       luggageSmall: 2,
       price: 180,
-      currency: ctx.currency,
-      pickupLocation: pickup,
-      dropoffLocation: pickup,
-      pickupDate: ctx.departureDate,
-      dropoffDate,
+      pickupLocation: 'NRT Airport',
+      dropoffLocation: 'NRT Airport',
       unlimitedMileage: true,
       insuranceIncluded: true,
       rating: 4.5,
-      image: '',
-      bookingUrl: '',
     },
     {
-      provider: 'mock',
-      providerId,
+      company: 'Nissan Rent a Car',
+      vehicleName: 'Nissan X-Trail',
+      category: 'suv',
+      transmission: 'automatic',
+      fuelType: 'hybrid',
+      seats: 7,
+      doors: 5,
+      luggageLarge: 3,
+      luggageSmall: 3,
+      price: 320,
+      pickupLocation: 'HND Airport',
+      dropoffLocation: 'HND Airport',
+      unlimitedMileage: false,
+      insuranceIncluded: false,
+      rating: 4.3,
+    },
+    {
+      company: 'Hertz',
+      vehicleName: 'Mercedes C-Class',
+      category: 'luxury',
+      transmission: 'automatic',
+      fuelType: 'diesel',
+      seats: 5,
+      doors: 4,
+      luggageLarge: 2,
+      luggageSmall: 2,
+      price: 550,
+      pickupLocation: 'Tokyo Station',
+      dropoffLocation: 'NRT Airport',
+      unlimitedMileage: true,
+      insuranceIncluded: true,
+      rating: 4.8,
+    },
+  ]
+}
+
+function moroccoRentalFleet(city: string, airportCode: string): RentalFleetDraft[] {
+  const airportPickup = `${airportCode} Airport`
+  const cityPickup = `${city} City Center`
+  return [
+    {
+      company: 'Medloc Car Rental',
+      vehicleName: 'Dacia Logan',
+      category: 'economy',
+      transmission: 'manual',
+      fuelType: 'diesel',
+      seats: 5,
+      doors: 4,
+      luggageLarge: 2,
+      luggageSmall: 1,
+      price: 140,
+      pickupLocation: airportPickup,
+      dropoffLocation: airportPickup,
+      unlimitedMileage: true,
+      insuranceIncluded: true,
+      rating: 4.4,
+    },
+    {
+      company: 'First Car Morocco',
+      vehicleName: 'Hyundai Tucson',
+      category: 'suv',
+      transmission: 'automatic',
+      fuelType: 'petrol',
+      seats: 5,
+      doors: 5,
+      luggageLarge: 3,
+      luggageSmall: 2,
+      price: 280,
+      pickupLocation: airportPickup,
+      dropoffLocation: airportPickup,
+      unlimitedMileage: false,
+      insuranceIncluded: true,
+      rating: 4.5,
+    },
+    {
+      company: 'Europcar Morocco',
+      vehicleName: 'Peugeot 3008',
+      category: 'suv',
+      transmission: 'automatic',
+      fuelType: 'diesel',
+      seats: 5,
+      doors: 5,
+      luggageLarge: 3,
+      luggageSmall: 2,
+      price: 360,
+      pickupLocation: cityPickup,
+      dropoffLocation: airportPickup,
+      unlimitedMileage: true,
+      insuranceIncluded: true,
+      rating: 4.6,
+    },
+  ]
+}
+
+function genericRentalFleet(city: string, airportCode: string): RentalFleetDraft[] {
+  const airportPickup = `${airportCode} Airport`
+  return [
+    {
+      company: 'Enterprise',
+      vehicleName: 'Toyota Corolla',
+      category: 'compact',
+      transmission: 'automatic',
+      fuelType: 'petrol',
+      seats: 5,
+      doors: 4,
+      luggageLarge: 2,
+      luggageSmall: 2,
+      price: 180,
+      pickupLocation: airportPickup,
+      dropoffLocation: airportPickup,
+      unlimitedMileage: true,
+      insuranceIncluded: true,
+      rating: 4.5,
+    },
+    {
       company: 'Hertz',
       vehicleName: 'Nissan X-Trail',
       category: 'suv',
@@ -869,24 +1113,16 @@ export function buildDestinationAwareVehicles(
       fuelType: 'hybrid',
       seats: 7,
       doors: 5,
-      airConditioning: true,
       luggageLarge: 3,
       luggageSmall: 3,
       price: 320,
-      currency: ctx.currency,
-      pickupLocation: pickup,
-      dropoffLocation: pickup,
-      pickupDate: ctx.departureDate,
-      dropoffDate,
+      pickupLocation: airportPickup,
+      dropoffLocation: airportPickup,
       unlimitedMileage: false,
       insuranceIncluded: false,
       rating: 4.3,
-      image: '',
-      bookingUrl: '',
     },
     {
-      provider: 'mock',
-      providerId,
       company: 'Avis',
       vehicleName: 'Mercedes C-Class',
       category: 'luxury',
@@ -894,22 +1130,72 @@ export function buildDestinationAwareVehicles(
       fuelType: 'diesel',
       seats: 5,
       doors: 4,
-      airConditioning: true,
       luggageLarge: 2,
       luggageSmall: 2,
       price: 550,
-      currency: ctx.currency,
-      pickupLocation: `${ctx.profile.city} Station`,
-      dropoffLocation: pickup,
-      pickupDate: ctx.departureDate,
-      dropoffDate,
+      pickupLocation: `${city} Station`,
+      dropoffLocation: airportPickup,
       unlimitedMileage: true,
       insuranceIncluded: true,
       rating: 4.8,
-      image: '',
-      bookingUrl: '',
     },
   ]
+}
+
+function resolveRentalFleet(ctx: TripMockContext): RentalFleetDraft[] {
+  const country = ctx.profile.country.toLowerCase()
+  const cityKey = normalizeKey(ctx.profile.city)
+  const destKey = normalizeKey(ctx.destination)
+
+  if (country.includes('japan') || cityKey.includes('tokyo') || destKey.includes('japan') || destKey.includes('tokyo')) {
+    return japanRentalFleet()
+  }
+
+  if (
+    country.includes('morocco')
+    || destKey.includes('morocco')
+    || ['marrakech', 'casablanca', 'agadir', 'rabat'].includes(cityKey)
+    || ['marrakech', 'casablanca', 'agadir', 'rabat'].includes(destKey)
+  ) {
+    return moroccoRentalFleet(ctx.profile.city, ctx.destAirport.code)
+  }
+
+  return genericRentalFleet(ctx.profile.city, ctx.destAirport.code)
+}
+
+export function buildDestinationAwareVehicles(
+  req: TravelSearchRequest,
+  providerId = 'mock-rental-001',
+): Vehicle[] {
+  const ctx = buildTripMockContext(req)
+  const dropoffDate = ctx.returnDate || addDays(ctx.departureDate, Math.max(1, ctx.durationDays))
+  const fleet = resolveRentalFleet(ctx)
+
+  return fleet.map((item) => ({
+    provider: 'mock',
+    providerId,
+    company: item.company,
+    vehicleName: item.vehicleName,
+    category: item.category,
+    transmission: item.transmission,
+    fuelType: item.fuelType,
+    seats: item.seats,
+    doors: item.doors,
+    airConditioning: true,
+    luggageLarge: item.luggageLarge,
+    luggageSmall: item.luggageSmall,
+    price: item.price,
+    currency: ctx.currency,
+    pickupLocation: item.pickupLocation,
+    dropoffLocation: item.dropoffLocation,
+    pickupDate: ctx.departureDate,
+    dropoffDate,
+    unlimitedMileage: item.unlimitedMileage,
+    insuranceIncluded: item.insuranceIncluded,
+    rating: item.rating,
+    image: '',
+    bookingUrl: '',
+  }))
 }
 
 // ── ProviderSearchResult adapters (for searchOrchestrator / providers/) ────

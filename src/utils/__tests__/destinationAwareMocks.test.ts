@@ -5,6 +5,7 @@ import {
   buildDestinationAwareActivityOffers,
   buildDestinationAwareTransferOffers,
   buildDestinationAwareInsight,
+  buildDestinationAwareVehicles,
   buildDestinationAwareFlightSearchResults,
   buildDestinationAwareHotelSearchResults,
   buildDestinationAwareActivitySearchResults,
@@ -126,5 +127,46 @@ describe('destination-aware mock recommendations', () => {
     expect(hotels.data?.[0]?.location).toMatch(/Marrakech/i)
     expect(activities.data?.[0]?.destination).toBe('Marrakech')
     expect(insight.data?.country).toBe('Morocco')
+  })
+
+  it('Japan rental mocks keep Toyota Rent a Car (not Tokyo Rent a Car)', () => {
+    const req = makeRequest([
+      'أريد السفر إلى اليابان لمدة 10 أيام مع زوجتي وطفلين وميزانيتي 20 ألف ريال.',
+      'من الرياض',
+      '15 أكتوبر',
+    ])
+    const vehicles = buildDestinationAwareVehicles(req)
+    expect(vehicles[0]?.company).toBe('Toyota Rent a Car')
+    expect(vehicles.some((v) => v.company === 'Tokyo Rent a Car')).toBe(false)
+    expect(vehicles.map((v) => v.company)).toEqual([
+      'Toyota Rent a Car',
+      'Nissan Rent a Car',
+      'Hertz',
+    ])
+    expect(vehicles[0]?.pickupLocation).toBe('NRT Airport')
+  })
+
+  it('Morocco rental mocks use Moroccan companies and local airports', () => {
+    for (const destination of ['Morocco', 'Marrakech', 'Casablanca', 'Agadir', 'Rabat']) {
+      const req = {
+        ...makeRequest([
+          'أريد السفر إلى المغرب لمدة 10 أيام وميزانيتي 10000 ريال',
+          'من الرياض',
+          '15 أكتوبر',
+        ]),
+        destination,
+      }
+      const vehicles = buildDestinationAwareVehicles(req)
+      expect(vehicles.length).toBe(3)
+      expect(vehicles.map((v) => v.company)).toEqual([
+        'Medloc Car Rental',
+        'First Car Morocco',
+        'Europcar Morocco',
+      ])
+      expect(vehicles.some((v) => /Tokyo|Toyota Rent a Car|Japan/i.test(v.company))).toBe(false)
+      expect(vehicles.every((v) => /RAK|CMN|AGA|RBA|Marrakech|Casablanca|Agadir|Rabat/i.test(
+        `${v.pickupLocation} ${v.dropoffLocation}`,
+      ))).toBe(true)
+    }
   })
 })
