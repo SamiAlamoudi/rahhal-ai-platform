@@ -53,9 +53,22 @@ Never put `AMADEUS_CLIENT_SECRET` (or any Amadeus secret) in `VITE_*`.
 
 Amadeus Self-Service **Flight Offers Search** does not return a merchant checkout URL. Rahhal emits a safe HTTPS deep-link carrying the sandbox `offerId` for redirect booking mode. Flight Create Orders / live ticketing remain out of scope for this MVP step.
 
+## Verification
+
+CI suite: `src/integrations/providers/amadeus/__tests__/amadeusSandbox.funnel.verification.test.ts`
+
+| Check | How |
+|-------|-----|
+| Sandbox search → BookingReview handoff | Fixture Amadeus Flight Offers response through `FlightService` + `orchestrateLiveSearch` + selection mapper |
+| Missing credentials | Token proxy `503 AMADEUS_SERVER_NOT_CONFIGURED` → `source: 'fallback'` mock offers |
+| Missing token proxy config | Amadeus not registered → mock fallback |
+| Provider-agnostic abstraction | Custom `FlightProvider` satisfies the same contract as Amadeus/mock |
+| Optional live network | Runs only when `AMADEUS_CLIENT_ID` + `AMADEUS_CLIENT_SECRET` are present and sandbox DNS is reachable |
+
 ## Related code
 
 - Adapter: `src/integrations/providers/amadeus/amadeusFlightAdapter.ts`
 - Sandbox helpers: `src/integrations/providers/amadeus/amadeusSandbox.ts`
 - Registry: `src/integrations/registry/providerRegistry.ts`
 - Funnel map: `src/utils/liveSearchOrchestrator.ts` (`mapFlightOffer`)
+- Verification: `amadeusSandbox.funnel.verification.test.ts`

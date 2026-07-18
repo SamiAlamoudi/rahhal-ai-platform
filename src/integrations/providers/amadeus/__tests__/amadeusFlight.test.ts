@@ -896,6 +896,7 @@ describe('FlightService Fallback', () => {
     expect(model.source).toBe('real')
     expect(model.offers.length).toBe(2)
     expect(model.error).toBeNull()
+    expect(model.offers.every((o) => typeof o.bookingUrl === 'string' && o.bookingUrl.includes('offerId='))).toBe(true)
   })
 })
 
