@@ -48,6 +48,11 @@ export {
   type BookingSelectedItem,
 } from './bookingSelectionMapper'
 export {
+  isTerminalBookingStatus,
+  canResumeBookingSession,
+  canCancelBookingSession,
+} from './myTripsActions'
+export {
   bookingSessionRepository,
   type BookingSessionRow,
   type CreateBookingSessionRowInput,

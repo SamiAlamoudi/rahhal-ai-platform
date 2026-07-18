@@ -2,6 +2,13 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Production MVP: My Trips lifecycle
+
+### Added
+
+- My Trips durable **cancel** (`إلغاء الحجز`) via `cancelBookingSession` + `syncBookingSession`.
+- Resume/cancel eligibility helpers (`myTripsActions.ts`) with unit coverage.
+
 ## [Unreleased] — Production MVP: unified booking funnel
 
 ### Added
