@@ -435,6 +435,25 @@ export class BookingOrchestrator {
       .map(s => this.cloneSession(s))
   }
 
+  /** Import a persisted session into the in-memory hot cache (idempotent by id). */
+  importSession(session: BookingSession): BookingSession {
+    this.sessions.set(session.id, this.cloneSession(session))
+    this.lastError = null
+    return this.cloneSession(session)
+  }
+
+  /** Replace hot cache with a list of persisted sessions (keeps other users' sessions). */
+  replaceUserSessions(userId: string, sessions: BookingSession[]): BookingSession[] {
+    for (const [id, existing] of this.sessions) {
+      if (existing.userId === userId) this.sessions.delete(id)
+    }
+    for (const session of sessions) {
+      this.sessions.set(session.id, this.cloneSession(session))
+    }
+    this.lastError = null
+    return this.getSessionsByUser(userId)
+  }
+
   private recalculate(session: BookingSession): void {
     session.subtotal = session.items.reduce((sum, item) => sum + item.price, 0)
     session.fees = RAHHAL_BOOKING_FEE

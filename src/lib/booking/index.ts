@@ -27,6 +27,19 @@ export {
   type BookingReadinessResult,
 } from './bookingOrchestrator'
 export {
+  sessionToCreateInput,
+  sessionToUpdateInput,
+  sessionFromRow,
+  persistBookingSession,
+  syncBookingSession,
+  loadBookingSession,
+  listUserBookingSessions,
+  upsertLocalBookingSession,
+  listLocalBookingSessions,
+  getLocalBookingSession,
+  clearLocalBookingSessions,
+} from './bookingPersistence'
+export {
   bookingSessionRepository,
   type BookingSessionRow,
   type CreateBookingSessionRowInput,

@@ -1,11 +1,17 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Navigate } from 'react-router-dom'
-import { getBookingOrchestrator } from '../lib/booking'
+import {
+  getBookingOrchestrator,
+  persistBookingSession,
+  syncBookingSession,
+  loadBookingSession,
+} from '../lib/booking'
 import type { BookingSession, BookingItem, BookingItemType } from '../lib/booking/bookingTypes'
 import type { BookingAction } from '../lib/booking/bookingAction'
 import type { NormalizedTravelOption } from '../utils/searchOrchestrator'
 import { savedTripRepository } from '../lib/repositories/savedTripRepository'
 import { buildSavedTripData, buildSavedTripTitle } from '../lib/savedTrips/savedTripHelpers'
+import { useAuth } from '../lib/auth'
 
 interface SelectedItem {
   option: NormalizedTravelOption
@@ -17,9 +23,11 @@ interface SelectedItem {
 }
 
 interface BookingReviewLocationState {
-  selectedItems: SelectedItem[]
+  selectedItems?: SelectedItem[]
   travelSessionId: string | null
   currency: string
+  /** Resume an already-persisted booking session. */
+  bookingSessionId?: string
 }
 
 const TYPE_LABELS: Record<BookingItemType, string> = {
@@ -66,68 +74,116 @@ function isExpired(expiresAt: string | null): boolean {
 export default function BookingReview() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user } = useAuth()
   const state = location.state as BookingReviewLocationState | null
 
   const orchestrator = useMemo(() => getBookingOrchestrator(), [])
+  const bootstrapped = useRef(false)
 
   const [session, setSession] = useState<BookingSession | null>(null)
+  const [loading, setLoading] = useState(true)
   const [redirectAction, setRedirectAction] = useState<BookingAction | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
-  const ensureSession = useCallback(() => {
-    if (session || !state) return
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    const newSession = orchestrator.createBookingSession({
-      userId: 'current-user',
-      travelSessionId: state.travelSessionId,
-      currency: state.currency || 'SAR',
-      expiresAt,
-    })
-    for (const item of state.selectedItems) {
-      const result = orchestrator.addBookingItem(newSession.id, {
-        type: item.bookingType,
-        providerId: item.option.providerIds[0] || 'unknown',
-        providerName: item.providerName,
-        providerOfferId: item.option.id,
-        title: item.option.title,
-        price: item.option.price,
-        currency: item.option.currency,
-        bookingUrl: item.bookingUrl,
-        expiresAt: item.expiresAt,
-        travelerSummary: '',
-        metadata: {
-          cancellationInfo: item.cancellationInfo,
-          rating: item.option.rating,
-          refundable: item.option.refundable,
-        },
-      })
-      if (result.error) {
-        setError(result.error)
+  const canCreateFromSelection = Boolean(state?.selectedItems && state.selectedItems.length > 0)
+  const canResume = Boolean(state?.bookingSessionId)
+
+  useEffect(() => {
+    if (bootstrapped.current || !state) return
+    bootstrapped.current = true
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        if (state.bookingSessionId) {
+          const cached = orchestrator.getBookingSession(state.bookingSessionId)
+          const loaded = cached ?? (await loadBookingSession(state.bookingSessionId))
+          if (loaded) {
+            orchestrator.importSession(loaded)
+            if (!cancelled) setSession(loaded)
+            return
+          }
+        }
+
+        if (!state.selectedItems?.length) return
+
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        const newSession = orchestrator.createBookingSession({
+          userId: user?.id ?? 'anonymous',
+          travelSessionId: state.travelSessionId,
+          currency: state.currency || 'SAR',
+          expiresAt,
+        })
+        for (const item of state.selectedItems) {
+          const result = orchestrator.addBookingItem(newSession.id, {
+            type: item.bookingType,
+            providerId: item.option.providerIds[0] || 'unknown',
+            providerName: item.providerName,
+            providerOfferId: item.option.id,
+            title: item.option.title,
+            price: item.option.price,
+            currency: item.option.currency,
+            bookingUrl: item.bookingUrl,
+            expiresAt: item.expiresAt,
+            travelerSummary: '',
+            metadata: {
+              cancellationInfo: item.cancellationInfo,
+              rating: item.option.rating,
+              refundable: item.option.refundable,
+            },
+          })
+          if (result.error && !cancelled) setError(result.error)
+        }
+        const updated = orchestrator.getBookingSession(newSession.id)
+        if (updated) {
+          await persistBookingSession(updated)
+          if (!cancelled) setSession(updated)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
+    })()
+
+    return () => {
+      cancelled = true
     }
-    const updated = orchestrator.getBookingSession(newSession.id)
-    setSession(updated)
-  }, [session, state, orchestrator])
+  }, [state, orchestrator, user?.id])
 
-  useMemo(() => {
-    ensureSession()
-  }, [ensureSession])
-
-  if (!state?.selectedItems || state.selectedItems.length === 0) {
+  if (!state || (!canCreateFromSelection && !canResume)) {
     return <Navigate to="/results" replace />
+  }
+
+  if (loading && !session) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
+      </div>
+    )
+  }
+
+  if (!session) {
+    return <Navigate to="/my-trips" replace />
   }
 
   const handleRemoveItem = (itemId: string) => {
     if (!session) return
+    const fromStatus = session.status
     const updated = orchestrator.removeBookingItem(session.id, itemId)
     setSession(updated)
+    if (updated) void syncBookingSession(updated, fromStatus)
   }
 
   const handlePrepareRedirect = () => {
     if (!session) return
+    const fromStatus = session.status
     const action = orchestrator.prepareRedirect(session.id)
+    const updated = orchestrator.getBookingSession(session.id)
+    if (updated) {
+      setSession(updated)
+      void syncBookingSession(updated, fromStatus)
+    }
     setRedirectAction(action)
     if (action && action.allowed) {
       setShowConfirmDialog(true)
@@ -138,8 +194,10 @@ export default function BookingReview() {
 
   const handleConfirmRedirect = () => {
     if (!session || !redirectAction || !redirectAction.allowed) return
+    const fromStatus = session.status
     const updated = orchestrator.markRedirected(session.id)
     setSession(updated)
+    if (updated) void syncBookingSession(updated, fromStatus)
     setShowConfirmDialog(false)
     if (redirectAction.bookingUrl) {
       window.open(redirectAction.bookingUrl, '_blank', 'noopener,noreferrer')

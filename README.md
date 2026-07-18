@@ -48,10 +48,10 @@ npm run dev
 | J | Tool execution framework | Mock flights/hotels/weather/maps/currency/visa/attractions + auto tool selection |
 | K | Multi-provider aggregation | Parallel mock provider query, normalize, dedupe, rank, confidence, merge |
 | L–Y | Intelligent planning → RC1 / v1.0.0 | Done (promoted; see release notes) |
-| AA | Post-launch monitoring & stabilization | Done |
-| AB | v1.1 planning & AI enhancement foundation | **Done** (this sprint) |
-| AC | Recommendation Engine v1 | Next |
-| AD+ | Itinerary / booking orchestration / planner API | Queued (unmerged draft PRs) |
+| AA | Post-launch monitoring & stabilization | Done (ops) |
+| AB | v1.1 planning & AI enhancement foundation | Done (library; post-MVP) |
+| **Production MVP** | Booking persistence → unified funnel → My Trips → Amadeus sandbox → payments prep → E2E → deploy | **Active** — booking persistence in progress |
+| AC+ | Recommendation / itinerary AI (post-launch) | Deferred until Production MVP complete |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).
 

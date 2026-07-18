@@ -1,7 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getBookingOrchestrator } from '../lib/booking'
+import {
+  getBookingOrchestrator,
+  listUserBookingSessions,
+} from '../lib/booking'
 import type { BookingSession } from '../lib/booking/bookingTypes'
+import { useAuth } from '../lib/auth'
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'مسودة',
@@ -43,9 +47,32 @@ function formatPrice(price: number, currency: string): string {
 
 export default function MyTrips() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const orchestrator = useMemo(() => getBookingOrchestrator(), [])
-  const sessions = useMemo(() => orchestrator.getAllSessions(), [orchestrator])
+  const [sessions, setSessions] = useState<BookingSession[]>([])
+  const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        if (!user?.id) {
+          if (!cancelled) setSessions([])
+          return
+        }
+        const loaded = await listUserBookingSessions(user.id)
+        orchestrator.replaceUserSessions(user.id, loaded)
+        if (!cancelled) setSessions(orchestrator.getSessionsByUser(user.id))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, orchestrator])
 
   const handleResume = (session: BookingSession) => {
     if (session.status === 'redirected' || session.status === 'pending_provider_confirmation') {
@@ -55,12 +82,17 @@ export default function MyTrips() {
         status: session.status,
       })
       navigate(`/booking/return?${params.toString()}`)
-    } else if (session.status === 'ready_to_redirect' || session.status === 'selected' || session.status === 'draft') {
+    } else if (
+      session.status === 'ready_to_redirect'
+      || session.status === 'selected'
+      || session.status === 'draft'
+    ) {
       navigate('/booking/review', {
         state: {
-          selectedItems: [],
+          bookingSessionId: session.id,
           travelSessionId: session.travelSessionId,
           currency: session.currency,
+          selectedItems: [],
         },
       })
     }
@@ -90,7 +122,11 @@ export default function MyTrips() {
       </header>
 
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-        {sessions.length === 0 ? (
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
+          </div>
+        ) : sessions.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 py-12 text-center">
             <span className="text-3xl">🧳</span>
             <p className="mt-2 text-sm text-slate-500">لا توجد رحلات محفوظة بعد</p>
@@ -135,14 +171,14 @@ export default function MyTrips() {
 
                 {expandedId === session.id && (
                   <div className="border-t border-slate-50 p-4">
-                    <div className="space-y-2 mb-4">
+                    <div className="mb-4 space-y-2">
                       {session.items.map(item => (
                         <div key={item.id} className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-2">
                             <span aria-hidden>{TYPE_ICONS[item.type] ?? '📋'}</span>
                             <span className="text-slate-700">{item.title}</span>
                           </div>
-                          <span className="text-slate-500 text-xs">{formatPrice(item.price, item.currency)}</span>
+                          <span className="text-xs text-slate-500">{formatPrice(item.price, item.currency)}</span>
                         </div>
                       ))}
                     </div>
@@ -151,7 +187,7 @@ export default function MyTrips() {
                         type="button"
                         onClick={() => handleResume(session)}
                         disabled={session.status === 'confirmed' || session.status === 'cancelled' || session.status === 'expired'}
-                        className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
+                        className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
                       >
                         متابعة الحجز
                       </button>
