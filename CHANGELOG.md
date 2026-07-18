@@ -2,6 +2,15 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Phase AB
+
+### Added
+
+- v1.1 AI enhancement foundation (`src/lib/ai/**`): FeatureRegistry, PreferenceEngine, RankingEngine, RecommendationEngine, planning helpers, anonymous ProductAnalytics.
+- Docs: `V1_1_ROADMAP.md`, `FEATURE_REGISTRY.md`, `AI_ARCHITECTURE.md`.
+- Suite: `npm run test:ai` (`ai.phaseAB.test.ts`).
+- No UI redesign; payments and live providers remain mock/OFF.
+
 ## [Unreleased] — Phase AA
 
 ### Added

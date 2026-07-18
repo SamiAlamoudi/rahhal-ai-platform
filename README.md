@@ -48,12 +48,14 @@ npm run dev
 | J | Tool execution framework | Mock flights/hotels/weather/maps/currency/visa/attractions + auto tool selection |
 | K | Multi-provider aggregation | Parallel mock provider query, normalize, dedupe, rank, confidence, merge |
 | L–Y | Intelligent planning → RC1 / v1.0.0 | Done (promoted; see release notes) |
-| AA | Post-launch monitoring & stabilization | **Done** (this sprint) |
-| AB | v1.1 planning & AI enhancement foundation | Next |
-| AC+ | Recommendation / itinerary / booking orchestration | Queued (unmerged draft PRs) |
+| AA | Post-launch monitoring & stabilization | Done |
+| AB | v1.1 planning & AI enhancement foundation | **Done** (this sprint) |
+| AC | Recommendation Engine v1 | Next |
+| AD+ | Itinerary / booking orchestration / planner API | Queued (unmerged draft PRs) |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).
 
+v1.1 AI docs: `V1_1_ROADMAP.md`, `FEATURE_REGISTRY.md`, `AI_ARCHITECTURE.md`.  
 Post-launch ops runbooks: `MONITORING_RUNBOOK.md`, `ALERTING_MATRIX.md`, `HOTFIX_PROCESS.md`, `POST_RELEASE_CHECKLIST.md`, `INCIDENT_TEMPLATE.md`, `CUSTOMER_SUPPORT_RUNBOOK.md`.
 
 ## Payments freeze (Phase D)

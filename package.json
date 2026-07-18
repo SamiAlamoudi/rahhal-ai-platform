@@ -17,7 +17,8 @@
     "providers:check": "vitest run src/lib/__tests__/providersCheck.cli.test.ts",
     "audit": "npm audit --audit-level=high",
     "ci": "npm run typecheck && npm run lint && npm run test:run && npm run providers:check && npm run build && npm run audit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:ai": "vitest run src/lib/__tests__/ai.phaseAB.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
