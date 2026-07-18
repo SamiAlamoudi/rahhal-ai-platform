@@ -17,8 +17,8 @@ Honest inventory of residual limitations. Carry-forward from `v1.0.0` / RC1 unle
 1. **Browser E2E coverage is Chromium-only MVP**  
    Playwright covers the mock booking funnel (`npm run test:playwright` / CI `e2e` job). Multi-browser matrix and staging-host smoke remain follow-ups; Vitest `test:e2e` is still the library journey suite (not a browser harness).
 
-2. **Staging host probes are dual-track**  
-   Automated suite covers `checkLiveness` / `checkReadiness` / `checkHealth` library contracts. Deployed Edge `ops-health` and static `/health.json` still require a staging deploy checklist pass.
+2. **Preview/staging host publish is artifact + manual**  
+   CI builds a preview `dist/` artifact (`Preview readiness` workflow) with mock payments and live providers off. Public preview URL / Edge `ops-health` still need host secrets and a manual publish step — see `docs/PREVIEW_DEPLOYMENT.md`.
 
 ## Minor
 

@@ -2,6 +2,14 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Production MVP: Preview deployment readiness
+
+### Added
+
+- Preview deploy target + `verifyPreviewEnvironment()` / `npm run preview:verify` (mock payment, live providers OFF, Supabase required).
+- `.env.preview.example`, `npm run build:preview`, docs `docs/PREVIEW_DEPLOYMENT.md`.
+- GitHub workflow **Preview readiness** — env verify, preview build, providers check, Playwright, uploads `preview-dist` artifact (no production deploy).
+
 ## [Unreleased] — Production MVP: Browser E2E (Playwright)
 
 ### Added

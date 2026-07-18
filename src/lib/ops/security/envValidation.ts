@@ -3,7 +3,7 @@
  * Never requires client-side provider secrets.
  */
 
-export type DeployTarget = 'development' | 'staging' | 'production'
+export type DeployTarget = 'development' | 'preview' | 'staging' | 'production'
 
 export interface EnvironmentValidationInput {
   target?: DeployTarget
@@ -79,15 +79,23 @@ export function validateEnvironment(
 
   const supabaseConfigured = isSet(env.VITE_SUPABASE_URL) && isSet(env.VITE_SUPABASE_ANON_KEY)
 
-  if (target === 'staging' || target === 'production') {
+  if (target === 'preview' || target === 'staging' || target === 'production') {
     if (paymentProvider !== 'mock') {
       errors.push('VITE_PAYMENT_PROVIDER must be mock until payment production freeze is lifted')
     }
     if (!supabaseConfigured) {
-      warnings.push('Supabase URL/anon key not set — auth/persistence unavailable')
+      if (target === 'preview') {
+        errors.push('Supabase URL/anon key required for preview deployment')
+      } else {
+        warnings.push('Supabase URL/anon key not set — auth/persistence unavailable')
+      }
     }
     if (liveProvidersEnabled) {
-      warnings.push('Live providers enabled — ensure Edge secrets are configured and feature flags reviewed')
+      if (target === 'preview') {
+        errors.push('Live providers must remain disabled for preview deployment')
+      } else {
+        warnings.push('Live providers enabled — ensure Edge secrets are configured and feature flags reviewed')
+      }
     }
   }
 
