@@ -50,7 +50,11 @@ npm run dev
 | L–Y | Intelligent planning → RC1 / v1.0.0 | Done (promoted; see release notes) |
 | AA | Post-launch monitoring & stabilization | Done (ops) |
 | AB | v1.1 planning & AI enhancement foundation | Done (library; post-MVP) |
+<<<<<<< HEAD
 | **Production MVP** | Booking persistence → unified funnel → My Trips → Amadeus sandbox → payments prep → E2E → deploy | **Active** — browser Playwright E2E landed (`npm run test:playwright`); deploy readiness next |
+=======
+| **Production MVP** | Booking persistence → unified funnel → My Trips → Amadeus sandbox → payments prep → E2E → deploy | **Active** — My Trips lifecycle + Amadeus sandbox done; next: payments prep / E2E / deploy |
+>>>>>>> origin/main
 | AC+ | Recommendation / itinerary AI (post-launch) | Deferred until Production MVP complete |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).

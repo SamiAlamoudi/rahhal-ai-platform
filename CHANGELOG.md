@@ -11,6 +11,13 @@ All notable changes to Rahhal are documented in this file.
 - CI job **Browser E2E (Playwright)** after quality gates; uploads report on failure.
 - Stable `data-testid` hooks on funnel CTAs (no product behavior change).
 
+## [Unreleased] — Production MVP: My Trips lifecycle
+
+### Added
+
+- My Trips durable **cancel** (`إلغاء الحجز`) via `cancelBookingSession` + `syncBookingSession`.
+- Resume/cancel eligibility helpers (`myTripsActions.ts`) with unit coverage.
+
 ## [Unreleased] — Production MVP: Amadeus Sandbox
 
 ### Added
