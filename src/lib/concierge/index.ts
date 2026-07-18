@@ -23,3 +23,6 @@ export {
   resolveConciergePhase,
   advanceConciergeState,
 } from './dialogueState'
+
+export { extractSoftSignals } from './softSignals'
+export { decideConciergeTurn } from './turnPolicy'
