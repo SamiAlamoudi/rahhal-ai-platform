@@ -53,6 +53,7 @@ export {
 } from './security/envValidation'
 export {
   SECURITY_HEADERS,
+  buildSecurityHeaders,
   buildCorsPolicy,
   assertRequestSize,
   escapeHtml,
@@ -62,6 +63,7 @@ export {
   DEFAULT_MAX_REQUEST_BYTES,
   type RateLimitDomain,
   type CorsPolicy,
+  type SecurityHeaderOptions,
 } from './security/securityPolicy'
 
 export {

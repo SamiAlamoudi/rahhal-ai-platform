@@ -5,25 +5,54 @@
 import { checkRateLimit, clearRateLimit } from '../../security/securityUtils'
 import { getOpsMetrics } from '../observability/metricsRegistry'
 
-export const SECURITY_HEADERS: Record<string, string> = {
-  'Content-Security-Policy': [
-    "default-src 'self'",
-    "script-src 'self'",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com data:",
-    "img-src 'self' data: https:",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com",
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-  ].join('; '),
-  'X-Content-Type-Options': 'nosniff',
-  'X-Frame-Options': 'DENY',
-  'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-  'Cross-Origin-Opener-Policy': 'same-origin',
-  'X-DNS-Prefetch-Control': 'off',
+export interface SecurityHeaderOptions {
+  /**
+   * Vite/React Refresh injects an inline preamble script and opens a local
+   * HMR websocket. Production/preview CSP stays strict; only the Vite *dev*
+   * server should pass `{ development: true }`.
+   */
+  development?: boolean
 }
+
+/** Build security headers. Keep vite.config.ts on this helper (do not fork). */
+export function buildSecurityHeaders(
+  options: SecurityHeaderOptions = {},
+): Record<string, string> {
+  const development = options.development === true
+  const scriptSrc = development ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'"
+  const connectSrc = [
+    "connect-src 'self'",
+    'https://*.supabase.co',
+    'wss://*.supabase.co',
+    'https://fonts.googleapis.com',
+    'https://fonts.gstatic.com',
+    // Vite HMR websocket + local module graph (port varies; allow ws/http schemes in dev only).
+    ...(development ? ['ws:', 'wss:', 'http://localhost:*', 'http://127.0.0.1:*'] : []),
+  ].join(' ')
+
+  return {
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      scriptSrc,
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: https:",
+      connectSrc,
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; '),
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'X-DNS-Prefetch-Control': 'off',
+  }
+}
+
+/** Production / preview defaults (strict CSP). */
+export const SECURITY_HEADERS: Record<string, string> = buildSecurityHeaders()
 
 export const DEFAULT_CORS_ALLOW_HEADERS = 'authorization, x-client-info, apikey, content-type, x-correlation-id'
 export const DEFAULT_MAX_REQUEST_BYTES = 256 * 1024
