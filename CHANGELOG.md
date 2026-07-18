@@ -2,14 +2,21 @@
 
 All notable changes to Rahhal are documented in this file.
 
-## [Unreleased] — Production MVP: booking persistence
+## [Unreleased] — Production MVP: booking persistence (production-ready)
 
 ### Added
 
-- Durable booking session persistence (`bookingPersistence.ts`): Supabase write-through + local cache fallback.
+- Durable booking session persistence (`bookingPersistence.ts`): Supabase write-through + per-user local cache fallback.
 - `BookingOrchestrator.importSession` / `replaceUserSessions` for hydrate-after-reload.
 - My Trips loads real persisted booking records for the signed-in user.
 - Booking review/return resume persisted sessions and sync status changes.
+
+### Security / hardening
+
+- Local cache keyed per `userId` (no cross-user leakage on shared browsers).
+- `loadBookingSession(sessionId, userId)` enforces ownership before hydrate.
+- BookingReview / BookingReturn wait for auth and never persist as `'anonymous'`.
+- Sync upserts: update then create-if-missing (offline-first create path).
 
 ## [Unreleased] — Phase AB
 
