@@ -2,6 +2,17 @@ import { supabase } from '../supabaseClient'
 import { auditLogRepository } from '../repositories/auditLogRepository'
 import { preferenceRepository } from '../repositories/preferenceRepository'
 import { mapAuthErrorMessage } from './authValidation'
+import {
+  clearDemoSession,
+  isDemoAuthEnabled,
+  writeDemoSession,
+} from './demoAuth'
+
+function emitDemoAuthChanged(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('rahhal:demo-auth'))
+  }
+}
 
 export interface SignUpResult {
   success: boolean
@@ -51,9 +62,20 @@ export const authService = {
     if (error) {
       return { success: false, error: error.message }
     }
+    clearDemoSession()
     try {
       await auditLogRepository.create({ action: 'sign_in', entity_type: 'auth' })
     } catch { }
+    return { success: true, error: null }
+  },
+
+  /** Local demo session — only when VITE_DEMO_AUTH=true. */
+  async signInDemo(email = 'demo@rahhal.local'): Promise<SignInResult> {
+    if (!isDemoAuthEnabled()) {
+      return { success: false, error: 'Demo auth is disabled' }
+    }
+    writeDemoSession(email)
+    emitDemoAuthChanged()
     return { success: true, error: null }
   },
 
@@ -61,7 +83,11 @@ export const authService = {
     try {
       await auditLogRepository.create({ action: 'sign_out', entity_type: 'auth' })
     } catch { }
-    await supabase.auth.signOut()
+    clearDemoSession()
+    emitDemoAuthChanged()
+    try {
+      await supabase.auth.signOut()
+    } catch { }
   },
 
   async resetPassword(email: string): Promise<ForgotPasswordResult> {
