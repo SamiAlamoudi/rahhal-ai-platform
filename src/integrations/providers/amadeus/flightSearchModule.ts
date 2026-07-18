@@ -93,7 +93,19 @@ export async function buildAmadeusFlightSearchQuery(
     ...(infants > 0 ? { infants } : {}),
     cabin: mapCabinForApi(search.preferredCabin),
     currency: search.budgetCurrency || 'SAR',
-    maxResults: 10,
+    // Fetch a wider pool; FlightProvider sorts and returns the top 5.
+    maxResults: 20,
+    nonStop: search.directFlightPreferred === 'direct-only',
+  }
+
+  if (search.returnDate) {
+    query.returnDate = search.returnDate
+  }
+  if (search.travelers.children > 0) {
+    query.children = search.travelers.children
+  }
+  if (search.travelers.infants > 0) {
+    query.infants = search.travelers.infants
   }
 
   return {

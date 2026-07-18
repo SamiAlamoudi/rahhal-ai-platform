@@ -108,6 +108,7 @@ export interface FlightSearchQuery {
   cabin?: string
   currency?: string
   maxResults?: number
+  nonStop?: boolean
 }
 
 /** Response from POST /v1/shopping/flight-offers/pricing */
@@ -119,6 +120,20 @@ export interface AmadeusFlightOffersPricingResponse {
   }
   dictionaries?: AmadeusDictionaries
   warnings?: Array<{ code?: number; title?: string; detail?: string }>
+}
+
+/** Amadeus Airline Code Lookup entry. */
+export interface AmadeusAirlineResult {
+  type?: string
+  iataCode?: string
+  icaoCode?: string
+  businessName?: string
+  commonName?: string
+}
+
+export interface AmadeusAirlinesResponse {
+  meta?: { count?: number }
+  data?: AmadeusAirlineResult[]
 }
 
 /** Amadeus Airport & City Search location entry. */
@@ -472,6 +487,97 @@ export class AmadeusFlightApiClient {
         const latency = Date.now() - start
         const error = mapNetworkError(err)
         log('error', `Pricing request failed on attempt ${attempt}`, { latency, error: error.code })
+        if (!error.retryable || attempt > this.config.maxRetries) {
+          return { data: null, error, latency, attempts: attempt, tokenRefreshed }
+        }
+      }
+    }
+
+    return { data: null, error: null, latency: 0, attempts: this.config.maxRetries + 1, tokenRefreshed }
+  }
+
+  /**
+   * Airline Codes Lookup.
+   * Endpoint: GET /v1/reference-data/airlines?airlineCodes=SV,QR
+   */
+  async lookupAirlines(airlineCodes: string[]): Promise<ApiClientResult<AmadeusAirlineResult[]>> {
+    const codes = airlineCodes
+      .map((code) => code.trim().toUpperCase())
+      .filter((code) => /^[A-Z0-9]{2}$/.test(code))
+
+    if (codes.length === 0) {
+      return {
+        data: null,
+        error: {
+          code: 'AMADEUS_BAD_REQUEST',
+          category: 'validation',
+          severity: 'warning',
+          message: 'No valid airline codes provided',
+          retryable: false,
+          timestamp: new Date().toISOString(),
+        },
+        latency: 0,
+        attempts: 0,
+        tokenRefreshed: false,
+      }
+    }
+
+    let tokenRefreshed = false
+
+    for (let attempt = 1; attempt <= this.config.maxRetries + 1; attempt++) {
+      const tokenResult = await this.oauthClient.getToken()
+      if (tokenResult.error || !tokenResult.token) {
+        return { data: null, error: tokenResult.error, latency: 0, attempts: attempt, tokenRefreshed: false }
+      }
+
+      const start = Date.now()
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
+
+      try {
+        const params = new URLSearchParams({
+          airlineCodes: codes.join(','),
+        })
+        const url = `${amadeusV1Url(this.host, '/reference-data/airlines')}?${params.toString()}`
+        log('info', `Looking up airlines (attempt ${attempt})`, { codes })
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `${tokenResult.token.tokenType} ${tokenResult.token.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+        const latency = Date.now() - start
+
+        if (response.status === 401 && attempt === 1) {
+          log('warn', 'Token expired during airline lookup, refreshing')
+          this.oauthClient.clearToken()
+          tokenRefreshed = true
+          continue
+        }
+
+        if (!response.ok) {
+          const body = await response.text().catch(() => '')
+          const error = mapHttpError(response.status, body)
+          log('warn', `HTTP ${response.status} on airline attempt ${attempt}`, { latency, error: error.code })
+          if (!error.retryable || attempt > this.config.maxRetries) {
+            return { data: null, error, latency, attempts: attempt, tokenRefreshed }
+          }
+          continue
+        }
+
+        const payload = await response.json() as AmadeusAirlinesResponse
+        const data = Array.isArray(payload.data) ? payload.data : []
+        log('info', 'Airline codes received', { latency, count: data.length })
+        return { data, error: null, latency, attempts: attempt, tokenRefreshed }
+      } catch (err) {
+        clearTimeout(timeoutId)
+        const latency = Date.now() - start
+        const error = mapNetworkError(err)
+        log('error', `Airline lookup failed on attempt ${attempt}`, { latency, error: error.code })
         if (!error.retryable || attempt > this.config.maxRetries) {
           return { data: null, error, latency, attempts: attempt, tokenRefreshed }
         }

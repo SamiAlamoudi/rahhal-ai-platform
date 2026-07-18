@@ -13,6 +13,7 @@ import { useSessionPersistence } from '../lib/hooks/useSessionPersistence'
 import { buildTravelSearchRequest } from '../utils/travelSearchRequest'
 import type { SearchOrchestrationResult } from '../utils/searchOrchestrator'
 import { orchestrateLiveSearch } from '../utils/liveSearchOrchestrator'
+import { formatRankedFlightsForConversation } from '../integrations/providers/amadeus'
 import { generateReasoning, type ReasoningResult } from '../utils/reasoningEngine'
 import { buildRahhalReply, buildWelcomeReply, buildResumedReply, progressText } from '../utils/rahhalVoice'
 import DecisionProfile from '../components/DecisionProfile'
@@ -74,6 +75,7 @@ export default function TravelConversation() {
   const [orchestrationError, setOrchestrationError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const flightSummaryPostedRef = useRef(false)
 
   const completion = session.completionPercentage
   const nextQuestion = useMemo(() => getNextBestQuestion(session), [session])
@@ -107,6 +109,7 @@ export default function TravelConversation() {
       setOrchestrationResult(null)
       setOrchestrationError(null)
       setSearching(false)
+      flightSummaryPostedRef.current = false
       return
     }
 
@@ -120,11 +123,30 @@ export default function TravelConversation() {
         if (cancelled) return
         setOrchestrationResult(result)
         setOrchestrationError(null)
+
+        // Conversation-first: post top flight options as a Rahhal message.
+        // Never surface technical provider errors — mock fallback is silent.
+        if (!flightSummaryPostedRef.current) {
+          const flightText = formatRankedFlightsForConversation(result.rankedOptions, {
+            originLabel: session.departureCity ?? undefined,
+            destinationLabel: session.destination ?? undefined,
+            returnDate: session.returnDate,
+            limit: 5,
+          })
+          if (flightText) {
+            flightSummaryPostedRef.current = true
+            setMessages((prev) => [
+              ...prev,
+              { id: msgIdRef.current++, role: 'rahhal', text: flightText },
+            ])
+          }
+        }
       })
       .catch(() => {
         if (cancelled) return
         setOrchestrationResult(null)
-        setOrchestrationError('تعذّر تشغيل محرك البحث التجريبي. حاول مرة أخرى.')
+        // User-facing message only — no technical Amadeus/provider details.
+        setOrchestrationError('تعذّر العثور على خيارات السفر الآن. سأعيد المحاولة ببيانات بديلة.')
       })
       .finally(() => {
         if (!cancelled) setSearching(false)
