@@ -50,7 +50,7 @@ npm run dev
 | L–Y | Intelligent planning → RC1 / v1.0.0 | Done (promoted; see release notes) |
 | AA | Post-launch monitoring & stabilization | Done (ops) |
 | AB | v1.1 planning & AI enhancement foundation | Done (library; post-MVP) |
-| **Production MVP** | Booking persistence → unified funnel → My Trips → Amadeus sandbox → payments prep → E2E → deploy | **Active** — persistence + funnel + My Trips lifecycle done; next: Amadeus sandbox |
+| **Production MVP** | Booking persistence → unified funnel → My Trips → Amadeus sandbox → payments prep → E2E → deploy | **Active** — My Trips lifecycle + Amadeus sandbox done; next: payments prep / E2E / deploy |
 | AC+ | Recommendation / itinerary AI (post-launch) | Deferred until Production MVP complete |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).

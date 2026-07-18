@@ -9,6 +9,14 @@ All notable changes to Rahhal are documented in this file.
 - My Trips durable **cancel** (`إلغاء الحجز`) via `cancelBookingSession` + `syncBookingSession`.
 - Resume/cancel eligibility helpers (`myTripsActions.ts`) with unit coverage.
 
+## [Unreleased] — Production MVP: Amadeus Sandbox
+
+### Added
+
+- Amadeus sandbox funnel wiring: `bookingUrl` on flight offers, `amadeusSandbox` readiness helpers, default sandbox host for Amadeus flight adapter.
+- `liveSearchOrchestrator` passes Amadeus `bookingUrl` / offer id into results metadata for BookingReview.
+- Docs: `docs/AMADEUS_SANDBOX.md` staging pilot checklist (opt-in; mock remains default).
+
 ## [Unreleased] — Production MVP: unified booking funnel
 
 ### Added

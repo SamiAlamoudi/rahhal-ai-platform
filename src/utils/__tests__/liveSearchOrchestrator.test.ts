@@ -32,7 +32,7 @@ function makeRequest() {
 function sampleFlight(): FlightOffer {
   return {
     id: 'SV-100',
-    providerId: 'amadeus-flight',
+    providerId: 'amadeus-flight-001',
     title: 'SV 100: الرياض → طوكيو',
     currency: 'SAR',
     price: 4200,
@@ -40,6 +40,7 @@ function sampleFlight(): FlightOffer {
     rating: 4.2,
     familyFriendly: true,
     cancellationPolicy: 'free cancellation 24h',
+    bookingUrl: 'https://www.amadeus.com/book/flights?offerId=SV-100&source=rahhal&env=sandbox',
     itinerary: {
       segments: [
         {
@@ -246,6 +247,11 @@ describe('orchestrateLiveSearch', () => {
     expect(result.sources.rentalCar).toBe('real')
     expect(result.sources.weather).toBe('real')
     expect(result.weather?.info?.destination).toBe('Tokyo')
+
+    const flight = result.rankedOptions.find((o) => o.type === 'flight')
+    expect(flight?.attributes.bookingUrl).toContain('offerId=SV-100')
+    expect(flight?.attributes.providerName).toBe('Amadeus Flights')
+    expect(flight?.attributes.amadeusOfferId).toBe('SV-100')
   })
 
   it('includes activity offers when interests make activity required', async () => {

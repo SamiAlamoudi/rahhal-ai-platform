@@ -39,15 +39,17 @@ export class AmadeusFlightAdapter implements FlightProvider {
   readonly metadata = METADATA
   private oauthClient: AmadeusOAuthClient
   private apiClient: AmadeusFlightApiClient
+  private readonly host: string
 
   constructor(config: AmadeusFlightAdapterConfig) {
+    this.host = normalizeAmadeusHost(config.baseUrl || AMADEUS_DEFAULT_HOST)
     this.oauthClient = new AmadeusOAuthClient({
       tokenUrl: config.tokenUrl,
       invokeApiKey: config.invokeApiKey,
       timeout: config.timeout,
     })
     const apiConfig: ApiClientConfig = {
-      baseUrl: normalizeAmadeusHost(config.baseUrl || AMADEUS_DEFAULT_HOST),
+      baseUrl: this.host,
       timeout: config.timeout,
       maxRetries: config.maxRetries,
     }
@@ -105,7 +107,7 @@ export class AmadeusFlightAdapter implements FlightProvider {
       )
     }
 
-    const offers = normalizeAmadeusResponse(result.data, METADATA.id)
+    const offers = normalizeAmadeusResponse(result.data, METADATA.id, { host: this.host })
     return okResult(METADATA.id, METADATA.name, offers as FlightOffer[], latency, 'amadeus')
   }
 }

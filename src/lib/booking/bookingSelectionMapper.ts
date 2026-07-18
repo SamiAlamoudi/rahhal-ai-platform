@@ -25,13 +25,23 @@ const TYPE_MAP: Record<NormalizedTravelOption['type'], BookingItemType> = {
 
 const PROVIDER_LABELS: Record<string, string> = {
   'amadeus-flight': 'Amadeus',
+  'amadeus-flight-001': 'Amadeus',
   'amadeus-hotel': 'Amadeus Hotels',
   'booking-com': 'Booking.com',
   'rentalcars': 'Rentalcars',
   'mock-flight': 'Mock Flights',
+  'mock-flight-001': 'Mock Flights',
   'mock-hotel': 'Mock Hotels',
   'mock-activity': 'Mock Activities',
   'mock-transportation': 'Mock Cars',
+}
+
+function labelForProviderId(providerId: string): string | null {
+  if (PROVIDER_LABELS[providerId]) return PROVIDER_LABELS[providerId]
+  if (providerId.startsWith('amadeus-flight')) return 'Amadeus'
+  if (providerId.startsWith('mock-flight')) return 'Mock Flights'
+  if (providerId.startsWith('booking')) return 'Booking.com'
+  return null
 }
 
 function attrString(
@@ -63,8 +73,10 @@ export function resolveProviderName(option: NormalizedTravelOption): string {
     ?? attrString(option.attributes, 'company')
   if (fromAttr) return fromAttr
   const providerId = option.providerIds[0]
-  if (providerId && PROVIDER_LABELS[providerId]) return PROVIDER_LABELS[providerId]
-  return providerId || 'Provider'
+  if (providerId) {
+    return labelForProviderId(providerId) ?? providerId
+  }
+  return 'Provider'
 }
 
 export function mapOptionToBookingType(option: NormalizedTravelOption): BookingItemType {
