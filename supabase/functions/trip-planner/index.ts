@@ -4,14 +4,13 @@
  * Transport-only gateway following existing Edge patterns:
  *   HTTP → auth (Supabase JWT) → transport validation → planning host
  *
+ * Supports legacy actions (plan / get_result / health) and REST paths:
+ *   /trip-planner/plans[...]
+ *
  * Safe defaults:
  * - VITE_PAYMENT_PROVIDER / PAYMENT_PROVIDER treated as mock
  * - Live providers OFF
  * - No real booking / payment / ticketing
- *
- * Planning engine execution uses the shared TypeScript HTTP handler
- * (src/lib/ai/tripPlanner/http) when available via TRIP_PLANNER_HANDLER_URL,
- * or returns a clear bridge response for local/dev without that host.
  *
  * Does not create a second orchestration layer — does not score, rank,
  * or build itineraries itself.
@@ -23,7 +22,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, x-correlation-id',
+    'authorization, x-client-info, apikey, content-type, x-correlation-id, idempotency-key, prefer, accept-language',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Content-Type': 'application/json',
   'Cache-Control': 'no-store',
@@ -41,7 +40,7 @@ function correlationId(req: Request): string {
   return req.headers.get('x-correlation-id')?.trim() || crypto.randomUUID()
 }
 
-async function resolveUser(req: Request): Promise<{ id: string; email: string | null } | null> {
+async function resolveUser(req: Request): Promise<{ id: string; email: string | null; role: string | null } | null> {
   const auth = req.headers.get('Authorization')
   if (!auth?.toLowerCase().startsWith('bearer ')) return null
   const jwt = auth.slice(7).trim()
@@ -57,12 +56,21 @@ async function resolveUser(req: Request): Promise<{ id: string; email: string | 
   })
   const { data, error } = await client.auth.getUser(jwt)
   if (error || !data.user) return null
-  return { id: data.user.id, email: data.user.email ?? null }
+  const role =
+    (data.user.app_metadata as { role?: string } | undefined)?.role === 'admin'
+      ? 'admin'
+      : null
+  return { id: data.user.id, email: data.user.email ?? null, role }
+}
+
+function isRestPlansPath(pathname: string): boolean {
+  return pathname.toLowerCase().includes('/trip-planner/plans')
 }
 
 function parsePathAction(req: Request, body: Record<string, unknown> | null): string {
   const url = new URL(req.url)
   const path = url.pathname.toLowerCase()
+  if (isRestPlansPath(path)) return 'rest'
   if (path.endsWith('/health') || url.searchParams.get('action') === 'health') return 'health'
   if (req.method === 'GET') {
     if (
@@ -93,12 +101,21 @@ serve(async (req) => {
   }
 
   let body: Record<string, unknown> | null = null
+  let rawBody: string | null = null
   if (req.method === 'POST') {
     try {
-      body = await req.json()
+      rawBody = await req.text()
+      body = rawBody.trim() ? (JSON.parse(rawBody) as Record<string, unknown>) : null
     } catch {
       return jsonResponse(
-        { error: 'Request body must be valid JSON.', code: 'invalid_body', correlationId: corr },
+        {
+          error: {
+            code: 'INVALID_JSON',
+            message: 'Request body must be valid JSON.',
+            retryable: false,
+            correlationId: corr,
+          },
+        },
         400,
         corrHeaders,
       )
@@ -140,7 +157,14 @@ serve(async (req) => {
 
   if (action === 'unknown') {
     return jsonResponse(
-      { error: 'Unsupported method or action.', code: 'method_not_allowed', correlationId: corr },
+      {
+        error: {
+          code: 'METHOD_NOT_ALLOWED',
+          message: 'Unsupported method or action.',
+          retryable: false,
+          correlationId: corr,
+        },
+      },
       405,
       corrHeaders,
     )
@@ -149,7 +173,14 @@ serve(async (req) => {
   const user = await resolveUser(req)
   if (!user) {
     return jsonResponse(
-      { error: 'Authentication required.', code: 'auth_error', correlationId: corr },
+      {
+        error: {
+          code: 'UNAUTHENTICATED',
+          message: 'Authentication required.',
+          retryable: false,
+          correlationId: corr,
+        },
+      },
       401,
       corrHeaders,
     )
@@ -162,29 +193,47 @@ serve(async (req) => {
     forwardHeaders.set('Content-Type', 'application/json')
     forwardHeaders.set('x-correlation-id', corr)
     forwardHeaders.set('Authorization', req.headers.get('Authorization') ?? '')
+    const idem = req.headers.get('Idempotency-Key')
+    if (idem) forwardHeaders.set('Idempotency-Key', idem)
+    const prefer = req.headers.get('Prefer')
+    if (prefer) forwardHeaders.set('Prefer', prefer)
+    const acceptLanguage = req.headers.get('Accept-Language')
+    if (acceptLanguage) forwardHeaders.set('Accept-Language', acceptLanguage)
+
     const url = new URL(req.url)
-    const target =
-      action === 'get_result'
-        ? `${handlerUrl}/result${url.search}`
-        : `${handlerUrl}/plan`
+    let target: string
+    if (action === 'rest') {
+      // Preserve REST path + query for the shared handler host.
+      const path = url.pathname
+      const restIdx = path.toLowerCase().indexOf('/trip-planner/plans')
+      const restPath = restIdx >= 0 ? path.slice(restIdx) : path
+      target = `${handlerUrl}${restPath}${url.search}`
+    } else {
+      target =
+        action === 'get_result'
+          ? `${handlerUrl}/result${url.search}`
+          : `${handlerUrl}/plan`
+    }
 
     const forward = await fetch(target, {
-      method: action === 'get_result' && req.method === 'GET' ? 'GET' : 'POST',
+      method: req.method,
       headers: forwardHeaders,
       body:
-        req.method === 'GET'
+        req.method === 'GET' || req.method === 'OPTIONS'
           ? undefined
-          : JSON.stringify(
-              action === 'plan'
-                ? {
-                    action: 'plan',
-                    request: {
-                      ...((body?.request as Record<string, unknown> | undefined) ?? body),
-                      userId: user.id,
-                    },
-                  }
-                : (body ?? { action: 'get_result' }),
-            ),
+          : action === 'rest'
+            ? rawBody
+            : JSON.stringify(
+                action === 'plan'
+                  ? {
+                      action: 'plan',
+                      request: {
+                        ...((body?.request as Record<string, unknown> | undefined) ?? body),
+                        userId: user.id,
+                      },
+                    }
+                  : (body ?? { action: 'get_result' }),
+              ),
     })
     const text = await forward.text()
     return new Response(text, {
@@ -193,8 +242,23 @@ serve(async (req) => {
     })
   }
 
-  // Without a handler host, Edge remains a secure namespace stub:
-  // auth + contract validation only — never invents planning results.
+  // Without a handler host, Edge remains a secure namespace stub.
+  if (action === 'rest') {
+    return jsonResponse(
+      {
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message:
+            'Trip planner Edge gateway authenticated the request. Set TRIP_PLANNER_HANDLER_URL to the shared HTTP handler host, or use the in-process API client.',
+          retryable: true,
+          correlationId: corr,
+        },
+      },
+      503,
+      corrHeaders,
+    )
+  }
+
   if (action === 'plan') {
     const request = (body?.request ?? body) as Record<string, unknown> | null
     if (!request || typeof request !== 'object') {
@@ -240,7 +304,6 @@ serve(async (req) => {
     )
   }
 
-  // get_result without handler host
   return jsonResponse(
     {
       error:

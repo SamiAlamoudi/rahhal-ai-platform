@@ -1,4 +1,4 @@
-# Trip Planner Contract (Phase AF)
+# Trip Planner Contract (Phase AF + AG API)
 
 ## Input — `TripPlannerRequest`
 
@@ -74,3 +74,28 @@ Same valid `idempotencyKey` returns the stored `TripPlannerResult`.
 ## Backward compatibility
 
 TripPlannerService is additive. Existing PreferenceEngine, RecommendationEngine, ItineraryEngine, BookingOrchestrator, and ProviderAdapter contracts remain unchanged.
+
+## Phase AG REST DTOs
+
+Stable HTTP DTOs live in `src/lib/ai/tripPlanner/http/dto.ts` and are documented in `TRIP_PLANNER_API.md` / `docs/openapi/trip-planner-api.v1.json`.
+
+| DTO | Role |
+|---|---|
+| `CreateTripPlanRequestDto` | Transport body for `POST /trip-planner/plans` (no trusted `userId`) |
+| `CreateTripPlanResponseDto` | Create / async accept envelope with status URLs |
+| `TripPlanResultDto` | Safe result projection (no stacks / raw repos / secrets) |
+| `TripPlanStatusDto` | Polling status without internal errors |
+| `TripPlanTimelineDto` | Masked ordered pipeline events |
+| `TripPlanErrorDto` | Structured `{ error: { code, message, field?, retryable, correlationId } }` |
+
+REST maps authenticated user → `TripPlannerRequest.userId` before calling `TripPlannerService.plan`. Engine contracts are unchanged.
+
+### Ownership
+
+- REST: authenticated user id is authoritative; client `userId` is ignored.
+- Legacy `/plan`: still requires `request.userId` to match the authenticated user (AH client compatibility).
+- Admin role may read other users' plans; non-owners receive `404`.
+
+### Idempotency (REST)
+
+Header `Idempotency-Key` binds to `(userId, requestHash)`. Body idempotency fields are not trusted for REST create.

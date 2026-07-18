@@ -1,0 +1,358 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Rahhal Trip Planner API",
+    "version": "1.0.0",
+    "description": "Provider-neutral Trip Planner REST API over TripPlannerService. Mock payment; live providers OFF by default. No real booking/payment/ticketing."
+  },
+  "servers": [{ "url": "/", "description": "Shared HTTP handler / Edge bridge" }],
+  "tags": [{ "name": "TripPlanner" }],
+  "paths": {
+    "/trip-planner/plans": {
+      "post": {
+        "tags": ["TripPlanner"],
+        "summary": "Create trip plan",
+        "operationId": "createTripPlan",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "minLength": 8, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$" }
+          },
+          {
+            "name": "Prefer",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "example": "respond-async" }
+          },
+          {
+            "name": "x-correlation-id",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string", "enum": ["en", "ar"] }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateTripPlanRequestDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created and completed synchronously",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateTripPlanResponseDto" }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted; still processing",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateTripPlanResponseDto" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" },
+          "422": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" },
+          "500": { "$ref": "#/components/responses/Error" },
+          "503": { "$ref": "#/components/responses/Error" },
+          "504": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/trip-planner/plans/{planId}": {
+      "get": {
+        "tags": ["TripPlanner"],
+        "summary": "Get trip plan result",
+        "operationId": "getTripPlan",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/planId" }],
+        "responses": {
+          "200": {
+            "description": "TripPlanResultDto",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TripPlanResultDto" }
+              }
+            }
+          },
+          "202": { "description": "Still processing" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/trip-planner/plans/{planId}/status": {
+      "get": {
+        "tags": ["TripPlanner"],
+        "summary": "Get plan status",
+        "operationId": "getTripPlanStatus",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/planId" }],
+        "responses": {
+          "200": {
+            "description": "TripPlanStatusDto",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TripPlanStatusDto" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/trip-planner/plans/{planId}/timeline": {
+      "get": {
+        "tags": ["TripPlanner"],
+        "summary": "Get masked pipeline timeline",
+        "operationId": "getTripPlanTimeline",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/planId" }],
+        "responses": {
+          "200": {
+            "description": "TripPlanTimelineDto",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TripPlanTimelineDto" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/trip-planner/plans/{planId}/cancel": {
+      "post": {
+        "tags": ["TripPlanner"],
+        "summary": "Cancel active plan (idempotent)",
+        "operationId": "cancelTripPlan",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/planId" }],
+        "responses": {
+          "200": {
+            "description": "Status after cancel",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TripPlanStatusDto" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/trip-planner/plans/{planId}/retry": {
+      "post": {
+        "tags": ["TripPlanner"],
+        "summary": "Retry retryable failed plan",
+        "operationId": "retryTripPlan",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/planId" }],
+        "responses": {
+          "200": {
+            "description": "Retry result envelope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateTripPlanResponseDto" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Supabase JWT or dev token user:<id> / user:<id>:admin"
+      }
+    },
+    "parameters": {
+      "planId": {
+        "name": "planId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Structured API error",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/TripPlanErrorDto" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "CreateTripPlanRequestDto": {
+        "type": "object",
+        "required": ["destinations", "travelers"],
+        "additionalProperties": false,
+        "properties": {
+          "destinations": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "origin": { "type": ["string", "null"] },
+          "startDate": { "type": ["string", "null"], "format": "date" },
+          "endDate": { "type": ["string", "null"], "format": "date" },
+          "flexibleDates": { "type": "boolean" },
+          "durationDays": { "type": ["integer", "null"] },
+          "travelers": {
+            "type": "object",
+            "required": ["adults"],
+            "properties": {
+              "adults": { "type": "integer", "minimum": 1 },
+              "children": { "type": "integer", "minimum": 0 },
+              "infants": { "type": "integer", "minimum": 0 },
+              "travelerType": { "type": "string" }
+            }
+          },
+          "budget": {
+            "type": ["object", "null"],
+            "properties": {
+              "amount": { "type": "number", "exclusiveMinimum": 0 },
+              "currency": { "type": "string" }
+            }
+          },
+          "currency": { "type": ["string", "null"], "enum": ["USD", "SAR", "EUR", "AED", "GBP", null] },
+          "travelStyle": { "type": ["string", "null"] },
+          "explicitPreferences": { "type": ["object", "null"] },
+          "constraints": { "type": ["object", "null"] },
+          "accessibilityNeeds": { "type": ["object", "null"] },
+          "preferredLanguage": { "type": ["string", "null"], "enum": ["ar", "en", null] },
+          "includeBookingPreview": {
+            "type": "boolean",
+            "default": false,
+            "description": "Mock booking preview only; no payment/confirm"
+          },
+          "expiresAt": { "type": ["string", "null"], "format": "date-time" },
+          "inferredPreferences": { "type": ["object", "null"] },
+          "requestId": { "type": "string" }
+        }
+      },
+      "CreateTripPlanResponseDto": {
+        "type": "object",
+        "required": ["planId", "status", "currentStage", "progress", "correlationId", "statusUrl", "resultUrl"],
+        "properties": {
+          "planId": { "type": "string" },
+          "status": { "type": "string" },
+          "currentStage": { "type": "string" },
+          "progress": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "correlationId": { "type": "string" },
+          "statusUrl": { "type": "string" },
+          "resultUrl": { "type": "string" },
+          "result": { "oneOf": [{ "$ref": "#/components/schemas/TripPlanResultDto" }, { "type": "null" }] }
+        }
+      },
+      "TripPlanStatusDto": {
+        "type": "object",
+        "required": ["planId", "status", "currentStage", "progress", "startedAt", "updatedAt", "completedAt", "retryable", "correlationId"],
+        "properties": {
+          "planId": { "type": "string" },
+          "status": { "type": "string" },
+          "currentStage": { "type": "string" },
+          "progress": { "type": "integer" },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "completedAt": { "type": ["string", "null"], "format": "date-time" },
+          "retryable": { "type": "boolean" },
+          "correlationId": { "type": "string" }
+        }
+      },
+      "TripPlanTimelineDto": {
+        "type": "object",
+        "required": ["planId", "events"],
+        "properties": {
+          "planId": { "type": "string" },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "stage": { "type": "string" },
+                "at": { "type": "string", "format": "date-time" },
+                "message": { "type": "string" },
+                "ok": { "type": "boolean" },
+                "durationMs": { "type": ["number", "null"] },
+                "details": { "type": "object" }
+              }
+            }
+          }
+        }
+      },
+      "TripPlanResultDto": {
+        "type": "object",
+        "required": ["planId", "requestId", "userId", "correlationId", "status", "stage", "progress", "version"],
+        "properties": {
+          "planId": { "type": "string" },
+          "requestId": { "type": "string" },
+          "userId": { "type": "string" },
+          "correlationId": { "type": "string" },
+          "status": { "type": "string" },
+          "stage": { "type": "string" },
+          "progress": { "type": "integer" },
+          "recommendations": { "type": "array" },
+          "itinerary": {},
+          "bookingPreview": {},
+          "totalEstimatedCost": { "type": ["number", "null"] },
+          "currency": { "type": "string" },
+          "overallConfidence": { "type": "number" },
+          "confidence": {},
+          "warnings": { "type": "array", "items": { "type": "string" } },
+          "assumptions": { "type": "array", "items": { "type": "string" } },
+          "validationErrors": { "type": "array" },
+          "failure": {},
+          "partial": { "type": "boolean" },
+          "generatedAt": { "type": "string" },
+          "version": { "type": "integer", "enum": [1] }
+        }
+      },
+      "TripPlanErrorDto": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message", "retryable", "correlationId"],
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "field": { "type": "string" },
+              "retryable": { "type": "boolean" },
+              "correlationId": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

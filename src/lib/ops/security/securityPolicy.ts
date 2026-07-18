@@ -25,7 +25,8 @@ export const SECURITY_HEADERS: Record<string, string> = {
   'X-DNS-Prefetch-Control': 'off',
 }
 
-export const DEFAULT_CORS_ALLOW_HEADERS = 'authorization, x-client-info, apikey, content-type, x-correlation-id'
+export const DEFAULT_CORS_ALLOW_HEADERS =
+  'authorization, x-client-info, apikey, content-type, x-correlation-id, idempotency-key, prefer, accept-language'
 export const DEFAULT_MAX_REQUEST_BYTES = 256 * 1024
 
 export interface CorsPolicy {
