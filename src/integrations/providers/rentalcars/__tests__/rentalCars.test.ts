@@ -383,6 +383,22 @@ describe('MockRentalCarAdapter', () => {
     expect(result.data![0].company).toBe('Toyota Rent a Car')
   })
 
+  it('returns Moroccan rental companies for Morocco destinations', async () => {
+    const adapter = new MockRentalCarAdapter()
+    for (const destination of ['Morocco', 'Marrakech', 'Casablanca', 'Agadir', 'Rabat']) {
+      const result = await adapter.searchRentalCars({
+        search: { ...MOCK_REQUEST.search, destination },
+      })
+      expect(result.success).toBe(true)
+      expect(result.data?.map((v) => v.company)).toEqual([
+        'Medloc Car Rental',
+        'First Car Morocco',
+        'Europcar Morocco',
+      ])
+      expect(result.data?.some((v) => /Tokyo|Toyota Rent a Car/i.test(v.company))).toBe(false)
+    }
+  })
+
   it('has correct metadata', () => {
     const adapter = new MockRentalCarAdapter()
     expect(adapter.metadata.id).toBe('mock-rental-001')
