@@ -40,7 +40,7 @@ function isSet(value: string | undefined | null): boolean {
 export function verifyPreviewEnvironment(
   input: PreviewEnvCheckInput = {},
 ): PreviewEnvCheckResult {
-  const env = { ...(input.env ?? {}) }
+  const env = input.env ? { ...input.env } : {}
   const errors: string[] = []
   const warnings: string[] = []
 
