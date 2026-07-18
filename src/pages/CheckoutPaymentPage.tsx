@@ -126,7 +126,7 @@ export default function CheckoutPaymentPage() {
               </svg>
             </button>
             <div>
-              <h1 className="text-base font-bold text-slate-900">الدفع</h1>
+              <h1 className="text-base font-bold text-slate-900" data-testid="payment-ready">الدفع</h1>
               <p className="text-[10px] text-slate-400">{order.orderNumber}</p>
             </div>
           </div>

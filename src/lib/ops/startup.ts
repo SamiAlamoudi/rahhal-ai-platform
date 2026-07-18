@@ -26,7 +26,8 @@ export interface StartupResult {
 export function runStartup(options: StartupOptions = {}): StartupResult {
   const target = options.target
     ?? (readTargetFromEnv() ?? 'development')
-  const failFast = options.failFast ?? (target === 'staging' || target === 'production')
+  const failFast = options.failFast
+    ?? (target === 'preview' || target === 'staging' || target === 'production')
   const correlationId = getCorrelationId()
   const logger = getLogger()
 
@@ -66,7 +67,14 @@ export function runStartup(options: StartupOptions = {}): StartupResult {
 function readTargetFromEnv(): DeployTarget | null {
   try {
     const value = (import.meta as { env?: Record<string, unknown> }).env?.VITE_DEPLOY_TARGET
-    if (value === 'staging' || value === 'production' || value === 'development') return value
+    if (
+      value === 'preview'
+      || value === 'staging'
+      || value === 'production'
+      || value === 'development'
+    ) {
+      return value
+    }
   } catch {
     /* ignore */
   }

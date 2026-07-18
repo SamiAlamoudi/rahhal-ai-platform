@@ -229,6 +229,7 @@ export default function SearchWorkspace() {
                     <button
                       type="button"
                       onClick={handleConfirmProfile}
+                      data-testid="search-confirm"
                       className="w-full rounded-2xl bg-primary-600 py-4 text-base font-bold text-white shadow-lg shadow-primary-600/30 transition-all duration-200 hover:bg-primary-700 hover:shadow-xl hover:shadow-primary-600/40 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-primary-400/20"
                     >
                       أكد خطتي وابدأ البحث
@@ -270,6 +271,7 @@ export default function SearchWorkspace() {
                           travelSessionId,
                         },
                       })}
+                      data-testid="results-open"
                       className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-primary-700 active:scale-[0.98]"
                     >
                       عرض صفحة النتائج الكاملة ←

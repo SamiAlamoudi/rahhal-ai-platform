@@ -224,6 +224,7 @@ export default function CheckoutReviewPage() {
               type="checkbox"
               checked={acceptedTerms}
               onChange={(e) => setAcceptedTerms(e.target.checked)}
+              data-testid="checkout-terms"
               className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
             />
             <span className="text-sm text-slate-700">
@@ -242,6 +243,7 @@ export default function CheckoutReviewPage() {
             type="button"
             onClick={handleProceedToPayment}
             disabled={loading || !acceptedTerms}
+            data-testid="checkout-to-payment"
             className="rounded-xl bg-primary-600 px-8 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
           >
             المتابعة للدفع

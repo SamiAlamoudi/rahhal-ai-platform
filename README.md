@@ -28,6 +28,9 @@ npm run dev
 |--------|---------|
 | `npm run dev` | Vite dev server |
 | `npm run build` | Typecheck + production build |
+| `npm run build:preview` | Preview SPA build (mock payments, live providers off) |
+| `npm run preview:verify` | Preview env gate (see `docs/PREVIEW_DEPLOYMENT.md`) |
+| `npm run test:playwright` | Browser booking funnel E2E |
 | `npm run lint` | Oxlint |
 | `npm run test:run` | Vitest once |
 
@@ -50,7 +53,7 @@ npm run dev
 | L–Y | Intelligent planning → RC1 / v1.0.0 | Done (promoted; see release notes) |
 | AA | Post-launch monitoring & stabilization | Done (ops) |
 | AB | v1.1 planning & AI enhancement foundation | Done (library; post-MVP) |
-| **Production MVP** | Booking persistence → unified funnel → My Trips → Amadeus sandbox → payments prep → E2E → deploy | **Active** — My Trips lifecycle + Amadeus sandbox done; next: payments prep / E2E / deploy |
+| **Production MVP** | Booking persistence → unified funnel → My Trips → Amadeus sandbox → payments prep → E2E → deploy | **Active** — preview deployment readiness (`npm run build:preview` / `preview:verify`); no production deploy |
 | AC+ | Recommendation / itinerary AI (post-launch) | Deferred until Production MVP complete |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).

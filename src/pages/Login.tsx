@@ -103,6 +103,7 @@ export default function Login() {
               type="button"
               disabled={loading}
               onClick={handleDemoSignIn}
+              data-testid="login-demo"
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 active:scale-[0.98] disabled:opacity-50"
             >
               متابعة كمستخدم تجريبي (محلي)

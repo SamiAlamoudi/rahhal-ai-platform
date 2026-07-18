@@ -3,14 +3,17 @@
 Templates:
 
 - `.env.example` — local development
+- `.env.preview.example` — preview deployment (Production MVP; never production)
 - `.env.staging.example` — staging
 - `.env.production.example` — production
+
+Preview runbook: [PREVIEW_DEPLOYMENT.md](./PREVIEW_DEPLOYMENT.md)
 
 ## SPA (`VITE_*`)
 
 | Variable | Purpose | Safe default |
 |----------|---------|--------------|
-| `VITE_DEPLOY_TARGET` | `development` \| `staging` \| `production` | `development` |
+| `VITE_DEPLOY_TARGET` | `development` \| `preview` \| `staging` \| `production` | `development` |
 | `VITE_SUPABASE_URL` | Supabase project | required for auth |
 | `VITE_SUPABASE_ANON_KEY` | SPA invoke / auth | required for auth |
 | `VITE_PAYMENT_PROVIDER` | Payment adapter | **`mock`** |
@@ -38,4 +41,6 @@ Templates:
 
 ## Validation
 
-`validateEnvironment()` / `assertValidEnvironment()` reject forbidden client secrets and enforce mock payments for staging/production targets.
+`validateEnvironment()` / `assertValidEnvironment()` reject forbidden client secrets and enforce mock payments for preview/staging/production targets.
+
+`verifyPreviewEnvironment()` / `npm run preview:verify` additionally require Supabase URL+anon and keep live providers OFF for preview builds.

@@ -2,6 +2,8 @@
 
 Use before promoting a build to the staging host.
 
+For **preview-only** MVP deploys (no production), see [PREVIEW_DEPLOYMENT.md](./PREVIEW_DEPLOYMENT.md) and run `npm run preview:verify` + `npm run build:preview`.
+
 ## Pre-deploy
 
 - [ ] CI green on the release commit (typecheck, lint, tests, build, audit, secret scan)

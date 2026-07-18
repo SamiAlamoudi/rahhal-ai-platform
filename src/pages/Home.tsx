@@ -38,6 +38,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => navigate('/search')}
+              data-testid="nav-search"
               className="rounded-lg px-3 py-2 text-sm font-medium text-primary-600 transition-colors hover:bg-primary-50 hover:text-primary-700"
             >
               مساحة البحث

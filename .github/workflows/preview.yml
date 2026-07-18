@@ -1,0 +1,76 @@
+name: Preview readiness
+
+# Preview deployment readiness only — never deploys to production.
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  preview:
+    name: Preview build & verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Verify preview environment contract
+        run: npm run preview:verify
+
+      - name: Providers check (mock payment, live OFF)
+        run: npm run providers:check
+
+      - name: Build preview SPA
+        run: npm run build:preview
+        env:
+          VITE_DEPLOY_TARGET: preview
+          VITE_SUPABASE_URL: https://preview.example.supabase.co
+          VITE_SUPABASE_ANON_KEY: preview-anon-ci-placeholder
+          VITE_PAYMENT_PROVIDER: mock
+          VITE_LIVE_PROVIDERS_ENABLED: 'false'
+          VITE_PROVIDER_MOCK_FALLBACK: 'true'
+          VITE_FLIGHT_PROVIDER: mock
+          VITE_HOTEL_ADAPTER: mock
+
+      - name: Confirm preview build emitted static health probes
+        run: |
+          test -f dist/health.json
+          test -f dist/ready.json
+          echo "Preview static probes present"
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright booking funnel E2E
+        run: npm run test:playwright
+        env:
+          CI: true
+
+      - name: Upload preview dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-dist
+          path: dist/
+          retention-days: 7
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

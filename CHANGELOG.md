@@ -2,6 +2,23 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Production MVP: Preview deployment readiness
+
+### Added
+
+- Preview deploy target + `verifyPreviewEnvironment()` / `npm run preview:verify` (mock payment, live providers OFF, Supabase required).
+- `.env.preview.example`, `npm run build:preview`, docs `docs/PREVIEW_DEPLOYMENT.md`.
+- GitHub workflow **Preview readiness** — env verify, preview build, providers check, Playwright, uploads `preview-dist` artifact (no production deploy).
+
+## [Unreleased] — Production MVP: Browser E2E (Playwright)
+
+### Added
+
+- Playwright Chromium funnel spec: login (demo) → search → results → booking review → checkout → payment preparation.
+- `npm run build:e2e` / `npm run test:playwright` (demo auth + mock providers; production behavior unchanged).
+- CI job **Browser E2E (Playwright)** after quality gates; uploads report on failure.
+- Stable `data-testid` hooks on funnel CTAs (no product behavior change).
+
 ## [Unreleased] — Production MVP: My Trips lifecycle
 
 ### Added

@@ -130,6 +130,11 @@ export {
   type EnvironmentValidationResult,
 } from './security/envValidation'
 export {
+  verifyPreviewEnvironment,
+  type PreviewEnvCheckInput,
+  type PreviewEnvCheckResult,
+} from './preview'
+export {
   SECURITY_HEADERS,
   buildSecurityHeaders,
   buildCorsPolicy,

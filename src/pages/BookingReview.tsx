@@ -435,6 +435,7 @@ export default function BookingReview() {
               type="button"
               onClick={handlePayViaRahhal}
               disabled={session.items.length === 0}
+              data-testid="pay-rahhal"
               className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-40"
             >
               الدفع عبر رحّال

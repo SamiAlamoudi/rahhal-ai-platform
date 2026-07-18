@@ -219,6 +219,7 @@ export default function CheckoutPage() {
             type="button"
             onClick={handleProceedToReview}
             disabled={loading || cart.items.length === 0}
+            data-testid="checkout-continue"
             className="rounded-xl bg-primary-600 px-8 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
           >
             {loading ? 'جاري المعالجة...' : 'متابعة للمراجعة'}
