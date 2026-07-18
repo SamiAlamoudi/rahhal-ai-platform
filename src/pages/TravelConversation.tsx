@@ -31,7 +31,13 @@ export default function TravelConversation() {
   const location = useLocation()
   const initialText = (location.state as { tripText?: string } | null)?.tripText ?? ''
 
-  const { session: persistedSession, saveSession: persistSession, clearSession: clearPersistedSession, loading: sessionLoading } = useSessionPersistence()
+  const {
+    session: persistedSession,
+    sessionId: travelSessionId,
+    saveSession: persistSession,
+    clearSession: clearPersistedSession,
+    loading: sessionLoading,
+  } = useSessionPersistence()
   const msgIdRef = useRef(3)
   const [session, setSession] = useState<TravelSession>(() => {
     if (persistedSession && persistedSession.completedFields.length > 0) return persistedSession
@@ -339,6 +345,22 @@ export default function TravelConversation() {
                 </div>
               ) : (
                 <div className="space-y-6">
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => navigate('/results', {
+                        state: {
+                          rankedOptions,
+                          reasoningResults,
+                          searchRequest,
+                          travelSessionId,
+                        },
+                      })}
+                      className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-primary-700 active:scale-[0.98]"
+                    >
+                      عرض صفحة النتائج الكاملة واختيار الحجز ←
+                    </button>
+                  </div>
                   <ResultsExperience
                     rankedOptions={rankedOptions}
                     reasoningResults={reasoningResults}

@@ -5,25 +5,17 @@ import {
   persistBookingSession,
   syncBookingSession,
   loadBookingSession,
+  type BookingSelectedItem,
 } from '../lib/booking'
 import type { BookingSession, BookingItem, BookingItemType } from '../lib/booking/bookingTypes'
 import type { BookingAction } from '../lib/booking/bookingAction'
-import type { NormalizedTravelOption } from '../utils/searchOrchestrator'
+import { prepareBookingPayment } from '../lib/payment'
 import { savedTripRepository } from '../lib/repositories/savedTripRepository'
 import { buildSavedTripData, buildSavedTripTitle } from '../lib/savedTrips/savedTripHelpers'
 import { useAuth } from '../lib/auth'
 
-interface SelectedItem {
-  option: NormalizedTravelOption
-  bookingType: BookingItemType
-  bookingUrl: string
-  providerName: string
-  expiresAt: string | null
-  cancellationInfo: string | null
-}
-
 interface BookingReviewLocationState {
-  selectedItems?: SelectedItem[]
+  selectedItems?: BookingSelectedItem[]
   travelSessionId: string | null
   currency: string
   /** Resume an already-persisted booking session. */
@@ -259,6 +251,31 @@ export default function BookingReview() {
     navigate('/results')
   }
 
+  const handlePayViaRahhal = () => {
+    if (!session || session.items.length === 0) {
+      setError('لا توجد عناصر للدفع')
+      return
+    }
+    try {
+      const prepared = prepareBookingPayment({
+        bookingSession: session,
+        returnUrl: `${window.location.origin}/checkout/return`,
+        customerEmail: user?.email ?? null,
+        customerName: user?.user_metadata?.full_name ?? user?.email ?? null,
+      })
+      navigate('/checkout', {
+        state: {
+          items: prepared.checkoutInit.items,
+          travelSessionId: prepared.checkoutInit.travelSessionId,
+          currency: prepared.currency,
+          bookingSessionId: prepared.bookingSessionId,
+        },
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'تعذر بدء الدفع عبر رحّال')
+    }
+  }
+
   const summary = session ? orchestrator.calculateBookingSummary(session.id) : null
   const readiness = session ? orchestrator.validateBookingReadiness(session.id) : null
 
@@ -369,10 +386,10 @@ export default function BookingReview() {
           </div>
         )}
 
-        {/* External payment notice */}
+        {/* Payment path notice */}
         <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
           <p className="text-sm text-sky-800">
-            سيتم إتمام الدفع لدى المزود مباشرة. رحّال لا يخزّن بيانات الدفع.
+            يمكنك التحويل لإتمام الحجز لدى المزود، أو متابعة الدفع التجريبي عبر رحّال (وضع mock افتراضياً).
           </p>
         </div>
 
@@ -406,7 +423,7 @@ export default function BookingReview() {
               تعديل الاختيار
             </button>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 justify-end">
             <button
               type="button"
               onClick={() => void handleSaveTrip()}
@@ -416,11 +433,19 @@ export default function BookingReview() {
             </button>
             <button
               type="button"
+              onClick={handlePayViaRahhal}
+              disabled={session.items.length === 0}
+              className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              الدفع عبر رحّال
+            </button>
+            <button
+              type="button"
               onClick={handlePrepareRedirect}
               disabled={!readiness?.ready}
               className="rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
             >
-              المتابعة لإتمام الحجز
+              التحويل لإتمام الحجز
             </button>
           </div>
         </div>

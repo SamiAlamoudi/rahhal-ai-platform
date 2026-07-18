@@ -10,6 +10,7 @@ import { InteractiveFilters } from '../components/InteractiveFilters'
 import { DecisionConfidenceCard } from '../components/DecisionConfidenceCard'
 import { ComparisonTable } from '../components/ComparisonTable'
 import { PrintableReport } from '../components/PrintableReport'
+import { toBookingSelectedItems } from '../lib/booking'
 
 const ResultsExperience = lazy(() => import('../components/ResultsExperience'))
 const DecisionDashboard = lazy(() => import('../components/DecisionDashboard'))
@@ -18,6 +19,7 @@ interface Props {
   rankedOptions: NormalizedTravelOption[]
   reasoningResults: Map<string, ReasoningResult>
   searchRequest: TravelSearchRequest
+  travelSessionId?: string | null
 }
 
 type ViewMode = 'cards' | 'comparison' | 'detailed'
@@ -92,10 +94,16 @@ function applyFilters(
   })
 }
 
-export default function ResultsPage({ rankedOptions, reasoningResults, searchRequest }: Props) {
+export default function ResultsPage({
+  rankedOptions,
+  reasoningResults,
+  searchRequest,
+  travelSessionId = null,
+}: Props) {
   const navigate = useNavigate()
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<ViewMode>('cards')
   const [showPrintView, setShowPrintView] = useState(false)
 
@@ -155,6 +163,33 @@ export default function ResultsPage({ rankedOptions, reasoningResults, searchReq
       return next
     })
   }, [])
+
+  const handleToggleBookingSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const selectedOptions = useMemo(
+    () => rankedOptions.filter(o => selectedIds.has(o.id)),
+    [rankedOptions, selectedIds],
+  )
+
+  const handleContinueToBooking = useCallback(() => {
+    if (selectedOptions.length === 0) return
+    const currency =
+      selectedOptions[0]?.currency || searchRequest.budgetCurrency || 'SAR'
+    navigate('/booking/review', {
+      state: {
+        selectedItems: toBookingSelectedItems(selectedOptions),
+        travelSessionId,
+        currency,
+      },
+    })
+  }, [navigate, searchRequest.budgetCurrency, selectedOptions, travelSessionId])
 
   const handlePrint = useCallback(() => {
     setShowPrintView(true)
@@ -296,6 +331,8 @@ export default function ResultsPage({ rankedOptions, reasoningResults, searchReq
                         isCompareSelected={compareIds.has(option.id)}
                         onToggleCompare={handleToggleCompare}
                         compareDisabled={compareIds.size >= 3}
+                        isBookingSelected={selectedIds.has(option.id)}
+                        onToggleBookingSelect={handleToggleBookingSelect}
                       />
                     )
                   })
@@ -353,16 +390,45 @@ export default function ResultsPage({ rankedOptions, reasoningResults, searchReq
 
           {/* Right column — confidence card */}
           <aside className="lg:col-span-4 xl:col-span-3 print:hidden">
-            <div className="lg:sticky lg:top-20">
+            <div className="lg:sticky lg:top-20 space-y-4">
               <DecisionConfidenceCard
                 rankedOptions={rankedOptions}
                 reasoningResults={reasoningResults}
                 searchRequest={searchRequest}
               />
+              {selectedIds.size > 0 && (
+                <div className="rounded-2xl border border-primary-100 bg-primary-50/50 p-4">
+                  <p className="text-sm font-bold text-primary-800">
+                    {selectedIds.size} خيار محدد للحجز
+                  </p>
+                  <p className="mt-1 text-xs text-primary-700/80">
+                    راجع اختياراتك ثم أكمل عبر التحويل أو الدفع في رحّال.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleContinueToBooking}
+                    className="mt-3 w-full rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700"
+                  >
+                    متابعة لمراجعة الحجز
+                  </button>
+                </div>
+              )}
             </div>
           </aside>
         </div>
       </main>
+
+      {selectedIds.size > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur print:hidden lg:hidden">
+          <button
+            type="button"
+            onClick={handleContinueToBooking}
+            className="w-full rounded-xl bg-primary-600 px-4 py-3 text-sm font-bold text-white shadow-sm"
+          >
+            متابعة لمراجعة الحجز ({selectedIds.size})
+          </button>
+        </div>
+      )}
     </div>
   )
 }

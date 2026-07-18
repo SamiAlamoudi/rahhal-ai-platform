@@ -41,11 +41,19 @@ function ResultsRoute() {
     rankedOptions: NormalizedTravelOption[]
     reasoningResults: Map<string, ReasoningResult>
     searchRequest: TravelSearchRequest
+    travelSessionId?: string | null
   } | null
   if (!state?.rankedOptions) {
     return <Navigate to="/search" replace />
   }
-  return <ResultsPage {...state} />
+  return (
+    <ResultsPage
+      rankedOptions={state.rankedOptions}
+      reasoningResults={state.reasoningResults}
+      searchRequest={state.searchRequest}
+      travelSessionId={state.travelSessionId ?? null}
+    />
+  )
 }
 import { AuthProvider } from './lib/auth/AuthContext.tsx'
 import { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './lib/auth/ProtectedRoute.tsx'

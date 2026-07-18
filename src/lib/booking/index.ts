@@ -40,6 +40,14 @@ export {
   clearLocalBookingSessions,
 } from './bookingPersistence'
 export {
+  toBookingSelectedItem,
+  toBookingSelectedItems,
+  resolveBookingUrl,
+  resolveProviderName,
+  mapOptionToBookingType,
+  type BookingSelectedItem,
+} from './bookingSelectionMapper'
+export {
   bookingSessionRepository,
   type BookingSessionRow,
   type CreateBookingSessionRowInput,
