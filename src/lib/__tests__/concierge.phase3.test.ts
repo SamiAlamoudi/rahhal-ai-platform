@@ -109,8 +109,8 @@ describe('Concierge Phase 3 — consultant voice', () => {
     const decision = decideConciergeTurn({
       locale: 'en',
       memory,
-      userText: 'relaxed food focused',
-      intent: 'answer',
+      userText: 'What directions would you suggest for a relaxed food trip?',
+      intent: 'unknown',
       requirements: memory.requirements,
       missingFields: [],
       previous,

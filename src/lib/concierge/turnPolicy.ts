@@ -27,6 +27,8 @@ const SOFT_ASK_FIELDS: Array<keyof TripRequirements> = [
   'packageScope',
 ]
 
+const EXECUTE_INTENTS = new Set(['plan', 'answer', 'regenerate', 'edit', 'regenerate_day'])
+
 export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDecision {
   const previous = ctx.previous ?? emptyConciergeState()
   const softSignals = extractSoftSignals(ctx.userText, ctx.locale, previous.softSignals)
@@ -38,6 +40,7 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
   })
 
   const hardMissing = hardMissingCount(ctx.missingFields)
+  const intakeComplete = ctx.missingFields.length === 0
   const hasPlan = Boolean(ctx.memory.tripPlan)
   const heardSummary = buildHeardSummary(ctx, softSignals.mustHaves)
 
@@ -46,44 +49,53 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
   let shouldExecuteAgent = false
   let rationale: string
 
-  if (phase === 'greeting' && previous.turnCount === 0) {
+  if (phase === 'greeting' && previous.turnCount === 0 && !intakeComplete) {
     action = 'greet'
     askFields = pickAskFields(ctx.missingFields, 2)
     rationale = 'First turn — greet and open discovery.'
   } else if (phase === 'refining' && hasPlan) {
-    if (ctx.intent === 'regenerate' || ctx.intent === 'regenerate_day' || ctx.intent === 'edit' || ctx.intent === 'plan') {
+    if (EXECUTE_INTENTS.has(ctx.intent) || ctx.intent === 'save') {
       action = 'refine'
       shouldExecuteAgent = true
       rationale = 'Plan exists — refine via agent abstractions.'
-    } else if (ctx.intent === 'save') {
-      action = 'refine'
-      shouldExecuteAgent = true
-      rationale = 'Save requested — agent handles persistence ack.'
     } else {
       action = 'advise'
       rationale = 'Plan exists — advise without re-executing.'
     }
+  } else if (
+    intakeComplete
+    && previous.lastAction === 'propose_options'
+    && (isAffirmative(ctx.userText) || ctx.intent === 'plan')
+  ) {
+    action = 'plan'
+    shouldExecuteAgent = true
+    rationale = 'Traveler confirmed options — hand off to agent plan path.'
+  } else if (intakeComplete && EXECUTE_INTENTS.has(ctx.intent)) {
+    // Full agent intake satisfied — Concierge yields to the travel engine.
+    action = 'plan'
+    shouldExecuteAgent = true
+    rationale = 'Intake complete — hand off to agent plan path.'
+  } else if (intakeComplete && ctx.intent === 'unknown' && hasSoftDepth(softSignals)) {
+    action = previous.lastAction === 'propose_options' ? 'confirm' : 'propose_options'
+    rationale = 'Advisory beat — propose conversational options without executing.'
   } else if (hardMissing > 0) {
     action = previous.turnCount === 0 ? 'greet' : (hardMissing >= 3 ? 'ask' : 'clarify')
     askFields = pickAskFields(ctx.missingFields, action === 'greet' ? 2 : Math.min(2, hardMissing))
     rationale = 'Hard requirements incomplete — ask/clarify as a consultant.'
-  } else if (!hasSoftDepth(softSignals) && phase === 'deepening') {
-    action = 'ask'
-    askFields = pickSoftAskFields(ctx.missingFields)
-    rationale = 'Hard intake complete — deepen soft preferences.'
-  } else if (phase === 'advising' && !hasPlan) {
-    // First advising turn: propose options; then confirm / execute.
-    if (previous.lastAction !== 'propose_options' && previous.lastAction !== 'confirm') {
+  } else if (!intakeComplete && (phase === 'deepening' || phase === 'advising' || phase === 'discovery')) {
+    if (hasSoftDepth(softSignals) && softAskRemaining(ctx.missingFields).length <= 2) {
       action = 'propose_options'
-      rationale = 'Enough context — propose conversational options.'
-    } else if (isAffirmative(ctx.userText) || ctx.intent === 'plan') {
-      action = 'confirm'
-      rationale = 'Traveler affirmed — confirm before executing agent.'
+      askFields = softAskRemaining(ctx.missingFields).slice(0, 2)
+      rationale = 'Hard intake ready — propose directions while soft slots remain.'
     } else {
-      action = 'advise'
-      rationale = 'Continue advising with tradeoffs.'
+      action = 'ask'
+      askFields = pickSoftAskFields(ctx.missingFields)
+      rationale = 'Hard intake complete — deepen soft preferences.'
     }
-  } else if (phase === 'confirming' || (previous.lastAction === 'propose_options' && isAffirmative(ctx.userText))) {
+  } else if (
+    phase === 'confirming'
+    || (previous.lastAction === 'propose_options' && isAffirmative(ctx.userText))
+  ) {
     if (isAffirmative(ctx.userText) || ctx.intent === 'plan') {
       action = 'plan'
       shouldExecuteAgent = true
@@ -92,21 +104,13 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
       action = 'confirm'
       rationale = 'Awaiting explicit confirmation.'
     }
-  } else if (hardMissing === 0 && (ctx.intent === 'plan' || isAffirmative(ctx.userText))) {
-    action = 'plan'
-    shouldExecuteAgent = true
-    rationale = 'Requirements ready — hand off to agent plan path.'
-  } else if (hardMissing === 0 && hasSoftDepth(softSignals)) {
-    action = previous.lastAction === 'propose_options' ? 'confirm' : 'propose_options'
-    rationale = 'Ready to advise with options.'
   } else {
     action = 'ask'
     askFields = pickAskFields(ctx.missingFields, 1)
     rationale = 'Default discovery ask.'
   }
 
-  // Map propose_options / plan to search synonym only as agent execute flag —
-  // Concierge never chooses a supplier; `search` means "ask agent to fulfill".
+  // `search` means "ask agent to fulfill" — never a supplier name.
   if (action === 'plan' && ctx.requirements.packageScope === 'flights_only') {
     action = 'search'
     shouldExecuteAgent = true
@@ -146,10 +150,16 @@ function pickAskFields(
   return missing.slice(0, Math.max(0, limit))
 }
 
+function softAskRemaining(
+  missing: Array<keyof TripRequirements>,
+): Array<keyof TripRequirements> {
+  return SOFT_ASK_FIELDS.filter((field) => missing.includes(field))
+}
+
 function pickSoftAskFields(
   missing: Array<keyof TripRequirements>,
 ): Array<keyof TripRequirements> {
-  const fromMissing = SOFT_ASK_FIELDS.filter((field) => missing.includes(field))
+  const fromMissing = softAskRemaining(missing)
   if (fromMissing.length > 0) return fromMissing.slice(0, 2)
   return ['interests', 'budgetStyle']
 }

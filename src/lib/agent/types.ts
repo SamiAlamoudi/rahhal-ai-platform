@@ -200,6 +200,17 @@ export interface AgentProviderMeta {
   itinerary: TripPlan | null
   /** Phase J: tool batch executed for this assistant turn */
   toolResults?: AgentToolRunSummary[]
+  /**
+   * Sprint 9 — Concierge dialogue state (additive, optional).
+   * Opaque to the provider layer; Concierge remains supplier-agnostic.
+   */
+  concierge?: {
+    phase: string
+    softSignals: Record<string, unknown>
+    lastAction: string | null
+    heardSummary: string[]
+    turnCount: number
+  }
 }
 
 /** Ordered intake slots for interactive trip planning (Phase L). */

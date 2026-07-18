@@ -45,3 +45,9 @@ export {
   type ConciergeServiceTurnInput,
   type ConciergeServiceTurnResult,
 } from './conciergeService'
+export {
+  isConciergeState,
+  conciergeStateFromMeta,
+  rebuildConciergeStateFromMessages,
+  withConciergeState,
+} from './meta'

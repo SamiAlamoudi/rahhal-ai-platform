@@ -128,7 +128,7 @@ describe('Concierge Phase 2 — turn policy', () => {
     expect(decision.askFields[0]).toBe('durationDays')
   })
 
-  it('proposes options when intake is complete with soft depth', () => {
+  it('proposes options on an advisory beat when intake is complete', () => {
     const memory = emptyMemory('en')
     memory.requirements = completeRequirements()
     memory.missingFields = []
@@ -141,8 +141,8 @@ describe('Concierge Phase 2 — turn policy', () => {
     const decision = decideConciergeTurn({
       locale: 'en',
       memory,
-      userText: 'We love food and a relaxed pace',
-      intent: 'answer',
+      userText: 'What directions would you suggest?',
+      intent: 'unknown',
       requirements: memory.requirements,
       missingFields: [],
       previous,
@@ -150,6 +150,23 @@ describe('Concierge Phase 2 — turn policy', () => {
     expect(decision.action).toBe('propose_options')
     expect(decision.phase).toBe('advising')
     expect(decision.shouldExecuteAgent).toBe(false)
+  })
+
+  it('hands off to agent immediately when intake is complete and intent is plan', () => {
+    const memory = emptyMemory('en')
+    memory.requirements = completeRequirements()
+    memory.missingFields = []
+    const decision = decideConciergeTurn({
+      locale: 'en',
+      memory,
+      userText: 'Plan a mid-range Paris trip for 2',
+      intent: 'plan',
+      requirements: memory.requirements,
+      missingFields: [],
+      previous: null,
+    })
+    expect(decision.shouldExecuteAgent).toBe(true)
+    expect(['plan', 'search']).toContain(decision.action)
   })
 
   it('hands off to agent plan on affirmation after options', () => {

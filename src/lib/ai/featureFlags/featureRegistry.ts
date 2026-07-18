@@ -66,6 +66,14 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     enabled: true,
   },
   {
+    id: 'ai.concierge',
+    name: 'AI Concierge conversation intelligence',
+    description:
+      'Provider-agnostic consultant dialogue above the travel agent. Never selects suppliers.',
+    lifecycle: 'experimental',
+    enabled: true,
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',
