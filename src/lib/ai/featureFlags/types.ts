@@ -13,6 +13,7 @@ export type FeatureId =
   | 'ai.personalization'
   | 'ai.recommendation_engine'
   | 'ai.analytics'
+  | 'ai.concierge'
   | 'payments.live'
   | 'providers.live_master'
 

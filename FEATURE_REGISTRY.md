@@ -25,6 +25,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ai.personalization` | experimental | yes | Profile foundation |
 | `ai.recommendation_engine` | experimental | yes | Engine interfaces |
 | `ai.analytics` | experimental | yes | Privacy-gated anonymous metrics |
+| `ai.concierge` | experimental | yes | Provider-agnostic consultant dialogue above the agent |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |
 

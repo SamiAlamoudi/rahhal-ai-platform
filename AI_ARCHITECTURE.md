@@ -19,6 +19,8 @@ src/lib/ai/
   planning/         multi-destination, alternatives, confidence, explanations
   analytics/        anonymous ProductAnalytics
   index.ts
+
+src/lib/concierge/          Sprint 9 Conversation Intelligence (above agent)
 ```
 
 Related (unchanged ownership):
@@ -30,6 +32,13 @@ src/lib/ops/                infra metrics, masking, incidents (Phase AA+)
 src/lib/trips/              ManagedTrip / TravelerProfile (PII passengers)
 src/lib/settings/           privacy_analytics / privacy_personalization gates
 ```
+
+## Concierge layer (Sprint 9)
+
+- Sits **above** `travelAgentService` — consultant dialogue, not provider routing.
+- **Provider-agnostic:** no Amadeus/Duffel/Travelport/Sabre/Booking/Expedia imports or selection.
+- Speaks only to agent abstractions; handoff modes are `plan | search | refine | none`.
+- Flag: `ai.concierge`. See `docs/CONCIERGE.md`.
 
 ## Engines (interfaces)
 

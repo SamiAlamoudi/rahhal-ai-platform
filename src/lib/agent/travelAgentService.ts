@@ -4,6 +4,13 @@
  */
 
 import type { ChatMessage } from '../chat/chatTypes'
+import { getFeatureRegistry } from '../ai'
+import {
+  createConciergeService,
+  type ConciergeService,
+  type ConciergeState,
+} from '../concierge'
+import { rebuildConciergeStateFromMessages } from '../concierge/meta'
 import { applyTripPlanEdits, buildTripPlan, regenerateTripDay } from './buildItinerary'
 import { applyIntelligentDecisions } from './decision'
 import { extractFromUserText } from './extractRequirements'
@@ -57,6 +64,14 @@ export interface TravelAgentServiceOptions {
     conversationId: string
     tripPlan: TripPlan
   }) => Promise<{ title: string } | null>
+  /**
+   * Sprint 9 Concierge. Default: FeatureRegistry `ai.concierge`.
+   * Pass `false` to disable; pass a service to inject.
+   * Concierge is provider-agnostic and only signals agent handoff.
+   */
+  concierge?: ConciergeService | false
+  /** Explicit override for the `ai.concierge` feature flag. */
+  conciergeEnabled?: boolean
 }
 
 export interface TravelAgentService {
@@ -102,6 +117,23 @@ function hasPlanningPatch(patch: Record<string, unknown>): boolean {
   })
 }
 
+function toMetaConcierge(state: ConciergeState): NonNullable<AgentProviderMeta['concierge']> {
+  return {
+    phase: state.phase,
+    softSignals: {
+      pace: state.softSignals.pace,
+      mustHaves: state.softSignals.mustHaves,
+      dealBreakers: state.softSignals.dealBreakers,
+      flexibleDimensions: state.softSignals.flexibleDimensions,
+      tradeoffs: state.softSignals.tradeoffs,
+      notes: state.softSignals.notes,
+    },
+    lastAction: state.lastAction,
+    heardSummary: [...state.heardSummary],
+    turnCount: state.turnCount,
+  }
+}
+
 function toToolSummaries(results: AgentToolResult[]): AgentToolRunSummary[] {
   return results.map((result) => ({
     tool: result.tool,
@@ -119,6 +151,15 @@ export function createTravelAgentService(
   const executor = createToolExecutor(tools)
   const llms = options.llms ?? createAgentLlmRegistry()
   const savePlanHook = options.savePlan
+  const conciergeService = options.concierge === false
+    ? null
+    : (options.concierge ?? createConciergeService())
+
+  const isConciergeEnabled = (): boolean => {
+    if (options.concierge === false) return false
+    if (typeof options.conciergeEnabled === 'boolean') return options.conciergeEnabled
+    return getFeatureRegistry().isEnabled('ai.concierge')
+  }
 
   const runToolsForPlan = async (input: {
     memory: AgentMemory
@@ -178,6 +219,45 @@ export function createTravelAgentService(
       }
       memory.missingFields = missingRequirementFields(memory.requirements)
       memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
+
+      let conciergeState: ConciergeState | null = rebuildConciergeStateFromMessages(
+        input.messages.slice(0, -1),
+      )
+
+      // Concierge sits above the agent: consultant dialogue or agent handoff.
+      // It never selects providers — only whether the agent should execute.
+      if (isConciergeEnabled() && conciergeService) {
+        const conciergeResult = conciergeService.runTurn({
+          locale: memory.locale,
+          memory,
+          userText,
+          intent: extracted.intent,
+          requirements: memory.requirements,
+          missingFields: memory.missingFields,
+          previous: conciergeState,
+        })
+        conciergeState = conciergeResult.state
+
+        if (!conciergeResult.handoff.shouldExecuteAgent && conciergeResult.reply) {
+          memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
+          const meta: AgentProviderMeta = {
+            kind: 'travel_agent',
+            version: 2,
+            memory,
+            tripPlan: memory.tripPlan,
+            itinerary: memory.tripPlan,
+            toolResults: [],
+            concierge: toMetaConcierge(conciergeState),
+          }
+          return {
+            reply: conciergeResult.reply,
+            memory,
+            tripPlan: memory.tripPlan,
+            meta,
+            toolBatch: null,
+          }
+        }
+      }
 
       const llm = llms.getActive()
       const llmResult = await llm.complete({
@@ -291,6 +371,7 @@ export function createTravelAgentService(
         tripPlan: memory.tripPlan,
         itinerary: memory.tripPlan,
         toolResults: toolBatch ? toToolSummaries(toolBatch.results) : [],
+        ...(conciergeState ? { concierge: toMetaConcierge(conciergeState) } : {}),
       }
 
       return {
