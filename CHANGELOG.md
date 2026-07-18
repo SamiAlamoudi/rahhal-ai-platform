@@ -2,6 +2,17 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Phase AA
+
+### Added
+
+- Post-launch monitoring snapshot (`collectMonitoringSnapshot`) and signal recorders.
+- Provider-neutral alerting (`evaluateAlertRules`, `MockAlertDispatcher`).
+- Incident lifecycle manager + feedback repository (PII-masked support views).
+- Patch-release / rollback decision helpers (`evaluatePatchRelease`).
+- Post-release verification suite: `npm run test:post-release`.
+- Ops runbooks: monitoring, alerting matrix, hotfix, incident template, customer support, post-release checklist.
+
 ## [1.0.1] — 2026-07-16
 
 ### Fixed
