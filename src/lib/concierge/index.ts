@@ -32,3 +32,16 @@ export {
   type ConciergeRecommendationInput,
   type ConciergeRecommendationView,
 } from './recommendationBridge'
+export {
+  resolveAgentHandoff,
+  assertProviderAgnosticHandoff,
+  type AgentHandoffMode,
+  type AgentHandoffRequest,
+} from './searchHandoff'
+export {
+  createConciergeService,
+  conciergeService,
+  type ConciergeService,
+  type ConciergeServiceTurnInput,
+  type ConciergeServiceTurnResult,
+} from './conciergeService'
