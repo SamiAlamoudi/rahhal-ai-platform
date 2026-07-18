@@ -850,9 +850,22 @@ function parseIntentToSessionUpdates(text: string): Partial<TravelSession> {
   const adultsNum = extractNumber(textNorm, /(\d+)\s*(?:بالغ|بالغين|شخص|اشخاص)/)
   if (adultsNum !== null) {
     updates.adults = adultsNum
-  } else if (textNorm.includes('زوجتي') || textNorm.includes('زوجي')) {
+  } else if (
+    textNorm.includes('زوجتي') ||
+    textNorm.includes('زوجي') ||
+    textNorm.includes('شخصين') ||
+    textNorm.includes('لشخصين') ||
+    textNorm.includes('اثنين') ||
+    textNorm.includes('اثنان')
+  ) {
     updates.adults = 2
-  } else if (textNorm.includes('وحدي') || textNorm.includes('لوحدي') || textNorm.includes('فردي')) {
+  } else if (
+    textNorm.includes('وحدي') ||
+    textNorm.includes('لوحدي') ||
+    textNorm.includes('فردي') ||
+    textNorm.includes('شخص واحد') ||
+    textNorm.includes('لشخص')
+  ) {
     updates.adults = 1
   }
 
