@@ -2,6 +2,15 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Production MVP: Browser E2E (Playwright)
+
+### Added
+
+- Playwright Chromium funnel spec: login (demo) → search → results → booking review → checkout → payment preparation.
+- `npm run build:e2e` / `npm run test:playwright` (demo auth + mock providers; production behavior unchanged).
+- CI job **Browser E2E (Playwright)** after quality gates; uploads report on failure.
+- Stable `data-testid` hooks on funnel CTAs (no product behavior change).
+
 ## [Unreleased] — Production MVP: Amadeus Sandbox
 
 ### Added

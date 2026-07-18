@@ -181,6 +181,7 @@ function ExpandableRecommendationCardImpl({
               <button
                 type="button"
                 onClick={() => onToggleBookingSelect(option.id)}
+                data-testid="result-select"
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-400/20 ${
                   isBookingSelected
                     ? 'bg-primary-600 text-white shadow-sm hover:bg-primary-700'

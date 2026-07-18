@@ -407,6 +407,7 @@ export default function ResultsPage({
                   <button
                     type="button"
                     onClick={handleContinueToBooking}
+                    data-testid="booking-continue"
                     className="mt-3 w-full rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700"
                   >
                     متابعة لمراجعة الحجز
@@ -423,6 +424,7 @@ export default function ResultsPage({
           <button
             type="button"
             onClick={handleContinueToBooking}
+            data-testid="booking-continue-mobile"
             className="w-full rounded-xl bg-primary-600 px-4 py-3 text-sm font-bold text-white shadow-sm"
           >
             متابعة لمراجعة الحجز ({selectedIds.size})
