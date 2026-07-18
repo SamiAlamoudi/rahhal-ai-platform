@@ -47,13 +47,14 @@ function formatPrice(price: number, currency: string): string {
 
 export default function MyTrips() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const orchestrator = useMemo(() => getBookingOrchestrator(), [])
   const [sessions, setSessions] = useState<BookingSession[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => {
+    if (authLoading) return
     let cancelled = false
     ;(async () => {
       setLoading(true)
@@ -72,7 +73,7 @@ export default function MyTrips() {
     return () => {
       cancelled = true
     }
-  }, [user?.id, orchestrator])
+  }, [user?.id, orchestrator, authLoading])
 
   const handleResume = (session: BookingSession) => {
     if (session.status === 'redirected' || session.status === 'pending_provider_confirmation') {
@@ -122,7 +123,7 @@ export default function MyTrips() {
       </header>
 
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-        {loading ? (
+        {authLoading || loading ? (
           <div className="flex justify-center py-16">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
           </div>

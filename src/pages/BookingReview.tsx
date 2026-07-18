@@ -74,11 +74,11 @@ function isExpired(expiresAt: string | null): boolean {
 export default function BookingReview() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const state = location.state as BookingReviewLocationState | null
 
   const orchestrator = useMemo(() => getBookingOrchestrator(), [])
-  const bootstrapped = useRef(false)
+  const bootstrappedForUser = useRef<string | null>(null)
 
   const [session, setSession] = useState<BookingSession | null>(null)
   const [loading, setLoading] = useState(true)
@@ -91,15 +91,27 @@ export default function BookingReview() {
   const canResume = Boolean(state?.bookingSessionId)
 
   useEffect(() => {
-    if (bootstrapped.current || !state) return
-    bootstrapped.current = true
+    if (!state || authLoading) return
+    if (!user?.id) {
+      setLoading(false)
+      setSession(null)
+      return
+    }
+
+    const userId = user.id
+    // Re-run bootstrap when auth identity settles (avoids anonymous race).
+    if (bootstrappedForUser.current === userId) return
+    bootstrappedForUser.current = userId
 
     let cancelled = false
     ;(async () => {
+      setLoading(true)
       try {
         if (state.bookingSessionId) {
           const cached = orchestrator.getBookingSession(state.bookingSessionId)
-          const loaded = cached ?? (await loadBookingSession(state.bookingSessionId))
+          const ownedCache = cached?.userId === userId ? cached : null
+          const loaded =
+            ownedCache ?? (await loadBookingSession(state.bookingSessionId, userId))
           if (loaded) {
             orchestrator.importSession(loaded)
             if (!cancelled) setSession(loaded)
@@ -111,7 +123,7 @@ export default function BookingReview() {
 
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         const newSession = orchestrator.createBookingSession({
-          userId: user?.id ?? 'anonymous',
+          userId,
           travelSessionId: state.travelSessionId,
           currency: state.currency || 'SAR',
           expiresAt,
@@ -149,18 +161,22 @@ export default function BookingReview() {
     return () => {
       cancelled = true
     }
-  }, [state, orchestrator, user?.id])
+  }, [state, orchestrator, user?.id, authLoading])
 
   if (!state || (!canCreateFromSelection && !canResume)) {
     return <Navigate to="/results" replace />
   }
 
-  if (loading && !session) {
+  if (authLoading || (loading && !session)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
       </div>
     )
+  }
+
+  if (!user?.id) {
+    return <Navigate to="/login" replace />
   }
 
   if (!session) {

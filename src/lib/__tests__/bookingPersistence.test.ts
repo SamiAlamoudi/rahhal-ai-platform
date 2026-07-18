@@ -2,8 +2,10 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import {
   BookingOrchestrator,
   clearLocalBookingSessions,
+  getLocalBookingSession,
   listLocalBookingSessions,
   listUserBookingSessions,
+  loadBookingSession,
   persistBookingSession,
   sessionFromRow,
   sessionToCreateInput,
@@ -27,6 +29,10 @@ function installMemoryLocalStorage(): void {
     clear: () => {
       store.clear()
     },
+    get length() {
+      return store.size
+    },
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
   })
 }
 
@@ -112,10 +118,76 @@ describe('booking persistence mapping', () => {
     expect(orch.getSessionsByUser('user-mvp-1')[0]?.items[0]?.title).toBe('RUH → DXB')
   })
 
+  it('isolates local cache by user and rejects cross-user loads', async () => {
+    const sessionA = sampleSession({ userId: 'user-a' })
+    const sessionB = sampleSession({ userId: 'user-b' })
+    upsertLocalBookingSession(sessionA)
+    upsertLocalBookingSession(sessionB)
+
+    expect(listLocalBookingSessions('user-a')).toHaveLength(1)
+    expect(listLocalBookingSessions('user-b')).toHaveLength(1)
+    expect(getLocalBookingSession(sessionA.id, 'user-b')).toBeNull()
+
+    vi.spyOn(bookingSessionRepository, 'getById').mockResolvedValue({
+      id: sessionA.id,
+      user_id: 'user-a',
+      travel_session_id: null,
+      status: sessionA.status,
+      items: { list: sessionA.items },
+      subtotal: sessionA.subtotal,
+      fees: sessionA.fees,
+      total: sessionA.total,
+      currency: sessionA.currency,
+      selected_booking_mode: sessionA.selectedBookingMode,
+      provider_references: { list: sessionA.providerReferences },
+      created_at: sessionA.createdAt,
+      updated_at: sessionA.updatedAt,
+      expires_at: sessionA.expiresAt,
+      redirected_at: null,
+      confirmed_at: null,
+    })
+
+    await expect(loadBookingSession(sessionA.id, 'user-b')).resolves.toBeNull()
+    await expect(loadBookingSession(sessionA.id, 'user-a')).resolves.toMatchObject({
+      id: sessionA.id,
+      userId: 'user-a',
+    })
+  })
+
+  it('skips anonymous sessions and creates on missing update row', async () => {
+    await persistBookingSession(sampleSession({ userId: 'anonymous' }))
+    expect(listLocalBookingSessions('anonymous')).toHaveLength(0)
+
+    const session = sampleSession()
+    const createSpy = vi.spyOn(bookingSessionRepository, 'create').mockResolvedValue(null)
+    vi.spyOn(bookingSessionRepository, 'update').mockResolvedValue(null)
+    vi.spyOn(bookingEventRepository, 'create').mockResolvedValue(null)
+
+    await syncBookingSession({ ...session, status: 'redirected' }, 'selected')
+    expect(createSpy).toHaveBeenCalled()
+  })
+
   it('syncs status changes to local cache and attempts repository update', async () => {
     const session = sampleSession()
     upsertLocalBookingSession(session)
-    const updateSpy = vi.spyOn(bookingSessionRepository, 'update').mockResolvedValue(null)
+    const updateSpy = vi.spyOn(bookingSessionRepository, 'update').mockResolvedValue({
+      id: session.id,
+      user_id: session.userId,
+      travel_session_id: session.travelSessionId,
+      status: 'redirected',
+      items: { list: session.items },
+      subtotal: session.subtotal,
+      fees: session.fees,
+      total: session.total,
+      currency: session.currency,
+      selected_booking_mode: session.selectedBookingMode,
+      provider_references: { list: session.providerReferences },
+      created_at: session.createdAt,
+      updated_at: session.updatedAt,
+      expires_at: session.expiresAt,
+      redirected_at: new Date().toISOString(),
+      confirmed_at: null,
+    })
     const eventSpy = vi.spyOn(bookingEventRepository, 'create').mockResolvedValue(null)
 
     const redirected = { ...session, status: 'redirected' as const, redirectedAt: new Date().toISOString() }

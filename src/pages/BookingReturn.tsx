@@ -6,6 +6,7 @@ import {
   syncBookingSession,
 } from '../lib/booking'
 import type { BookingSession } from '../lib/booking/bookingTypes'
+import { useAuth } from '../lib/auth'
 
 interface SafeReturnParams {
   bookingSessionId: string | null
@@ -42,6 +43,7 @@ export default function BookingReturn() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const params = useMemo(() => extractSafeParams(searchParams), [searchParams])
+  const { user, loading: authLoading } = useAuth()
 
   const orchestrator = useMemo(() => getBookingOrchestrator(), [])
   const [referenceInput, setReferenceInput] = useState('')
@@ -60,10 +62,21 @@ export default function BookingReturn() {
         }
         return
       }
+      if (authLoading) return
+      if (!user?.id) {
+        if (!cancelled) {
+          setSession(null)
+          setLoading(false)
+        }
+        return
+      }
+
       setLoading(true)
       try {
         const cached = orchestrator.getBookingSession(params.bookingSessionId)
-        const loaded = cached ?? (await loadBookingSession(params.bookingSessionId))
+        const ownedCache = cached?.userId === user.id ? cached : null
+        const loaded =
+          ownedCache ?? (await loadBookingSession(params.bookingSessionId, user.id))
         if (loaded) orchestrator.importSession(loaded)
         if (!cancelled) setSession(loaded)
       } finally {
@@ -73,7 +86,7 @@ export default function BookingReturn() {
     return () => {
       cancelled = true
     }
-  }, [params.bookingSessionId, orchestrator])
+  }, [params.bookingSessionId, orchestrator, user?.id, authLoading])
 
   const providerRef = session?.providerReferences.find(r => r.providerId === params.provider) ?? null
 
@@ -103,12 +116,16 @@ export default function BookingReturn() {
     return <Navigate to="/" replace />
   }
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
       </div>
     )
+  }
+
+  if (!user?.id) {
+    return <Navigate to="/login" replace />
   }
 
   return (
