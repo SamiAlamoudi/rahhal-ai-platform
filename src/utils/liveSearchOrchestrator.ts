@@ -101,6 +101,9 @@ function mapFlightOffer(
       arrivalTime: last?.arrival ?? null,
       cabin: first?.cabin ?? null,
       refundable: offer.itinerary.refundable,
+      providerName,
+      bookingUrl: offer.bookingUrl ?? null,
+      amadeusOfferId: offer.providerId.startsWith('amadeus-') ? offer.id : null,
     },
     retrievedAt,
   }

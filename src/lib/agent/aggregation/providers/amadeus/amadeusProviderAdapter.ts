@@ -80,7 +80,7 @@ export function createAmadeusProviderAdapter(
       if (options.deps?.search) {
         return options.deps.search(query, config)
       }
-      return searchAmadeusFlights(query, ensureClients)
+      return searchAmadeusFlights(query, ensureClients, config.baseUrl)
     },
   })
 }
@@ -88,6 +88,7 @@ export function createAmadeusProviderAdapter(
 async function searchAmadeusFlights(
   query: AggregationQuery,
   ensureClients: () => { auth: AmadeusAuthClient; api: AmadeusFlightApiClient },
+  host: string,
 ): Promise<ProviderFetchResult> {
   const started = Date.now()
   const providerId = 'amadeus'
@@ -133,7 +134,9 @@ async function searchAmadeusFlights(
       }
     }
 
-    const flightOffers = normalizeAmadeusResponse(result.data, providerId)
+    const flightOffers = normalizeAmadeusResponse(result.data, providerId, {
+      host,
+    })
     const items = flightOffersToNormalizedOffers(flightOffers, providerId)
     return {
       providerId,
