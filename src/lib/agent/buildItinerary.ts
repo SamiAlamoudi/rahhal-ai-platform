@@ -52,6 +52,14 @@ const CITY_PLAYBOOK: Record<string, { hubs: string[]; vibes: string[] }> = {
     hubs: ['Ubud', 'Canggu', 'Uluwatu'],
     vibes: ['rice terraces', 'temples', 'surf', 'cafes'],
   },
+  Morocco: {
+    hubs: ['Marrakech', 'Fes', 'Chefchaouen'],
+    vibes: ['medina', 'souks', 'atlas views', 'riads'],
+  },
+  Marrakech: {
+    hubs: ['Medina', 'Gueliz', 'Palmerie'],
+    vibes: ['souks', 'gardens', 'riads', 'street food'],
+  },
 }
 
 export function buildTripPlan(input: {

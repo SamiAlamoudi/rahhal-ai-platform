@@ -553,6 +553,11 @@ const DESTINATION_NORMALIZE: Record<string, string> = {
   'usa': 'USA',
   'مالديف': 'Maldives',
   'maldives': 'Maldives',
+  'المغرب': 'Morocco',
+  'مغرب': 'Morocco',
+  'morocco': 'Morocco',
+  'مراكش': 'Marrakech',
+  'marrakech': 'Marrakech',
 }
 
 const CITY_NORMALIZE: Record<string, string> = {

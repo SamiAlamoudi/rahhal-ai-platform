@@ -42,6 +42,12 @@ const DESTINATION_QUERY_ALIASES: Record<string, string> = {
   'paris': 'Paris',
   'نيويورك': 'New York',
   'new york': 'New York',
+  'المغرب': 'Morocco',
+  'morocco': 'Morocco',
+  'مراكش': 'Marrakech',
+  'marrakech': 'Marrakech',
+  'الدار البيضاء': 'Casablanca',
+  'casablanca': 'Casablanca',
 }
 
 const DEST_TYPE_PRIORITY: BookingDestType[] = [

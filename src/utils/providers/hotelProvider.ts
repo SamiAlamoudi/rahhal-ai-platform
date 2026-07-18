@@ -1,4 +1,5 @@
-import type { SearchProvider, ProviderAdapter, ProviderSearchResult } from '../searchOrchestrator'
+import type { SearchProvider, ProviderAdapter } from '../searchOrchestrator'
+import { buildDestinationAwareHotelSearchResults } from '../mocks/destinationAwareMocks'
 
 export const hotelProvider: SearchProvider = {
   id: 'mock-hotel-001',
@@ -8,86 +9,5 @@ export const hotelProvider: SearchProvider = {
   enabled: true,
 }
 
-export const hotelAdapter: ProviderAdapter = (_provider, _req) => {
-  const now = new Date().toISOString()
-  return [
-    {
-      providerId: 'mock-hotel-001',
-      providerName: 'Mock Hotel Provider',
-      providerType: 'hotel',
-      externalId: 'HILTON-TOKYO-SHINJUKU',
-      title: 'Hilton Tokyo Odaiba',
-      description: 'فندق 5 نجوم في أودايبا مع إطلالة على خليج طوكيو',
-      currency: 'SAR',
-      price: 850,
-      originalPrice: 1100,
-      durationMinutes: null,
-      stops: null,
-      rating: 4.8,
-      location: 'Odaiba, Tokyo',
-      cancellationPolicy: 'free cancellation 48h',
-      baggageIncluded: null,
-      familyFriendly: true,
-      rawMetadata: {
-        hotelStars: 5,
-        checkInDate: '2026-10-15',
-        checkOutDate: '2026-10-25',
-        breakfastIncluded: true,
-        amenities: 'family-rooms,crib,pool,spa,gym,wifi',
-      },
-      retrievedAt: now,
-    },
-    {
-      providerId: 'mock-hotel-001',
-      providerName: 'Mock Hotel Provider',
-      providerType: 'hotel',
-      externalId: 'COURTYARD-SHINJUKU',
-      title: 'Courtyard by Marriott Shinjuku',
-      description: 'فندق 4 نجوم في شينجوكو قرب وسائل النقل',
-      currency: 'SAR',
-      price: 600,
-      originalPrice: null,
-      durationMinutes: null,
-      stops: null,
-      rating: 4.5,
-      location: 'Shinjuku, Tokyo',
-      cancellationPolicy: 'free cancellation 24h',
-      baggageIncluded: null,
-      familyFriendly: true,
-      rawMetadata: {
-        hotelStars: 4,
-        checkInDate: '2026-10-15',
-        checkOutDate: '2026-10-25',
-        breakfastIncluded: false,
-        amenities: 'family-rooms,wifi,restaurant',
-      },
-      retrievedAt: now,
-    },
-    {
-      providerId: 'mock-hotel-001',
-      providerName: 'Mock Hotel Provider',
-      providerType: 'hotel',
-      externalId: 'TOYOKO-INN-ASAKUSA',
-      title: 'Toyoko Inn Asakusa',
-      description: 'فندق اقتصادي 3 نجوم في أساكوسا',
-      currency: 'SAR',
-      price: 350,
-      originalPrice: null,
-      durationMinutes: null,
-      stops: null,
-      rating: 4.0,
-      location: 'Asakusa, Tokyo',
-      cancellationPolicy: 'non-refundable',
-      baggageIncluded: null,
-      familyFriendly: false,
-      rawMetadata: {
-        hotelStars: 3,
-        checkInDate: '2026-10-15',
-        checkOutDate: '2026-10-25',
-        breakfastIncluded: true,
-        amenities: 'wifi',
-      },
-      retrievedAt: now,
-    },
-  ] satisfies ProviderSearchResult[]
-}
+export const hotelAdapter: ProviderAdapter = (_provider, req) =>
+  buildDestinationAwareHotelSearchResults(req, 'Mock Hotel Provider')

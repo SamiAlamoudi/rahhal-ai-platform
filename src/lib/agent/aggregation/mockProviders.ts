@@ -67,6 +67,12 @@ function airportCode(destination: string): string {
   if (key.includes('paris')) return 'CDG'
   if (key.includes('dubai')) return 'DXB'
   if (key.includes('riyadh')) return 'RUH'
+  if (key.includes('morocco') || key.includes('marrakech')) return 'RAK'
+  if (key.includes('casablanca')) return 'CMN'
+  if (key.includes('istanbul') || key.includes('turkey')) return 'IST'
+  if (key.includes('cairo') || key.includes('egypt')) return 'CAI'
+  if (key.includes('maldives')) return 'MLE'
+  if (key.includes('jeddah')) return 'JED'
   return destination.slice(0, 3).toUpperCase() || 'XXX'
 }
 
