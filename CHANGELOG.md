@@ -2,6 +2,14 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Production MVP: unified booking funnel
+
+### Added
+
+- Results → BookingReview selection hop (`bookingSelectionMapper`, select CTAs on results cards).
+- TravelConversation / SearchWorkspace open full results with `travelSessionId`.
+- BookingReview exit: provider redirect **or** Rahhal checkout via `prepareBookingPayment`.
+
 ## [Unreleased] — Production MVP: booking persistence (production-ready)
 
 ### Added
