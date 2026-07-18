@@ -12,9 +12,13 @@ export interface AmadeusToken {
  * Must never include Amadeus client_id / client_secret.
  */
 export interface OAuthClientConfig {
-  /** Supabase Edge Function (or other backend) URL that exchanges Amadeus secrets. */
+  /** Supabase Edge Function, Vercel Edge `/api/amadeus-token`, or other backend URL. */
   tokenUrl: string
-  /** Supabase anon key (or user JWT) to invoke the function — not an Amadeus secret. */
+  /**
+   * Optional invoke key (Supabase anon / JWT).
+   * Same-origin Vercel Edge proxy does not require this — leave empty.
+   * Never an Amadeus client secret.
+   */
   invokeApiKey: string
   timeout: number
 }
@@ -124,13 +128,17 @@ export class AmadeusOAuthClient {
 
     try {
       log('info', 'Requesting access token via server proxy')
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      // Supabase Edge Functions require anon/JWT; Vercel same-origin proxy does not.
+      if (this.config.invokeApiKey) {
+        headers.Authorization = `Bearer ${this.config.invokeApiKey}`
+        headers.apikey = this.config.invokeApiKey
+      }
       const response = await fetch(this.config.tokenUrl, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.config.invokeApiKey}`,
-          apikey: this.config.invokeApiKey,
-          'Content-Type': 'application/json',
-        },
+        headers,
         // Intentionally empty — Amadeus client_secret stays on the server.
         body: '{}',
         signal: controller.signal,

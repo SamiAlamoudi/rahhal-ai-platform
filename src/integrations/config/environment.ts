@@ -62,10 +62,27 @@ function readAdapter(key: string, fallback: ProviderAdapterType): ProviderAdapte
 
 const DEFAULT_BOOKING_HOST = 'booking-com15.p.rapidapi.com'
 const AMADEUS_TOKEN_FUNCTION_PATH = '/functions/v1/amadeus-token'
+/** Same-origin Vercel Edge / Vite middleware token proxy (reads server AMADEUS_* secrets). */
+export const AMADEUS_VERCEL_TOKEN_PATH = '/api/amadeus-token'
+
+function isRelativeTokenUrl(url: string): boolean {
+  return url.startsWith('/')
+}
 
 function resolveAmadeusTokenUrl(): string | null {
   const explicit = readEnv('VITE_AMADEUS_TOKEN_URL')
   if (explicit) return explicit
+
+  // Prefer same-origin Vercel Edge proxy when Amadeus is opted in.
+  // Secrets live in Vercel env (AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET).
+  const amadeusOptIn = readBool('VITE_AMADEUS_ENABLED', false)
+    || readEnv('VITE_FLIGHT_PROVIDER') === 'amadeus'
+    || readEnv('VITE_FLIGHT_ADAPTER') === 'amadeus'
+  const useVercelProxy = readBool('VITE_AMADEUS_USE_VERCEL_PROXY', true)
+  if (amadeusOptIn && useVercelProxy) {
+    return AMADEUS_VERCEL_TOKEN_PATH
+  }
+
   const supabaseUrl = readEnv('VITE_SUPABASE_URL')
   if (!supabaseUrl) return null
   return `${supabaseUrl.replace(/\/+$/, '')}${AMADEUS_TOKEN_FUNCTION_PATH}`
@@ -73,8 +90,11 @@ function resolveAmadeusTokenUrl(): string | null {
 
 function hasAmadeusTokenProxy(): boolean {
   const tokenUrl = resolveAmadeusTokenUrl()
+  if (!tokenUrl) return false
+  // Same-origin Vercel/Vite proxy does not need a Supabase anon key.
+  if (isRelativeTokenUrl(tokenUrl)) return true
   const invokeApiKey = readEnv('VITE_SUPABASE_ANON_KEY')
-  return Boolean(tokenUrl && invokeApiKey)
+  return Boolean(invokeApiKey)
 }
 
 function readHotelAdapter(defaultAdapter: ProviderAdapterType): ProviderAdapterType {
@@ -146,7 +166,12 @@ function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType)
       : readEnv(`VITE_${prefix}_BASE_URL`)
 
   const tokenUrl = prefix === 'FLIGHT' ? resolveAmadeusTokenUrl() : null
-  const invokeApiKey = prefix === 'FLIGHT' ? readEnv('VITE_SUPABASE_ANON_KEY') : null
+  // Supabase Edge requires anon key; same-origin Vercel proxy does not.
+  const invokeApiKey = prefix === 'FLIGHT'
+    ? (tokenUrl && isRelativeTokenUrl(tokenUrl)
+        ? ''
+        : readEnv('VITE_SUPABASE_ANON_KEY'))
+    : null
 
   return {
     enabled: readBool(`VITE_${prefix}_ENABLED`, true),

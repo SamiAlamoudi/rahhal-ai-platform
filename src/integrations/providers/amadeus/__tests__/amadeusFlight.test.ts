@@ -946,8 +946,24 @@ describe('Provider Registry — Flight', () => {
     expect(flight!.metadata.id).toBe('amadeus-flight-001')
   })
 
-  it('returns null for amadeus when token proxy is missing', () => {
+  it('uses same-origin Vercel proxy when Amadeus is enabled without Supabase', () => {
     vi.stubEnv('VITE_FLIGHT_PROVIDER', 'amadeus')
+    vi.stubEnv('VITE_AMADEUS_USE_VERCEL_PROXY', 'true')
+    vi.stubEnv('VITE_SUPABASE_URL', '')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', '')
+    vi.stubEnv('VITE_AMADEUS_TOKEN_URL', '')
+    resetProviderRegistry()
+    clearConfigCache()
+
+    const registry = getProviderRegistry()
+    const flight = registry.getFlight()
+    expect(flight).not.toBeNull()
+    expect(flight!.metadata.id).toBe('amadeus-flight-001')
+  })
+
+  it('returns null for amadeus when all token proxies are disabled', () => {
+    vi.stubEnv('VITE_FLIGHT_PROVIDER', 'amadeus')
+    vi.stubEnv('VITE_AMADEUS_USE_VERCEL_PROXY', 'false')
     vi.stubEnv('VITE_SUPABASE_URL', '')
     vi.stubEnv('VITE_SUPABASE_ANON_KEY', '')
     vi.stubEnv('VITE_AMADEUS_TOKEN_URL', '')
@@ -1014,6 +1030,7 @@ describe('Diagnostics — Flight', () => {
 
   it('reports not-configured OAuth when token proxy is missing', () => {
     vi.stubEnv('VITE_FLIGHT_PROVIDER', 'amadeus')
+    vi.stubEnv('VITE_AMADEUS_USE_VERCEL_PROXY', 'false')
     vi.stubEnv('VITE_SUPABASE_URL', '')
     vi.stubEnv('VITE_SUPABASE_ANON_KEY', '')
     vi.stubEnv('VITE_AMADEUS_TOKEN_URL', '')

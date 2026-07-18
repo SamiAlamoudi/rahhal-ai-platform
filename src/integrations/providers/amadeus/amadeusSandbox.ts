@@ -59,7 +59,10 @@ export function describeAmadeusSandboxReadiness(input: {
   baseUrl: string | null
 }): AmadeusSandboxReadiness {
   const adapterSelected = input.flightAdapter === 'amadeus'
-  const tokenProxyConfigured = Boolean(input.tokenUrl && input.invokeApiKey)
+  const relativeProxy = Boolean(input.tokenUrl?.startsWith('/'))
+  const tokenProxyConfigured = Boolean(
+    input.tokenUrl && (relativeProxy || input.invokeApiKey),
+  )
   const host = normalizeAmadeusHost(input.baseUrl || AMADEUS_SANDBOX_HOST)
   const sandboxHost = isAmadeusSandboxHost(host)
   const notes: string[] = []
@@ -68,7 +71,7 @@ export function describeAmadeusSandboxReadiness(input: {
     notes.push('Flight adapter is not amadeus (safe default: mock).')
   }
   if (!tokenProxyConfigured) {
-    notes.push('Configure VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY (Edge amadeus-token).')
+    notes.push('Configure Vercel /api/amadeus-token (AMADEUS_* secrets) or Supabase Edge amadeus-token.')
   }
   if (!sandboxHost) {
     notes.push('Host is not Amadeus sandbox; set VITE_AMADEUS_BASE_URL=https://test.api.amadeus.com')
