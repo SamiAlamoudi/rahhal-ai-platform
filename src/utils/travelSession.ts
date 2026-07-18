@@ -842,11 +842,20 @@ function parseIntentToSessionUpdates(text: string): Partial<TravelSession> {
     updates.returnDate = intent.returnDate
   }
 
+  const weekCount = extractNumber(textNorm, /(\d+)\s*(?:اسبوع|اسابيع)/)
   const durationDays = extractNumber(textNorm, /(\d+)\s*(?:يوم|ايام)/) ??
+    (weekCount !== null ? weekCount * 7 : null) ??
     extractNumber(textNorm, /(?:للمده|مدة|المده)\s*(?:حوالي\s*)?(\d+)/) ??
     null
   if (durationDays !== null) {
     updates.durationDays = durationDays
+  } else if (/اسبوعين/.test(textNorm)) {
+    updates.durationDays = 14
+  } else if (
+    /(?:لمده|للمده|مده|المده)\s*اسبوع/.test(textNorm)
+    && !/بعد\s*اسبوع/.test(textNorm)
+  ) {
+    updates.durationDays = 7
   } else if (intent.duration) {
     const fromIntent = extractNumber(intent.duration, /(\d+)/)
     if (fromIntent !== null) updates.durationDays = fromIntent
@@ -1112,16 +1121,18 @@ export interface NextQuestion {
 }
 
 export function getNextBestQuestion(session: TravelSession): NextQuestion | null {
+  // Conversation-first: never re-ask for fields already present in the parsed session.
+  // departureDate is the travel date — if it exists (ISO or relative), skip it.
   const essentialMissing = QUESTION_PRIORITY.some(field => !isFieldFilled(field, session))
   if (essentialMissing) {
     for (const field of QUESTION_PRIORITY) {
-      if (!isFieldFilled(field, session)) {
-        return {
-          field,
-          text: QUESTION_TEXTS[field] ?? '',
-          reason: QUESTION_REASONS[field] ?? '',
-          placeholder: QUESTION_PLACEHOLDERS[field] ?? '',
-        }
+      if (isFieldFilled(field, session)) continue
+      if (field === 'departureDate' && (session.departureDate || session.flexibleDates)) continue
+      return {
+        field,
+        text: QUESTION_TEXTS[field] ?? '',
+        reason: QUESTION_REASONS[field] ?? '',
+        placeholder: QUESTION_PLACEHOLDERS[field] ?? '',
       }
     }
   }

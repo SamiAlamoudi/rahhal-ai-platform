@@ -75,4 +75,12 @@ describe('Scenario 3: Question selection', () => {
     expect(q2!.field).not.toBe('departureCity')
     expect(q2!.field).not.toBe('destination')
   })
+
+  it('never re-asks departureDate once ISO travel date is in the session', () => {
+    const text = 'أريد السفر إلى المغرب مع زوجتي لمدة أسبوع من مطار الرياض في تاريخ 2026-07-30 ميزانيتي 10000 ريال'
+    const session = mergeTravelSession(createEmptyTravelSession(), text)
+    expect(session.departureDate).toBe('2026-07-30')
+    const q = getNextBestQuestion(session)
+    expect(q?.field).not.toBe('departureDate')
+  })
 })

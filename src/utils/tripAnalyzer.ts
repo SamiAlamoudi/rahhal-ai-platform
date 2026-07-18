@@ -312,18 +312,90 @@ function extractDepartureCountry(textNorm: string): string {
   return findFirst(textNorm, COUNTRIES) ?? ''
 }
 
-function parseDate(textNorm: string): string {
-  const slashMatch = textNorm.match(/(\d{1,2})\s*\/\s*(\d{1,2})(?:\s*\/\s*(\d{2,4}))?/)
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+function toIsoDate(year: number, month: number, day: number): string | null {
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+  const dt = new Date(Date.UTC(year, month - 1, day))
+  if (
+    dt.getUTCFullYear() !== year
+    || dt.getUTCMonth() !== month - 1
+    || dt.getUTCDate() !== day
+  ) {
+    return null
+  }
+  return `${year}-${pad2(month)}-${pad2(day)}`
+}
+
+function addUtcDays(base: Date, days: number): Date {
+  const next = new Date(base.getTime())
+  next.setUTCDate(next.getUTCDate() + days)
+  return next
+}
+
+function addUtcMonths(base: Date, months: number): Date {
+  const next = new Date(base.getTime())
+  next.setUTCMonth(next.getUTCMonth() + months)
+  return next
+}
+
+function formatUtcIso(date: Date): string {
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`
+}
+
+function resolveMonthYear(month: number, now: Date, forceNextYear = false): number {
+  const currentMonth = now.getUTCMonth() + 1
+  const currentYear = now.getUTCFullYear()
+  if (forceNextYear) return currentYear + 1
+  if (month < currentMonth) return currentYear + 1
+  return currentYear
+}
+
+function parseDate(textNorm: string, now: Date = new Date()): string {
+  const western = toWesternDigits(textNorm)
+
+  // YYYY-MM-DD (ISO)
+  const iso = western.match(/(20\d{2})-(\d{2})-(\d{2})/)
+  if (iso) {
+    const parsed = toIsoDate(Number(iso[1]), Number(iso[2]), Number(iso[3]))
+    if (parsed) return parsed
+  }
+
+  // DD/MM/YYYY or DD/MM
+  const slashMatch = western.match(/(\d{1,2})\s*\/\s*(\d{1,2})(?:\s*\/\s*(\d{2,4}))?/)
   if (slashMatch) {
-    return slashMatch[3]
-      ? `${slashMatch[1]}/${slashMatch[2]}/${slashMatch[3]}`
-      : `${slashMatch[1]}/${slashMatch[2]}`
+    const day = Number(slashMatch[1])
+    const month = Number(slashMatch[2])
+    let year = slashMatch[3] ? Number(slashMatch[3]) : resolveMonthYear(month, now)
+    if (year < 100) year += 2000
+    const parsed = toIsoDate(year, month, day)
+    if (parsed) return parsed
+  }
+
+  // DD-MM-YYYY (distinct from ISO YYYY-MM-DD already handled above)
+  const dashMatch = western.match(/(?:^|[^\d])(\d{1,2})-(\d{1,2})-(20\d{2}|\d{2})(?:[^\d]|$)/)
+  if (dashMatch) {
+    const day = Number(dashMatch[1])
+    const month = Number(dashMatch[2])
+    let year = Number(dashMatch[3])
+    if (year < 100) year += 2000
+    const parsed = toIsoDate(year, month, day)
+    if (parsed) return parsed
   }
 
   for (let i = 0; i < ARABIC_MONTHS.length; i++) {
     if (textNorm.includes(ARABIC_MONTHS_NORM[i])) {
-      const dayMatch = textNorm.match(new RegExp(`(\d{1,2})\s*${ARABIC_MONTHS_NORM[i]}`))
-      const yearMatch = textNorm.match(new RegExp(`${ARABIC_MONTHS_NORM[i]}\s*(\d{4})`))
+      const dayMatch = western.match(new RegExp(`(\\d{1,2})\\s*${ARABIC_MONTHS_NORM[i]}`))
+      const yearMatch = western.match(new RegExp(`${ARABIC_MONTHS_NORM[i]}\\s*(\\d{4})`))
+      const month = i + 1
+      const day = dayMatch ? Number(dayMatch[1]) : 1
+      const year = yearMatch ? Number(yearMatch[1]) : resolveMonthYear(month, now)
+      const parsed = toIsoDate(year, month, day)
+      if (parsed) return parsed
+      // Fallback to human-readable Arabic date if calendar validation fails
       const parts: string[] = []
       if (dayMatch) parts.push(toArabicDigits(dayMatch[1]))
       parts.push(ARABIC_MONTHS[i])
@@ -333,25 +405,56 @@ function parseDate(textNorm: string): string {
   }
 
   for (let i = 0; i < ENGLISH_MONTHS.length; i++) {
-    if (textNorm.includes(ENGLISH_MONTHS[i])) {
-      const dayMatch = textNorm.match(new RegExp(`(\d{1,2})\s*${ENGLISH_MONTHS[i]}`))
-      const yearMatch = textNorm.match(new RegExp(`${ENGLISH_MONTHS[i]}\s*(\d{4})`))
+    if (western.includes(ENGLISH_MONTHS[i])) {
+      const dayMatch = western.match(new RegExp(`(\\d{1,2})\\s*${ENGLISH_MONTHS[i]}`))
+      const yearMatch = western.match(new RegExp(`${ENGLISH_MONTHS[i]}\\s*(\\d{4})`))
+      const month = i + 1
+      const day = dayMatch ? Number(dayMatch[1]) : 1
+      const year = yearMatch ? Number(yearMatch[1]) : resolveMonthYear(month, now)
+      const parsed = toIsoDate(year, month, day)
+      if (parsed) return parsed
       const parts: string[] = []
-      if (dayMatch) parts.push(toArabicDigits(dayMatch[1]))
+      if (dayMatch) parts.push(String(dayMatch[1]))
       parts.push(ENGLISH_MONTHS[i])
-      if (yearMatch) parts.push(toArabicDigits(yearMatch[1]))
+      if (yearMatch) parts.push(yearMatch[1])
       return parts.join(' ')
     }
   }
 
-  const relPatterns = [
-    /(?:ايام|اسبوع|اليوم)\s*(?:قادم|مقبل|القادم|المقبل)/,
-    /الاسبوع\s*(?:القادم|المقبل|قادم|مقبل)/,
-    /الشهر\s*(?:القادم|المقبل|قادم|مقبل)/,
+  // Relative dates → concrete ISO stored in session
+  if (
+    /\btomorrow\b/.test(western)
+    || textNorm.includes(normalize('غدا'))
+    || textNorm.includes(normalize('غداً'))
+    || textNorm.includes(normalize('بكره'))
+    || textNorm.includes(normalize('بكرة'))
+  ) {
+    return formatUtcIso(addUtcDays(now, 1))
+  }
+
+  if (
+    /\bnext\s+week\b/.test(western)
+    || /بعد\s*اسبوع/.test(textNorm)
+    || /الاسبوع\s*(?:القادم|المقبل|قادم|مقبل)/.test(textNorm)
+    || /(?:اسبوع)\s*(?:القادم|المقبل|قادم|مقبل)/.test(textNorm)
+  ) {
+    return formatUtcIso(addUtcDays(now, 7))
+  }
+
+  if (
+    /\bnext\s+month\b/.test(western)
+    || /بعد\s*شهر/.test(textNorm)
+    || /الشهر\s*(?:القادم|المقبل|قادم|مقبل)/.test(textNorm)
+  ) {
+    return formatUtcIso(addUtcMonths(now, 1))
+  }
+
+  const softRelative = [
+    /(?:ايام)\s*(?:قادم|مقبل|القادم|المقبل)/,
     /صيف\s*(?:القادم|المقبل|قادم|مقبل)/,
     /شتاء\s*(?:القادم|المقبل|قادم|مقبل)/,
   ]
-  for (const re of relPatterns) {
+  for (const re of softRelative) {
     const m = textNorm.match(re)
     if (m) return m[0]
   }
@@ -389,10 +492,18 @@ function extractReturnDate(textNorm: string): string {
 
 function extractDuration(textNorm: string): string {
   const westernText = toWesternDigits(textNorm)
+  if (/اسبوعين/.test(textNorm)) return `${toArabicDigits('14')} أيام`
+  // "لمدة أسبوع" is duration; "بعد أسبوع" / "الأسبوع القادم" are travel dates, not duration.
+  if (
+    /(?:لمده|للمده|مده|المده)\s*اسبوع/.test(textNorm)
+    && !/بعد\s*اسبوع/.test(textNorm)
+  ) {
+    return `${toArabicDigits('7')} أيام`
+  }
   const patterns: { re: RegExp; fmt: (m: RegExpMatchArray) => string }[] = [
     { re: /(\d+)\s*(?:يوم|ايام)/, fmt: m => `${toArabicDigits(m[1])} أيام` },
     { re: /(\d+)\s*(?:ليله|ليال|ليالي)/, fmt: m => `${toArabicDigits(m[1])} ليالي` },
-    { re: /(\d+)\s*(?:اسبوع|اسابيع)/, fmt: m => `${toArabicDigits(m[1])} أسابيع` },
+    { re: /(\d+)\s*(?:اسبوع|اسابيع)/, fmt: m => `${toArabicDigits(String(Number(m[1]) * 7))} أيام` },
     { re: /(\d+)\s*(?:شهر|شهور|اشهر)/, fmt: m => `${toArabicDigits(m[1])} ${parseInt(m[1]) === 1 ? 'شهر' : 'أشهر'}` },
     { re: /(?:للمده|مدة|المده)\s*(?:حوالي\s*)?(\d+)/, fmt: m => `${toArabicDigits(m[1])} أيام` },
   ]
