@@ -47,9 +47,14 @@ npm run dev
 | I | Travel AI Agent foundation | Orchestration service, TripPlan model, LLM/tool adapters, chat+voice via chatEngine |
 | J | Tool execution framework | Mock flights/hotels/weather/maps/currency/visa/attractions + auto tool selection |
 | K | Multi-provider aggregation | Parallel mock provider query, normalize, dedupe, rank, confidence, merge |
-| L | CI/E2E/ops | Partial |
+| L–Y | Intelligent planning → RC1 / v1.0.0 | Done (promoted; see release notes) |
+| AA | Post-launch monitoring & stabilization | **Done** (this sprint) |
+| AB | v1.1 planning & AI enhancement foundation | Next |
+| AC+ | Recommendation / itinerary / booking orchestration | Queued (unmerged draft PRs) |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).
+
+Post-launch ops runbooks: `MONITORING_RUNBOOK.md`, `ALERTING_MATRIX.md`, `HOTFIX_PROCESS.md`, `POST_RELEASE_CHECKLIST.md`, `INCIDENT_TEMPLATE.md`, `CUSTOMER_SUPPORT_RUNBOOK.md`.
 
 ## Payments freeze (Phase D)
 

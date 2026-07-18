@@ -13,6 +13,15 @@ export type OpsMetricName =
   | 'notification.failures'
   | 'ops.rate_limited'
   | 'ops.idempotency_hits'
+  | 'app.unavailable'
+  | 'frontend.errors'
+  | 'edge.function_failures'
+  | 'auth.failures'
+  | 'database.errors'
+  | 'ops.slow_requests'
+  | 'ops.memory_pressure'
+  | 'ops.queue_backlog'
+  | 'ops.secret_validation_failures'
 
 export interface MetricSample {
   name: OpsMetricName
