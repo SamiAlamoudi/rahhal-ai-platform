@@ -1,6 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useSearchParams, Navigate } from 'react-router-dom'
-import { getBookingOrchestrator } from '../lib/booking'
+import {
+  getBookingOrchestrator,
+  loadBookingSession,
+  syncBookingSession,
+} from '../lib/booking'
+import type { BookingSession } from '../lib/booking/bookingTypes'
+import { useAuth } from '../lib/auth'
 
 interface SafeReturnParams {
   bookingSessionId: string | null
@@ -37,20 +43,61 @@ export default function BookingReturn() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const params = useMemo(() => extractSafeParams(searchParams), [searchParams])
+  const { user, loading: authLoading } = useAuth()
 
   const orchestrator = useMemo(() => getBookingOrchestrator(), [])
   const [referenceInput, setReferenceInput] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [providerUrl, setProviderUrl] = useState<string | null>(null)
+  const [session, setSession] = useState<BookingSession | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const session = params.bookingSessionId ? orchestrator.getBookingSession(params.bookingSessionId) : null
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!params.bookingSessionId) {
+        if (!cancelled) {
+          setSession(null)
+          setLoading(false)
+        }
+        return
+      }
+      if (authLoading) return
+      if (!user?.id) {
+        if (!cancelled) {
+          setSession(null)
+          setLoading(false)
+        }
+        return
+      }
+
+      setLoading(true)
+      try {
+        const cached = orchestrator.getBookingSession(params.bookingSessionId)
+        const ownedCache = cached?.userId === user.id ? cached : null
+        const loaded =
+          ownedCache ?? (await loadBookingSession(params.bookingSessionId, user.id))
+        if (loaded) orchestrator.importSession(loaded)
+        if (!cancelled) setSession(loaded)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [params.bookingSessionId, orchestrator, user?.id, authLoading])
+
   const providerRef = session?.providerReferences.find(r => r.providerId === params.provider) ?? null
 
   const handleAddReference = () => {
     if (!session || !referenceInput.trim()) return
     const providerId = params.provider || providerRef?.providerId || ''
     if (!providerId) return
-    orchestrator.addProviderReference(session.id, providerId, referenceInput.trim())
+    const fromStatus = session.status
+    const updated = orchestrator.addProviderReference(session.id, providerId, referenceInput.trim())
+    setSession(updated)
+    if (updated) void syncBookingSession(updated, fromStatus)
     setSubmitted(true)
   }
 
@@ -67,6 +114,18 @@ export default function BookingReturn() {
 
   if (!params.bookingSessionId) {
     return <Navigate to="/" replace />
+  }
+
+  if (authLoading || loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
+      </div>
+    )
+  }
+
+  if (!user?.id) {
+    return <Navigate to="/login" replace />
   }
 
   return (

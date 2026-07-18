@@ -2,6 +2,50 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Production MVP: unified booking funnel
+
+### Added
+
+- Results → BookingReview selection hop (`bookingSelectionMapper`, select CTAs on results cards).
+- TravelConversation / SearchWorkspace open full results with `travelSessionId`.
+- BookingReview exit: provider redirect **or** Rahhal checkout via `prepareBookingPayment`.
+
+## [Unreleased] — Production MVP: booking persistence (production-ready)
+
+### Added
+
+- Durable booking session persistence (`bookingPersistence.ts`): Supabase write-through + per-user local cache fallback.
+- `BookingOrchestrator.importSession` / `replaceUserSessions` for hydrate-after-reload.
+- My Trips loads real persisted booking records for the signed-in user.
+- Booking review/return resume persisted sessions and sync status changes.
+
+### Security / hardening
+
+- Local cache keyed per `userId` (no cross-user leakage on shared browsers).
+- `loadBookingSession(sessionId, userId)` enforces ownership before hydrate.
+- BookingReview / BookingReturn wait for auth and never persist as `'anonymous'`.
+- Sync upserts: update then create-if-missing (offline-first create path).
+
+## [Unreleased] — Phase AB
+
+### Added
+
+- v1.1 AI enhancement foundation (`src/lib/ai/**`): FeatureRegistry, PreferenceEngine, RankingEngine, RecommendationEngine, planning helpers, anonymous ProductAnalytics.
+- Docs: `V1_1_ROADMAP.md`, `FEATURE_REGISTRY.md`, `AI_ARCHITECTURE.md`.
+- Suite: `npm run test:ai` (`ai.phaseAB.test.ts`).
+- No UI redesign; payments and live providers remain mock/OFF.
+
+## [Unreleased] — Phase AA
+
+### Added
+
+- Post-launch monitoring snapshot (`collectMonitoringSnapshot`) and signal recorders.
+- Provider-neutral alerting (`evaluateAlertRules`, `MockAlertDispatcher`).
+- Incident lifecycle manager + feedback repository (PII-masked support views).
+- Patch-release / rollback decision helpers (`evaluatePatchRelease`).
+- Post-release verification suite: `npm run test:post-release`.
+- Ops runbooks: monitoring, alerting matrix, hotfix, incident template, customer support, post-release checklist.
+
 ## [1.0.1] — 2026-07-16
 
 ### Fixed

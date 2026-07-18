@@ -6,6 +6,12 @@ Honest inventory of residual limitations. Carry-forward from `v1.0.0` / RC1 unle
 
 - Missing `npm run providers:check` script and CI Providers check step (restored via PR #56; packaged in this patch).
 
+### Resolved post-v1.0.1 (RC verification follow-up)
+
+- Vite **dev** CSP `script-src 'self'` blocked React Refresh preamble (blank SPA). Dev middleware now allows `'unsafe-inline'` + local HMR websockets; production/preview CSP remains strict.
+- `TravelConversation` crashed on first message when `msgIdRef` was read inside a `useState` initializer before declaration (TDZ).
+- Vitest inherited developer `.env.local` adapter flags and flaked provider default/auto-enable suites; test config now uses `envDir: false` with an explicit mock-safe env.
+
 ## Major
 
 1. **No browser E2E harness (Playwright/Cypress)**  

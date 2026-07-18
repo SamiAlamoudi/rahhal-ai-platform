@@ -162,6 +162,7 @@ describe('Phase Y RC1 staging smoke', () => {
   it('security headers, PII masking, and rate limits are active', () => {
     expect(SECURITY_HEADERS['X-Frame-Options']).toBe('DENY')
     expect(SECURITY_HEADERS['Content-Security-Policy']).toContain("default-src 'self'")
+    expect(SECURITY_HEADERS['Content-Security-Policy']).not.toMatch(/script-src[^;]*'unsafe-inline'/)
     expect(maskEmail('smoke@example.com')).toBe('s***@example.com')
     expect(maskMetadata({ token: 'abc', apiKey: 'k' }).token).toBe('[redacted]')
     expect(assertNoSecretsInText('Authorization: Bearer abc.def.ghi')).toBe(false)

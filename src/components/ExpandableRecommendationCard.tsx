@@ -12,6 +12,9 @@ interface Props {
   isCompareSelected: boolean
   onToggleCompare: (id: string) => void
   compareDisabled: boolean
+  /** Unified booking funnel: select option for review. */
+  isBookingSelected?: boolean
+  onToggleBookingSelect?: (id: string) => void
 }
 
 const TYPE_ICONS: Record<string, string> = {
@@ -84,6 +87,8 @@ function ExpandableRecommendationCardImpl({
   isCompareSelected,
   onToggleCompare,
   compareDisabled,
+  isBookingSelected = false,
+  onToggleBookingSelect,
 }: Props) {
   const [expanded, setExpanded] = useState(false)
 
@@ -171,7 +176,21 @@ function ExpandableRecommendationCardImpl({
           </div>
 
           {/* Actions */}
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {onToggleBookingSelect && (
+              <button
+                type="button"
+                onClick={() => onToggleBookingSelect(option.id)}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-400/20 ${
+                  isBookingSelected
+                    ? 'bg-primary-600 text-white shadow-sm hover:bg-primary-700'
+                    : 'bg-primary-50 text-primary-700 hover:bg-primary-100'
+                }`}
+                aria-pressed={isBookingSelected}
+              >
+                {isBookingSelected ? '✓ محدد للحجز' : 'اختر للحجز'}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setExpanded(!expanded)}

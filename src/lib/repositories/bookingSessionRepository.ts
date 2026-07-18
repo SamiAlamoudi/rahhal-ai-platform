@@ -4,6 +4,8 @@ import type { BookingSessionRow } from '../types'
 export type { BookingSessionRow }
 
 export interface CreateBookingSessionRowInput {
+  /** Optional client-generated UUID so domain + DB share the same id. */
+  id?: string
   travel_session_id: string | null
   status: string
   items: Record<string, unknown>
@@ -14,6 +16,8 @@ export interface CreateBookingSessionRowInput {
   selected_booking_mode: string
   provider_references: Record<string, unknown>
   expires_at: string
+  redirected_at?: string | null
+  confirmed_at?: string | null
 }
 
 export interface UpdateBookingSessionRowInput {

@@ -20,6 +20,7 @@ import {
   assertRequestSize,
   buildCorsPolicy,
   SECURITY_HEADERS,
+  buildSecurityHeaders,
   getOpsMetrics,
   resetOpsMetrics,
   recordProviderOutcome,
@@ -239,6 +240,14 @@ describe('Phase X rate limiting + security helpers', () => {
     expect(cors.allowOrigin).toBe('https://app.example')
     expect(SECURITY_HEADERS['X-Frame-Options']).toBe('DENY')
     expect(SECURITY_HEADERS['Content-Security-Policy']).toContain("default-src 'self'")
+    expect(SECURITY_HEADERS['Content-Security-Policy']).toMatch(/script-src 'self'(?! )/ )
+    // Production CSP must not allow Vite HMR schemes / inline scripts.
+    expect(SECURITY_HEADERS['Content-Security-Policy']).not.toMatch(/script-src[^;]*'unsafe-inline'/)
+    expect(SECURITY_HEADERS['Content-Security-Policy']).not.toMatch(/connect-src[^;]*\bws:/)
+
+    const devHeaders = buildSecurityHeaders({ development: true })
+    expect(devHeaders['Content-Security-Policy']).toContain("script-src 'self' 'unsafe-inline'")
+    expect(devHeaders['Content-Security-Policy']).toMatch(/connect-src[^;]*\bws:/)
   })
 })
 

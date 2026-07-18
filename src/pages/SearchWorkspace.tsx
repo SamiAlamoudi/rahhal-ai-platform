@@ -27,7 +27,13 @@ type Tab = 'controls' | 'conversation' | 'history'
 
 export default function SearchWorkspace() {
   const navigate = useNavigate()
-  const { session: persistedSession, saveSession: persistSession, clearSession: clearPersistedSession, loading: sessionLoading } = useSessionPersistence()
+  const {
+    session: persistedSession,
+    sessionId: travelSessionId,
+    saveSession: persistSession,
+    clearSession: clearPersistedSession,
+    loading: sessionLoading,
+  } = useSessionPersistence()
 
   const [session, setSession] = useState<TravelSession>(() => {
     if (persistedSession && persistedSession.completedFields.length > 0) return persistedSession
@@ -261,6 +267,7 @@ export default function SearchWorkspace() {
                           rankedOptions,
                           reasoningResults,
                           searchRequest: buildTravelSearchRequest(session),
+                          travelSessionId,
                         },
                       })}
                       className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-primary-700 active:scale-[0.98]"

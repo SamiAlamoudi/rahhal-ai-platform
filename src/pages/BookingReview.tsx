@@ -1,25 +1,25 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Navigate } from 'react-router-dom'
-import { getBookingOrchestrator } from '../lib/booking'
+import {
+  getBookingOrchestrator,
+  persistBookingSession,
+  syncBookingSession,
+  loadBookingSession,
+  type BookingSelectedItem,
+} from '../lib/booking'
 import type { BookingSession, BookingItem, BookingItemType } from '../lib/booking/bookingTypes'
 import type { BookingAction } from '../lib/booking/bookingAction'
-import type { NormalizedTravelOption } from '../utils/searchOrchestrator'
+import { prepareBookingPayment } from '../lib/payment'
 import { savedTripRepository } from '../lib/repositories/savedTripRepository'
 import { buildSavedTripData, buildSavedTripTitle } from '../lib/savedTrips/savedTripHelpers'
-
-interface SelectedItem {
-  option: NormalizedTravelOption
-  bookingType: BookingItemType
-  bookingUrl: string
-  providerName: string
-  expiresAt: string | null
-  cancellationInfo: string | null
-}
+import { useAuth } from '../lib/auth'
 
 interface BookingReviewLocationState {
-  selectedItems: SelectedItem[]
+  selectedItems?: BookingSelectedItem[]
   travelSessionId: string | null
   currency: string
+  /** Resume an already-persisted booking session. */
+  bookingSessionId?: string
 }
 
 const TYPE_LABELS: Record<BookingItemType, string> = {
@@ -66,68 +66,132 @@ function isExpired(expiresAt: string | null): boolean {
 export default function BookingReview() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user, loading: authLoading } = useAuth()
   const state = location.state as BookingReviewLocationState | null
 
   const orchestrator = useMemo(() => getBookingOrchestrator(), [])
+  const bootstrappedForUser = useRef<string | null>(null)
 
   const [session, setSession] = useState<BookingSession | null>(null)
+  const [loading, setLoading] = useState(true)
   const [redirectAction, setRedirectAction] = useState<BookingAction | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
-  const ensureSession = useCallback(() => {
-    if (session || !state) return
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    const newSession = orchestrator.createBookingSession({
-      userId: 'current-user',
-      travelSessionId: state.travelSessionId,
-      currency: state.currency || 'SAR',
-      expiresAt,
-    })
-    for (const item of state.selectedItems) {
-      const result = orchestrator.addBookingItem(newSession.id, {
-        type: item.bookingType,
-        providerId: item.option.providerIds[0] || 'unknown',
-        providerName: item.providerName,
-        providerOfferId: item.option.id,
-        title: item.option.title,
-        price: item.option.price,
-        currency: item.option.currency,
-        bookingUrl: item.bookingUrl,
-        expiresAt: item.expiresAt,
-        travelerSummary: '',
-        metadata: {
-          cancellationInfo: item.cancellationInfo,
-          rating: item.option.rating,
-          refundable: item.option.refundable,
-        },
-      })
-      if (result.error) {
-        setError(result.error)
-      }
+  const canCreateFromSelection = Boolean(state?.selectedItems && state.selectedItems.length > 0)
+  const canResume = Boolean(state?.bookingSessionId)
+
+  useEffect(() => {
+    if (!state || authLoading) return
+    if (!user?.id) {
+      setLoading(false)
+      setSession(null)
+      return
     }
-    const updated = orchestrator.getBookingSession(newSession.id)
-    setSession(updated)
-  }, [session, state, orchestrator])
 
-  useMemo(() => {
-    ensureSession()
-  }, [ensureSession])
+    const userId = user.id
+    // Re-run bootstrap when auth identity settles (avoids anonymous race).
+    if (bootstrappedForUser.current === userId) return
+    bootstrappedForUser.current = userId
 
-  if (!state?.selectedItems || state.selectedItems.length === 0) {
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        if (state.bookingSessionId) {
+          const cached = orchestrator.getBookingSession(state.bookingSessionId)
+          const ownedCache = cached?.userId === userId ? cached : null
+          const loaded =
+            ownedCache ?? (await loadBookingSession(state.bookingSessionId, userId))
+          if (loaded) {
+            orchestrator.importSession(loaded)
+            if (!cancelled) setSession(loaded)
+            return
+          }
+        }
+
+        if (!state.selectedItems?.length) return
+
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        const newSession = orchestrator.createBookingSession({
+          userId,
+          travelSessionId: state.travelSessionId,
+          currency: state.currency || 'SAR',
+          expiresAt,
+        })
+        for (const item of state.selectedItems) {
+          const result = orchestrator.addBookingItem(newSession.id, {
+            type: item.bookingType,
+            providerId: item.option.providerIds[0] || 'unknown',
+            providerName: item.providerName,
+            providerOfferId: item.option.id,
+            title: item.option.title,
+            price: item.option.price,
+            currency: item.option.currency,
+            bookingUrl: item.bookingUrl,
+            expiresAt: item.expiresAt,
+            travelerSummary: '',
+            metadata: {
+              cancellationInfo: item.cancellationInfo,
+              rating: item.option.rating,
+              refundable: item.option.refundable,
+            },
+          })
+          if (result.error && !cancelled) setError(result.error)
+        }
+        const updated = orchestrator.getBookingSession(newSession.id)
+        if (updated) {
+          await persistBookingSession(updated)
+          if (!cancelled) setSession(updated)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [state, orchestrator, user?.id, authLoading])
+
+  if (!state || (!canCreateFromSelection && !canResume)) {
     return <Navigate to="/results" replace />
+  }
+
+  if (authLoading || (loading && !session)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
+      </div>
+    )
+  }
+
+  if (!user?.id) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (!session) {
+    return <Navigate to="/my-trips" replace />
   }
 
   const handleRemoveItem = (itemId: string) => {
     if (!session) return
+    const fromStatus = session.status
     const updated = orchestrator.removeBookingItem(session.id, itemId)
     setSession(updated)
+    if (updated) void syncBookingSession(updated, fromStatus)
   }
 
   const handlePrepareRedirect = () => {
     if (!session) return
+    const fromStatus = session.status
     const action = orchestrator.prepareRedirect(session.id)
+    const updated = orchestrator.getBookingSession(session.id)
+    if (updated) {
+      setSession(updated)
+      void syncBookingSession(updated, fromStatus)
+    }
     setRedirectAction(action)
     if (action && action.allowed) {
       setShowConfirmDialog(true)
@@ -138,8 +202,10 @@ export default function BookingReview() {
 
   const handleConfirmRedirect = () => {
     if (!session || !redirectAction || !redirectAction.allowed) return
+    const fromStatus = session.status
     const updated = orchestrator.markRedirected(session.id)
     setSession(updated)
+    if (updated) void syncBookingSession(updated, fromStatus)
     setShowConfirmDialog(false)
     if (redirectAction.bookingUrl) {
       window.open(redirectAction.bookingUrl, '_blank', 'noopener,noreferrer')
@@ -183,6 +249,31 @@ export default function BookingReview() {
 
   const handleEditSelection = () => {
     navigate('/results')
+  }
+
+  const handlePayViaRahhal = () => {
+    if (!session || session.items.length === 0) {
+      setError('لا توجد عناصر للدفع')
+      return
+    }
+    try {
+      const prepared = prepareBookingPayment({
+        bookingSession: session,
+        returnUrl: `${window.location.origin}/checkout/return`,
+        customerEmail: user?.email ?? null,
+        customerName: user?.user_metadata?.full_name ?? user?.email ?? null,
+      })
+      navigate('/checkout', {
+        state: {
+          items: prepared.checkoutInit.items,
+          travelSessionId: prepared.checkoutInit.travelSessionId,
+          currency: prepared.currency,
+          bookingSessionId: prepared.bookingSessionId,
+        },
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'تعذر بدء الدفع عبر رحّال')
+    }
   }
 
   const summary = session ? orchestrator.calculateBookingSummary(session.id) : null
@@ -295,10 +386,10 @@ export default function BookingReview() {
           </div>
         )}
 
-        {/* External payment notice */}
+        {/* Payment path notice */}
         <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
           <p className="text-sm text-sky-800">
-            سيتم إتمام الدفع لدى المزود مباشرة. رحّال لا يخزّن بيانات الدفع.
+            يمكنك التحويل لإتمام الحجز لدى المزود، أو متابعة الدفع التجريبي عبر رحّال (وضع mock افتراضياً).
           </p>
         </div>
 
@@ -332,7 +423,7 @@ export default function BookingReview() {
               تعديل الاختيار
             </button>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 justify-end">
             <button
               type="button"
               onClick={() => void handleSaveTrip()}
@@ -342,11 +433,19 @@ export default function BookingReview() {
             </button>
             <button
               type="button"
+              onClick={handlePayViaRahhal}
+              disabled={session.items.length === 0}
+              className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              الدفع عبر رحّال
+            </button>
+            <button
+              type="button"
               onClick={handlePrepareRedirect}
               disabled={!readiness?.ready}
               className="rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
             >
-              المتابعة لإتمام الحجز
+              التحويل لإتمام الحجز
             </button>
           </div>
         </div>

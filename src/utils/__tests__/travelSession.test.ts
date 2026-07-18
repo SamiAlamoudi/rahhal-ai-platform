@@ -35,6 +35,20 @@ describe('Scenario 2: Multi-turn session preservation', () => {
   })
 })
 
+describe('Arabic dual forms for adults', () => {
+  it('parses شخصين / لشخصين as 2 adults', () => {
+    const a = mergeTravelSession(createEmptyTravelSession(), 'أبغى أروح دبي لشخصين')
+    expect(a.adults).toBe(2)
+    const b = mergeTravelSession(createEmptyTravelSession(), 'رحلة لشخصين من جدة')
+    expect(b.adults).toBe(2)
+  })
+
+  it('still parses numeric adults forms', () => {
+    const s = mergeTravelSession(createEmptyTravelSession(), '2 بالغين')
+    expect(s.adults).toBe(2)
+  })
+})
+
 describe('Scenario 3: Question selection', () => {
   it('requests departure city after first message', () => {
     const s1 = mergeTravelSession(createEmptyTravelSession(), MSG1)

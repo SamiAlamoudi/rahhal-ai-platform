@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { authService, validateSignInForm, mapAuthErrorMessage, type AuthError } from '../lib/auth'
+import { isDemoAuthEnabled } from '../lib/auth/demoAuth'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -9,6 +10,7 @@ export default function Login() {
   const [errors, setErrors] = useState<AuthError[]>([])
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const demoEnabled = isDemoAuthEnabled()
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -24,6 +26,19 @@ export default function Login() {
     setLoading(false)
     if (!result.success) {
       setGeneralError(mapAuthErrorMessage(result.error))
+      return
+    }
+    navigate('/')
+  }
+
+  const handleDemoSignIn = async () => {
+    setGeneralError(null)
+    setErrors([])
+    setLoading(true)
+    const result = await authService.signInDemo()
+    setLoading(false)
+    if (!result.success) {
+      setGeneralError(result.error ?? 'تعذّر الدخول التجريبي')
       return
     }
     navigate('/')
@@ -82,6 +97,17 @@ export default function Login() {
           >
             {loading ? 'جاري الدخول...' : 'تسجيل الدخول'}
           </button>
+
+          {demoEnabled && (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={handleDemoSignIn}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 active:scale-[0.98] disabled:opacity-50"
+            >
+              متابعة كمستخدم تجريبي (محلي)
+            </button>
+          )}
 
           <div className="flex items-center justify-between pt-2">
             <Link to="/forgot-password" className="text-xs text-primary-600 hover:text-primary-700">
