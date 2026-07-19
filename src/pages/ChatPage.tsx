@@ -54,6 +54,7 @@ export default function ChatPage() {
   const [micError, setMicError] = useState<string | null>(null)
   const [permissionState, setPermissionState] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null)
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine)
+  const seedConsumedRef = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const voiceRef = useRef<VoiceSession | null>(null)
@@ -431,6 +432,44 @@ export default function ChatPage() {
       })
     })
   }
+
+  // Sprint 16 — seed conversation from AI Home (location.state.seedMessage or ?seed=)
+  useEffect(() => {
+    if (seedConsumedRef.current || listLoading || !online) return
+    const state = location.state as { seedMessage?: string; tripText?: string } | null
+    const stateSeed = state?.seedMessage ?? state?.tripText
+    const querySeed = new URLSearchParams(location.search).get('seed')
+    const seed = (stateSeed || querySeed || '').trim()
+    if (!seed) return
+
+    seedConsumedRef.current = true
+
+    void (async () => {
+      try {
+        const created = await chatEngine.createConversation()
+        setConversations((prev) => [created, ...prev])
+        selectConversation(created.id)
+        navigate({ pathname: '/chat', search: buildChatSearch(created.id, '') }, { replace: true, state: {} })
+        setDraft('')
+        await runGeneration(async (handlers) => {
+          const result = await chatEngine.sendMessage({
+            conversationId: created.id,
+            content: seed,
+            modality: 'text',
+          }, handlers)
+          setMessages((prev) => {
+            const withoutAssistant = prev.filter((m) => m.id !== result.assistant.id)
+            return [...withoutAssistant, result.user, result.assistant]
+          })
+        })
+      } catch (e) {
+        logChatError('chat.seed', e)
+        setActionError(e instanceof Error ? e.message : 'تعذر بدء المحادثة')
+      }
+    })()
+    // Seed is one-shot (seedConsumedRef). Do not re-run on navigate clearing state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot after list load
+  }, [listLoading, online])
 
   const handleSaveItinerary = async (itinerary: TripPlan) => {
     setActionError(null)

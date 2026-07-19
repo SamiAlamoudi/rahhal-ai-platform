@@ -86,6 +86,16 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flags: `ui.order_management`, `ui.checkout_review`, `ui.payment_preparation` (`payments.live` remains off).
 - See `docs/SPRINT15_ORDER_MANAGEMENT.md`.
 
+## AI Home Experience (Sprint 16)
+
+- Conversation-first home (`AiHomeExperience`) behind `ui.ai_home`; legacy Home preserved when flag off.
+- Hero + personalized greeting + composer; suggested prompts open Chat with seed (Sprint 9 agent).
+- Continue booking panel projects unfinished `BookingSession` resume paths.
+- Smart travel cards: upcoming trips, recent orders, recommendations, inspiration (placeholders for saved searches / price alerts).
+- Home design-system primitives under `src/components/home`.
+- Flags: `ui.ai_home`, `ui.conversation_home`, `ui.travel_cards`, `ui.continue_booking`.
+- See `docs/SPRINT16_AI_HOME.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
