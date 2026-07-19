@@ -47,7 +47,8 @@ function assessHealth(adapter: string): {
   }
   if (adapter === 'amadeus') {
     const config = getIntegrationConfig()
-    if (!config.flight.tokenUrl || !config.flight.invokeApiKey) {
+    const relativeProxy = Boolean(config.flight.tokenUrl?.startsWith('/'))
+    if (!config.flight.tokenUrl || (!relativeProxy && !config.flight.invokeApiKey)) {
       return { connected: false, healthy: false, apiReachable: false, lastResponseTime: null, lastError: 'Missing Amadeus token proxy configuration' }
     }
     return { connected: false, healthy: false, apiReachable: false, lastResponseTime: null, lastError: 'Not yet probed — real adapter requires runtime call' }
@@ -78,7 +79,8 @@ function assessOAuth(domain: string, adapter: string): {
   }
 
   const config = getIntegrationConfig()
-  if (!config.flight.tokenUrl || !config.flight.invokeApiKey) {
+  const relativeProxy = Boolean(config.flight.tokenUrl?.startsWith('/'))
+  if (!config.flight.tokenUrl || (!relativeProxy && !config.flight.invokeApiKey)) {
     return { oauthStatus: 'not-configured', tokenRemainingLifetime: null }
   }
 

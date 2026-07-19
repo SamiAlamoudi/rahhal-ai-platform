@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import AdminShell from '../components/admin/AdminShell'
+import ProviderStatusCard from '../components/admin/ProviderStatusCard'
+import MultiProviderHealthCard from '../components/admin/MultiProviderHealthCard'
 import { adminDashboardService, type AdminOverviewStats } from '../lib/admin/adminDashboardService'
 import { SYSTEM_HEALTH_LABELS } from '../lib/admin/adminStats'
 import { formatAdminMoney } from '../lib/admin/adminListHelpers'
@@ -80,6 +82,9 @@ export default function AdminDashboard() {
               مصدر البيانات: {stats.dataSource === 'mock' ? 'تجريبي' : 'قاعدة البيانات + تجريبي'}
             </span>
           </div>
+
+          <ProviderStatusCard />
+          <MultiProviderHealthCard />
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {cards.map((card) => (

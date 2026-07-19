@@ -79,6 +79,28 @@ export {
   type RentalCarModel,
 } from './providers/rentalCarService'
 export {
+  createActivityService,
+  getActivityService,
+  resetActivityService,
+  type ActivityService,
+  type ActivityModel,
+} from './providers/activityService'
+export {
+  getMultiProviderRegistry,
+  resetMultiProviderRegistry,
+  executeProviderChain,
+  getProviderHealthMonitor,
+  resetProviderHealthMonitor,
+  getMultiProviderConfig,
+  clearMultiProviderConfigCache,
+  DEFAULT_FLIGHT_CHAIN,
+  PROVIDER_CATALOG,
+  type MultiProviderRegistry,
+  type MultiProviderHealthReport,
+  type TravelDomain,
+  type MultiProviderId,
+} from './multiProvider'
+export {
   createProviderRegistry,
   getProviderRegistry,
   resetProviderRegistry,

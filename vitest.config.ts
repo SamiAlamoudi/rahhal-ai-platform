@@ -31,6 +31,10 @@ export default defineConfig({
       VITE_WEATHER_ADAPTER: '',
       VITE_WEATHER_PROVIDER: '',
       VITE_MAPS_PROVIDER: '',
+      // Multi-provider is production-default; unit suites exercise the legacy
+      // single-adapter path unless a test opts in explicitly.
+      VITE_MULTI_PROVIDER_ENABLED: 'false',
+      VITE_FLIGHT_PROVIDER_CHAIN: '',
     },
   },
 })

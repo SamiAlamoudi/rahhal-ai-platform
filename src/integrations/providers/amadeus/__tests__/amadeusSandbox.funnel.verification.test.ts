@@ -320,6 +320,7 @@ describe('Amadeus Sandbox → booking funnel verification', () => {
 
   it('missing token proxy config: Amadeus not registered → mock fallback', async () => {
     vi.stubEnv('VITE_FLIGHT_PROVIDER', 'amadeus')
+    vi.stubEnv('VITE_AMADEUS_USE_VERCEL_PROXY', 'false')
     vi.stubEnv('VITE_SUPABASE_URL', '')
     vi.stubEnv('VITE_SUPABASE_ANON_KEY', '')
     vi.stubEnv('VITE_AMADEUS_TOKEN_URL', '')

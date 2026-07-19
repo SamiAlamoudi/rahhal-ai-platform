@@ -104,5 +104,14 @@ describe('Amadeus sandbox funnel helpers', () => {
     })
     expect(ready.ready).toBe(true)
     expect(ready.host).toContain('test.api.amadeus.com')
+
+    const vercelReady = describeAmadeusSandboxReadiness({
+      flightAdapter: 'amadeus',
+      tokenUrl: '/api/amadeus-token',
+      invokeApiKey: null,
+      baseUrl: AMADEUS_SANDBOX_HOST,
+    })
+    expect(vercelReady.ready).toBe(true)
+    expect(vercelReady.tokenProxyConfigured).toBe(true)
   })
 })

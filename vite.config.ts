@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { amadeusApiPlugin } from './src/lib/viteAmadeusApiPlugin.js'
 
 /**
  * Security headers for Vite middleware.
@@ -16,6 +17,8 @@ function securityHeaders(development: boolean): Record<string, string> {
     "connect-src 'self'",
     'https://*.supabase.co',
     'wss://*.supabase.co',
+    'https://test.api.amadeus.com',
+    'https://api.amadeus.com',
     'https://fonts.googleapis.com',
     'https://fonts.gstatic.com',
     ...(development ? ['ws:', 'wss:', 'http://localhost:*', 'http://127.0.0.1:*'] : []),
@@ -72,7 +75,7 @@ function securityHeadersPlugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), securityHeadersPlugin()],
+  plugins: [react(), tailwindcss(), securityHeadersPlugin(), amadeusApiPlugin()],
   build: {
     // Documented performance budget signal (Phase X) — warn above ~900kB uncompressed chunk.
     chunkSizeWarningLimit: 900,

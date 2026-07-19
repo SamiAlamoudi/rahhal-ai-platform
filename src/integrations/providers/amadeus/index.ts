@@ -25,6 +25,8 @@ export {
   type AmadeusFareDetail,
   type AmadeusLocationResult,
   type AmadeusLocationsResponse,
+  type AmadeusAirlineResult,
+  type AmadeusAirlinesResponse,
 } from './amadeusFlightApiClient'
 export {
   AmadeusFlightAdapter,
@@ -60,3 +62,42 @@ export {
   mapCabinForApi,
   type FlightSearchBuildResult,
 } from './flightSearchModule'
+
+// Sprint: Live Travel Search — named public modules
+export { AmadeusClient, type AmadeusClientConfig } from './AmadeusClient'
+export {
+  AmadeusLiveFlightProvider,
+  FlightProvider,
+  createAmadeusFlightProvider,
+  type AmadeusFlightProviderConfig,
+  type FlightSearchPresentation,
+} from './FlightProvider'
+export { AirportResolver, type AirportResolverOptions } from './AirportResolver'
+export {
+  mapAmadeusOffers,
+  enrichMappedOffer,
+  sortAndSelectTopFlights,
+  selectTopFlightOptions,
+  formatFlightOfferForConversation,
+  formatFlightOffersForConversation,
+  TOP_FLIGHT_OPTIONS,
+  type MappedFlightOffer,
+  type FlightSortMode,
+} from './FlightMapper'
+export {
+  FlightCache,
+  FLIGHT_CACHE_TTL_MS,
+  buildFlightCacheKey,
+  getSharedFlightCache,
+  resetSharedFlightCache,
+  type FlightCacheEntry,
+} from './FlightCache'
+export { formatRankedFlightsForConversation } from './conversationFlightFormat'
+export {
+  fetchProvidersHealth,
+  formatAmadeusStatusLabel,
+  isAmadeusConnected,
+  PROVIDERS_HEALTH_PATH,
+  type AmadeusHealthStatus,
+  type ProvidersHealthResponse,
+} from './providerStatus'

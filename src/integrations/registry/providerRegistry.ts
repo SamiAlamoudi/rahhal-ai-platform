@@ -62,10 +62,14 @@ function createAdapter(domain: ProviderDomain | 'currency', adapterType: Provide
       if (adapterType === 'mock') return new MockFlightAdapter()
       if (adapterType === 'amadeus') {
         const cfg = config.flight
-        if (!cfg.tokenUrl || !cfg.invokeApiKey) return null
+        if (!cfg.tokenUrl) return null
+        // Same-origin Vercel/Vite proxy (`/api/amadeus-token`) needs no invoke key.
+        // Supabase Edge token proxy still requires the anon key.
+        const relativeProxy = cfg.tokenUrl.startsWith('/')
+        if (!relativeProxy && !cfg.invokeApiKey) return null
         return new AmadeusFlightAdapter({
           tokenUrl: cfg.tokenUrl,
-          invokeApiKey: cfg.invokeApiKey,
+          invokeApiKey: cfg.invokeApiKey ?? '',
           baseUrl: cfg.baseUrl || AMADEUS_DEFAULT_HOST,
           timeout: cfg.timeout,
           maxRetries: cfg.maxRetries,

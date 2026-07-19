@@ -22,8 +22,9 @@ Amadeus sandbox pilot: [AMADEUS_SANDBOX.md](./AMADEUS_SANDBOX.md)
 | `VITE_LIVE_PROVIDERS_ENABLED` | Master live-provider switch | **`false`** |
 | `VITE_PROVIDER_MOCK_FALLBACK` | Keep mocks for fallback | `true` |
 | `VITE_FLIGHT_PROVIDER` / `VITE_AMADEUS_ENABLED` | Booking-funnel flights (`amadeus` opt-in) | `mock` / `false` |
+| `VITE_AMADEUS_USE_VERCEL_PROXY` | Use same-origin `/api/amadeus-token` | `true` when Amadeus opted in |
 | `VITE_AMADEUS_BASE_URL` | Amadeus API host for funnel adapter | sandbox `https://test.api.amadeus.com` |
-| `VITE_AMADEUS_TOKEN_URL` | Optional Edge token proxy override | `{SUPABASE}/functions/v1/amadeus-token` |
+| `VITE_AMADEUS_TOKEN_URL` | Optional Edge token proxy override | `/api/amadeus-token` or Supabase function |
 | `VITE_HOTEL_ADAPTER` / `VITE_BOOKING_PROVIDER` | Hotels | `mock` for staging template |
 | `VITE_MAPS_PROVIDER` | Maps | `mock` for staging template |
 | `VITE_WEATHER_PROVIDER` | Weather | `mock` for staging template |
@@ -33,8 +34,10 @@ Amadeus sandbox pilot: [AMADEUS_SANDBOX.md](./AMADEUS_SANDBOX.md)
 
 | Variable | Purpose |
 |----------|---------|
-| `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET` | Amadeus OAuth |
+| `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET` | Amadeus OAuth (Vercel Edge / Supabase secrets) |
 | `AMADEUS_ENV` / `AMADEUS_BASE_URL` | sandbox \| production |
+
+Amadeus production setup: [../documentation/AMADEUS_SETUP.md](../documentation/AMADEUS_SETUP.md). Health: `GET /api/health/providers`.
 | `GOOGLE_MAPS_API_KEY` | Maps proxy |
 | `OPENWEATHER_API_KEY` | Weather proxy |
 | `RAPIDAPI_KEY` / `BOOKING_RAPIDAPI_KEY` | Booking.com |
