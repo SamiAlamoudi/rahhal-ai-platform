@@ -68,6 +68,7 @@ export {
   isBrainTripPlanningEnabled,
   isBrainExecutionEnabled,
   isBrainSearchEnabled,
+  isBrainRealProvidersEnabled,
   getOrCreateBrainOrchestrator,
   getOrCreateTripPlanningEngine,
   getOrCreateTravelExecutionEngine,
@@ -127,6 +128,15 @@ export {
   buildExecutionTasksFromTripPlan,
   createExecutionPlan,
   createMockExecutionProviders,
+  createExecutionProviders,
+  resolveExecutionProviderConfig,
+  clearAllProviderCaches,
+  resetProviderMonitoring,
+  createAmadeusFlightExecutionProvider,
+  createBookingHotelExecutionProvider,
+  withProviderResilience,
+  getProviderMonitorSnapshot,
+  getProviderCache,
   taskTypesInOrder,
 } from './execution'
 export type {
@@ -146,7 +156,17 @@ export type {
   HotelProvider,
   TransportProvider,
   ActivitiesProvider,
+  ActivityProvider,
   PackageProvider,
+  FlightSearchPayload,
+  HotelSearchPayload,
+  TransportSearchPayload,
+  ActivitiesSearchPayload,
+  PackageSearchPayload,
+  ExecutionProviderRuntimeConfig,
+  ExecutionProviderMode,
+  CreateExecutionProvidersOptions,
+  CreateExecutionProvidersResult,
 } from './execution'
 
 export {
