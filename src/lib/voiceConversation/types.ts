@@ -99,6 +99,16 @@ export interface VoiceSessionSnapshot {
   speakingSince: string | null
   interruptedCount: number
   reconnectCount: number
+  /**
+   * Sprint 20 — last BrainResponsePlan from speech transcript (when brain.voice is on).
+   */
+  lastBrainPlan: {
+    intent: string
+    action: string
+    summary: string
+    assistantGoal: string
+    missingFields: string[]
+  } | null
 }
 
 export type VoiceSessionTransitionReason =

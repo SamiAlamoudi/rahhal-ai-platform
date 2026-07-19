@@ -40,6 +40,9 @@ export type FeatureId =
   | 'brain.intent'
   | 'brain.planner'
   | 'brain.debug'
+  | 'brain.concierge'
+  | 'brain.agent_handoff'
+  | 'brain.voice'
   | 'payments.live'
   | 'providers.live_master'
 

@@ -227,6 +227,22 @@ export interface AgentProviderMeta {
     heardSummary: string[]
     turnCount: number
   }
+  /**
+   * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
+   * Present when `brain.concierge` integration is enabled; never replaces reply text.
+   */
+  brain?: {
+    intent: string
+    confidence: number
+    action: string
+    summary: string
+    assistantGoal: string
+    missingFields: string[]
+    searchRequests: unknown[]
+    bookingRequests: unknown[]
+    recommendations: unknown[]
+    uiHints: unknown
+  }
 }
 
 /** Ordered intake slots for interactive trip planning (Phase L). */
