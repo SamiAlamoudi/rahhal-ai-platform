@@ -368,6 +368,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: brain_travel_engine. No external LLM providers.',
   },
   {
+    id: 'brain.trip_planning',
+    name: 'Multi-Step Trip Planning Engine',
+    description:
+      'Sprint 22 TripPlanningEngine with PlanningSession stages, corrections, TripPlan / ClarificationPlan / TravelSummary. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.travel_engine'],
+    notes: 'Product alias: brain_trip_planning. No external AI providers.',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

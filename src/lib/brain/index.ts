@@ -65,7 +65,9 @@ export {
   isBrainAgentHandoffEnabled,
   isBrainVoiceIntegrationEnabled,
   isBrainTravelEngineEnabled,
+  isBrainTripPlanningEnabled,
   getOrCreateBrainOrchestrator,
+  getOrCreateTripPlanningEngine,
   seedBrainMemoryFromRequirements,
   brainMemoryToRequirementsPatch,
   toMetaBrain,
@@ -76,3 +78,37 @@ export type {
   BrainMetaSnapshot,
   RunIntegratedBrainTurnInput,
 } from './integration'
+
+export {
+  TripPlanningEngine,
+  resetTripPlanningSessions,
+  getPlanningSession,
+  PlanningSessionApi,
+  createPlanningSession,
+  detectCorrections,
+  applyCollectAndCorrections,
+  detectMissingPlanningFields,
+  nextPlanningFieldToAsk,
+  buildClarificationPlan,
+  buildTravelSummary,
+  produceTripPlan,
+  sessionToRequirements,
+  PLANNING_INTAKE_ORDER,
+  PLANNING_REQUIRED,
+  isPlanningFieldFilled,
+  planningCompleteness,
+} from './tripPlanning'
+export type {
+  PlanningStage,
+  PlanningField,
+  PlanningSession,
+  CorrectionKind,
+  CorrectionPatch,
+  ClarificationPlan,
+  TravelSummary,
+  TripPlanningTurnResult,
+  TripPlanningEngineOptions,
+  TripPlanningEngineHandle,
+  /** Sprint 22 engine TripPlan (distinct from Sprint 21 brain TravelPlan). */
+  TripPlan as EngineTripPlan,
+} from './tripPlanning'

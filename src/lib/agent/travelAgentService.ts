@@ -71,6 +71,7 @@ import {
   isBrainAgentHandoffEnabled,
   isBrainConciergeIntegrationEnabled,
   isBrainTravelEngineEnabled,
+  isBrainTripPlanningEnabled,
   runIntegratedBrainTurn,
   toMetaBrain,
   withBrainMeta,
@@ -147,6 +148,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `brain.travel_engine` (OFF). Requires brain.concierge chain.
    */
   brainTravelEngineEnabled?: boolean
+  /**
+   * Sprint 22 — Multi-Step Trip Planning Engine.
+   * Default: FeatureRegistry `brain.trip_planning` (OFF). Requires brain.travel_engine.
+   */
+  brainTripPlanningEnabled?: boolean
   /**
    * Sprint 13 — inject booking records for My Trips / history intents.
    * Defaults to loading the signed-in user's BookingSession projections.
@@ -264,6 +270,11 @@ export function createTravelAgentService(
       brainTravelEngineEnabled: options.brainTravelEngineEnabled,
     })
 
+  const isTripPlanningEnabled = (): boolean =>
+    isBrainTripPlanningEnabled({
+      brainTripPlanningEnabled: options.brainTripPlanningEnabled,
+    })
+
   const listBookingRecords = async (): Promise<BookingRecord[]> => {
     if (options.listBookingRecords) return options.listBookingRecords()
     const userId = getBookingHistoryUserId()
@@ -330,21 +341,22 @@ export function createTravelAgentService(
       memory.missingFields = missingRequirementFields(memory.requirements)
       memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
 
-      // Sprint 20/21 — every user message through Brain (memory → intent → context → planner)
-      // when flags are on. Produces BrainResponsePlan before assistant reply paths.
+      // Sprint 20/21/22 — every user message through Brain when flags are on.
       let brainMeta: BrainMetaSnapshot | undefined
       const travelEngineOn = isTravelEngineEnabled()
+      const tripPlanningOn = isTripPlanningEnabled()
       if (isBrainEnabled() && userText.trim()) {
         const brainResult = runIntegratedBrainTurn({
           conversationId: input.conversationId,
           userText,
           locale: memory.locale,
           requirements: memory.requirements,
-          travelEngine: travelEngineOn,
+          travelEngine: travelEngineOn || tripPlanningOn,
+          tripPlanning: tripPlanningOn,
         })
         brainMeta = toMetaBrain(brainResult)
 
-        if (isBrainHandoffEnabled() || travelEngineOn) {
+        if (isBrainHandoffEnabled() || travelEngineOn || tripPlanningOn) {
           memory = {
             ...memory,
             requirements: mergeRequirements(
@@ -355,14 +367,52 @@ export function createTravelAgentService(
           memory.missingFields = missingRequirementFields(memory.requirements)
           memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
         }
+
+        // Sprint 22 — apply complete engine TripPlan into agent memory (booking workflow).
+        const enginePlan = brainMeta.engineTripPlan
+        if (
+          tripPlanningOn
+          && enginePlan?.status === 'complete'
+          && enginePlan.agentTripPlan
+        ) {
+          memory = withTripPlan(
+            { ...memory, phase: 'planned', missingFields: [] },
+            enginePlan.agentTripPlan,
+          )
+        }
       }
 
       const attachBrain = <T extends AgentProviderMeta>(meta: T): T =>
         withBrainMeta(meta, brainMeta)
 
+      // Sprint 22 — clarification from TripPlanningEngine (shared with voice via runIntegratedBrainTurn).
+      if (
+        tripPlanningOn
+        && brainMeta?.clarificationQuestion
+        && brainMeta.planning?.stage === 'clarify'
+      ) {
+        memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          toolResults: [],
+        }
+        return {
+          reply: brainMeta.clarificationQuestion,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta: attachBrain(meta),
+          toolBatch: null,
+        }
+      }
+
       // Sprint 21 — contextual one-question follow-up (text + voice share this path).
       if (
         travelEngineOn
+        && !tripPlanningOn
         && brainMeta?.action === 'ask_missing'
         && brainMeta.contextualReply
       ) {

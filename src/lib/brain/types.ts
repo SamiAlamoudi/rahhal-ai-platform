@@ -269,6 +269,12 @@ export interface BrainTurnResult {
   plan: BrainResponsePlan
   /** Sprint 21 — domain bridge payload when travel engine is on. */
   domain: TravelDomainBridge | null
+  /**
+   * Sprint 22 — multi-step trip planning result when trip planning is on.
+   * Typed as unknown here to avoid circular imports with tripPlanning/;
+   * consumers use TripPlanningTurnResult via integration / tripPlanning exports.
+   */
+  planning: unknown | null
 }
 
 /** Sprint 21 — BrainResponsePlan → real travel domain drafts (no live API calls). */
