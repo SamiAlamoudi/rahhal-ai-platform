@@ -328,6 +328,36 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: brain_debug',
   },
   {
+    id: 'brain.concierge',
+    name: 'Brain Concierge Integration',
+    description:
+      'Sprint 20 wires Brain into travelAgentService.planTurn / Concierge path. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.enabled'],
+    notes: 'Product alias: brain_concierge. Text + Chat voice share this pipeline.',
+  },
+  {
+    id: 'brain.agent_handoff',
+    name: 'Brain Agent Handoff Merge',
+    description:
+      'Sprint 20 merges Brain memory slots into agent TripRequirements. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.concierge'],
+    notes: 'Product alias: brain_agent_handoff',
+  },
+  {
+    id: 'brain.voice',
+    name: 'Brain Voice Session Bridge',
+    description:
+      'Sprint 20 runs Brain on Sprint 18 voice transcripts (same pipeline as text). Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.concierge'],
+    notes: 'Product alias: brain_voice',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

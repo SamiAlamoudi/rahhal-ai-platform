@@ -49,3 +49,20 @@ export { ContextManager } from './contextManager'
 export { MemoryManager } from './memoryManager'
 export { ConversationOrchestrator } from './conversationOrchestrator'
 export type { ConversationOrchestratorHandle, ConversationOrchestratorOptions } from './conversationOrchestrator'
+
+export {
+  resetBrainIntegrationSessions,
+  isBrainConciergeIntegrationEnabled,
+  isBrainAgentHandoffEnabled,
+  isBrainVoiceIntegrationEnabled,
+  getOrCreateBrainOrchestrator,
+  seedBrainMemoryFromRequirements,
+  brainMemoryToRequirementsPatch,
+  toMetaBrain,
+  withBrainMeta,
+  runIntegratedBrainTurn,
+} from './integration'
+export type {
+  BrainMetaSnapshot,
+  RunIntegratedBrainTurnInput,
+} from './integration'

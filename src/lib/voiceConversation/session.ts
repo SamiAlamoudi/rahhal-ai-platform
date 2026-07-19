@@ -12,6 +12,10 @@ import type {
 import { createVoiceQueue } from './voiceQueue'
 import { createVoiceProvider } from './providers'
 import type { VoiceProvider, VoiceProviderId } from './providers'
+import {
+  isBrainVoiceIntegrationEnabled,
+  runIntegratedBrainTurn,
+} from '../brain/integration'
 
 function newId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`
@@ -44,6 +48,7 @@ export function createVoiceSession(options: VoiceSessionOptions = {}) {
   let reconnectCount = 0
   let disposed = false
   let transitionLock = false
+  let lastBrainPlan: VoiceSessionSnapshot['lastBrainPlan'] = null
 
   const messages: VoiceMessage[] = []
   const transitions: VoiceStateTransition[] = []
@@ -68,6 +73,7 @@ export function createVoiceSession(options: VoiceSessionOptions = {}) {
       speakingSince,
       interruptedCount,
       reconnectCount,
+      lastBrainPlan,
     }
   }
 
@@ -230,6 +236,28 @@ export function createVoiceSession(options: VoiceSessionOptions = {}) {
       appendMessage('user', text, 'speech')
       pushEvent('user_transcript', 'normal', { transcript: text })
       pushEvent('user_speech_ended', 'normal')
+
+      // Sprint 20 — speech uses the same Brain pipeline as text (when brain.voice is on).
+      if (isBrainVoiceIntegrationEnabled()) {
+        const brainResult = runIntegratedBrainTurn({
+          conversationId,
+          userText: text,
+          locale: 'ar',
+        })
+        lastBrainPlan = {
+          intent: brainResult.plan.intent,
+          action: brainResult.plan.action,
+          summary: brainResult.plan.summary,
+          assistantGoal: brainResult.plan.assistantGoal,
+          missingFields: [...brainResult.plan.missingFields],
+        }
+        pushEvent('timeline_marker', 'normal', {
+          kind: 'brain_plan',
+          summary: brainResult.plan.summary,
+          action: brainResult.plan.action,
+        })
+      }
+
       timeline.begin('thinking', 'thinking', 'thinking')
       pushEvent('thinking_started', 'normal')
       applyTransition('user_speech_end')

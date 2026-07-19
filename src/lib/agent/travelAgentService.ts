@@ -66,6 +66,15 @@ import {
   buildSmartItineraryConciergeReply,
   type SmartItineraryConciergeIntent,
 } from '../smartItinerary'
+import {
+  brainMemoryToRequirementsPatch,
+  isBrainAgentHandoffEnabled,
+  isBrainConciergeIntegrationEnabled,
+  runIntegratedBrainTurn,
+  toMetaBrain,
+  withBrainMeta,
+  type BrainMetaSnapshot,
+} from '../brain/integration'
 
 const BOOKING_HISTORY_INTENTS = new Set<AgentIntent>([
   'show_trips',
@@ -124,6 +133,14 @@ export interface TravelAgentServiceOptions {
   concierge?: ConciergeService | false
   /** Explicit override for the `ai.concierge` feature flag. */
   conciergeEnabled?: boolean
+  /**
+   * Sprint 20 — Brain ↔ Concierge integration.
+   * Default: FeatureRegistry `brain.enabled` + `brain.concierge` (both OFF).
+   * Pass `false` to force off; `true` to force on in tests.
+   */
+  brainEnabled?: boolean
+  /** When true (or flag `brain.agent_handoff`), merge brain slots into agent requirements. */
+  brainHandoffEnabled?: boolean
   /**
    * Sprint 13 — inject booking records for My Trips / history intents.
    * Defaults to loading the signed-in user's BookingSession projections.
@@ -230,6 +247,12 @@ export function createTravelAgentService(
   const isSmartItineraryEnabled = (): boolean =>
     getFeatureRegistry().isEnabled('ui.smart_itinerary')
 
+  const isBrainEnabled = (): boolean =>
+    isBrainConciergeIntegrationEnabled({ brainEnabled: options.brainEnabled })
+
+  const isBrainHandoffEnabled = (): boolean =>
+    isBrainAgentHandoffEnabled({ brainHandoffEnabled: options.brainHandoffEnabled })
+
   const listBookingRecords = async (): Promise<BookingRecord[]> => {
     if (options.listBookingRecords) return options.listBookingRecords()
     const userId = getBookingHistoryUserId()
@@ -296,6 +319,34 @@ export function createTravelAgentService(
       memory.missingFields = missingRequirementFields(memory.requirements)
       memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
 
+      // Sprint 20 — every user message through Brain (memory → intent → context → planner)
+      // when flags are on. Produces BrainResponsePlan before assistant reply paths.
+      let brainMeta: BrainMetaSnapshot | undefined
+      if (isBrainEnabled() && userText.trim()) {
+        const brainResult = runIntegratedBrainTurn({
+          conversationId: input.conversationId,
+          userText,
+          locale: memory.locale,
+          requirements: memory.requirements,
+        })
+        brainMeta = toMetaBrain(brainResult)
+
+        if (isBrainHandoffEnabled()) {
+          memory = {
+            ...memory,
+            requirements: mergeRequirements(
+              memory.requirements,
+              brainMemoryToRequirementsPatch(brainResult.context.memory),
+            ),
+          }
+          memory.missingFields = missingRequirementFields(memory.requirements)
+          memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
+        }
+      }
+
+      const attachBrain = <T extends AgentProviderMeta>(meta: T): T =>
+        withBrainMeta(meta, brainMeta)
+
       // Sprint 17 — smart itinerary intents (above order / confirmation / history).
       if (
         SMART_ITINERARY_INTENTS.has(extracted.intent)
@@ -320,7 +371,7 @@ export function createTravelAgentService(
           reply,
           memory,
           tripPlan: memory.tripPlan,
-          meta,
+          meta: attachBrain(meta),
           toolBatch: null,
         }
       }
@@ -356,7 +407,7 @@ export function createTravelAgentService(
           reply,
           memory,
           tripPlan: memory.tripPlan,
-          meta,
+          meta: attachBrain(meta),
           toolBatch: null,
         }
       }
@@ -390,7 +441,7 @@ export function createTravelAgentService(
           reply,
           memory,
           tripPlan: memory.tripPlan,
-          meta,
+          meta: attachBrain(meta),
           toolBatch: null,
         }
       }
@@ -418,7 +469,7 @@ export function createTravelAgentService(
           reply,
           memory,
           tripPlan: memory.tripPlan,
-          meta,
+          meta: attachBrain(meta),
           toolBatch: null,
         }
       }
@@ -456,7 +507,7 @@ export function createTravelAgentService(
             reply: conciergeResult.reply,
             memory,
             tripPlan: memory.tripPlan,
-            meta,
+            meta: attachBrain(meta),
             toolBatch: null,
           }
         }
@@ -581,7 +632,7 @@ export function createTravelAgentService(
         reply,
         memory,
         tripPlan: memory.tripPlan,
-        meta,
+        meta: attachBrain(meta),
         toolBatch,
       }
     },

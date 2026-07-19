@@ -129,6 +129,17 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Existing agent/concierge (`src/lib/agent`, `src/lib/concierge`) unchanged and remain production SoT until brain is wired.
 - See `docs/SPRINT19_AI_BRAIN.md`.
 
+## Concierge Integration (Sprint 20)
+
+- Wires Brain into `travelAgentService.planTurn` so **text and Chat voice** share one reasoning pipeline.
+- Every gated user message: Memory → Intent → Context → Planner → `BrainResponsePlan` attached on `AgentProviderMeta.brain`.
+- Optional `brain.agent_handoff` merges Brain slots into agent `TripRequirements` before Concierge/agent continue.
+- Sprint 18 `voiceConversation` commits run the same Brain turn when `brain.voice` is on (`lastBrainPlan` on session snapshot).
+- Flags (default **OFF**): `brain.concierge`, `brain.agent_handoff`, `brain.voice` (all depend on `brain.enabled` / `brain.concierge`).
+- When flags are off, Sprint 9–19 behavior is unchanged (full backward compatibility).
+- No OpenAI / Azure / ElevenLabs / external APIs.
+- See `docs/SPRINT20_CONCIERGE_INTEGRATION.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
