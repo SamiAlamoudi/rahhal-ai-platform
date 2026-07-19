@@ -32,6 +32,7 @@ export default function MyTrips() {
   const navigate = useNavigate()
   const { user, loading: authLoading } = useAuth()
   const myTripsEnabled = getFeatureRegistry().isEnabled('ui.my_trips')
+  const confirmationEnabled = getFeatureRegistry().isEnabled('ui.booking_confirmation')
   const orchestrator = useMemo(() => getBookingOrchestrator(), [])
 
   const [lists, setLists] = useState<MyTripsLists | null>(null)
@@ -225,7 +226,13 @@ export default function MyTrips() {
                       busy={busyId === record.sessionId}
                       canResume={session ? canResumeBookingSession(session.status) : false}
                       canCancel={session ? canCancelBookingSession(session.status) : false}
-                      onOpen={(id) => navigate(`/my-trips/${encodeURIComponent(id)}`)}
+                      onOpen={(id) => {
+                        if (confirmationEnabled && (record.status === 'confirmed' || record.status === 'failed' || record.status === 'pending_provider_confirmation' || record.status === 'redirected')) {
+                          navigate(`/booking/confirmation/${encodeURIComponent(id)}`)
+                          return
+                        }
+                        navigate(`/my-trips/${encodeURIComponent(id)}`)
+                      }}
                       onResume={handleResume}
                       onCancel={(id) => void handleCancel(id)}
                     />

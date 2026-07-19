@@ -18,6 +18,9 @@ export type FeatureId =
   | 'ui.passenger_booking_flow'
   | 'ui.my_trips'
   | 'ui.booking_history'
+  | 'ui.booking_confirmation'
+  | 'ui.supplier_adapter'
+  | 'ui.booking_timeline'
   | 'payments.live'
   | 'providers.live_master'
 

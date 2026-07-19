@@ -26,6 +26,10 @@ export type AgentIntent =
   | 'show_latest_booking'
   | 'show_booking_details'
   | 'summarize_itinerary'
+  | 'booking_confirmed'
+  | 'show_confirmation'
+  | 'booking_reference'
+  | 'booking_status'
   | 'unknown'
 
 /** Scoped regeneration target for the Intelligent Decision Engine. */

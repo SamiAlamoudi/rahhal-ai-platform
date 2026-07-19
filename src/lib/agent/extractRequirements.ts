@@ -147,6 +147,28 @@ export function extractFromUserText(
 }
 
 function detectIntent(lower: string, original: string, locale: AgentLocale): AgentIntent {
+  // Sprint 14 — confirmation intents (before Sprint 13 history / plan)
+  if (
+    /\bhas my booking been confirmed\b|\bis my booking confirmed\b|\bbooking confirmed\b|هل تم تأكيد|هل حجزي مؤكد|تأكد الحجز/.test(lower + original)
+  ) {
+    return 'booking_confirmed'
+  }
+  if (
+    /\bshow confirmation\b|\bconfirmation (?:details|summary)\b|أظهر التأكيد|اعرض التأكيد|ملخص التأكيد/.test(lower + original)
+  ) {
+    return 'show_confirmation'
+  }
+  if (
+    /\bwhat is my booking reference\b|\bbooking reference\b|\bconfirmation reference\b|ما هو مرجع|رقم الحجز|مرجع الحجز/.test(lower + original)
+  ) {
+    return 'booking_reference'
+  }
+  if (
+    /\bwhat is the booking status\b|\bbooking status\b|حالة الحجز|ما هي حالة/.test(lower + original)
+  ) {
+    return 'booking_status'
+  }
+
   // Sprint 13 — booking history / My Trips intents (before generic plan/save)
   if (
     /\bsummarize\b.*\b(itinerary|trip|booking)\b|\bitinerary summary\b|لخّص|لخص|ملخص (?:الرحلة|الحجز|مساري)/.test(lower + original)

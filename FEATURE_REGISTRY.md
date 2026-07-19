@@ -30,6 +30,9 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ui.passenger_booking_flow` | beta | yes | Sprint 12 passengers, validation, summary, session persist (depends on flight results) |
 | `ui.my_trips` | beta | yes | Sprint 13 My Trips (alias: myTrips); depends on passenger booking flow |
 | `ui.booking_history` | beta | yes | Sprint 13 booking records + concierge history (alias: bookingHistory) |
+| `ui.booking_confirmation` | beta | yes | Sprint 14 confirmation engine + UI (alias: booking_confirmation) |
+| `ui.supplier_adapter` | beta | yes | Sprint 14 supplier ports — Amadeus active (alias: supplier_adapter) |
+| `ui.booking_timeline` | beta | yes | Sprint 14 confirmation timeline UI (alias: booking_timeline) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |
 

@@ -430,6 +430,76 @@ export class BookingOrchestrator {
     return this.cloneSession(session)
   }
 
+  /** Sprint 14 — mark session confirmed after supplier adapter success. */
+  markBookingConfirmed(
+    sessionId: string,
+    input: { providerId?: string; providerReference?: string | null; confirmedAt?: string },
+  ): BookingSession | null {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      this.lastError = 'Session not found'
+      return null
+    }
+    if (session.status === 'cancelled' || session.status === 'expired') {
+      this.lastError = `Cannot confirm session in status: ${session.status}`
+      return this.cloneSession(session)
+    }
+    if (input.providerId && input.providerReference) {
+      const ref = session.providerReferences.find((r) => r.providerId === input.providerId)
+      if (ref) {
+        ref.providerBookingReference = input.providerReference
+      } else {
+        session.providerReferences.push({
+          providerId: input.providerId,
+          providerName: input.providerId,
+          providerBookingReference: input.providerReference,
+          redirectUrl: null,
+        })
+      }
+    }
+    session.status = 'confirmed'
+    session.confirmedAt = input.confirmedAt ?? nowIso()
+    session.updatedAt = nowIso()
+    this.lastError = null
+    return this.cloneSession(session)
+  }
+
+  /** Sprint 14 — mark confirmation failed (retryable). */
+  markBookingConfirmationFailed(sessionId: string): BookingSession | null {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      this.lastError = 'Session not found'
+      return null
+    }
+    if (session.status === 'confirmed') {
+      this.lastError = 'Cannot fail an already confirmed session'
+      return this.cloneSession(session)
+    }
+    session.status = 'failed'
+    session.confirmedAt = null
+    session.updatedAt = nowIso()
+    this.lastError = null
+    return this.cloneSession(session)
+  }
+
+  /** Sprint 14 — reset failed session to pending for retry. */
+  resetBookingConfirmationPending(sessionId: string): BookingSession | null {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      this.lastError = 'Session not found'
+      return null
+    }
+    if (session.status !== 'failed') {
+      this.lastError = `Cannot reset confirmation from status: ${session.status}`
+      return this.cloneSession(session)
+    }
+    session.status = 'pending_provider_confirmation'
+    session.confirmedAt = null
+    session.updatedAt = nowIso()
+    this.lastError = null
+    return this.cloneSession(session)
+  }
+
   getAllSessions(): BookingSession[] {
     return Array.from(this.sessions.values()).map(s => this.cloneSession(s))
   }
