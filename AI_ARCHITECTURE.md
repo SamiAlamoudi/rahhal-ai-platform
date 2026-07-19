@@ -197,6 +197,16 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.real_providers` (depends on `brain.execution`). Live HTTP still gated by Phase W `VITE_LIVE_PROVIDERS_ENABLED`.
 - See `docs/SPRINT26_REAL_PROVIDER_INTEGRATION.md` and `docs/PROVIDER_ADAPTER_GUIDE.md`.
 
+## AI Trip Orchestrator (Sprint 27)
+
+- `AITripOrchestrator` is the central coordinator for conversation → intent → execution plan → providers → search aggregation → optional booking.
+- **No new engine** — reuses Trip Planning, Travel Execution, Search Aggregation, BookingFlowController, and provider adapters.
+- Builds a provider-independent plan for flights, hotels, activities, and ground transport; executes via existing adapters; aggregates into one response.
+- Adds orchestrator-level retry / timeout, structured logging, execution metrics, and turn caching.
+- Text path: `travelAgentService.planTurn` uses the orchestrator when `brain.trip_orchestrator` is on (booking attach skipped in the agent to avoid duplication).
+- Flag (default **OFF**): `brain.trip_orchestrator` (depends on `brain.search`). Optional: `ui.booking_flow`, `brain.real_providers`.
+- See `docs/SPRINT27_AI_TRIP_ORCHESTRATOR.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

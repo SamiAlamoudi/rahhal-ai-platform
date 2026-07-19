@@ -49,6 +49,7 @@ export type FeatureId =
   | 'brain.execution'
   | 'brain.search'
   | 'brain.real_providers'
+  | 'brain.trip_orchestrator'
   | 'payments.live'
   | 'providers.live_master'
 

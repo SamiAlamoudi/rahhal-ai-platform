@@ -73,12 +73,17 @@ import {
   isBrainExecutionEnabled,
   isBrainSearchEnabled,
   isBrainTravelEngineEnabled,
+  isBrainTripOrchestratorEnabled,
   isBrainTripPlanningEnabled,
   runIntegratedBrainPipeline,
   toMetaBrain,
   withBrainMeta,
   type BrainMetaSnapshot,
 } from '../brain/integration'
+import {
+  getOrCreateAITripOrchestrator,
+} from '../brain/orchestrator'
+import type { BrainTurnResult } from '../brain/types'
 import {
   detectBookingFlowConversationEdit,
   getBookingFlowController,
@@ -172,6 +177,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `brain.search` (OFF). Requires brain.execution.
    */
   brainSearchEnabled?: boolean
+  /**
+   * Sprint 27 — AI Trip Orchestrator.
+   * Default: FeatureRegistry `brain.trip_orchestrator` (OFF). Requires brain.search.
+   */
+  brainTripOrchestratorEnabled?: boolean
   /**
    * Sprint 25 — Production Booking Flow orchestration.
    * Default: FeatureRegistry `ui.booking_flow` (OFF).
@@ -309,6 +319,11 @@ export function createTravelAgentService(
       brainSearchEnabled: options.brainSearchEnabled,
     })
 
+  const isTripOrchestratorEnabled = (): boolean =>
+    isBrainTripOrchestratorEnabled({
+      brainTripOrchestratorEnabled: options.brainTripOrchestratorEnabled,
+    })
+
   const isFlowEnabled = (): boolean =>
     isBookingFlowEnabled({
       bookingFlowEnabled: options.bookingFlowEnabled,
@@ -380,27 +395,55 @@ export function createTravelAgentService(
       memory.missingFields = missingRequirementFields(memory.requirements)
       memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
 
-      // Sprint 20–24 — every user message through Brain when flags are on.
+      // Sprint 20–27 — every user message through Brain when flags are on.
       let brainMeta: BrainMetaSnapshot | undefined
       const travelEngineOn = isTravelEngineEnabled()
       const tripPlanningOn = isTripPlanningEnabled()
       const executionOn = isExecutionEnabled()
       const searchOn = isSearchEnabled()
+      const orchestratorOn = isTripOrchestratorEnabled()
       if (isBrainEnabled() && userText.trim()) {
-        const brainResult = await runIntegratedBrainPipeline({
-          conversationId: input.conversationId,
-          userText,
-          locale: memory.locale,
-          requirements: memory.requirements,
-          travelEngine: travelEngineOn || tripPlanningOn || executionOn || searchOn,
-          tripPlanning: tripPlanningOn || executionOn || searchOn,
-          execution: executionOn || searchOn,
-          search: searchOn,
-          signal: input.signal,
-        })
-        brainMeta = toMetaBrain(brainResult)
+        let brainResult: BrainTurnResult | null = null
 
-        if (isBrainHandoffEnabled() || travelEngineOn || tripPlanningOn || executionOn || searchOn) {
+        if (orchestratorOn) {
+          const orchestrator = getOrCreateAITripOrchestrator()
+          const orchResult = await orchestrator.runTurn({
+            conversationId: input.conversationId,
+            userText,
+            locale: memory.locale,
+            requirements: memory.requirements,
+            signal: input.signal,
+            userId: getBookingHistoryUserId() || input.conversationId,
+            bookingFlow: isFlowEnabled(),
+          })
+          brainResult = (orchResult.brain as BrainTurnResult | null) ?? null
+          if (brainResult) {
+            brainMeta = toMetaBrain(brainResult, orchResult)
+          }
+        } else {
+          brainResult = await runIntegratedBrainPipeline({
+            conversationId: input.conversationId,
+            userText,
+            locale: memory.locale,
+            requirements: memory.requirements,
+            travelEngine: travelEngineOn || tripPlanningOn || executionOn || searchOn,
+            tripPlanning: tripPlanningOn || executionOn || searchOn,
+            execution: executionOn || searchOn,
+            search: searchOn,
+            signal: input.signal,
+          })
+          brainMeta = toMetaBrain(brainResult)
+        }
+
+        if (
+          brainResult &&
+          (isBrainHandoffEnabled() ||
+            travelEngineOn ||
+            tripPlanningOn ||
+            executionOn ||
+            searchOn ||
+            orchestratorOn)
+        ) {
           memory = {
             ...memory,
             requirements: mergeRequirements(
@@ -413,11 +456,12 @@ export function createTravelAgentService(
         }
 
         // Sprint 22 — apply complete engine TripPlan into agent memory (booking workflow).
-        const enginePlan = brainMeta.engineTripPlan
+        const enginePlan = brainMeta?.engineTripPlan
         if (
-          (tripPlanningOn || executionOn || searchOn)
-          && enginePlan?.status === 'complete'
-          && enginePlan.agentTripPlan
+          brainMeta &&
+          (tripPlanningOn || executionOn || searchOn || orchestratorOn) &&
+          enginePlan?.status === 'complete' &&
+          enginePlan.agentTripPlan
         ) {
           memory = withTripPlan(
             { ...memory, phase: 'planned', missingFields: [] },
@@ -426,7 +470,8 @@ export function createTravelAgentService(
         }
 
         // Sprint 25 — booking flow orchestration (edits + brain sync; no planning restart).
-        if (isFlowEnabled()) {
+        // When Sprint 27 orchestrator is on, booking attach already ran inside AITripOrchestrator.
+        if (isFlowEnabled() && !orchestratorOn && brainResult) {
           const flowUserId = getBookingHistoryUserId() || input.conversationId
           const controller = getBookingFlowController()
           let flow =
@@ -497,7 +542,7 @@ export function createTravelAgentService(
 
       // Sprint 22 — clarification from TripPlanningEngine (shared with voice via runIntegratedBrainTurn).
       if (
-        (tripPlanningOn || executionOn || searchOn)
+        (tripPlanningOn || executionOn || searchOn || orchestratorOn)
         && brainMeta?.clarificationQuestion
         && brainMeta.planning?.stage === 'clarify'
       ) {
