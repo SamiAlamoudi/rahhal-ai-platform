@@ -23,4 +23,12 @@ export interface HotelOffer {
   freeCancellation: boolean
   amenities: string[]
   roomTypes: RoomType[]
+  /** Sprint 30 additive enrichment (optional; older adapters omit). */
+  images?: string[]
+  guestReviewCount?: number
+  guestReviewLabel?: string | null
+  taxesAndFeesTotal?: number
+  cancellationSummary?: string
+  nightly?: number
+  sandbox?: boolean
 }

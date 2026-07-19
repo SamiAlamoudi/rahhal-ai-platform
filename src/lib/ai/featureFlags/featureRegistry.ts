@@ -441,6 +441,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: brain_context_memory. Additive to Sprint 19–27; passport/nationality only when explicitly provided; no LLM providers.',
   },
   {
+    id: 'providers.hotel_foundation',
+    name: 'Hotel Provider Foundation',
+    description:
+      'Sprint 30 generic HotelProvider registry with Hotelbeds / Expedia Rapid / Booking Connectivity sandbox adapters, cache, failover, and brain bridges. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.execution'],
+    notes:
+      'Product alias: hotel_provider_foundation. Sandbox/mock only — no production credentials. Integrates with AITripOrchestrator, conversation memory, and Search Aggregation.',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

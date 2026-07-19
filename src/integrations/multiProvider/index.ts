@@ -56,6 +56,8 @@ export { createPreparedAdapter } from './adapters/preparedAdapter'
 export {
   createAmadeusEnterpriseFlightAdapter,
   createBookingHotelAdapter,
+  createExpediaHotelAdapter,
+  createHotelbedsHotelAdapter,
   createRentalCarsAdapter,
   createMockDomainAdapter,
 } from './adapters/liveWrappers'

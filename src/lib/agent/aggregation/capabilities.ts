@@ -54,9 +54,9 @@ export const FUTURE_PROVIDER_CATALOG: Array<{
   },
   {
     id: 'hotelbeds',
-    displayName: 'Hotelbeds (future)',
+    displayName: 'Hotelbeds (Sprint 30 sandbox foundation)',
     domains: ['hotels'],
-    features: ['search', 'inventory'],
+    features: ['search', 'inventory', 'room_availability', 'pricing', 'cancellation_policy', 'sandbox'],
   },
   {
     id: 'mapbox',

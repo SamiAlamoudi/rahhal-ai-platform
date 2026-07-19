@@ -9,6 +9,8 @@ import { createPreparedAdapter } from './adapters/preparedAdapter'
 import {
   createAmadeusEnterpriseFlightAdapter,
   createBookingHotelAdapter,
+  createExpediaHotelAdapter,
+  createHotelbedsHotelAdapter,
   createMockDomainAdapter,
   createRentalCarsAdapter,
 } from './adapters/liveWrappers'
@@ -52,16 +54,8 @@ function buildDefaultAdapters(): MultiProviderAdapter[] {
 
     // Hotels
     createBookingHotelAdapter(),
-    createPreparedAdapter({
-      id: 'expedia',
-      displayName: 'Expedia',
-      domains: ['hotel'],
-    }),
-    createPreparedAdapter({
-      id: 'hotelbeds',
-      displayName: 'Hotelbeds',
-      domains: ['hotel'],
-    }),
+    createExpediaHotelAdapter(),
+    createHotelbedsHotelAdapter(),
 
     // Cars
     createRentalCarsAdapter(),

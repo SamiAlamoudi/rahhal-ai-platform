@@ -219,6 +219,17 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.context_memory` (depends on `brain.trip_orchestrator`).
 - See `docs/SPRINT28_CONVERSATION_MEMORY.md`.
 
+## Hotel Provider Foundation (Sprint 30)
+
+- Generic `HotelProvider` interface + `HotelProviderRegistry` with priority failover (Booking Connectivity → Hotelbeds → Expedia Rapid → mock).
+- Normalized hotel search model: rooms, pricing, cancellation, taxes/fees, images, amenities, star rating, guest reviews.
+- Sandbox/mock adapters only — **no production credentials**.
+- Resilience: 15-min `HotelSearchCache`, retry policy, rate limiting, `HotelHealthMonitor`, `HotelProviderMetrics`.
+- Bridges into AITripOrchestrator, Conversation Memory preferred-hotel boosts, Search Aggregation, and Travel Execution (`hotel_foundation` provider id).
+- Multi-provider hotel chain uses Sprint 30 sandbox Expedia / Hotelbeds adapters instead of fail-closed stubs.
+- Flag (default **OFF**): `providers.hotel_foundation` (depends on `brain.execution`).
+- See `docs/SPRINT30_HOTEL_PROVIDER_FOUNDATION.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
