@@ -70,9 +70,10 @@ import {
   brainMemoryToRequirementsPatch,
   isBrainAgentHandoffEnabled,
   isBrainConciergeIntegrationEnabled,
+  isBrainExecutionEnabled,
   isBrainTravelEngineEnabled,
   isBrainTripPlanningEnabled,
-  runIntegratedBrainTurn,
+  runIntegratedBrainPipeline,
   toMetaBrain,
   withBrainMeta,
   type BrainMetaSnapshot,
@@ -153,6 +154,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `brain.trip_planning` (OFF). Requires brain.travel_engine.
    */
   brainTripPlanningEnabled?: boolean
+  /**
+   * Sprint 23 — Travel Execution Engine.
+   * Default: FeatureRegistry `brain.execution` (OFF). Requires brain.trip_planning.
+   */
+  brainExecutionEnabled?: boolean
   /**
    * Sprint 13 — inject booking records for My Trips / history intents.
    * Defaults to loading the signed-in user's BookingSession projections.
@@ -275,6 +281,11 @@ export function createTravelAgentService(
       brainTripPlanningEnabled: options.brainTripPlanningEnabled,
     })
 
+  const isExecutionEnabled = (): boolean =>
+    isBrainExecutionEnabled({
+      brainExecutionEnabled: options.brainExecutionEnabled,
+    })
+
   const listBookingRecords = async (): Promise<BookingRecord[]> => {
     if (options.listBookingRecords) return options.listBookingRecords()
     const userId = getBookingHistoryUserId()
@@ -341,22 +352,25 @@ export function createTravelAgentService(
       memory.missingFields = missingRequirementFields(memory.requirements)
       memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
 
-      // Sprint 20/21/22 — every user message through Brain when flags are on.
+      // Sprint 20–23 — every user message through Brain when flags are on.
       let brainMeta: BrainMetaSnapshot | undefined
       const travelEngineOn = isTravelEngineEnabled()
       const tripPlanningOn = isTripPlanningEnabled()
+      const executionOn = isExecutionEnabled()
       if (isBrainEnabled() && userText.trim()) {
-        const brainResult = runIntegratedBrainTurn({
+        const brainResult = await runIntegratedBrainPipeline({
           conversationId: input.conversationId,
           userText,
           locale: memory.locale,
           requirements: memory.requirements,
-          travelEngine: travelEngineOn || tripPlanningOn,
-          tripPlanning: tripPlanningOn,
+          travelEngine: travelEngineOn || tripPlanningOn || executionOn,
+          tripPlanning: tripPlanningOn || executionOn,
+          execution: executionOn,
+          signal: input.signal,
         })
         brainMeta = toMetaBrain(brainResult)
 
-        if (isBrainHandoffEnabled() || travelEngineOn || tripPlanningOn) {
+        if (isBrainHandoffEnabled() || travelEngineOn || tripPlanningOn || executionOn) {
           memory = {
             ...memory,
             requirements: mergeRequirements(
@@ -371,7 +385,7 @@ export function createTravelAgentService(
         // Sprint 22 — apply complete engine TripPlan into agent memory (booking workflow).
         const enginePlan = brainMeta.engineTripPlan
         if (
-          tripPlanningOn
+          (tripPlanningOn || executionOn)
           && enginePlan?.status === 'complete'
           && enginePlan.agentTripPlan
         ) {
@@ -387,7 +401,7 @@ export function createTravelAgentService(
 
       // Sprint 22 — clarification from TripPlanningEngine (shared with voice via runIntegratedBrainTurn).
       if (
-        tripPlanningOn
+        (tripPlanningOn || executionOn)
         && brainMeta?.clarificationQuestion
         && brainMeta.planning?.stage === 'clarify'
       ) {

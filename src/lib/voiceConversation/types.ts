@@ -109,6 +109,10 @@ export interface VoiceSessionSnapshot {
     assistantGoal: string
     missingFields: string[]
   } | null
+  /**
+   * Sprint 23 — last TravelExecutionTurnResult from speech (when brain.execution is on).
+   */
+  lastExecution: unknown | null
 }
 
 export type VoiceSessionTransitionReason =

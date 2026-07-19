@@ -158,6 +158,16 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.trip_planning` (depends on `brain.travel_engine`).
 - See `docs/SPRINT22_TRIP_PLANNING_ENGINE.md`.
 
+## Travel Execution Engine (Sprint 23)
+
+- `TravelExecutionEngine` converts a complete Sprint 22 `TripPlan` into an `ExecutionPlan` of search tasks (flights → hotels → transport → activities → packages).
+- Orchestrator supports dependency waves, parallel-safe ready sets, cancellation, retries, timeouts, and partial success.
+- Provider abstractions (`FlightProvider`, `HotelProvider`, …) return **mocked** production-shaped payloads only — no live Amadeus/Booking/Maps/LLM.
+- Text and voice share `runIntegratedBrainPipeline` / `attachTravelExecution`.
+- Debug: `ExecutionViewer` on the brain debug panel.
+- Flag (default **OFF**): `brain.execution` (depends on `brain.trip_planning`).
+- See `docs/SPRINT23_TRAVEL_EXECUTION_ENGINE.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

@@ -66,13 +66,17 @@ export {
   isBrainVoiceIntegrationEnabled,
   isBrainTravelEngineEnabled,
   isBrainTripPlanningEnabled,
+  isBrainExecutionEnabled,
   getOrCreateBrainOrchestrator,
   getOrCreateTripPlanningEngine,
+  getOrCreateTravelExecutionEngine,
   seedBrainMemoryFromRequirements,
   brainMemoryToRequirementsPatch,
   toMetaBrain,
   withBrainMeta,
   runIntegratedBrainTurn,
+  attachTravelExecution,
+  runIntegratedBrainPipeline,
 } from './integration'
 export type {
   BrainMetaSnapshot,
@@ -112,3 +116,33 @@ export type {
   /** Sprint 22 engine TripPlan (distinct from Sprint 21 brain TravelPlan). */
   TripPlan as EngineTripPlan,
 } from './tripPlanning'
+
+export {
+  TravelExecutionEngine,
+  resetTravelExecutionSessions,
+  getLastTravelExecutionResult,
+  ExecutionOrchestrator,
+  buildExecutionTasksFromTripPlan,
+  createExecutionPlan,
+  createMockExecutionProviders,
+  taskTypesInOrder,
+} from './execution'
+export type {
+  ExecutionTaskType,
+  ExecutionTaskStatus,
+  ExecutionState,
+  ExecutionTask,
+  ExecutionPlan,
+  ExecutionResult,
+  ExecutionProgress,
+  ExecutionSummary,
+  TravelExecutionTurnResult,
+  TravelExecutionEngineOptions,
+  TravelExecutionEngineHandle,
+  ExecutionProviderBundle,
+  FlightProvider,
+  HotelProvider,
+  TransportProvider,
+  ActivitiesProvider,
+  PackageProvider,
+} from './execution'

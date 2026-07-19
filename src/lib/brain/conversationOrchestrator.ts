@@ -100,6 +100,7 @@ export function ConversationOrchestrator(options: ConversationOrchestratorOption
       plan,
       domain,
       planning: null,
+      execution: null,
     }
   }
 
