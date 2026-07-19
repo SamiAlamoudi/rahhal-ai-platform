@@ -142,6 +142,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: booking_timeline',
   },
   {
+    id: 'ui.booking_flow',
+    name: 'Production Booking Flow',
+    description:
+      'Sprint 25 BookingFlowController orchestration (conversation → review → ready for payment). Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.passenger_booking_flow'],
+    notes: 'Product alias: booking_flow. Orchestrates existing engines; no new engine.',
+  },
+  {
     id: 'ui.order_management',
     name: 'Order Management',
     description:

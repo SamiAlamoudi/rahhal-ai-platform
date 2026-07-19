@@ -79,6 +79,13 @@ import {
   withBrainMeta,
   type BrainMetaSnapshot,
 } from '../brain/integration'
+import {
+  detectBookingFlowConversationEdit,
+  getBookingFlowController,
+  isBookingFlowEnabled,
+  searchOptionsToBookingSelectedItems,
+} from '../bookingFlow'
+import type { SearchAggregationTurnResult } from '../brain/search'
 
 const BOOKING_HISTORY_INTENTS = new Set<AgentIntent>([
   'show_trips',
@@ -165,6 +172,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `brain.search` (OFF). Requires brain.execution.
    */
   brainSearchEnabled?: boolean
+  /**
+   * Sprint 25 — Production Booking Flow orchestration.
+   * Default: FeatureRegistry `ui.booking_flow` (OFF).
+   */
+  bookingFlowEnabled?: boolean
   /**
    * Sprint 13 — inject booking records for My Trips / history intents.
    * Defaults to loading the signed-in user's BookingSession projections.
@@ -297,6 +309,11 @@ export function createTravelAgentService(
       brainSearchEnabled: options.brainSearchEnabled,
     })
 
+  const isFlowEnabled = (): boolean =>
+    isBookingFlowEnabled({
+      bookingFlowEnabled: options.bookingFlowEnabled,
+    })
+
   const listBookingRecords = async (): Promise<BookingRecord[]> => {
     if (options.listBookingRecords) return options.listBookingRecords()
     const userId = getBookingHistoryUserId()
@@ -406,6 +423,72 @@ export function createTravelAgentService(
             { ...memory, phase: 'planned', missingFields: [] },
             enginePlan.agentTripPlan,
           )
+        }
+
+        // Sprint 25 — booking flow orchestration (edits + brain sync; no planning restart).
+        if (isFlowEnabled()) {
+          const flowUserId = getBookingHistoryUserId() || input.conversationId
+          const controller = getBookingFlowController()
+          let flow =
+            controller.restoreLatest(flowUserId) ??
+            controller.createFlow({
+              userId: flowUserId,
+              conversationId: input.conversationId,
+              currency: memory.requirements.budgetCurrency || 'SAR',
+              budget: {
+                amount: memory.requirements.budgetAmount ?? null,
+                currency: memory.requirements.budgetCurrency ?? 'SAR',
+              },
+              dates: {
+                startDate: memory.requirements.startDate ?? null,
+                endDate: memory.requirements.endDate ?? null,
+                durationDays: memory.requirements.durationDays ?? null,
+              },
+              travelers: {
+                adults: memory.requirements.travelers ?? null,
+                children: null,
+                infants: null,
+                summary: null,
+              },
+            })
+
+          controller.setStage(flow.id, 'conversation')
+          if (brainResult.planning) controller.setStage(flow.id, 'planning')
+          if (brainResult.execution) controller.setStage(flow.id, 'execution')
+
+          const search = brainResult.search as SearchAggregationTurnResult | null
+          if (search?.recommendation) {
+            flow = controller.attachSearchRecommendation(flow.id, search.recommendation)
+            const topOption = search.recommendation.top?.option
+            if (topOption && !flow.bookingSessionId) {
+              const selected = searchOptionsToBookingSelectedItems([topOption])
+              const applied = await controller.applySelection({
+                flowId: flow.id,
+                items: selected,
+              })
+              flow = applied.flow
+            }
+          }
+
+          const edit = detectBookingFlowConversationEdit(userText)
+          if (edit.kind !== 'unknown') {
+            const edited = controller.applyConversationEdit(flow.id, userText)
+            flow = edited.flow
+          }
+
+          const synced = controller.syncBrain(flow.id, brainResult.context.memory)
+          brainResult.context = {
+            ...brainResult.context,
+            memory: synced.memory,
+          }
+          brainMeta = toMetaBrain(brainResult)
+          memory = {
+            ...memory,
+            requirements: mergeRequirements(
+              memory.requirements,
+              brainMemoryToRequirementsPatch(synced.memory),
+            ),
+          }
         }
       }
 
