@@ -230,6 +230,16 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `providers.hotel_foundation` (depends on `brain.execution`).
 - See `docs/SPRINT30_HOTEL_PROVIDER_FOUNDATION.md`.
 
+## Unified Travel Planning Engine (Sprint 31)
+
+- `UnifiedTravelPlanner` is the first end-to-end coordinator: one user request → ranked travel plans.
+- **No replacement engines** — combines AITripOrchestrator, Conversation Memory, Hotel Provider Foundation, flight search, and Search Aggregation.
+- Matches flights with hotels; optimizes by budget, duration, preferences, loyalty, and conversation context.
+- Estimates total trip cost; asks at most one minimal follow-up when core slots are missing.
+- Returns multiple itinerary options with confidence scores, day-by-day sketches, and reasoning.
+- Flag (default **OFF**): `brain.unified_travel_planner` (depends on `brain.trip_orchestrator`).
+- See `docs/SPRINT31_UNIFIED_TRAVEL_PLANNING.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
