@@ -5,9 +5,9 @@ import type {
   ConversationContext,
   IntentClassification,
   RecommendationHint,
-  TravelPlanSketch,
 } from './types'
 import { nextFieldToAsk } from './missingInformationDetector'
+import type { TravelPlanSketch } from './travelPlanner'
 
 const FIELD_PROMPTS: Record<BrainMemorySlot, { ar: string; en: string }> = {
   destination: {
