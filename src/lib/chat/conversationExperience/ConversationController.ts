@@ -31,6 +31,12 @@ import { ConversationRenderer, createConversationRenderer } from './Conversation
 import { StreamingResponse } from './StreamingResponse'
 import { isConversationUiEnabled } from './feature'
 import { buildPayNowOffer, shouldOfferPayNow } from '../../payments/conversation/payNowPrompt'
+import {
+  answerTripQuery,
+  getPostBookingService,
+  shouldHandleTripQueries,
+  type PostBookingService,
+} from '../../trips'
 import type {
   ConversationSession,
   ConversationTurnInput,
@@ -44,6 +50,8 @@ export type ConversationControllerOptions = {
   enabled?: boolean
   /** Inject UnifiedTravelPlanner (tests). */
   planner?: UnifiedTravelPlannerHandle
+  /** Sprint 35 post-booking service (tests). */
+  postBookingService?: PostBookingService
   plannerOptions?: UnifiedTravelPlannerOptions
   events?: ConversationEvents
   followUps?: FollowUpQuestionEngine
@@ -80,6 +88,7 @@ export function ConversationController(
       skipOrchestrator: options.skipPlannerOrchestrator === true,
       ...options.plannerOptions,
     })
+  const postBookingService = options.postBookingService ?? getPostBookingService()
 
   function enabled(): boolean {
     if (typeof options.enabled === 'boolean') return options.enabled
@@ -243,6 +252,57 @@ export function ConversationController(
       sessions.set(input.conversationId, session)
       events.emit(createConversationEvent('response_composed', input.conversationId, {
         compare: true,
+      }))
+      return {
+        session,
+        userMessage,
+        assistantMessage,
+        structured,
+        renderedText,
+        planResult: state.lastPlanResult,
+        commandKind,
+        durationMs: Date.now() - started,
+      }
+    }
+
+    // Sprint 35 — trip queries (My Trip / itinerary / ticket / delays / hotel).
+    const tripQueryKinds = new Set([
+      'my_trip',
+      'show_itinerary',
+      'download_ticket',
+      'any_delays',
+      'what_hotel',
+    ])
+    if (
+      tripQueryKinds.has(commandKind)
+      && shouldHandleTripQueries()
+    ) {
+      const reply = answerTripQuery({
+        kind: commandKind as 'my_trip' | 'show_itinerary' | 'download_ticket' | 'any_delays' | 'what_hotel',
+        service: postBookingService,
+        userId: input.userId ?? 'anonymous',
+        locale,
+      })
+      state = { ...state, phase: 'presenting' }
+      const structured = composer.compose({
+        planResult: state.lastPlanResult,
+        phase: 'presenting',
+        locale,
+        clarificationQuestion: reply,
+      })
+      structured.summary = reply
+      const renderedText = renderer.render(structured, locale)
+      const assistantMessage = createConversationMessage({
+        conversationId: input.conversationId,
+        role: 'assistant',
+        content: renderedText,
+        structured,
+        meta: { conversationUi: true, tripManagement: true, tripQuery: commandKind },
+      })
+      session = appendMessage(updateSessionState(session, state), assistantMessage)
+      sessions.set(input.conversationId, session)
+      events.emit(createConversationEvent('response_composed', input.conversationId, {
+        tripQuery: commandKind,
       }))
       return {
         session,

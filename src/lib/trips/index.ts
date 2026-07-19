@@ -83,3 +83,64 @@ export {
   type TripManagerOptions,
   type CreateManagedTripInput,
 } from './tripManager'
+
+/* ── Sprint 35 — Post Booking & Trip Management ───────────────────── */
+export {
+  isTripManagementEnabled,
+  TRIP_MANAGEMENT_FEATURE_ID,
+} from './TripFeatureFlags'
+export * from './postBookingTypes'
+export {
+  TripEvents,
+  createTripEvent,
+  type TripEvent,
+  type TripEventType,
+  type TripEventListener,
+} from './TripEvents'
+export { TripMetrics, type TripMetricsSnapshot } from './TripMetrics'
+export { TripTimeline, createTripTimeline } from './TripLifecycleTimeline'
+export { ItineraryGenerator, createItineraryGenerator } from './ItineraryGenerator'
+export { HotelVoucherService, createHotelVoucherService } from './HotelVoucherService'
+export { TicketService, createTicketService } from './TicketService'
+export { BoardingPassService, createBoardingPassService } from './BoardingPassService'
+export { TripDocuments, createTripDocuments } from './TripDocuments'
+export {
+  FlightStatusMonitor,
+  MockFlightStatusProvider,
+  createFlightStatusMonitor,
+  type FlightStatusProvider,
+} from './FlightStatusMonitor'
+export {
+  NotificationScheduler,
+  createNotificationScheduler,
+  type TripNotificationChannelAdapter,
+  type NotificationDispatchResult,
+} from './NotificationScheduler'
+export {
+  CancellationManager,
+  createCancellationManager,
+  type CancellationResult,
+} from './CancellationManager'
+export {
+  RefundStatusTracker,
+  createRefundStatusTracker,
+} from './RefundStatusTracker'
+export {
+  PostBookingRepository,
+  getPostBookingRepository,
+  resetPostBookingRepository,
+} from './PostBookingRepository'
+export {
+  PostBookingService,
+  createPostBookingService,
+  getPostBookingService,
+  resetPostBookingService,
+  TripManagementError,
+  type PostBookingServiceOptions,
+} from './PostBookingService'
+export {
+  detectTripConversationQuery,
+  answerTripQuery,
+  shouldHandleTripQueries,
+  type TripConversationQueryKind,
+} from './conversation/tripQueries'

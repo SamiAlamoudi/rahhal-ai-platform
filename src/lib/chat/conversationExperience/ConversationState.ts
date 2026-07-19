@@ -140,6 +140,14 @@ export function applyCommandToState(
       // Payment handoff — do not mutate planning context.
       phase = state.lastPlanResult ? 'presenting' : state.phase
       break
+    case 'my_trip':
+    case 'show_itinerary':
+    case 'download_ticket':
+    case 'any_delays':
+    case 'what_hotel':
+      // Sprint 35 trip queries — answered from post-booking store, no re-plan.
+      phase = 'presenting'
+      break
     case 'clarify_answer':
       phase = 'planning'
       break
@@ -203,6 +211,36 @@ export function detectConversationCommand(userText: string): ConversationCommand
     )
   ) {
     return 'pay_now'
+  }
+  if (
+    /^(my trip|show my trip|my trips|show my trips)\b/.test(lower)
+    || /رحلتي|عرض رحلتي/.test(lower)
+  ) {
+    return 'my_trip'
+  }
+  if (
+    /show my itinerary|my itinerary|download (my )?itinerary/.test(lower)
+    || /عرض جدول|جدول رحلتي/.test(lower)
+  ) {
+    return 'show_itinerary'
+  }
+  if (
+    /download my ticket|show my ticket|my e-?ticket|boarding pass/.test(lower)
+    || /تذكرتي|تحميل التذكرة/.test(lower)
+  ) {
+    return 'download_ticket'
+  }
+  if (
+    /any delays\??|flight (status|delay)|is my flight delayed|gate change/.test(lower)
+    || /تأخير|حالة الرحلة/.test(lower)
+  ) {
+    return 'any_delays'
+  }
+  if (
+    /what hotel am i staying in|which hotel|my hotel|hotel voucher/.test(lower)
+    || /أي فندق|فندقي/.test(lower)
+  ) {
+    return 'what_hotel'
   }
   if (/^\d+\s*(adults?|travelers?|people|persons?)?$/.test(lower)
     || /^(two|three|four|one)\s*(adults?)?$/.test(lower)
