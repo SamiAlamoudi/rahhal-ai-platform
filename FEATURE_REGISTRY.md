@@ -58,6 +58,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `brain.travel_engine` | experimental | **no** | Sprint 21 real travel conversation engine (alias: brain_travel_engine) |
 | `brain.trip_planning` | experimental | **no** | Sprint 22 multi-step trip planning engine (alias: brain_trip_planning) |
 | `brain.execution` | experimental | **no** | Sprint 23 travel execution engine (alias: brain_execution) |
+| `brain.search` | experimental | **no** | Sprint 24 search aggregation engine (alias: brain_search) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |
 

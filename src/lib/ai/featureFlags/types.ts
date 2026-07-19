@@ -46,6 +46,7 @@ export type FeatureId =
   | 'brain.travel_engine'
   | 'brain.trip_planning'
   | 'brain.execution'
+  | 'brain.search'
   | 'payments.live'
   | 'providers.live_master'
 

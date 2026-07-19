@@ -113,6 +113,10 @@ export interface VoiceSessionSnapshot {
    * Sprint 23 — last TravelExecutionTurnResult from speech (when brain.execution is on).
    */
   lastExecution: unknown | null
+  /**
+   * Sprint 24 — last SearchAggregationTurnResult from speech (when brain.search is on).
+   */
+  lastSearch: unknown | null
 }
 
 export type VoiceSessionTransitionReason =

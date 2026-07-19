@@ -168,6 +168,17 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.execution` (depends on `brain.trip_planning`).
 - See `docs/SPRINT23_TRAVEL_EXECUTION_ENGINE.md`.
 
+## Search Aggregation Engine (Sprint 24)
+
+- `SearchAggregationEngine` consumes Sprint 23 `ExecutionPlan` results, normalizes provider payloads, deduplicates, ranks/scores, and produces recommendations.
+- Ranking factors: price, duration, stops, hotel rating, location, budget fit, preference match, trip goals.
+- Recommendation output: top, alternatives, rejected, reasoning, confidence score.
+- Text and voice share `runIntegratedBrainPipeline` / `attachSearchAggregation`.
+- Debug: `SearchViewer` on the brain debug panel.
+- Flag (default **OFF**): `brain.search` (depends on `brain.execution`).
+- No live Amadeus / Booking / Google / Maps APIs — mock provider adapters only.
+- See `docs/SPRINT24_SEARCH_AGGREGATION_ENGINE.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
