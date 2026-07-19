@@ -104,6 +104,11 @@ export interface AITripOrchestratorTurnResult {
   cacheHit: boolean
   durationMs: number
   error: string | null
+  /**
+   * Sprint 28 — Conversation Memory & Context Engine snapshot (additive).
+   * Present when `brain.context_memory` is on; null when disabled.
+   */
+  memory?: unknown | null
 }
 
 export type AITripOrchestratorOptions = {
@@ -123,6 +128,11 @@ export type AITripOrchestratorOptions = {
   runPipeline?: (
     input: import('../integration').RunIntegratedBrainTurnInput,
   ) => Promise<import('../types').BrainTurnResult>
+  /**
+   * Sprint 28 — override Conversation Memory & Context Engine flag for this instance.
+   * Default follows FeatureRegistry `brain.context_memory`.
+   */
+  contextMemory?: boolean
 }
 
 export type AITripOrchestratorRunInput = {
