@@ -149,6 +149,15 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.travel_engine` (depends on `brain.concierge`).
 - See `docs/SPRINT21_TRAVEL_CONVERSATION_ENGINE.md`.
 
+## Multi-Step Trip Planning Engine (Sprint 22)
+
+- `TripPlanningEngine` turns conversation into a durable `PlanningSession` and structured outputs: `TripPlan`, `ClarificationPlan`, `TravelSummary`.
+- Stages: Collect → Detect Missing → Clarify (one question) → Update Memory → Produce TripPlan.
+- Supports natural corrections (destination swap, dates, travelers, budget, hotel, cheaper flight) without restarting planning.
+- Text and voice share `runIntegratedBrainTurn` when `brain.trip_planning` is on.
+- Flag (default **OFF**): `brain.trip_planning` (depends on `brain.travel_engine`).
+- See `docs/SPRINT22_TRIP_PLANNING_ENGINE.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

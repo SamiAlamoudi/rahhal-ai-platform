@@ -247,6 +247,11 @@ export interface AgentProviderMeta {
     travelPlan?: unknown
     domain?: unknown
     contextualReply?: string | null
+    /** Sprint 22 — TripPlanningEngine outputs */
+    planning?: unknown
+    clarificationQuestion?: string | null
+    travelSummary?: unknown
+    engineTripPlan?: unknown
   }
 }
 

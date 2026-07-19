@@ -1,5 +1,5 @@
 /**
- * Sprint 20/21 — Brain ↔ Agent / Concierge / Voice / Travel domain integration.
+ * Sprint 20/21/22 — Brain ↔ Agent / Concierge / Voice / Travel / Trip Planning integration.
  * Flag-gated; default OFF. No LLM providers or external APIs.
  */
 
@@ -16,8 +16,15 @@ import type {
 } from './types'
 import { ConversationOrchestrator, type ConversationOrchestratorHandle } from './conversationOrchestrator'
 import { ConversationMemoryApi } from './conversationMemory'
+import {
+  TripPlanningEngine,
+  resetTripPlanningSessions,
+  type TripPlanningEngineHandle,
+  type TripPlanningTurnResult,
+} from './tripPlanning'
 
 const orchestrators = new Map<string, ConversationOrchestratorHandle>()
+const planningEngines = new Map<string, TripPlanningEngineHandle>()
 
 export type BrainMetaSnapshot = {
   intent: TravelIntent
@@ -34,10 +41,17 @@ export type BrainMetaSnapshot = {
   travelPlan?: TravelPlan | null
   domain?: TravelDomainBridge | null
   contextualReply?: string | null
+  /** Sprint 22 */
+  planning?: TripPlanningTurnResult | null
+  clarificationQuestion?: string | null
+  travelSummary?: TripPlanningTurnResult['travelSummary'] | null
+  engineTripPlan?: TripPlanningTurnResult['tripPlan'] | null
 }
 
 export function resetBrainIntegrationSessions(): void {
   orchestrators.clear()
+  planningEngines.clear()
+  resetTripPlanningSessions()
 }
 
 export function isBrainConciergeIntegrationEnabled(options?: {
@@ -87,6 +101,22 @@ export function isBrainTravelEngineEnabled(options?: {
   )
 }
 
+/** Sprint 22 — Multi-Step Trip Planning Engine. */
+export function isBrainTripPlanningEnabled(options?: {
+  brainTripPlanningEnabled?: boolean
+}): boolean {
+  if (typeof options?.brainTripPlanningEnabled === 'boolean') {
+    return options.brainTripPlanningEnabled
+  }
+  const registry = getFeatureRegistry()
+  return (
+    registry.isEnabled('brain.enabled') &&
+    registry.isEnabled('brain.concierge') &&
+    registry.isEnabled('brain.travel_engine') &&
+    registry.isEnabled('brain.trip_planning')
+  )
+}
+
 function toBrainLocale(locale: AgentLocale | BrainLocale | undefined): BrainLocale {
   return locale === 'en' ? 'en' : 'ar'
 }
@@ -106,6 +136,17 @@ export function getOrCreateBrainOrchestrator(
   if (existing) return existing
   const created = ConversationOrchestrator({ conversationId, locale, travelEngine })
   orchestrators.set(key, created)
+  return created
+}
+
+export function getOrCreateTripPlanningEngine(
+  conversationId: string,
+  locale: BrainLocale = 'ar',
+): TripPlanningEngineHandle {
+  const existing = planningEngines.get(conversationId)
+  if (existing) return existing
+  const created = TripPlanningEngine({ conversationId, locale })
+  planningEngines.set(conversationId, created)
   return created
 }
 
@@ -187,6 +228,7 @@ export function brainMemoryToRequirementsPatch(
 }
 
 export function toMetaBrain(result: BrainTurnResult): BrainMetaSnapshot {
+  const planning = (result.planning ?? null) as TripPlanningTurnResult | null
   return {
     intent: result.plan.intent,
     confidence: result.plan.confidence,
@@ -201,6 +243,10 @@ export function toMetaBrain(result: BrainTurnResult): BrainMetaSnapshot {
     travelPlan: result.plan.travelPlan,
     domain: result.domain,
     contextualReply: result.plan.uiHints.contextualReply,
+    planning,
+    clarificationQuestion: planning?.clarification.question ?? null,
+    travelSummary: planning?.travelSummary ?? null,
+    engineTripPlan: planning?.tripPlan ?? null,
   }
 }
 
@@ -212,20 +258,28 @@ export type RunIntegratedBrainTurnInput = {
   requirements?: TripRequirements | null
   /** Sprint 21 — force travel engine on/off (otherwise FeatureRegistry). */
   travelEngine?: boolean
+  /** Sprint 22 — force trip planning on/off (otherwise FeatureRegistry). */
+  tripPlanning?: boolean
 }
 
 /**
  * Shared reasoning entrypoint for text + voice.
  * Always produces a BrainResponsePlan when called (caller must gate flags).
+ * When trip planning is on, also runs TripPlanningEngine (same pipeline for speech/text).
  */
 export function runIntegratedBrainTurn(
   input: RunIntegratedBrainTurnInput,
 ): BrainTurnResult {
   const locale = toBrainLocale(input.locale)
+  const tripPlanning =
+    typeof input.tripPlanning === 'boolean'
+      ? input.tripPlanning
+      : isBrainTripPlanningEnabled()
   const travelEngine =
     typeof input.travelEngine === 'boolean'
       ? input.travelEngine
-      : isBrainTravelEngineEnabled()
+      : isBrainTravelEngineEnabled() || tripPlanning
+
   const orchestrator = getOrCreateBrainOrchestrator(input.conversationId, locale, {
     travelEngine,
   })
@@ -240,11 +294,26 @@ export function runIntegratedBrainTurn(
     orchestrator.setContext({ ...ctx, memory: seeded, locale })
   }
 
-  return orchestrator.runTurn({
+  const result = orchestrator.runTurn({
     conversationId: input.conversationId,
     userText: input.userText,
     locale,
   })
+
+  if (!tripPlanning) {
+    return result
+  }
+
+  const engine = getOrCreateTripPlanningEngine(input.conversationId, locale)
+  const planning = engine.runTurn({
+    userText: input.userText,
+    locale,
+  })
+
+  return {
+    ...result,
+    planning,
+  }
 }
 
 /**
@@ -269,6 +338,10 @@ export function withBrainMeta<T extends AgentProviderMeta>(
     travelPlan: brain.travelPlan ?? null,
     domain: brain.domain ?? null,
     contextualReply: brain.contextualReply ?? null,
+    planning: brain.planning ?? null,
+    clarificationQuestion: brain.clarificationQuestion ?? null,
+    travelSummary: brain.travelSummary ?? null,
+    engineTripPlan: brain.engineTripPlan ?? null,
   }
   return { ...meta, brain: brainMeta }
 }

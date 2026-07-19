@@ -7,6 +7,8 @@ import type {
 
 const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
   { keys: ['tokyo', 'japan', 'طوكيو', 'اليابان'], value: 'Tokyo' },
+  { keys: ['kyoto', 'كيوتو'], value: 'Kyoto' },
+  { keys: ['osaka', 'اوساكا', 'أوساكا'], value: 'Osaka' },
   { keys: ['dubai', 'دبي'], value: 'Dubai' },
   { keys: ['istanbul', 'اسطنبول', 'إسطنبول', 'تركيا', 'turkey'], value: 'Istanbul' },
   { keys: ['paris', 'باريس', 'france', 'فرنسا'], value: 'Paris' },

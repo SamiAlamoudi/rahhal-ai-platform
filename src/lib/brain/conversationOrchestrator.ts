@@ -99,6 +99,7 @@ export function ConversationOrchestrator(options: ConversationOrchestratorOption
       missingFields,
       plan,
       domain,
+      planning: null,
     }
   }
 

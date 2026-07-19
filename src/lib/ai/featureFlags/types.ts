@@ -44,6 +44,7 @@ export type FeatureId =
   | 'brain.agent_handoff'
   | 'brain.voice'
   | 'brain.travel_engine'
+  | 'brain.trip_planning'
   | 'payments.live'
   | 'providers.live_master'
 
