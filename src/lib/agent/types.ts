@@ -260,6 +260,8 @@ export interface AgentProviderMeta {
     search?: unknown
     searchRecommendation?: unknown
     searchCollection?: unknown
+    /** Sprint 27 — AITripOrchestrator outputs */
+    orchestrator?: unknown
   }
 }
 

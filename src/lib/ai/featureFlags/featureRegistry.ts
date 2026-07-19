@@ -419,6 +419,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: brain_real_providers. Phase W VITE_LIVE_PROVIDERS_ENABLED remains the live-HTTP kill switch; mocks always available as fallback.',
   },
   {
+    id: 'brain.trip_orchestrator',
+    name: 'AI Trip Orchestrator',
+    description:
+      'Sprint 27 central AITripOrchestrator coordinating conversation, search aggregation, booking flow, and providers. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.search'],
+    notes:
+      'Product alias: brain_trip_orchestrator. Orchestration only — no new planning/search/booking engine. Optional booking via ui.booking_flow; real providers via brain.real_providers.',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

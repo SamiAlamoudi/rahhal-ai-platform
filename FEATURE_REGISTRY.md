@@ -61,6 +61,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `brain.execution` | experimental | **no** | Sprint 23 travel execution engine (alias: brain_execution) |
 | `brain.search` | experimental | **no** | Sprint 24 search aggregation engine (alias: brain_search) |
 | `brain.real_providers` | experimental | **no** | Sprint 26 real/mixed execution providers (alias: brain_real_providers) |
+| `brain.trip_orchestrator` | experimental | **no** | Sprint 27 AI Trip Orchestrator (alias: brain_trip_orchestrator) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |
 

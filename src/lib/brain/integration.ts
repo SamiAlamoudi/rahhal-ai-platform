@@ -1,5 +1,5 @@
 /**
- * Sprint 20–24 — Brain ↔ Agent / Concierge / Voice / Travel / Planning / Execution / Search.
+ * Sprint 20–27 — Brain ↔ Agent / Concierge / Voice / Travel / Planning / Execution / Search / Orchestrator.
  * Flag-gated; default OFF. No LLM providers or external APIs.
  */
 
@@ -33,6 +33,8 @@ import {
   aggregateSearch,
   type SearchAggregationTurnResult,
 } from './search'
+import { resetAITripOrchestrator } from './orchestrator/aiTripOrchestrator'
+import type { AITripOrchestratorTurnResult } from './orchestrator/types'
 
 const orchestrators = new Map<string, ConversationOrchestratorHandle>()
 const planningEngines = new Map<string, TripPlanningEngineHandle>()
@@ -66,6 +68,8 @@ export type BrainMetaSnapshot = {
   search?: SearchAggregationTurnResult | null
   searchRecommendation?: SearchAggregationTurnResult['recommendation'] | null
   searchCollection?: SearchAggregationTurnResult['collection'] | null
+  /** Sprint 27 */
+  orchestrator?: AITripOrchestratorTurnResult | null
 }
 
 export function resetBrainIntegrationSessions(): void {
@@ -74,6 +78,7 @@ export function resetBrainIntegrationSessions(): void {
   executionEngines.clear()
   resetTripPlanningSessions()
   resetTravelExecutionSessions()
+  resetAITripOrchestrator()
 }
 
 export function isBrainConciergeIntegrationEnabled(options?: {
@@ -191,6 +196,9 @@ export function isBrainRealProvidersEnabled(options?: {
     registry.isEnabled('brain.real_providers')
   )
 }
+
+/** Sprint 27 — AI Trip Orchestrator (coordinates search + optional booking + providers). */
+export { isBrainTripOrchestratorEnabled } from './orchestrator/feature'
 
 function toBrainLocale(locale: AgentLocale | BrainLocale | undefined): BrainLocale {
   return locale === 'en' ? 'en' : 'ar'
@@ -319,7 +327,10 @@ export function brainMemoryToRequirementsPatch(
   return patch
 }
 
-export function toMetaBrain(result: BrainTurnResult): BrainMetaSnapshot {
+export function toMetaBrain(
+  result: BrainTurnResult,
+  orchestrator?: AITripOrchestratorTurnResult | null,
+): BrainMetaSnapshot {
   const planning = (result.planning ?? null) as TripPlanningTurnResult | null
   const execution = (result.execution ?? null) as TravelExecutionTurnResult | null
   const search = (result.search ?? null) as SearchAggregationTurnResult | null
@@ -347,6 +358,7 @@ export function toMetaBrain(result: BrainTurnResult): BrainMetaSnapshot {
     search,
     searchRecommendation: search?.recommendation ?? null,
     searchCollection: search?.collection ?? null,
+    orchestrator: orchestrator ?? null,
   }
 }
 
@@ -559,6 +571,7 @@ export function withBrainMeta<T extends AgentProviderMeta>(
     search: brain.search ?? null,
     searchRecommendation: brain.searchRecommendation ?? null,
     searchCollection: brain.searchCollection ?? null,
+    orchestrator: brain.orchestrator ?? null,
   }
   return { ...meta, brain: brainMeta }
 }
