@@ -24,10 +24,19 @@ import {
   createRealPackageExecutionProvider,
 } from './real/shapedProviders'
 import type { AggregationQuery, ProviderFetchResult } from '../../../agent/aggregation/types'
+import {
+  createFoundationHotelExecutionProvider,
+  isHotelProviderFoundationEnabled,
+} from '../../../hotels'
 
 export type CreateExecutionProvidersOptions = ResolveExecutionProviderConfigInput & {
   /** Force FeatureRegistry brain.real_providers on/off. */
   brainRealProvidersEnabled?: boolean
+  /**
+   * Sprint 30 — prefer Hotel Provider Foundation sandbox chain for hotels
+   * (Hotelbeds / Expedia Rapid / Booking Connectivity) when enabled.
+   */
+  hotelFoundationEnabled?: boolean
   /** Injected Amadeus/Booking fetch results for tests (no live HTTP). */
   deps?: {
     amadeusSearch?: (query: AggregationQuery) => Promise<ProviderFetchResult>
@@ -65,8 +74,23 @@ export function createExecutionProviders(
     packages: createMockPackageProvider(),
   }
 
-  if (!config.realProvidersEnabled || config.mode === 'mock') {
+  const hotelFoundationOn =
+    options.hotelFoundationEnabled === true
+    || (options.hotelFoundationEnabled !== false && isHotelProviderFoundationEnabled())
+
+  // Sprint 30 sandbox hotel chain can replace mock hotels without enabling live HTTP.
+  if ((!config.realProvidersEnabled || config.mode === 'mock') && !hotelFoundationOn) {
     return { providers: mocks, config: { ...config, mode: 'mock', realProvidersEnabled: false } }
+  }
+
+  if ((!config.realProvidersEnabled || config.mode === 'mock') && hotelFoundationOn) {
+    return {
+      providers: {
+        ...mocks,
+        hotels: createFoundationHotelExecutionProvider(),
+      },
+      config: { ...config, mode: 'mock', realProvidersEnabled: false },
+    }
   }
 
   const useCache = options.disableCache !== true
@@ -79,8 +103,9 @@ export function createExecutionProviders(
         })
       : mocks.flights
 
-  const hotelsPrimary =
-    config.domains.hotels.preferReal
+  const hotelsPrimary = hotelFoundationOn
+    ? createFoundationHotelExecutionProvider()
+    : config.domains.hotels.preferReal
       ? createBookingHotelExecutionProvider({
           search: options.deps?.bookingSearch,
         })

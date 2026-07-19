@@ -51,6 +51,7 @@ export type FeatureId =
   | 'brain.real_providers'
   | 'brain.trip_orchestrator'
   | 'brain.context_memory'
+  | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'
 

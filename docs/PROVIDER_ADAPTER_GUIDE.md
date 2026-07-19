@@ -60,6 +60,7 @@ Production path: `getOrCreateTravelExecutionEngine` calls `createExecutionProvid
 |--------|------------|-------|
 | Flights | `amadeus_flights` | Phase W `createAmadeusProviderAdapter` |
 | Hotels | `booking_hotels` | Phase W `createBookingComProviderAdapter` |
+| Hotels (Sprint 30) | `hotel_foundation` | `HotelProviderRegistry` sandbox chain (flag `providers.hotel_foundation`) |
 | Transport | `maps_transport` | Real-shaped (injectable) |
 | Activities | `real_activities` | Real-shaped (injectable) |
 | Packages | `real_packages` | Real-shaped (injectable) |

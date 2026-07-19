@@ -1,6 +1,7 @@
 /**
  * Wrap existing integration adapters (Amadeus, Booking, RentalCars, Mocks)
  * into MultiProviderAdapter slots for the priority chain.
+ * Sprint 30: Expedia / Hotelbeds use hotel foundation sandbox adapters.
  */
 
 import type { ProviderRequest } from '../../../utils/contracts/providers/base'
@@ -18,6 +19,12 @@ import { getProviderRegistry } from '../../registry'
 import { getIntegrationConfig } from '../../config'
 import { classifyProviderError, classifyThrown } from '../classifyError'
 import type { MultiProviderAdapter, TravelDomain } from '../types'
+import {
+  createExpediaRapidAdapter,
+  createHotelbedsAdapter,
+  toContractHotelOffers,
+  type HotelSearchRequest,
+} from '../../../lib/hotels'
 
 function asProviderRequest(req: unknown): ProviderRequest {
   if (req && typeof req === 'object' && 'search' in (req as object)) {
@@ -170,6 +177,100 @@ export function createBookingHotelAdapter(): MultiProviderAdapter<HotelOffer[]> 
         }
       }
     },
+  }
+}
+
+/** Sprint 30 — Expedia Rapid sandbox hotel adapter (no production credentials). */
+export function createExpediaHotelAdapter(): MultiProviderAdapter<HotelOffer[]> {
+  return createFoundationHotelMultiAdapter({
+    id: 'expedia',
+    displayName: 'Expedia Rapid',
+    createProvider: () => createExpediaRapidAdapter(),
+  })
+}
+
+/** Sprint 30 — Hotelbeds sandbox hotel adapter (no production credentials). */
+export function createHotelbedsHotelAdapter(): MultiProviderAdapter<HotelOffer[]> {
+  return createFoundationHotelMultiAdapter({
+    id: 'hotelbeds',
+    displayName: 'Hotelbeds',
+    createProvider: () => createHotelbedsAdapter(),
+  })
+}
+
+function createFoundationHotelMultiAdapter(options: {
+  id: 'expedia' | 'hotelbeds'
+  displayName: string
+  createProvider: () => ReturnType<typeof createExpediaRapidAdapter>
+}): MultiProviderAdapter<HotelOffer[]> {
+  const provider = options.createProvider()
+  return {
+    id: options.id,
+    displayName: options.displayName,
+    domains: ['hotel'],
+    mocked: true,
+    prepared: true,
+
+    isConfigured(): boolean {
+      return provider.isAvailable()
+    },
+
+    async search(domain, req) {
+      const start = Date.now()
+      if (domain !== 'hotel') {
+        return { success: false, data: null, latencyMs: 0, reason: 'unavailable', errorCode: 'DOMAIN_UNSUPPORTED' }
+      }
+      try {
+        const searchReq = providerRequestToHotelSearch(asProviderRequest(req))
+        const result = await provider.searchHotels(searchReq)
+        if (result.success && result.data && result.data.length > 0) {
+          return {
+            success: true,
+            data: toContractHotelOffers(result.data),
+            latencyMs: result.latencyMs || Date.now() - start,
+            quotaStatus: 'ok',
+          }
+        }
+        return {
+          success: false,
+          data: null,
+          latencyMs: result.latencyMs || Date.now() - start,
+          reason: 'empty',
+          errorCode: result.errors[0]?.code?.toUpperCase() ?? 'HOTEL_EMPTY',
+          errorMessage: result.errors[0]?.message,
+        }
+      } catch (err) {
+        return {
+          success: false,
+          data: null,
+          latencyMs: Date.now() - start,
+          reason: classifyThrown(err),
+          errorCode: 'HOTEL_FOUNDATION_EXCEPTION',
+          errorMessage: err instanceof Error ? err.message : `${options.displayName} threw`,
+        }
+      }
+    },
+  }
+}
+
+function providerRequestToHotelSearch(req: ProviderRequest): HotelSearchRequest {
+  const search = req.search as unknown as Record<string, unknown>
+  const destination = String(search.destination ?? search.to ?? 'City')
+  const checkIn = String(search.checkIn ?? search.startDate ?? search.departureDate ?? '')
+  const checkOut = String(search.checkOut ?? search.endDate ?? search.returnDate ?? '')
+  const travelers = search.travelers
+  const adultsFromGroup =
+    travelers && typeof travelers === 'object' && 'adults' in travelers
+      ? Number((travelers as { adults?: number }).adults)
+      : Number(travelers)
+  const adults = Number(search.adults ?? adultsFromGroup ?? 2)
+  return {
+    destination,
+    checkIn: checkIn || new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
+    checkOut: checkOut || new Date(Date.now() + 17 * 86_400_000).toISOString().slice(0, 10),
+    adults: Number.isFinite(adults) && adults > 0 ? adults : 2,
+    children: Number(search.children ?? 0) || undefined,
+    currency: String(search.currency ?? search.budgetCurrency ?? 'SAR'),
   }
 }
 
