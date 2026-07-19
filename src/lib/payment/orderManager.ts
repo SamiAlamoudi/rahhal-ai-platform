@@ -38,6 +38,8 @@ export interface CreateOrderInput {
   travelers: TravelerInfo[]
   couponCode: string | null
   discountAmount: number
+  /** Sprint 15 — optional BookingSession link. */
+  bookingSessionId?: string | null
 }
 
 const orders: Map<string, RahhalOrder> = new Map()
@@ -52,6 +54,7 @@ export function createOrder(input: CreateOrderInput): RahhalOrder {
     customerReference: generateCustomerReference(),
     userId: input.userId,
     travelSessionId: input.travelSessionId,
+    bookingSessionId: input.bookingSessionId ?? null,
     status: 'created',
     cart: { ...input.cart, items: input.cart.items.map(i => ({ ...i, metadata: { ...i.metadata } })) },
     travelers: input.travelers.map(t => ({ ...t })),

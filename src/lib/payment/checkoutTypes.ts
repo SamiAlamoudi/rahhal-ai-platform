@@ -69,6 +69,8 @@ export interface RahhalOrder {
   customerReference: string
   userId: string
   travelSessionId: string | null
+  /** Sprint 15 — durable link to BookingSession (SoT). */
+  bookingSessionId?: string | null
   status: OrderStatus
   cart: CheckoutCart
   travelers: TravelerInfo[]

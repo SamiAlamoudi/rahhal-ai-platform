@@ -45,6 +45,7 @@ export type {
   CouponValidationResult,
 } from './checkoutTypes'
 export { ORDER_STATUS_VALUES, TAX_RATE, RAHHAL_SERVICE_FEE } from './checkoutTypes'
+export { formatMoney } from './money'
 
 export {
   registerCoupon,

@@ -142,6 +142,36 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: booking_timeline',
   },
   {
+    id: 'ui.order_management',
+    name: 'Order Management',
+    description:
+      'Sprint 15 Order entity from confirmed bookings; Orders reference BookingSession (SoT).',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.booking_confirmation'],
+    notes: 'Product alias: order_management',
+  },
+  {
+    id: 'ui.checkout_review',
+    name: 'Checkout Review',
+    description:
+      'Sprint 15 checkout review page (flight, passengers, fare, conditions, concierge).',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.order_management'],
+    notes: 'Product alias: checkout_review',
+  },
+  {
+    id: 'ui.payment_preparation',
+    name: 'Payment Preparation',
+    description:
+      'Sprint 15 provider-independent payment ports + payment session lifecycle (mock only).',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.order_management'],
+    notes: 'Product alias: payment_preparation. Does not enable payments.live.',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

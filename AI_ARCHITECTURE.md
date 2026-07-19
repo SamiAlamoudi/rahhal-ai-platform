@@ -75,6 +75,17 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flags: `ui.booking_confirmation`, `ui.supplier_adapter`, `ui.booking_timeline`.
 - See `docs/SPRINT14_CONFIRMATION_ENGINE.md`.
 
+## Order Management & Payment Preparation (Sprint 15)
+
+- `ManagedOrder` created from confirmed `BookingSession` (Orders reference bookings; session remains SoT).
+- Checkout review at `/checkout/order/:orderId` (fare, passengers, conditions, concierge summary).
+- Provider-independent payment ports (mock active; Stripe / HyperPay / Moyasar / Tabby / Tamara stubs).
+- Payment session lifecycle: create / resume / expire / retry with duplicate-attempt protection.
+- Order timeline: Booking Created → Confirmed → Order Created → Awaiting Payment → Paid → Ticket Pending → Completed.
+- Concierge: how much / order ready / show checkout / payment status.
+- Flags: `ui.order_management`, `ui.checkout_review`, `ui.payment_preparation` (`payments.live` remains off).
+- See `docs/SPRINT15_ORDER_MANAGEMENT.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
