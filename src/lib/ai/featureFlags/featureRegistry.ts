@@ -452,6 +452,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: unified_travel_planner. Additive coordinator — does not replace TripPlanningEngine, AITripOrchestrator, or SearchAggregationEngine.',
   },
   {
+    id: 'brain.conversation_ui',
+    name: 'AI Conversation Experience',
+    description:
+      'Sprint 32 production conversational UI layer over UnifiedTravelPlanner and AITripOrchestrator. Natural planning without booking forms. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.unified_travel_planner'],
+    notes:
+      'Product alias: conversation_ui. Additive chat experience — reuses planner/orchestrator/memory; does not duplicate planning or booking logic.',
+  },
+  {
     id: 'providers.hotel_foundation',
     name: 'Hotel Provider Foundation',
     description:
