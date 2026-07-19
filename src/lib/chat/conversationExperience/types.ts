@@ -67,6 +67,12 @@ export type ConversationCommandKind =
   | 'points_earn_estimate'
   | 'wallet_balance'
   | 'membership_benefits'
+  | 'can_travel_to'
+  | 'need_visa'
+  | 'passport_expiry'
+  | 'transit_visa'
+  | 'what_documents'
+  | 'vaccination_requirements'
   | 'unknown'
 
 export type ConversationMessageRole = 'user' | 'assistant' | 'system'

@@ -241,6 +241,44 @@ export function detectConversationCommand(userText: string): ConversationCommand
     return 'download_ticket'
   }
 
+  // Sprint 39 — travel documents / visa intelligence (before loyalty & planning).
+  if (
+    /can i transit|transit through|layover in/.test(lower)
+    || /عبور عبر|ترانزيت/.test(lower)
+  ) {
+    return 'transit_visa'
+  }
+  if (
+    /passport expires|expires in \d+|my passport expire/.test(lower)
+    || /جواز السفر ينتهي|صلاحية الجواز/.test(lower)
+  ) {
+    return 'passport_expiry'
+  }
+  if (
+    /do i need a visa|need a visa|visa (for|to)|visa required/.test(lower)
+    || /هل أحتاج تأشيرة|أحتاج فيزا/.test(lower)
+  ) {
+    return 'need_visa'
+  }
+  if (
+    /what documents|which documents|documents do i need|what do i need/.test(lower)
+    || /ما هي المستندات|ما الوثائق/.test(lower)
+  ) {
+    return 'what_documents'
+  }
+  if (
+    /vaccination|vaccine|yellow fever|health certificate/.test(lower)
+    || /تطعيم|شهادة صحية/.test(lower)
+  ) {
+    return 'vaccination_requirements'
+  }
+  if (
+    /can i travel to|allowed to visit|enter (japan|thailand|london|dubai|usa|uk)/.test(lower)
+    || /هل يمكنني السفر إلى|أسافر إلى/.test(lower)
+  ) {
+    return 'can_travel_to'
+  }
+
   // Sprint 38 — loyalty / rewards (before disruption & planning).
   if (
     /use (my )?(rahhal )?points|redeem (my )?points|pay with points/.test(lower)

@@ -321,6 +321,17 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.loyalty_platform` (depends on `brain.travel_disruption_engine`).
 - See `docs/SPRINT38_LOYALTY_PLATFORM.md`.
 
+### Sprint 39 — Universal Travel Documents & Visa Intelligence Platform
+
+- Package `src/lib/travelDocuments/` — destination rules, passport/visa/vaccination intelligence, alerts, conversation explanations.
+- Inputs: nationality, residence, passport, transit countries, destination, purpose, trip duration, age.
+- Visa categories: required, on arrival, eVisa, visa-free, transit, multi-entry (+ processing time / approval probability).
+- Vaccinations: yellow fever, COVID, country-specific, medical declarations, health certificates.
+- Alerts for passport/visa/residence/vaccination expiration and document reminders.
+- Conversation: “Can I travel to Japan?”, visa needs, passport expiry, transit, document checklists.
+- Flag (default **OFF**): `brain.travel_documents` (depends on `brain.loyalty_platform`).
+- See `docs/SPRINT39_TRAVEL_DOCUMENTS.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
