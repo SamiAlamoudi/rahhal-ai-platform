@@ -361,7 +361,7 @@ export class AmadeusFlightApiClient {
         }
         if (query.cabin) params.append('travelClass', query.cabin.toUpperCase())
         if (query.currency) params.append('currencyCode', query.currency)
-        params.append('nonStop', 'false')
+        params.append('nonStop', query.nonStop === true ? 'true' : 'false')
 
         const url = `${amadeusV1Url(this.host, '/shopping/flight-offers')}?${params.toString()}`
         log('info', `Searching flight offers (attempt ${attempt})`, {
