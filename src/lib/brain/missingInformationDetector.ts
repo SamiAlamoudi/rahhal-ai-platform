@@ -3,12 +3,14 @@ import type { BrainMemorySlot, ConversationMemory, TravelIntent } from './types'
 /** Intake order for slot filling — ask only what's missing, never twice. */
 export const BRAIN_INTAKE_ORDER: BrainMemorySlot[] = [
   'destination',
+  'origin',
   'travelDates',
   'travelers',
   'budget',
   'currency',
   'cabinClass',
   'airlinePreferences',
+  'hotelRequirement',
   'hotelPreferences',
   'activities',
   'visaRequirements',
@@ -30,26 +32,45 @@ const INTENT_REQUIRED: Partial<Record<TravelIntent, BrainMemorySlot[]>> = {
   GeneralConversation: ['destination'],
 }
 
+/** Sprint 21 — extra domain slots when travel conversation engine is on. */
+const DOMAIN_EXTRA: Partial<Record<TravelIntent, BrainMemorySlot[]>> = {
+  SearchFlights: ['origin'],
+  SearchHotels: ['hotelRequirement'],
+  SearchPackages: ['origin', 'hotelRequirement'],
+  AskRecommendation: ['travelDates'],
+  GeneralConversation: ['travelDates'],
+  TravelAdvice: ['travelDates'],
+}
+
 function isFilled(memory: ConversationMemory, slot: BrainMemorySlot): boolean {
   switch (slot) {
     case 'destination':
       return Boolean(memory.destination || memory.destinations.length > 0)
+    case 'origin':
+      return Boolean(memory.origin)
     case 'budget':
       return memory.budget.amount != null || memory.budget.flexible
     case 'travelDates':
       return (
         memory.travelDates.durationDays != null ||
         Boolean(memory.travelDates.startDate && memory.travelDates.endDate) ||
+        Boolean(memory.travelDates.startDate) ||
         memory.travelDates.flexible
       )
     case 'travelers':
-      return memory.travelers.count != null
+      return (
+        memory.travelers.count != null ||
+        memory.travelers.adults != null ||
+        ((memory.travelers.children ?? 0) + (memory.travelers.infants ?? 0) > 0)
+      )
     case 'cabinClass':
       return memory.cabinClass != null
     case 'airlinePreferences':
       return memory.airlinePreferences.length > 0
     case 'hotelPreferences':
       return memory.hotelPreferences.length > 0
+    case 'hotelRequirement':
+      return memory.hotelRequirement !== null
     case 'activities':
       return memory.activities.length > 0
     case 'visaRequirements':
@@ -65,12 +86,21 @@ function isFilled(memory: ConversationMemory, slot: BrainMemorySlot): boolean {
 
 /**
  * MissingInformationDetector — slot filling with never-ask-twice semantics.
+ * When domainSlots is true (Sprint 21 travel engine), include origin / hotel need.
  */
 export function MissingInformationDetector(input: {
   memory: ConversationMemory
   intent: TravelIntent
+  /** Sprint 21 — require domain slots for real travel search readiness. */
+  domainSlots?: boolean
 }): BrainMemorySlot[] {
-  const required = INTENT_REQUIRED[input.intent] ?? ['destination']
+  const base = INTENT_REQUIRED[input.intent] ?? ['destination']
+  const extra = input.domainSlots ? (DOMAIN_EXTRA[input.intent] ?? []) : []
+  const required = [...base]
+  for (const slot of extra) {
+    if (!required.includes(slot)) required.push(slot)
+  }
+
   const missing: BrainMemorySlot[] = []
 
   for (const slot of BRAIN_INTAKE_ORDER) {
@@ -86,4 +116,11 @@ export function MissingInformationDetector(input: {
 
 export function nextFieldToAsk(missing: BrainMemorySlot[]): BrainMemorySlot | null {
   return missing[0] ?? null
+}
+
+export function isMemorySlotFilled(
+  memory: ConversationMemory,
+  slot: BrainMemorySlot,
+): boolean {
+  return isFilled(memory, slot)
 }

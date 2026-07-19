@@ -55,6 +55,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `brain.concierge` | experimental | **no** | Sprint 20 Brain ↔ Concierge / planTurn wiring (alias: brain_concierge) |
 | `brain.agent_handoff` | experimental | **no** | Sprint 20 merge Brain slots into agent requirements (alias: brain_agent_handoff) |
 | `brain.voice` | experimental | **no** | Sprint 20 Brain on voice transcripts (alias: brain_voice) |
+| `brain.travel_engine` | experimental | **no** | Sprint 21 real travel conversation engine (alias: brain_travel_engine) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |
 

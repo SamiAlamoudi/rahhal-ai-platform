@@ -358,6 +358,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: brain_voice',
   },
   {
+    id: 'brain.travel_engine',
+    name: 'Real Travel Conversation Engine',
+    description:
+      'Sprint 21 connects BrainResponsePlan to flights/hotels/itineraries/booking/passengers with contextual one-question follow-ups. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.concierge'],
+    notes: 'Product alias: brain_travel_engine. No external LLM providers.',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

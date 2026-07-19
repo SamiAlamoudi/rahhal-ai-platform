@@ -24,35 +24,42 @@ export function TravelPlanner(input: {
   }
 
   const memory = input.context.memory
-  const baseSearch = (): SearchRequestHint => ({
-    kind: 'flights',
+  const baseSearch = (kind: SearchRequestHint['kind']): SearchRequestHint => ({
+    kind,
     destination: memory.destination,
-    origin: null,
+    origin: memory.origin,
     startDate: memory.travelDates.startDate,
     endDate: memory.travelDates.endDate,
     travelers: memory.travelers.count,
+    adults: memory.travelers.adults,
+    children: memory.travelers.children,
+    infants: memory.travelers.infants,
     cabinClass: memory.cabinClass,
     budgetAmount: memory.budget.amount,
     currency: memory.currency ?? memory.budget.currency,
+    preferredAirlines: [...memory.airlinePreferences],
+    preferredHotels: [...memory.hotelPreferences],
+    hotelRequired: memory.hotelRequirement,
+    flexibleDates: memory.travelDates.flexible,
   })
 
   switch (input.intent) {
     case 'SearchFlights':
       return {
         action: 'search_flights',
-        searchRequests: [{ ...baseSearch(), kind: 'flights' }],
+        searchRequests: [baseSearch('flights')],
         notes: ['ready_for_flight_search'],
       }
     case 'SearchHotels':
       return {
         action: 'search_hotels',
-        searchRequests: [{ ...baseSearch(), kind: 'hotels' }],
+        searchRequests: [baseSearch('hotels')],
         notes: ['ready_for_hotel_search'],
       }
     case 'SearchPackages':
       return {
         action: 'search_packages',
-        searchRequests: [{ ...baseSearch(), kind: 'packages' }],
+        searchRequests: [baseSearch('packages')],
         notes: ['ready_for_package_search'],
       }
     case 'AskRecommendation':

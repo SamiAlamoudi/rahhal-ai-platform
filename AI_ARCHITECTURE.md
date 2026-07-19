@@ -140,6 +140,15 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - No OpenAI / Azure / ElevenLabs / external APIs.
 - See `docs/SPRINT20_CONCIERGE_INTEGRATION.md`.
 
+## Real Travel Conversation Engine (Sprint 21)
+
+- Connects `BrainResponsePlan` to flights, hotels, itineraries, booking sessions, and passenger profiles via structured `TravelPlan` + `TravelDomainBridge` (drafts only — no live provider calls).
+- Detects origin, dates, flexible dates, adults/children/infants, cabin, hotel need, budget, preferred airlines/hotels.
+- Never re-asks filled memory slots; asks exactly **one** short contextual follow-up when something is missing.
+- Text and voice share `runIntegratedBrainTurn` with `brain.travel_engine`.
+- Flag (default **OFF**): `brain.travel_engine` (depends on `brain.concierge`).
+- See `docs/SPRINT21_TRAVEL_CONVERSATION_ENGINE.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

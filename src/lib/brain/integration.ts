@@ -1,5 +1,5 @@
 /**
- * Sprint 20 — Brain ↔ Agent / Concierge / Voice integration.
+ * Sprint 20/21 — Brain ↔ Agent / Concierge / Voice / Travel domain integration.
  * Flag-gated; default OFF. No LLM providers or external APIs.
  */
 
@@ -10,7 +10,9 @@ import type {
   BrainResponsePlan,
   BrainTurnResult,
   ConversationMemory,
+  TravelDomainBridge,
   TravelIntent,
+  TravelPlan,
 } from './types'
 import { ConversationOrchestrator, type ConversationOrchestratorHandle } from './conversationOrchestrator'
 import { ConversationMemoryApi } from './conversationMemory'
@@ -28,6 +30,10 @@ export type BrainMetaSnapshot = {
   bookingRequests: BrainResponsePlan['bookingRequests']
   recommendations: BrainResponsePlan['recommendations']
   uiHints: BrainResponsePlan['uiHints']
+  /** Sprint 21 */
+  travelPlan?: TravelPlan | null
+  domain?: TravelDomainBridge | null
+  contextualReply?: string | null
 }
 
 export function resetBrainIntegrationSessions(): void {
@@ -66,18 +72,40 @@ export function isBrainVoiceIntegrationEnabled(options?: {
   )
 }
 
+/** Sprint 21 — Real Travel Conversation Engine. */
+export function isBrainTravelEngineEnabled(options?: {
+  brainTravelEngineEnabled?: boolean
+}): boolean {
+  if (typeof options?.brainTravelEngineEnabled === 'boolean') {
+    return options.brainTravelEngineEnabled
+  }
+  const registry = getFeatureRegistry()
+  return (
+    registry.isEnabled('brain.enabled') &&
+    registry.isEnabled('brain.concierge') &&
+    registry.isEnabled('brain.travel_engine')
+  )
+}
+
 function toBrainLocale(locale: AgentLocale | BrainLocale | undefined): BrainLocale {
   return locale === 'en' ? 'en' : 'ar'
+}
+
+function orchestratorKey(conversationId: string, travelEngine: boolean): string {
+  return travelEngine ? `${conversationId}::travel_engine` : conversationId
 }
 
 export function getOrCreateBrainOrchestrator(
   conversationId: string,
   locale: BrainLocale = 'ar',
+  options?: { travelEngine?: boolean },
 ): ConversationOrchestratorHandle {
-  const existing = orchestrators.get(conversationId)
+  const travelEngine = options?.travelEngine === true
+  const key = orchestratorKey(conversationId, travelEngine)
+  const existing = orchestrators.get(key)
   if (existing) return existing
-  const created = ConversationOrchestrator({ conversationId, locale })
-  orchestrators.set(conversationId, created)
+  const created = ConversationOrchestrator({ conversationId, locale, travelEngine })
+  orchestrators.set(key, created)
   return created
 }
 
@@ -90,6 +118,7 @@ export function seedBrainMemoryFromRequirements(
   return ConversationMemoryApi.applyPatch(memory, {
     destination: requirements.destination,
     destinations: requirements.destinations,
+    origin: requirements.origin,
     budget: {
       amount: requirements.budgetAmount,
       currency: requirements.budgetCurrency,
@@ -110,6 +139,12 @@ export function seedBrainMemoryFromRequirements(
     hotelPreferences: requirements.hotelPreference
       ? [requirements.hotelPreference]
       : [],
+    hotelRequirement:
+      requirements.packageScope === 'flights_only'
+        ? false
+        : requirements.hotelPreference
+          ? true
+          : null,
     activities: requirements.interests ?? [],
     conversationLanguage: locale,
     currency: requirements.budgetCurrency,
@@ -127,6 +162,7 @@ export function brainMemoryToRequirementsPatch(
       ? memory.destinations
       : [memory.destination]
   }
+  if (memory.origin) patch.origin = memory.origin
   if (memory.budget.amount != null || memory.budget.flexible) {
     patch.budgetAmount = memory.budget.amount
     patch.budgetCurrency = memory.budget.currency
@@ -139,6 +175,10 @@ export function brainMemoryToRequirementsPatch(
   if (memory.travelDates.endDate) patch.endDate = memory.travelDates.endDate
   if (memory.travelers.count != null) patch.travelers = memory.travelers.count
   if (memory.hotelPreferences[0]) patch.hotelPreference = memory.hotelPreferences[0]
+  if (memory.hotelRequirement === false) patch.packageScope = 'flights_only'
+  if (memory.hotelRequirement === true && !memory.hotelPreferences[0]) {
+    patch.packageScope = 'full_package'
+  }
   if (memory.activities.length) patch.interests = memory.activities
   if (memory.currency || memory.budget.currency) {
     patch.budgetCurrency = memory.currency ?? memory.budget.currency
@@ -158,6 +198,9 @@ export function toMetaBrain(result: BrainTurnResult): BrainMetaSnapshot {
     bookingRequests: result.plan.bookingRequests,
     recommendations: result.plan.recommendations,
     uiHints: result.plan.uiHints,
+    travelPlan: result.plan.travelPlan,
+    domain: result.domain,
+    contextualReply: result.plan.uiHints.contextualReply,
   }
 }
 
@@ -167,6 +210,8 @@ export type RunIntegratedBrainTurnInput = {
   locale?: AgentLocale | BrainLocale
   /** Optional agent requirements used to seed brain memory before the turn. */
   requirements?: TripRequirements | null
+  /** Sprint 21 — force travel engine on/off (otherwise FeatureRegistry). */
+  travelEngine?: boolean
 }
 
 /**
@@ -177,7 +222,13 @@ export function runIntegratedBrainTurn(
   input: RunIntegratedBrainTurnInput,
 ): BrainTurnResult {
   const locale = toBrainLocale(input.locale)
-  const orchestrator = getOrCreateBrainOrchestrator(input.conversationId, locale)
+  const travelEngine =
+    typeof input.travelEngine === 'boolean'
+      ? input.travelEngine
+      : isBrainTravelEngineEnabled()
+  const orchestrator = getOrCreateBrainOrchestrator(input.conversationId, locale, {
+    travelEngine,
+  })
 
   if (input.requirements) {
     const ctx = orchestrator.getContext()
@@ -215,6 +266,9 @@ export function withBrainMeta<T extends AgentProviderMeta>(
     bookingRequests: [...brain.bookingRequests],
     recommendations: [...brain.recommendations],
     uiHints: brain.uiHints,
+    travelPlan: brain.travelPlan ?? null,
+    domain: brain.domain ?? null,
+    contextualReply: brain.contextualReply ?? null,
   }
   return { ...meta, brain: brainMeta }
 }
