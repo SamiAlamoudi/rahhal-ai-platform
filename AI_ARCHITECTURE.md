@@ -179,6 +179,15 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - No live Amadeus / Booking / Google / Maps APIs — mock provider adapters only.
 - See `docs/SPRINT24_SEARCH_AGGREGATION_ENGINE.md`.
 
+## Production Booking Flow (Sprint 25)
+
+- `BookingFlowController` orchestrates the existing stack into one journey: conversation → planning → execution → search → selection → booking session → review → ready for payment.
+- **No new engine** — reuses Brain, Trip Planning, Execution, Search Aggregation, BookingOrchestrator, My Trips, and payment bridge.
+- Preserves booking/flow state across refresh and back navigation; partial section edits without restarting planning.
+- Conversation edits (“cheaper hotel”, “business class”, “two extra nights”) update the flow and sync Brain memory.
+- Flag (default **OFF**): `ui.booking_flow` (depends on `ui.passenger_booking_flow`).
+- See `docs/SPRINT25_PRODUCTION_BOOKING_FLOW.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

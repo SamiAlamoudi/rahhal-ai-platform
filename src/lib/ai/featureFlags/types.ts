@@ -21,6 +21,7 @@ export type FeatureId =
   | 'ui.booking_confirmation'
   | 'ui.supplier_adapter'
   | 'ui.booking_timeline'
+  | 'ui.booking_flow'
   | 'ui.order_management'
   | 'ui.checkout_review'
   | 'ui.payment_preparation'

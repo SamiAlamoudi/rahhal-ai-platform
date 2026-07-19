@@ -13,6 +13,13 @@ import { prepareBookingPayment } from '../lib/payment'
 import { savedTripRepository } from '../lib/repositories/savedTripRepository'
 import { buildSavedTripData, buildSavedTripTitle } from '../lib/savedTrips/savedTripHelpers'
 import { useAuth } from '../lib/auth'
+import {
+  getBookingFlowController,
+  isBookingFlowEnabled,
+  type BookingFlowReviewModel,
+  type BookingFlowState,
+} from '../lib/bookingFlow'
+import { BookingFlowReview } from '../components/bookingFlow'
 
 interface BookingReviewLocationState {
   selectedItems?: BookingSelectedItem[]
@@ -20,6 +27,9 @@ interface BookingReviewLocationState {
   currency: string
   /** Resume an already-persisted booking session. */
   bookingSessionId?: string
+  /** Sprint 25 — optional conversation + flow ids for restore. */
+  conversationId?: string | null
+  bookingFlowId?: string
 }
 
 const TYPE_LABELS: Record<BookingItemType, string> = {
@@ -68,11 +78,15 @@ export default function BookingReview() {
   const location = useLocation()
   const { user, loading: authLoading } = useAuth()
   const state = location.state as BookingReviewLocationState | null
+  const bookingFlowOn = isBookingFlowEnabled()
 
   const orchestrator = useMemo(() => getBookingOrchestrator(), [])
+  const flowController = useMemo(() => getBookingFlowController(), [])
   const bootstrappedForUser = useRef<string | null>(null)
 
   const [session, setSession] = useState<BookingSession | null>(null)
+  const [flowState, setFlowState] = useState<BookingFlowState | null>(null)
+  const [flowReview, setFlowReview] = useState<BookingFlowReviewModel | null>(null)
   const [loading, setLoading] = useState(true)
   const [redirectAction, setRedirectAction] = useState<BookingAction | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
@@ -99,6 +113,56 @@ export default function BookingReview() {
     ;(async () => {
       setLoading(true)
       try {
+        if (bookingFlowOn) {
+          let flow =
+            (state.bookingFlowId
+              ? flowController.restoreFlow(userId, state.bookingFlowId)
+              : null) ??
+            (state.bookingSessionId
+              ? flowController.restoreByBookingSession(userId, state.bookingSessionId)
+              : null)
+
+          if (!flow) {
+            flow = flowController.createFlow({
+              userId,
+              conversationId: state.conversationId ?? null,
+              travelSessionId: state.travelSessionId,
+              currency: state.currency || 'SAR',
+            })
+          }
+
+          if (state.selectedItems?.length) {
+            const applied = await flowController.applySelection({
+              flowId: flow.id,
+              items: state.selectedItems,
+            })
+            flow = applied.flow
+            if (!cancelled) setSession(applied.session)
+          } else if (state.bookingSessionId) {
+            const cached = orchestrator.getBookingSession(state.bookingSessionId)
+            const loaded =
+              (cached?.userId === userId ? cached : null) ??
+              (await loadBookingSession(state.bookingSessionId, userId))
+            if (loaded) {
+              orchestrator.importSession(loaded)
+              flow = flowController.bindSession(flow.id, loaded.id)
+              if (!cancelled) setSession(loaded)
+            }
+          }
+
+          if (flow.bookingSessionId) {
+            const { model } = await flowController.enterReview(flow.id)
+            if (!cancelled) {
+              setFlowReview(model)
+              setFlowState(flowController.getFlow(flow.id))
+              setSession(model.session)
+            }
+          } else if (!cancelled) {
+            setFlowState(flow)
+          }
+          return
+        }
+
         if (state.bookingSessionId) {
           const cached = orchestrator.getBookingSession(state.bookingSessionId)
           const ownedCache = cached?.userId === userId ? cached : null
@@ -153,7 +217,7 @@ export default function BookingReview() {
     return () => {
       cancelled = true
     }
-  }, [state, orchestrator, user?.id, authLoading])
+  }, [state, orchestrator, flowController, user?.id, authLoading, bookingFlowOn])
 
   if (!state || (!canCreateFromSelection && !canResume)) {
     return <Navigate to="/results" replace />
@@ -180,7 +244,15 @@ export default function BookingReview() {
     const fromStatus = session.status
     const updated = orchestrator.removeBookingItem(session.id, itemId)
     setSession(updated)
-    if (updated) void syncBookingSession(updated, fromStatus)
+    if (updated) {
+      void syncBookingSession(updated, fromStatus)
+      if (bookingFlowOn && flowState) {
+        void flowController.enterReview(flowState.id).then(({ model }) => {
+          setFlowReview(model)
+          setSession(model.session)
+        })
+      }
+    }
   }
 
   const handlePrepareRedirect = () => {
@@ -320,8 +392,34 @@ export default function BookingReview() {
           </div>
         )}
 
-        {/* Items list */}
-        <div className="space-y-3">
+        {bookingFlowOn && flowReview && (
+          <div className="mb-6">
+            <BookingFlowReview
+              model={flowReview}
+              onBack={() => navigate('/results', {
+                state: {
+                  bookingSessionId: session?.id,
+                  bookingFlowId: flowState?.id,
+                  travelSessionId: state?.travelSessionId ?? null,
+                  currency: state?.currency ?? session?.currency ?? 'SAR',
+                },
+              })}
+              onEditSection={() => navigate('/results', {
+                state: {
+                  bookingSessionId: session?.id,
+                  bookingFlowId: flowState?.id,
+                  travelSessionId: state?.travelSessionId ?? null,
+                  currency: state?.currency ?? session?.currency ?? 'SAR',
+                },
+              })}
+              onRemoveItem={(itemId) => handleRemoveItem(itemId)}
+              onContinuePayment={handlePayViaRahhal}
+            />
+          </div>
+        )}
+
+        {/* Items list (legacy + shared) */}
+        <div className={`space-y-3 ${bookingFlowOn && flowReview ? 'sr-only' : ''}`}>
           {session?.items.map((item: BookingItem) => (
             <div key={item.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-4">
@@ -366,7 +464,7 @@ export default function BookingReview() {
         </div>
 
         {/* Summary */}
-        {summary && (
+        {summary && !(bookingFlowOn && flowReview) && (
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-sm font-bold text-slate-900 mb-4">ملخص الحجز</h2>
             <div className="space-y-2 text-sm">
@@ -394,7 +492,7 @@ export default function BookingReview() {
         </div>
 
         {/* Readiness warnings */}
-        {readiness && !readiness.ready && readiness.warnings.length > 0 && (
+        {readiness && !readiness.ready && readiness.warnings.length > 0 && !(bookingFlowOn && flowReview) && (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
             <p className="text-sm font-medium text-amber-800 mb-1">تنبيهات قبل المتابعة:</p>
             <ul className="list-disc list-inside text-xs text-amber-700 space-y-0.5">

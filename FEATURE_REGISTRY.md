@@ -33,6 +33,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ui.booking_confirmation` | beta | yes | Sprint 14 confirmation engine + UI (alias: booking_confirmation) |
 | `ui.supplier_adapter` | beta | yes | Sprint 14 supplier ports — Amadeus active (alias: supplier_adapter) |
 | `ui.booking_timeline` | beta | yes | Sprint 14 confirmation timeline UI (alias: booking_timeline) |
+| `ui.booking_flow` | experimental | **no** | Sprint 25 production booking flow orchestration (alias: booking_flow) |
 | `ui.order_management` | beta | yes | Sprint 15 Order entity from confirmed bookings (alias: order_management) |
 | `ui.checkout_review` | beta | yes | Sprint 15 checkout review page (alias: checkout_review) |
 | `ui.payment_preparation` | beta | yes | Sprint 15 payment ports + sessions, mock only (alias: payment_preparation) |
