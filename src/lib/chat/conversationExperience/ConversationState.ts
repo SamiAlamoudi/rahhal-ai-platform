@@ -241,6 +241,46 @@ export function detectConversationCommand(userText: string): ConversationCommand
     return 'download_ticket'
   }
 
+  // Sprint 41 — finance / revenue / settlement (before supplier & documents).
+  if (
+    /how much revenue|revenue (did|this month)|rahhal generate.*revenue|generate this month/.test(
+      lower,
+    )
+    || /كم الإيرادات|إيرادات هذا الشهر/.test(lower)
+  ) {
+    return 'finance_revenue_month'
+  }
+  if (
+    /profit from|our profit|profit (in|for)|what was our profit/.test(lower)
+    || /ربح من|أرباح/.test(lower)
+  ) {
+    return 'finance_profit_destination'
+  }
+  if (
+    /highest margin|produced the highest margin|supplier.*highest margin|best margin/.test(lower)
+    || /أعلى هامش|أعلى ربحية/.test(lower)
+  ) {
+    return 'finance_highest_margin_supplier'
+  }
+  if (
+    /unpaid settlements?|show unpaid|outstanding settlements?/.test(lower)
+    || /تسويات غير مدفوعة|التسويات المعلقة/.test(lower)
+  ) {
+    return 'finance_unpaid_settlements'
+  }
+  if (
+    /refund losses?|show refund loss/.test(lower)
+    || /خسائر الاسترداد|خسائر الاسترجاع/.test(lower)
+  ) {
+    return 'finance_refund_losses'
+  }
+  if (
+    /how much vat|vat should be reported|vat (report|payable)|gst (report|payable)/.test(lower)
+    || /ضريبة القيمة المضافة|كم ضريبة/.test(lower)
+  ) {
+    return 'finance_vat_report'
+  }
+
   // Sprint 40 — supplier marketplace preferences (before documents & planning).
   if (
     /trusted suppliers?|book only trusted|only trusted/.test(lower)

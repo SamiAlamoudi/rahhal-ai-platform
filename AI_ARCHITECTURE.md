@@ -343,6 +343,19 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.supplier_marketplace` (depends on `brain.travel_documents`).
 - See `docs/SPRINT40_SUPPLIER_MARKETPLACE.md`.
 
+### Sprint 41 — Universal Revenue, Finance & Settlement Platform
+
+- Package `src/lib/finance/` — post-booking finance backbone (not a payment gateway).
+- Revenue: commissions, markup, agency/affiliate, corporate/coupon/promo, cashback, points, wallet, partial payments, taxes, fees.
+- Wallets: customer/corporate/supplier/refund/travel-credit/reward with deposit, withdraw, freeze, release, transfer, rollback, expiration.
+- Settlement: daily/weekly/monthly/manual/automatic/partial + multi-currency FX across airlines, hotels, cars, activities, insurance, visa, future suppliers.
+- Accounting: double-entry ledger (debit/credit), payables/receivables, revenue, expenses, refund losses, tax, commission.
+- Documents: invoice, receipt, credit/debit notes, settlement report, supplier/customer/corporate statements.
+- Tax/FX: VAT/GST/sales-tax adapters + historical FX rates.
+- Reports & conversation: revenue/profit/margin, unpaid settlements, refund losses, VAT payable.
+- Flag (default **OFF**): `brain.finance_platform` (depends on `brain.supplier_marketplace`).
+- See `docs/SPRINT41_FINANCE_PLATFORM.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

@@ -73,6 +73,13 @@ import {
   type SupplierConversationQueryKind,
   type SupplierMarketplace,
 } from '../../suppliers'
+import {
+  answerFinanceQuery,
+  createFinancePlatform,
+  shouldHandleFinanceQueries,
+  type FinanceConversationQueryKind,
+  type FinancePlatform,
+} from '../../finance'
 import type {
   ConversationSession,
   ConversationTurnInput,
@@ -98,6 +105,8 @@ export type ConversationControllerOptions = {
   travelDocumentsPlatform?: TravelDocumentsPlatform
   /** Sprint 40 supplier marketplace (tests). */
   supplierMarketplace?: SupplierMarketplace
+  /** Sprint 41 finance platform (tests). */
+  financePlatform?: FinancePlatform
   plannerOptions?: UnifiedTravelPlannerOptions
   events?: ConversationEvents
   followUps?: FollowUpQuestionEngine
@@ -150,6 +159,8 @@ export function ConversationController(
     ?? createTravelDocumentsPlatform({ enabled: true })
   const supplierMarketplace =
     options.supplierMarketplace ?? createSupplierMarketplace({ enabled: true })
+  const financePlatform =
+    options.financePlatform ?? createFinancePlatform({ enabled: true })
 
   function enabled(): boolean {
     if (typeof options.enabled === 'boolean') return options.enabled
@@ -295,6 +306,12 @@ export function ConversationController(
       || commandKind === 'avoid_poor_refunds'
       || commandKind === 'fastest_confirmation'
       || commandKind === 'rank_suppliers'
+      || commandKind === 'finance_revenue_month'
+      || commandKind === 'finance_profit_destination'
+      || commandKind === 'finance_highest_margin_supplier'
+      || commandKind === 'finance_unpaid_settlements'
+      || commandKind === 'finance_refund_losses'
+      || commandKind === 'finance_vat_report'
 
     if (followUps.shouldAskBeforePlanning(state) && !skipClarifyingForCommand) {
       const question = followUps.nextQuestion(state)
@@ -411,6 +428,57 @@ export function ConversationController(
       sessions.set(input.conversationId, session)
       events.emit(createConversationEvent('response_composed', input.conversationId, {
         tripQuery: commandKind,
+      }))
+      return {
+        session,
+        userMessage,
+        assistantMessage,
+        structured,
+        renderedText,
+        planResult: state.lastPlanResult,
+        commandKind,
+        durationMs: Date.now() - started,
+      }
+    }
+
+    // Sprint 41 — finance / revenue / settlement queries.
+    const financeQueryKinds = new Set<FinanceConversationQueryKind>([
+      'finance_revenue_month',
+      'finance_profit_destination',
+      'finance_highest_margin_supplier',
+      'finance_unpaid_settlements',
+      'finance_refund_losses',
+      'finance_vat_report',
+    ])
+    if (
+      financeQueryKinds.has(commandKind as FinanceConversationQueryKind)
+      && shouldHandleFinanceQueries()
+    ) {
+      const reply = answerFinanceQuery({
+        kind: commandKind as FinanceConversationQueryKind,
+        platform: financePlatform,
+        userText: input.userText,
+      })
+      state = { ...state, phase: 'presenting' }
+      const structured = composer.compose({
+        planResult: state.lastPlanResult,
+        phase: 'presenting',
+        locale,
+        clarificationQuestion: reply,
+      })
+      structured.summary = reply
+      const renderedText = renderer.render(structured, locale)
+      const assistantMessage = createConversationMessage({
+        conversationId: input.conversationId,
+        role: 'assistant',
+        content: renderedText,
+        structured,
+        meta: { conversationUi: true, financePlatform: true, financeQuery: commandKind },
+      })
+      session = appendMessage(updateSessionState(session, state), assistantMessage)
+      sessions.set(input.conversationId, session)
+      events.emit(createConversationEvent('response_composed', input.conversationId, {
+        financeQuery: commandKind,
       }))
       return {
         session,
