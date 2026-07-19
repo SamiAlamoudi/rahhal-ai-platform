@@ -96,6 +96,16 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flags: `ui.ai_home`, `ui.conversation_home`, `ui.travel_cards`, `ui.continue_booking`.
 - See `docs/SPRINT16_AI_HOME.md`.
 
+## Smart Itinerary AI Engine (Sprint 17)
+
+- Post-booking `TripItinerary` derived from `BookingSession` (+ optional Order pointer); session remains SoT.
+- Visual timeline (departure → flight → arrival → hotel/transport placeholders → daily → return).
+- Daily planner (morning / afternoon / evening / free time) with LLM-ready placeholders.
+- Travel insight cards (airport, duration, timezone, packing, weather, currency, visa) — architecture-ready.
+- Concierge: show itinerary / today's plan / leave for airport / summarize trip.
+- Route `/itinerary/:sessionId`; flags `ui.smart_itinerary`, `ui.travel_insights`, `ui.daily_planner`.
+- See `docs/SPRINT17_SMART_ITINERARY.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

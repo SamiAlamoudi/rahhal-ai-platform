@@ -24,8 +24,7 @@ import {
 } from '../booking'
 import { getFeatureRegistry, resetFeatureRegistry } from '../ai'
 import { clearAllOrders } from '../payment/orderManager'
-import { clearBookingOrderIndex, createOrderFromBooking } from '../orderManagement'
-import { startConfirmation } from '../bookingConfirmation'
+import { clearBookingOrderIndex } from '../orderManagement'
 import { resetSupplierAdapterRegistry } from '../supplierAdapters'
 
 function installMemoryLocalStorage(): void {
@@ -193,15 +192,7 @@ describe('Sprint 16 travel cards & home model', () => {
 
   it('assembles full AI home model', async () => {
     const session = await seedDraftSession('u-home')
-    await startConfirmation({ sessionId: session.id, userId: 'u-home' }).catch(() => null)
-    const live = getBookingOrchestrator().getBookingSession(session.id)!
-    // Keep as draft-like if confirmation changed status — still project records
-    const record = toBookingRecord(live)
-    try {
-      await createOrderFromBooking({ bookingSessionId: session.id, userId: 'u-home' })
-    } catch {
-      // Order requires confirmed session; optional for this assertion
-    }
+    const record = toBookingRecord(session)
 
     const model = buildAiHomeModel({
       locale: 'ar',
@@ -212,5 +203,6 @@ describe('Sprint 16 travel cards & home model', () => {
     expect(model.greeting.questionAr).toBeTruthy()
     expect(model.suggestions.length).toBeGreaterThan(0)
     expect(model.travelCards.length).toBeGreaterThan(0)
+    expect(model.continueBooking).not.toBeNull()
   })
 })

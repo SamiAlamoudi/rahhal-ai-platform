@@ -212,6 +212,36 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: continue_booking',
   },
   {
+    id: 'ui.smart_itinerary',
+    name: 'Smart Itinerary Engine',
+    description:
+      'Sprint 17 post-booking TripItinerary from BookingSession (timeline, summary, AI-ready).',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.booking_confirmation'],
+    notes: 'Product alias: smart_itinerary',
+  },
+  {
+    id: 'ui.travel_insights',
+    name: 'Travel Insights',
+    description:
+      'Sprint 17 architecture-ready insight cards (airport, weather, visa, currency placeholders).',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.smart_itinerary'],
+    notes: 'Product alias: travel_insights',
+  },
+  {
+    id: 'ui.daily_planner',
+    name: 'Daily Planner',
+    description:
+      'Sprint 17 daily morning/afternoon/evening/free-time plans with LLM-ready placeholders.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.smart_itinerary'],
+    notes: 'Product alias: daily_planner',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

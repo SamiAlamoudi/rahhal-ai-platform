@@ -147,6 +147,32 @@ export function extractFromUserText(
 }
 
 function detectIntent(lower: string, original: string, locale: AgentLocale): AgentIntent {
+  // Sprint 17 — smart itinerary intents (before order / confirmation / history)
+  if (
+    /\bshow (?:my )?itinerary\b|\bmy (?:smart )?itinerary\b|\bopen (?:my )?itinerary\b/.test(lower)
+    || /أظهر (?:جدولي|الجدول)|اعرض (?:جدولي|الجدول)|جدولي الذكي|الجدول الذكي/.test(original)
+  ) {
+    return 'show_my_itinerary'
+  }
+  if (
+    /\bwhat(?:'s| is) today(?:'s)? plan\b|\btoday(?:'s)? (?:plan|agenda|schedule)\b/.test(lower)
+    || /خطة اليوم|ما خطة اليوم|جدول اليوم/.test(original)
+  ) {
+    return 'whats_todays_plan'
+  }
+  if (
+    /\bwhen should i leave(?: for the airport)?\b|\bleave for (?:the )?airport\b|\bairport (?:leave|departure) time\b/.test(lower)
+    || /متى أغادر للمطار|متى اذهب للمطار|وقت المطار/.test(original)
+  ) {
+    return 'when_leave_for_airport'
+  }
+  if (
+    /\bsummarize (?:my )?trip\b|\btrip summary\b|\bsummarise (?:my )?trip\b/.test(lower)
+    || /لخّص رحلتي|لخص رحلتي|ملخص رحلتي/.test(original)
+  ) {
+    return 'summarize_my_trip'
+  }
+
   // Sprint 15 — order / payment intents (before confirmation / history / plan)
   // Test `lower` and `original` separately so concatenating does not erase \b boundaries.
   if (

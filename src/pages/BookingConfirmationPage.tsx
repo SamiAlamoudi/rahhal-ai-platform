@@ -36,6 +36,7 @@ export default function BookingConfirmationPage() {
   const timelineEnabled = getFeatureRegistry().isEnabled('ui.booking_timeline')
   const orderEnabled = getFeatureRegistry().isEnabled('ui.order_management')
   const checkoutEnabled = getFeatureRegistry().isEnabled('ui.checkout_review')
+  const itineraryEnabled = getFeatureRegistry().isEnabled('ui.smart_itinerary')
   const [locale] = useState<'ar' | 'en'>('en')
 
   const [record, setRecord] = useState<BookingRecord | null>(null)
@@ -317,6 +318,15 @@ export default function BookingConfirmationPage() {
               className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700"
             >
               {t('مراجعة الدفع', 'Checkout review')}
+            </Link>
+          )}
+          {itineraryEnabled && status === 'confirmed' && (
+            <Link
+              to={`/itinerary/${encodeURIComponent(sessionId)}`}
+              data-testid="confirmation-to-itinerary"
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+            >
+              {t('الجدول الذكي', 'Smart itinerary')}
             </Link>
           )}
           <Link

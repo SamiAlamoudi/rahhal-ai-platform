@@ -28,6 +28,9 @@ export type FeatureId =
   | 'ui.conversation_home'
   | 'ui.travel_cards'
   | 'ui.continue_booking'
+  | 'ui.smart_itinerary'
+  | 'ui.travel_insights'
+  | 'ui.daily_planner'
   | 'payments.live'
   | 'providers.live_master'
 

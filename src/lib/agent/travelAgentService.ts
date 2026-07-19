@@ -62,6 +62,10 @@ import {
   findManagedOrderBySessionId,
   type OrderConciergeIntent,
 } from '../orderManagement'
+import {
+  buildSmartItineraryConciergeReply,
+  type SmartItineraryConciergeIntent,
+} from '../smartItinerary'
 
 const BOOKING_HISTORY_INTENTS = new Set<AgentIntent>([
   'show_trips',
@@ -82,6 +86,13 @@ const ORDER_PAYMENT_INTENTS = new Set<AgentIntent>([
   'is_order_ready',
   'show_checkout',
   'what_is_payment_status',
+])
+
+const SMART_ITINERARY_INTENTS = new Set<AgentIntent>([
+  'show_my_itinerary',
+  'whats_todays_plan',
+  'when_leave_for_airport',
+  'summarize_my_trip',
 ])
 
 export interface TravelAgentTurnInput {
@@ -216,6 +227,9 @@ export function createTravelAgentService(
   const isOrderManagementEnabled = (): boolean =>
     getFeatureRegistry().isEnabled('ui.order_management')
 
+  const isSmartItineraryEnabled = (): boolean =>
+    getFeatureRegistry().isEnabled('ui.smart_itinerary')
+
   const listBookingRecords = async (): Promise<BookingRecord[]> => {
     if (options.listBookingRecords) return options.listBookingRecords()
     const userId = getBookingHistoryUserId()
@@ -281,6 +295,35 @@ export function createTravelAgentService(
       }
       memory.missingFields = missingRequirementFields(memory.requirements)
       memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
+
+      // Sprint 17 — smart itinerary intents (above order / confirmation / history).
+      if (
+        SMART_ITINERARY_INTENTS.has(extracted.intent)
+        && isSmartItineraryEnabled()
+      ) {
+        const records = await listBookingRecords()
+        const latest = findLatestBookingRecord(records)
+        const reply = buildSmartItineraryConciergeReply({
+          intent: extracted.intent as SmartItineraryConciergeIntent,
+          record: latest,
+          locale: memory.locale,
+        })
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          toolResults: [],
+        }
+        return {
+          reply,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta,
+          toolBatch: null,
+        }
+      }
 
       // Sprint 15 — order / payment intents (above confirmation / history).
       if (
