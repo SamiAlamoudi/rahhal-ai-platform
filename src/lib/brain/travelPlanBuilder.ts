@@ -24,8 +24,6 @@ export function buildTravelPlan(input: {
   const ready = input.plan.action !== 'ask_missing' && input.plan.missingFields.length === 0
   const destination = memory.destination
   const origin = memory.origin
-  const startDate = memory.travelDates.startDate
-  const endDate = memory.travelDates.endDate
 
   const flights = linkFlights(memory, ready && input.plan.action === 'search_flights')
   const hotels = linkHotels(
