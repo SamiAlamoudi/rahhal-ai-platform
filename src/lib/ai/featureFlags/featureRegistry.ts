@@ -242,6 +242,46 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: daily_planner',
   },
   {
+    id: 'ui.voice_conversation',
+    name: 'Voice Conversation UI',
+    description:
+      'Sprint 18 voice conversation foundation UI (orb/indicators) — architecture only; default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes: 'Product alias: voice_conversation. Does not enable realtime providers.',
+  },
+  {
+    id: 'voice.realtime',
+    name: 'Voice Realtime Transport',
+    description:
+      'Sprint 18 flag for future realtime transport. Default OFF — no OpenAI/Azure/ElevenLabs I/O.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.voice_conversation'],
+    notes: 'Product alias: voice_realtime. Stubs only in Sprint 18.',
+  },
+  {
+    id: 'voice.provider',
+    name: 'Voice Provider Selection',
+    description:
+      'Sprint 18 provider abstraction gate. Default OFF; factory still resolves to mock when exercised.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.voice_conversation'],
+    notes: 'Product alias: voice_provider',
+  },
+  {
+    id: 'voice.mock',
+    name: 'Mock Voice Provider',
+    description:
+      'Sprint 18 mock voice provider harness (no audio, no fake dialogue). Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.voice_conversation'],
+    notes: 'Product alias: voice_mock. Only non-live provider in Sprint 18.',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

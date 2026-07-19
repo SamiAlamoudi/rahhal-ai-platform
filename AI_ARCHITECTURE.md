@@ -106,6 +106,18 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Route `/itinerary/:sessionId`; flags `ui.smart_itinerary`, `ui.travel_insights`, `ui.daily_planner`.
 - See `docs/SPRINT17_SMART_ITINERARY.md`.
 
+## Voice Conversation Foundation (Sprint 18)
+
+- Additive conversational voice architecture (`src/lib/voiceConversation`) — **not** wired into production routes by default.
+- State machine: idle → listening → thinking → speaking, plus paused / interrupted / disconnected / error.
+- `VoiceProvider` + `VoiceTransport` + `VoiceAudio` abstractions; **MockVoiceProvider** only; OpenAI/Azure/ElevenLabs stubs.
+- Interruptible priority queue + conversation timeline (speech, thinking, latency, errors, reconnects).
+- Hooks: `useVoiceConversation`, `useVoiceState`, `useVoiceEvents`; UI primitives under `src/components/voice`.
+- Flags (default **OFF**): `ui.voice_conversation`, `voice.realtime`, `voice.provider`, `voice.mock`.
+- Does **not** connect realtime APIs, accept API keys, generate audio, or invent dialogue.
+- Existing Home mic (`useSpeechRecognition`) and Chat STT/TTS remain the production voice input path.
+- See `docs/SPRINT18_VOICE_FOUNDATION.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
