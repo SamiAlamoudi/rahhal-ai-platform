@@ -240,6 +240,16 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.unified_travel_planner` (depends on `brain.trip_orchestrator`).
 - See `docs/SPRINT31_UNIFIED_TRAVEL_PLANNING.md`.
 
+## AI Conversation Experience (Sprint 32)
+
+- Conversational UI/interaction layer (`ConversationController`) so users plan trips in natural language — no booking forms.
+- **Additive only** — reuses UnifiedTravelPlanner, AITripOrchestrator, Memory, Search Aggregation, and hotel/flight foundations.
+- Incremental session state: follow-ups, edits (“make it cheaper”, “business class”), compare options, regenerate.
+- Structured responses: Summary, Flights, Hotels, Daily itinerary, Estimated cost, Confidence, Reasoning, Suggested actions.
+- Streams via existing `ChatStreamChunk` contract; optional `conversation-ui` chat provider when flag is on.
+- Flag (default **OFF**): `brain.conversation_ui` (depends on `brain.unified_travel_planner`).
+- See `docs/SPRINT32_AI_CONVERSATION_EXPERIENCE.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

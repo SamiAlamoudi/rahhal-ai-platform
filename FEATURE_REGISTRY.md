@@ -64,6 +64,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `brain.trip_orchestrator` | experimental | **no** | Sprint 27 AI Trip Orchestrator (alias: brain_trip_orchestrator) |
 | `brain.context_memory` | experimental | **no** | Sprint 28 Conversation Memory & Context Engine (alias: brain_context_memory) |
 | `brain.unified_travel_planner` | experimental | **no** | Sprint 31 Unified Travel Planning Engine (alias: unified_travel_planner) |
+| `brain.conversation_ui` | experimental | **no** | Sprint 32 AI Conversation Experience (alias: conversation_ui) |
 | `providers.hotel_foundation` | experimental | **no** | Sprint 30 Hotel Provider Foundation — sandbox Hotelbeds / Expedia Rapid / Booking Connectivity (alias: hotel_provider_foundation) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |

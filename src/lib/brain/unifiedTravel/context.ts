@@ -15,10 +15,12 @@ const CITY_ALIASES: Record<string, string> = {
   london: 'London',
   paris: 'Paris',
   tokyo: 'Tokyo',
+  japan: 'Japan',
+  morocco: 'Morocco',
+  casablanca: 'Casablanca',
   bahrain: 'Manama',
   kuwait: 'Kuwait City',
   amman: 'Amman',
-  casablanca: 'Casablanca',
 }
 
 const AIRLINE_HINTS = [
@@ -130,11 +132,12 @@ export function extractContextFromUserText(
   if (/\bcouple\b/.test(lower)) partial.adults = 2
 
   const budgetMatch = lower.match(
-    /budget\s*(?:of|is|:)?\s*(\d[\d,]*)\s*(sar|usd|aed|eur)?/i,
+    /budget\s*(?:of|is|:)?\s*(?:(sar|usd|aed|eur)\s*)?(\d[\d,]*)\s*(sar|usd|aed|eur)?/i,
   )
   if (budgetMatch) {
-    partial.budgetAmount = Number(budgetMatch[1].replace(/,/g, ''))
-    if (budgetMatch[2]) partial.currency = budgetMatch[2].toUpperCase()
+    partial.budgetAmount = Number(budgetMatch[2].replace(/,/g, ''))
+    const currency = budgetMatch[1] || budgetMatch[3]
+    if (currency) partial.currency = currency.toUpperCase()
   } else if (/\bsar\b/.test(lower)) {
     partial.currency = 'SAR'
   }
