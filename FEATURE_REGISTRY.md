@@ -27,6 +27,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ai.analytics` | experimental | yes | Privacy-gated anonymous metrics |
 | `ai.concierge` | experimental | yes | Provider-agnostic consultant dialogue above the agent |
 | `ui.flight_results_experience` | beta | yes | Sprint 11 flight cards, sort/filter, details, select→session |
+| `ui.passenger_booking_flow` | beta | yes | Sprint 12 passengers, validation, summary, session persist (depends on flight results) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |
 

@@ -20,6 +20,7 @@ import ResultsPage from './pages/ResultsPage.tsx'
 import FlightDetailsPage from './pages/FlightDetailsPage.tsx'
 import IntegrationDiagnostics from './pages/IntegrationDiagnostics.tsx'
 import BookingReview from './pages/BookingReview.tsx'
+import PassengerBookingPage from './pages/PassengerBookingPage.tsx'
 import BookingReturn from './pages/BookingReturn.tsx'
 import MyTrips from './pages/MyTrips.tsx'
 import SavedTrips from './pages/SavedTrips.tsx'
@@ -104,6 +105,11 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/booking/review" element={
             <ProtectedRoute>
               <BookingReview />
+            </ProtectedRoute>
+          } />
+          <Route path="/booking/passengers" element={
+            <ProtectedRoute>
+              <PassengerBookingPage />
             </ProtectedRoute>
           } />
           <Route path="/booking/return" element={
