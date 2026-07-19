@@ -5,65 +5,24 @@ import type {
   ConversationContext,
   IntentClassification,
   RecommendationHint,
+  TravelPlan,
 } from './types'
+import { buildContextualFollowUp, promptForField } from './contextualReply'
 import { nextFieldToAsk } from './missingInformationDetector'
+import { buildTravelPlan } from './travelPlanBuilder'
 import type { TravelPlanSketch } from './travelPlanner'
-
-const FIELD_PROMPTS: Record<BrainMemorySlot, { ar: string; en: string }> = {
-  destination: {
-    ar: 'إلى أين تود السفر؟',
-    en: 'Where would you like to go?',
-  },
-  budget: {
-    ar: 'ما هي ميزانيتك التقريبية؟',
-    en: 'What is your approximate budget?',
-  },
-  travelDates: {
-    ar: 'متى تود السفر وكم مدة الرحلة؟',
-    en: 'When do you want to travel, and for how long?',
-  },
-  travelers: {
-    ar: 'كم عدد المسافرين؟',
-    en: 'How many travelers?',
-  },
-  cabinClass: {
-    ar: 'ما درجة السفر المفضلة؟',
-    en: 'Which cabin class do you prefer?',
-  },
-  airlinePreferences: {
-    ar: 'هل لديك تفضيل لشركة طيران؟',
-    en: 'Any airline preference?',
-  },
-  hotelPreferences: {
-    ar: 'ما نوع الإقامة التي تفضلها؟',
-    en: 'What kind of stay do you prefer?',
-  },
-  activities: {
-    ar: 'ما الأنشطة التي تهمك؟',
-    en: 'Which activities interest you?',
-  },
-  visaRequirements: {
-    ar: 'هل تحتاج مساعدة بشأن التأشيرة؟',
-    en: 'Do you need help with visa requirements?',
-  },
-  conversationLanguage: {
-    ar: 'بأي لغة تفضل المتابعة؟',
-    en: 'Which language should we continue in?',
-  },
-  currency: {
-    ar: 'بأي عملة تفضل الميزانية؟',
-    en: 'Which currency for your budget?',
-  },
-}
 
 /**
  * ResponsePlanner — structured plan only (no LLM generation / no fake prose replies).
+ * Sprint 21 optionally attaches TravelPlan + one contextual follow-up.
  */
 export function ResponsePlanner(input: {
   context: ConversationContext
   classification: IntentClassification
   missingFields: BrainMemorySlot[]
   travelPlan: TravelPlanSketch
+  /** Sprint 21 — enable TravelPlan + contextual reply. */
+  travelEngine?: boolean
 }): BrainResponsePlan {
   const locale = input.context.locale
   const intent = input.classification.intent
@@ -87,8 +46,20 @@ export function ResponsePlanner(input: {
   }
 
   const suggestedReplies: string[] = []
+  let contextualReply: string | null = null
   if (ask) {
-    suggestedReplies.push(locale === 'ar' ? FIELD_PROMPTS[ask].ar : FIELD_PROMPTS[ask].en)
+    const prompt = promptForField(ask, locale)
+    suggestedReplies.push(prompt)
+    if (input.travelEngine) {
+      contextualReply = buildContextualFollowUp({
+        memory: input.context.memory,
+        missingFields: input.missingFields,
+        locale,
+      })
+      if (contextualReply && contextualReply !== prompt) {
+        suggestedReplies[0] = contextualReply
+      }
+    }
   }
 
   const summary =
@@ -101,7 +72,7 @@ export function ResponsePlanner(input: {
       ? `collect:${ask}`
       : `execute:${input.travelPlan.action}`
 
-  return {
+  const planWithoutTravel: Omit<BrainResponsePlan, 'travelPlan'> = {
     summary,
     assistantGoal,
     missingFields: input.missingFields,
@@ -111,11 +82,26 @@ export function ResponsePlanner(input: {
       showIntentChip: true,
       highlightMissing: input.missingFields.slice(0, 3),
       suggestedReplies,
+      contextualReply,
     },
     searchRequests: input.travelPlan.searchRequests,
     bookingRequests,
     recommendations,
     intent,
     confidence: input.classification.confidence,
+  }
+
+  let travelPlan: TravelPlan | null = null
+  if (input.travelEngine) {
+    travelPlan = buildTravelPlan({
+      memory: input.context.memory,
+      plan: planWithoutTravel,
+      locale,
+    })
+  }
+
+  return {
+    ...planWithoutTravel,
+    travelPlan,
   }
 }

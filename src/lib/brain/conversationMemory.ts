@@ -36,12 +36,14 @@ export function createEmptyMemory(
     conversationId,
     destination: null,
     destinations: [],
+    origin: null,
     budget: emptyBudget(),
     travelDates: emptyTravelDates(),
     travelers: emptyTravelers(),
     cabinClass: null,
     airlinePreferences: [],
     hotelPreferences: [],
+    hotelRequirement: null,
     activities: [],
     visaRequirements: null,
     conversationLanguage: locale,
@@ -105,6 +107,10 @@ export const ConversationMemoryApi = {
       next.destination = next.destination ?? next.destinations[0] ?? null
       answered.push('destination')
     }
+    if (patch.origin !== undefined && patch.origin) {
+      next.origin = patch.origin
+      answered.push('origin')
+    }
     if (patch.budget) {
       next.budget = {
         amount: patch.budget.amount ?? next.budget.amount,
@@ -140,7 +146,21 @@ export const ConversationMemoryApi = {
         children: patch.travelers.children ?? next.travelers.children,
         infants: patch.travelers.infants ?? next.travelers.infants,
       }
-      if (next.travelers.count != null) answered.push('travelers')
+      if (
+        next.travelers.count != null ||
+        next.travelers.adults != null ||
+        next.travelers.children != null ||
+        next.travelers.infants != null
+      ) {
+        const adults = next.travelers.adults ?? 0
+        const children = next.travelers.children ?? 0
+        const infants = next.travelers.infants ?? 0
+        const summed = adults + children + infants
+        if (summed > 0 && next.travelers.count == null) {
+          next.travelers.count = summed
+        }
+        answered.push('travelers')
+      }
     }
     if (patch.cabinClass) {
       next.cabinClass = patch.cabinClass as CabinClass
@@ -159,6 +179,10 @@ export const ConversationMemoryApi = {
         ...patch.hotelPreferences,
       ])
       answered.push('hotelPreferences')
+    }
+    if (patch.hotelRequirement !== undefined && patch.hotelRequirement !== null) {
+      next.hotelRequirement = patch.hotelRequirement
+      answered.push('hotelRequirement')
     }
     if (patch.activities && patch.activities.length > 0) {
       next.activities = unique([...next.activities, ...patch.activities])

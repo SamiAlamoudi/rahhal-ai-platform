@@ -13,6 +13,7 @@ export function MemoryViewer({
 }: MemoryViewerProps) {
   const rows: Array<[string, string]> = [
     ['destination', memory.destination ?? '—'],
+    ['origin', memory.origin ?? '—'],
     [
       'budget',
       memory.budget.flexible
@@ -23,16 +24,35 @@ export function MemoryViewer({
     ],
     [
       'dates',
-      memory.travelDates.durationDays != null
-        ? `${memory.travelDates.durationDays}d`
-        : memory.travelDates.flexible
-          ? 'flexible'
-          : '—',
+      memory.travelDates.startDate && memory.travelDates.endDate
+        ? `${memory.travelDates.startDate}→${memory.travelDates.endDate}`
+        : memory.travelDates.durationDays != null
+          ? `${memory.travelDates.durationDays}d`
+          : memory.travelDates.flexible
+            ? 'flexible'
+            : '—',
     ],
-    ['travelers', memory.travelers.count != null ? String(memory.travelers.count) : '—'],
+    [
+      'travelers',
+      memory.travelers.count != null
+        ? `${memory.travelers.count}` +
+          (memory.travelers.adults != null
+            ? ` (A${memory.travelers.adults}/C${memory.travelers.children ?? 0}/I${memory.travelers.infants ?? 0})`
+            : '')
+        : '—',
+    ],
     ['cabin', memory.cabinClass ?? '—'],
     ['airlines', memory.airlinePreferences.join(', ') || '—'],
-    ['hotels', memory.hotelPreferences.join(', ') || '—'],
+    [
+      'hotel',
+      memory.hotelRequirement == null
+        ? memory.hotelPreferences.join(', ') || '—'
+        : `${memory.hotelRequirement ? 'yes' : 'no'}${
+            memory.hotelPreferences.length
+              ? ` · ${memory.hotelPreferences.join(', ')}`
+              : ''
+          }`,
+    ],
     ['activities', memory.activities.join(', ') || '—'],
     ['visa', memory.visaRequirements ?? '—'],
     ['lang', memory.conversationLanguage],

@@ -70,6 +70,7 @@ import {
   brainMemoryToRequirementsPatch,
   isBrainAgentHandoffEnabled,
   isBrainConciergeIntegrationEnabled,
+  isBrainTravelEngineEnabled,
   runIntegratedBrainTurn,
   toMetaBrain,
   withBrainMeta,
@@ -141,6 +142,11 @@ export interface TravelAgentServiceOptions {
   brainEnabled?: boolean
   /** When true (or flag `brain.agent_handoff`), merge brain slots into agent requirements. */
   brainHandoffEnabled?: boolean
+  /**
+   * Sprint 21 — Real Travel Conversation Engine.
+   * Default: FeatureRegistry `brain.travel_engine` (OFF). Requires brain.concierge chain.
+   */
+  brainTravelEngineEnabled?: boolean
   /**
    * Sprint 13 — inject booking records for My Trips / history intents.
    * Defaults to loading the signed-in user's BookingSession projections.
@@ -253,6 +259,11 @@ export function createTravelAgentService(
   const isBrainHandoffEnabled = (): boolean =>
     isBrainAgentHandoffEnabled({ brainHandoffEnabled: options.brainHandoffEnabled })
 
+  const isTravelEngineEnabled = (): boolean =>
+    isBrainTravelEngineEnabled({
+      brainTravelEngineEnabled: options.brainTravelEngineEnabled,
+    })
+
   const listBookingRecords = async (): Promise<BookingRecord[]> => {
     if (options.listBookingRecords) return options.listBookingRecords()
     const userId = getBookingHistoryUserId()
@@ -319,19 +330,21 @@ export function createTravelAgentService(
       memory.missingFields = missingRequirementFields(memory.requirements)
       memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
 
-      // Sprint 20 — every user message through Brain (memory → intent → context → planner)
+      // Sprint 20/21 — every user message through Brain (memory → intent → context → planner)
       // when flags are on. Produces BrainResponsePlan before assistant reply paths.
       let brainMeta: BrainMetaSnapshot | undefined
+      const travelEngineOn = isTravelEngineEnabled()
       if (isBrainEnabled() && userText.trim()) {
         const brainResult = runIntegratedBrainTurn({
           conversationId: input.conversationId,
           userText,
           locale: memory.locale,
           requirements: memory.requirements,
+          travelEngine: travelEngineOn,
         })
         brainMeta = toMetaBrain(brainResult)
 
-        if (isBrainHandoffEnabled()) {
+        if (isBrainHandoffEnabled() || travelEngineOn) {
           memory = {
             ...memory,
             requirements: mergeRequirements(
@@ -346,6 +359,30 @@ export function createTravelAgentService(
 
       const attachBrain = <T extends AgentProviderMeta>(meta: T): T =>
         withBrainMeta(meta, brainMeta)
+
+      // Sprint 21 — contextual one-question follow-up (text + voice share this path).
+      if (
+        travelEngineOn
+        && brainMeta?.action === 'ask_missing'
+        && brainMeta.contextualReply
+      ) {
+        memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          toolResults: [],
+        }
+        return {
+          reply: brainMeta.contextualReply,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta: attachBrain(meta),
+          toolBatch: null,
+        }
+      }
 
       // Sprint 17 — smart itinerary intents (above order / confirmation / history).
       if (

@@ -22,12 +22,14 @@ export type TravelIntent =
 
 export type BrainMemorySlot =
   | 'destination'
+  | 'origin'
   | 'budget'
   | 'travelDates'
   | 'travelers'
   | 'cabinClass'
   | 'airlinePreferences'
   | 'hotelPreferences'
+  | 'hotelRequirement'
   | 'activities'
   | 'visaRequirements'
   | 'conversationLanguage'
@@ -60,12 +62,16 @@ export interface ConversationMemory {
   conversationId: string
   destination: string | null
   destinations: string[]
+  /** Departure city / origin for flight search. */
+  origin: string | null
   budget: BudgetSlot
   travelDates: TravelDates
   travelers: TravelerSlot
   cabinClass: CabinClass | null
   airlinePreferences: string[]
   hotelPreferences: string[]
+  /** Whether the trip needs a hotel (true/false); null = unknown. */
+  hotelRequirement: boolean | null
   activities: string[]
   visaRequirements: string | null
   conversationLanguage: BrainLocale
@@ -141,9 +147,16 @@ export interface SearchRequestHint {
   startDate: string | null
   endDate: string | null
   travelers: number | null
+  adults: number | null
+  children: number | null
+  infants: number | null
   cabinClass: CabinClass | null
   budgetAmount: number | null
   currency: string | null
+  preferredAirlines: string[]
+  preferredHotels: string[]
+  hotelRequired: boolean | null
+  flexibleDates: boolean
 }
 
 export interface BookingRequestHint {
@@ -161,6 +174,8 @@ export interface UiHints {
   showIntentChip: boolean
   highlightMissing: BrainMemorySlot[]
   suggestedReplies: string[]
+  /** Sprint 21 — single short contextual follow-up (when travel engine is on). */
+  contextualReply: string | null
 }
 
 /**
@@ -178,6 +193,55 @@ export interface BrainResponsePlan {
   recommendations: RecommendationHint[]
   intent: TravelIntent
   confidence: number
+  /** Sprint 21 — structured travel plan when domain engine is active. */
+  travelPlan: TravelPlan | null
+}
+
+/**
+ * Sprint 21 — structured TravelPlan linking Brain memory to real domain surfaces.
+ * No external provider calls; drafts only.
+ */
+export interface TravelPlan {
+  id: string
+  conversationId: string
+  locale: BrainLocale
+  status: 'collecting' | 'ready'
+  summary: string
+  destination: string | null
+  origin: string | null
+  dates: TravelDates
+  travelers: TravelerSlot
+  cabinClass: CabinClass | null
+  budget: BudgetSlot
+  preferredAirlines: string[]
+  preferredHotels: string[]
+  hotelRequired: boolean | null
+  activities: string[]
+  flights: TravelPlanDomainLink | null
+  hotels: TravelPlanDomainLink | null
+  itinerary: TravelPlanDomainLink | null
+  bookingSession: TravelPlanDomainLink | null
+  passengers: TravelPlanPassengerLink | null
+}
+
+export interface TravelPlanDomainLink {
+  kind: 'flights' | 'hotels' | 'itinerary' | 'booking_session'
+  ready: boolean
+  destination: string | null
+  origin: string | null
+  startDate: string | null
+  endDate: string | null
+  notes: string[]
+}
+
+export interface TravelPlanPassengerLink {
+  kind: 'passengers'
+  ready: boolean
+  adults: number
+  children: number
+  infants: number
+  total: number
+  slotCount: number
 }
 
 export interface IntentClassification {
@@ -203,4 +267,48 @@ export interface BrainTurnResult {
   extraction: ExtractedRequirements
   missingFields: BrainMemorySlot[]
   plan: BrainResponsePlan
+  /** Sprint 21 — domain bridge payload when travel engine is on. */
+  domain: TravelDomainBridge | null
+}
+
+/** Sprint 21 — BrainResponsePlan → real travel domain drafts (no live API calls). */
+export interface TravelDomainBridge {
+  searchDraft: TravelSearchDraft | null
+  passengerCounts: {
+    adults: number
+    children: number
+    infants: number
+    total: number
+  } | null
+  passengerSlotIds: string[]
+  bookingSessionDraft: {
+    status: 'draft'
+    currency: string | null
+    itemKinds: Array<'flight' | 'hotel' | 'package'>
+  } | null
+  itinerarySeed: {
+    destination: string | null
+    durationDays: number | null
+    travelers: number | null
+  } | null
+}
+
+export interface TravelSearchDraft {
+  destination: string
+  departureCity: string
+  departureDate: string
+  returnDate: string
+  durationDays: number
+  adults: number
+  children: number
+  infants: number
+  preferredCabin: string
+  preferredAirlines: string[]
+  preferredHotels: string[]
+  budgetAmount: number
+  budgetCurrency: string
+  hotelRequired: boolean | null
+  flexibleDates: boolean
+  readyForSearch: boolean
+  missingFields: BrainMemorySlot[]
 }

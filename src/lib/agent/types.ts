@@ -229,7 +229,8 @@ export interface AgentProviderMeta {
   }
   /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
-   * Present when `brain.concierge` integration is enabled; never replaces reply text.
+   * Present when `brain.concierge` integration is enabled; never replaces reply text
+   * unless Sprint 21 `brain.travel_engine` supplies contextualReply.
    */
   brain?: {
     intent: string
@@ -242,6 +243,10 @@ export interface AgentProviderMeta {
     bookingRequests: unknown[]
     recommendations: unknown[]
     uiHints: unknown
+    /** Sprint 21 — structured TravelPlan + domain bridge */
+    travelPlan?: unknown
+    domain?: unknown
+    contextualReply?: string | null
   }
 }
 

@@ -22,6 +22,11 @@ export type {
   ExtractedRequirements,
   BrainTurnInput,
   BrainTurnResult,
+  TravelPlan,
+  TravelPlanDomainLink,
+  TravelPlanPassengerLink,
+  TravelDomainBridge,
+  TravelSearchDraft,
 } from './types'
 
 export {
@@ -42,6 +47,7 @@ export {
   MissingInformationDetector,
   nextFieldToAsk,
   BRAIN_INTAKE_ORDER,
+  isMemorySlotFilled,
 } from './missingInformationDetector'
 export { TravelPlanner } from './travelPlanner'
 export { ResponsePlanner } from './responsePlanner'
@@ -49,12 +55,16 @@ export { ContextManager } from './contextManager'
 export { MemoryManager } from './memoryManager'
 export { ConversationOrchestrator } from './conversationOrchestrator'
 export type { ConversationOrchestratorHandle, ConversationOrchestratorOptions } from './conversationOrchestrator'
+export { buildContextualFollowUp, promptForField } from './contextualReply'
+export { buildTravelPlan } from './travelPlanBuilder'
+export { buildTravelDomainBridge } from './domainBridge'
 
 export {
   resetBrainIntegrationSessions,
   isBrainConciergeIntegrationEnabled,
   isBrainAgentHandoffEnabled,
   isBrainVoiceIntegrationEnabled,
+  isBrainTravelEngineEnabled,
   getOrCreateBrainOrchestrator,
   seedBrainMemoryFromRequirements,
   brainMemoryToRequirementsPatch,

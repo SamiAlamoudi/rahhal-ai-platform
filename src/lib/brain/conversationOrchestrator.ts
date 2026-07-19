@@ -1,4 +1,5 @@
 import { ContextManager, createConversationContext } from './contextManager'
+import { buildTravelDomainBridge } from './domainBridge'
 import { IntentClassifier } from './intentClassifier'
 import { MemoryManager } from './memoryManager'
 import { MissingInformationDetector, nextFieldToAsk } from './missingInformationDetector'
@@ -16,6 +17,11 @@ export type ConversationOrchestratorOptions = {
   conversationId?: string
   locale?: BrainLocale
   context?: ConversationContext
+  /**
+   * Sprint 21 — Real Travel Conversation Engine.
+   * Enables domain slots, TravelPlan, contextual replies, domain bridge.
+   */
+  travelEngine?: boolean
 }
 
 /**
@@ -24,6 +30,7 @@ export type ConversationOrchestratorOptions = {
  * User → Intent → Extract → Memory → Missing → Plan → Structured response
  */
 export function ConversationOrchestrator(options: ConversationOrchestratorOptions = {}) {
+  const travelEngine = options.travelEngine === true
   const contextManager = ContextManager(
     options.context ??
       createConversationContext(options.conversationId, options.locale ?? 'ar'),
@@ -53,16 +60,18 @@ export function ConversationOrchestrator(options: ConversationOrchestratorOption
     const missingFields = MissingInformationDetector({
       memory,
       intent: classification.intent,
+      domainSlots: travelEngine,
     })
     contextManager.setMissing(missingFields)
 
+    // Ask exactly one field; never ask twice.
     const ask = nextFieldToAsk(missingFields)
     if (ask) {
       contextManager.setMemory(memoryManager.markAsked([ask]))
     }
 
     const context = contextManager.get()
-    const travelPlan = TravelPlanner({
+    const travelPlanSketch = TravelPlanner({
       intent: classification.intent,
       context,
       hasMissing: missingFields.length > 0,
@@ -71,11 +80,17 @@ export function ConversationOrchestrator(options: ConversationOrchestratorOption
       context,
       classification,
       missingFields,
-      travelPlan,
+      travelPlan: travelPlanSketch,
+      travelEngine,
     })
 
     // Structured assistant summary only — not a fabricated natural-language reply.
+    // (Contextual reply lives on plan.uiHints when travelEngine is on.)
     contextManager.appendAssistant(plan.summary, classification.intent)
+
+    const domain = travelEngine
+      ? buildTravelDomainBridge({ memory: context.memory, plan })
+      : null
 
     return {
       context: contextManager.get(),
@@ -83,6 +98,7 @@ export function ConversationOrchestrator(options: ConversationOrchestratorOption
       extraction,
       missingFields,
       plan,
+      domain,
     }
   }
 
@@ -90,6 +106,7 @@ export function ConversationOrchestrator(options: ConversationOrchestratorOption
     getContext: () => contextManager.get(),
     setContext: (ctx: ConversationContext) => contextManager.replace(ctx),
     runTurn,
+    isTravelEngine: () => travelEngine,
   }
 }
 

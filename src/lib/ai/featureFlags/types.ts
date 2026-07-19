@@ -43,6 +43,7 @@ export type FeatureId =
   | 'brain.concierge'
   | 'brain.agent_handoff'
   | 'brain.voice'
+  | 'brain.travel_engine'
   | 'payments.live'
   | 'providers.live_master'
 
