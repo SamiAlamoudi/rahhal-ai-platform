@@ -1,9 +1,11 @@
 /**
  * Sprint 32 — ResponseComposer
  * Maps UnifiedTravelPlanResult → ConversationStructuredResponse (no planning logic).
+ * Sprint 34: optional pay-now offer when brain.payments_platform is ON.
  */
 
 import type { UnifiedTravelPlanResult } from '../../brain/unifiedTravel'
+import { buildPayNowOffer, shouldOfferPayNow } from '../../payments/conversation/payNowPrompt'
 import type {
   ConversationPhase,
   ConversationStructuredResponse,
@@ -26,10 +28,32 @@ export class ResponseComposer {
         ? [top, ...(plan?.alternatives ?? []).slice(0, 2)]
         : (plan?.plans ?? [])
 
-    const summary = input.clarificationQuestion
+    let summary = input.clarificationQuestion
       ? input.clarificationQuestion
       : plan?.headline
         || (input.locale === 'ar' ? 'إليك خطة السفر' : 'Here is your travel plan')
+
+    const actions = buildSuggestedActions(input.locale, input.phase, Boolean(top))
+    const cost = top?.cost ?? plan?.costSummary ?? null
+    const offerPay =
+      shouldOfferPayNow()
+      && Boolean(top)
+      && (input.phase === 'presenting' || input.phase === 'comparing')
+      && !input.clarificationQuestion
+      && cost
+      && cost.total > 0
+
+    if (offerPay && cost) {
+      const offer = buildPayNowOffer({
+        total: cost.total,
+        currency: cost.currency,
+        locale: input.locale,
+        itineraryFoundLine:
+          input.locale === 'ar' ? 'وجدت أفضل خطة سفر لك.' : 'I found the best itinerary.',
+      })
+      summary = `${offer.summaryLine}\n\n${offer.questionLine}`
+      actions.unshift(offer.suggestedAction)
+    }
 
     return {
       summary,
@@ -64,13 +88,13 @@ export class ResponseComposer {
         summary: d.summary,
         items: [...d.items],
       })) ?? [],
-      estimatedTotalCost: top?.cost ?? plan?.costSummary ?? null,
+      estimatedTotalCost: cost,
       confidenceScore: plan?.confidenceScore ?? top?.confidence ?? 0,
       reasoning: [
         ...(plan?.reasoning ?? []),
         ...(top?.reasons ?? []),
       ].slice(0, 8),
-      suggestedFollowUpActions: buildSuggestedActions(input.locale, input.phase, Boolean(top)),
+      suggestedFollowUpActions: actions,
       plans,
       topPlanId: top?.id ?? null,
       followUps: plan?.followUps ?? [],

@@ -30,6 +30,7 @@ import { ResponseComposer, createResponseComposer } from './ResponseComposer'
 import { ConversationRenderer, createConversationRenderer } from './ConversationRenderer'
 import { StreamingResponse } from './StreamingResponse'
 import { isConversationUiEnabled } from './feature'
+import { buildPayNowOffer, shouldOfferPayNow } from '../../payments/conversation/payNowPrompt'
 import type {
   ConversationSession,
   ConversationTurnInput,
@@ -250,6 +251,63 @@ export function ConversationController(
         structured,
         renderedText,
         planResult: state.lastPlanResult,
+        commandKind,
+        durationMs: Date.now() - started,
+      }
+    }
+
+    // Sprint 34 — pay now handoff (no re-planning; uses existing plan totals only).
+    const payNowPlan = state.lastPlanResult
+    const payNowTop = payNowPlan?.topPlan ?? null
+    if (commandKind === 'pay_now' && payNowPlan && payNowTop) {
+      state = { ...state, phase: 'presenting' }
+      const offer = buildPayNowOffer({
+        total: payNowTop.cost.total,
+        currency: payNowTop.cost.currency,
+        locale,
+      })
+      const structured = composer.compose({
+        planResult: payNowPlan,
+        phase: 'presenting',
+        locale,
+      })
+      // Reinforce explicit pay confirmation copy even if payments flag is off mid-turn.
+      structured.summary = shouldOfferPayNow()
+        ? `${offer.summaryLine}\n\n${offer.questionLine}\n\n${
+          locale === 'ar'
+            ? 'سأجهّز الدفع الآمن لرحلتك.'
+            : 'I will prepare secure checkout for your trip.'
+        }`
+        : structured.summary
+      if (!structured.suggestedFollowUpActions.some((a) => a.id === 'pay_now')) {
+        structured.suggestedFollowUpActions.unshift(offer.suggestedAction)
+      }
+      const renderedText = renderer.render(structured, locale)
+      const assistantMessage = createConversationMessage({
+        conversationId: input.conversationId,
+        role: 'assistant',
+        content: renderedText,
+        structured,
+        meta: {
+          conversationUi: true,
+          payNow: true,
+          paymentsPlatform: shouldOfferPayNow(),
+          estimatedTotal: payNowTop.cost.total,
+          currency: payNowTop.cost.currency,
+        },
+      })
+      session = appendMessage(updateSessionState(session, state), assistantMessage)
+      sessions.set(input.conversationId, session)
+      events.emit(createConversationEvent('response_composed', input.conversationId, {
+        payNow: true,
+      }))
+      return {
+        session,
+        userMessage,
+        assistantMessage,
+        structured,
+        renderedText,
+        planResult: payNowPlan,
         commandKind,
         durationMs: Date.now() - started,
       }

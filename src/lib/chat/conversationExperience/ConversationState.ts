@@ -136,6 +136,10 @@ export function applyCommandToState(
     case 'continue':
       phase = state.lastPlanResult ? 'presenting' : 'planning'
       break
+    case 'pay_now':
+      // Payment handoff — do not mutate planning context.
+      phase = state.lastPlanResult ? 'presenting' : state.phase
+      break
     case 'clarify_answer':
       phase = 'planning'
       break
@@ -192,6 +196,13 @@ export function detectConversationCommand(userText: string): ConversationCommand
   }
   if (/continue|resume|pick up where/.test(lower)) {
     return 'continue'
+  }
+  if (
+    /pay now|would you like to pay|yes[, ]?pay|proceed to (payment|checkout)|checkout now|ادفع الآن|أريد الدفع/.test(
+      lower,
+    )
+  ) {
+    return 'pay_now'
   }
   if (/^\d+\s*(adults?|travelers?|people|persons?)?$/.test(lower)
     || /^(two|three|four|one)\s*(adults?)?$/.test(lower)

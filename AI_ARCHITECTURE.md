@@ -261,6 +261,19 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.travel_execution_engine` (depends on `brain.conversation_ui`).
 - See `docs/SPRINT33_TRAVEL_EXECUTION_ENGINE.md`.
 
+## Payments & Checkout Platform (Sprint 34)
+
+- Platform package at `src/lib/payments/` — sits after TravelExecutionEngine and before final booking confirmation.
+- **Distinct from** `src/lib/payment/` hosted Moyasar/CheckoutOrchestrator stack; does not replace Phase S FSM or Edge proxies.
+- Workflow: create payment intent → reserve inventory → user pays → verify → confirm booking refs → receipt + invoice → events + audit.
+- Provider registry with sandbox adapters: Stripe, Adyen, Checkout.com, HyperPay, Mock — never hardcode a provider at call sites; supports failover.
+- Methods: Apple Pay, Google Pay, cards, Mada, STC Pay (future-ready), bank transfer abstraction.
+- Multi-currency SAR/USD/EUR/GBP with VAT, provider fees, service fees, and coupon discounts.
+- Refunds: full, partial, cancellation, failed-payment rollback (releases holds, preserves audit).
+- Conversation pay-now offer via `buildPayNowOffer` when flag is on — no duplicate planning logic.
+- Flag (default **OFF**): `brain.payments_platform` (depends on `brain.travel_execution_engine`).
+- See `docs/SPRINT34_PAYMENTS_PLATFORM.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

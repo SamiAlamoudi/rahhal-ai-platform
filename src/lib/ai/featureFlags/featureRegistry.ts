@@ -474,6 +474,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: travel_execution_engine. Distinct from Sprint 23 brain.execution (search tasks). Orchestrates providers without embedding supplier logic.',
   },
   {
+    id: 'brain.payments_platform',
+    name: 'Payments & Checkout Platform',
+    description:
+      'Sprint 34 payments platform — payment intents, multi-provider sandbox adapters, receipts/invoices, refunds, and conversation pay-now after TravelExecutionEngine. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.travel_execution_engine'],
+    notes:
+      'Product alias: payments_platform. Additive to src/lib/payment hosted checkout; does not duplicate planning/execution/booking logic. Sandbox adapters only — no live Stripe/Adyen credentials.',
+  },
+  {
     id: 'providers.hotel_foundation',
     name: 'Hotel Provider Foundation',
     description:
