@@ -34,6 +34,10 @@ export type AgentIntent =
   | 'is_order_ready'
   | 'show_checkout'
   | 'what_is_payment_status'
+  | 'show_my_itinerary'
+  | 'whats_todays_plan'
+  | 'when_leave_for_airport'
+  | 'summarize_my_trip'
   | 'unknown'
 
 /** Scoped regeneration target for the Intelligent Decision Engine. */

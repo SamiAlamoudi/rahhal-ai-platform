@@ -40,6 +40,9 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ui.conversation_home` | beta | yes | Sprint 16 home → Chat seed entry (alias: conversation_home) |
 | `ui.travel_cards` | beta | yes | Sprint 16 smart travel cards on Home (alias: travel_cards) |
 | `ui.continue_booking` | beta | yes | Sprint 16 continue-booking panel (alias: continue_booking) |
+| `ui.smart_itinerary` | beta | yes | Sprint 17 post-booking TripItinerary engine (alias: smart_itinerary) |
+| `ui.travel_insights` | beta | yes | Sprint 17 travel insight cards (alias: travel_insights) |
+| `ui.daily_planner` | beta | yes | Sprint 17 daily planner sections (alias: daily_planner) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |
 
