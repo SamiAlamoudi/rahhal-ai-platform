@@ -66,6 +66,13 @@ import {
   type DocumentConversationQueryKind,
   type TravelDocumentsPlatform,
 } from '../../travelDocuments'
+import {
+  answerSupplierQuery,
+  createSupplierMarketplace,
+  shouldHandleSupplierQueries,
+  type SupplierConversationQueryKind,
+  type SupplierMarketplace,
+} from '../../suppliers'
 import type {
   ConversationSession,
   ConversationTurnInput,
@@ -89,6 +96,8 @@ export type ConversationControllerOptions = {
   loyaltyPlatform?: LoyaltyPlatform
   /** Sprint 39 travel documents platform (tests). */
   travelDocumentsPlatform?: TravelDocumentsPlatform
+  /** Sprint 40 supplier marketplace (tests). */
+  supplierMarketplace?: SupplierMarketplace
   plannerOptions?: UnifiedTravelPlannerOptions
   events?: ConversationEvents
   followUps?: FollowUpQuestionEngine
@@ -139,6 +148,8 @@ export function ConversationController(
   const travelDocumentsPlatform =
     options.travelDocumentsPlatform
     ?? createTravelDocumentsPlatform({ enabled: true })
+  const supplierMarketplace =
+    options.supplierMarketplace ?? createSupplierMarketplace({ enabled: true })
 
   function enabled(): boolean {
     if (typeof options.enabled === 'boolean') return options.enabled
@@ -279,6 +290,11 @@ export function ConversationController(
       || commandKind === 'transit_visa'
       || commandKind === 'what_documents'
       || commandKind === 'vaccination_requirements'
+      || commandKind === 'trusted_suppliers_only'
+      || commandKind === 'premium_hotel_providers'
+      || commandKind === 'avoid_poor_refunds'
+      || commandKind === 'fastest_confirmation'
+      || commandKind === 'rank_suppliers'
 
     if (followUps.shouldAskBeforePlanning(state) && !skipClarifyingForCommand) {
       const question = followUps.nextQuestion(state)
@@ -395,6 +411,56 @@ export function ConversationController(
       sessions.set(input.conversationId, session)
       events.emit(createConversationEvent('response_composed', input.conversationId, {
         tripQuery: commandKind,
+      }))
+      return {
+        session,
+        userMessage,
+        assistantMessage,
+        structured,
+        renderedText,
+        planResult: state.lastPlanResult,
+        commandKind,
+        durationMs: Date.now() - started,
+      }
+    }
+
+    // Sprint 40 — supplier marketplace preferences.
+    const supplierQueryKinds = new Set<SupplierConversationQueryKind>([
+      'trusted_suppliers_only',
+      'premium_hotel_providers',
+      'avoid_poor_refunds',
+      'fastest_confirmation',
+      'rank_suppliers',
+    ])
+    if (
+      supplierQueryKinds.has(commandKind as SupplierConversationQueryKind)
+      && shouldHandleSupplierQueries()
+    ) {
+      const reply = answerSupplierQuery({
+        kind: commandKind as SupplierConversationQueryKind,
+        marketplace: supplierMarketplace,
+        locale,
+      })
+      state = { ...state, phase: 'presenting' }
+      const structured = composer.compose({
+        planResult: state.lastPlanResult,
+        phase: 'presenting',
+        locale,
+        clarificationQuestion: reply,
+      })
+      structured.summary = reply
+      const renderedText = renderer.render(structured, locale)
+      const assistantMessage = createConversationMessage({
+        conversationId: input.conversationId,
+        role: 'assistant',
+        content: renderedText,
+        structured,
+        meta: { conversationUi: true, supplierMarketplace: true, supplierQuery: commandKind },
+      })
+      session = appendMessage(updateSessionState(session, state), assistantMessage)
+      sessions.set(input.conversationId, session)
+      events.emit(createConversationEvent('response_composed', input.conversationId, {
+        supplierQuery: commandKind,
       }))
       return {
         session,

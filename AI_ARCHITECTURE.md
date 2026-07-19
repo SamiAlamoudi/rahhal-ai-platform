@@ -332,6 +332,17 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.travel_documents` (depends on `brain.loyalty_platform`).
 - See `docs/SPRINT39_TRAVEL_DOCUMENTS.md`.
 
+### Sprint 40 — Universal Supplier Marketplace & Contract Platform
+
+- Package `src/lib/suppliers/` — B2B onboarding/KYC, contracts, inventory, performance, AI ranking, dashboard.
+- Supplier types: airlines, hotels, cars, activities, cruises, insurance, visa, transfers, rail, bus, future.
+- Contracts: commission, markup, net/public rates, corporate/agency, seasonal/promo, cancellation/refund, settlements, revenue share.
+- Inventory: availability, rate plans, blackouts, dynamic pricing, promotions, sync.
+- Ranking factors: price, quality, historical performance, reliability, refunds, preferences, conversation, loyalty, business rules.
+- Conversation: trusted-only, premium hotels, avoid poor refunds, fastest confirmation.
+- Flag (default **OFF**): `brain.supplier_marketplace` (depends on `brain.travel_documents`).
+- See `docs/SPRINT40_SUPPLIER_MARKETPLACE.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

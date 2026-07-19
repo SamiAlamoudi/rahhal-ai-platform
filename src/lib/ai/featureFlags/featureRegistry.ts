@@ -540,6 +540,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: travel_documents. Sandbox destination rules with future government-integration hooks; does not rewrite booking/payments stacks.',
   },
   {
+    id: 'brain.supplier_marketplace',
+    name: 'Universal Supplier Marketplace & Contract Platform',
+    description:
+      'Sprint 40 B2B supplier marketplace — onboarding/KYC, contracts, inventory, performance scoring, AI ranking, and supplier dashboard analytics. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.travel_documents'],
+    notes:
+      'Product alias: supplier_marketplace. Additive supplier layer; does not replace existing provider adapters or booking execution.',
+  },
+  {
     id: 'providers.hotel_foundation',
     name: 'Hotel Provider Foundation',
     description:

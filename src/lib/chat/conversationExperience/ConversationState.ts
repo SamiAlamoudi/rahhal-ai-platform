@@ -241,6 +241,38 @@ export function detectConversationCommand(userText: string): ConversationCommand
     return 'download_ticket'
   }
 
+  // Sprint 40 — supplier marketplace preferences (before documents & planning).
+  if (
+    /trusted suppliers?|book only trusted|only trusted/.test(lower)
+    || /موردين موثوقين|الموردين الموثوقين/.test(lower)
+  ) {
+    return 'trusted_suppliers_only'
+  }
+  if (
+    /premium hotel|premium providers?|use premium/.test(lower)
+    || /فنادق مميزة|مزودين مميزين/.test(lower)
+  ) {
+    return 'premium_hotel_providers'
+  }
+  if (
+    /poor refund|avoid suppliers with poor refund|bad refund/.test(lower)
+    || /استرداد ضعيف|تجنب.*استرداد/.test(lower)
+  ) {
+    return 'avoid_poor_refunds'
+  }
+  if (
+    /fastest confirmation|fast confirmation|quick confirmation/.test(lower)
+    || /أسرع تأكيد|تأكيد سريع/.test(lower)
+  ) {
+    return 'fastest_confirmation'
+  }
+  if (
+    /rank suppliers|best suppliers|which supplier/.test(lower)
+    || /أفضل مورد/.test(lower)
+  ) {
+    return 'rank_suppliers'
+  }
+
   // Sprint 39 — travel documents / visa intelligence (before loyalty & planning).
   if (
     /can i transit|transit through|layover in/.test(lower)
