@@ -37,6 +37,14 @@ import {
   shouldHandleTripQueries,
   type PostBookingService,
 } from '../../trips'
+import {
+  answerRefundQuery,
+  createPolicyEngine,
+  linesFromPlan,
+  shouldHandleRefundQueries,
+  type PolicyEngine,
+  type RefundConversationQueryKind,
+} from '../../refunds'
 import type {
   ConversationSession,
   ConversationTurnInput,
@@ -52,6 +60,8 @@ export type ConversationControllerOptions = {
   planner?: UnifiedTravelPlannerHandle
   /** Sprint 35 post-booking service (tests). */
   postBookingService?: PostBookingService
+  /** Sprint 36 policy engine (tests). */
+  policyEngine?: PolicyEngine
   plannerOptions?: UnifiedTravelPlannerOptions
   events?: ConversationEvents
   followUps?: FollowUpQuestionEngine
@@ -89,6 +99,7 @@ export function ConversationController(
       ...options.plannerOptions,
     })
   const postBookingService = options.postBookingService ?? getPostBookingService()
+  const policyEngine = options.policyEngine ?? createPolicyEngine({ enabled: true })
 
   function enabled(): boolean {
     if (typeof options.enabled === 'boolean') return options.enabled
@@ -303,6 +314,68 @@ export function ConversationController(
       sessions.set(input.conversationId, session)
       events.emit(createConversationEvent('response_composed', input.conversationId, {
         tripQuery: commandKind,
+      }))
+      return {
+        session,
+        userMessage,
+        assistantMessage,
+        structured,
+        renderedText,
+        planResult: state.lastPlanResult,
+        commandKind,
+        durationMs: Date.now() - started,
+      }
+    }
+
+    // Sprint 36 — cancellation / refund policy questions (PolicyEngine quotes).
+    const refundQueryKinds = new Set<RefundConversationQueryKind>([
+      'cancel_refund_quote',
+      'cancel_hotel_only',
+      'flight_delay_policy',
+      'deposit_refund',
+      'cancel_after_checkin',
+      'airline_cancels',
+      'one_traveler_cancels',
+    ])
+    if (
+      refundQueryKinds.has(commandKind as RefundConversationQueryKind)
+      && shouldHandleRefundQueries()
+    ) {
+      const trip = postBookingService.listUserTrips(input.userId ?? 'anonymous')[0]
+      const currency =
+        trip?.currency
+        ?? state.lastPlanResult?.topPlan?.cost.currency
+        ?? 'SAR'
+      const reply = answerRefundQuery({
+        kind: commandKind as RefundConversationQueryKind,
+        engine: policyEngine,
+        tripId: trip?.tripId ?? 'trip_conversation',
+        userId: input.userId ?? 'anonymous',
+        lines: linesFromPlan(state.lastPlanResult?.topPlan, currency),
+        currency,
+        platformFee: 40,
+        locale,
+      })
+      state = { ...state, phase: 'presenting' }
+      const structured = composer.compose({
+        planResult: state.lastPlanResult,
+        phase: 'presenting',
+        locale,
+        clarificationQuestion: reply,
+      })
+      structured.summary = reply
+      const renderedText = renderer.render(structured, locale)
+      const assistantMessage = createConversationMessage({
+        conversationId: input.conversationId,
+        role: 'assistant',
+        content: renderedText,
+        structured,
+        meta: { conversationUi: true, refundPolicy: true, refundQuery: commandKind },
+      })
+      session = appendMessage(updateSessionState(session, state), assistantMessage)
+      sessions.set(input.conversationId, session)
+      events.emit(createConversationEvent('response_composed', input.conversationId, {
+        refundQuery: commandKind,
       }))
       return {
         session,

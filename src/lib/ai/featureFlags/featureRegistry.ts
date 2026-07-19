@@ -496,6 +496,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: trip_management. Extends existing src/lib/trips TripManager/TripRepository; does not duplicate payment/execution/planner logic.',
   },
   {
+    id: 'brain.refund_policy_engine',
+    name: 'Universal Cancellation & Refund Policy Engine',
+    description:
+      'Sprint 36 policy engine — normalize provider cancellation rules, quote/execute refunds across flights/hotels/cars/activities with partial cancel, audit, and conversation explanations. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.trip_management'],
+    notes:
+      'Product alias: refund_policy_engine. Reuses PaymentOrchestrator.refund and PostBookingService; adapters normalize provider policies without embedding supplier SDKs.',
+  },
+  {
     id: 'providers.hotel_foundation',
     name: 'Hotel Provider Foundation',
     description:
