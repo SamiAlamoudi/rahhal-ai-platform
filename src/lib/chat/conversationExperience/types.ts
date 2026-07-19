@@ -35,6 +35,7 @@ export type ConversationCommandKind =
   | 'regenerate'
   | 'compare_options'
   | 'continue'
+  | 'pay_now'
   | 'unknown'
 
 export type ConversationMessageRole = 'user' | 'assistant' | 'system'
