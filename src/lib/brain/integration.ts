@@ -210,6 +210,9 @@ export { isBrainTripOrchestratorEnabled } from './orchestrator/feature'
 /** Sprint 28 — Conversation Memory & Context Engine. */
 export { isBrainContextMemoryEnabled } from './memory/feature'
 
+/** Sprint 31 — Unified Travel Planning Engine. */
+export { isUnifiedTravelPlannerEnabled } from './unifiedTravel/feature'
+
 function toBrainLocale(locale: AgentLocale | BrainLocale | undefined): BrainLocale {
   return locale === 'en' ? 'en' : 'ar'
 }

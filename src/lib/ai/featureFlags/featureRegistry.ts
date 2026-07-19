@@ -441,6 +441,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: brain_context_memory. Additive to Sprint 19–27; passport/nationality only when explicitly provided; no LLM providers.',
   },
   {
+    id: 'brain.unified_travel_planner',
+    name: 'Unified Travel Planning Engine',
+    description:
+      'Sprint 31 end-to-end UnifiedTravelPlanner combining orchestrator, memory, flight/hotel foundations, and search aggregation into ranked itineraries. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.trip_orchestrator'],
+    notes:
+      'Product alias: unified_travel_planner. Additive coordinator — does not replace TripPlanningEngine, AITripOrchestrator, or SearchAggregationEngine.',
+  },
+  {
     id: 'providers.hotel_foundation',
     name: 'Hotel Provider Foundation',
     description:
