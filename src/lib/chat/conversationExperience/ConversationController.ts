@@ -52,6 +52,13 @@ import {
   type DisruptionConversationQueryKind,
   type TravelDisruptionEngine,
 } from '../../disruption'
+import {
+  answerLoyaltyQuery,
+  createLoyaltyPlatform,
+  shouldHandleLoyaltyQueries,
+  type LoyaltyConversationQueryKind,
+  type LoyaltyPlatform,
+} from '../../loyalty'
 import type {
   ConversationSession,
   ConversationTurnInput,
@@ -71,6 +78,8 @@ export type ConversationControllerOptions = {
   policyEngine?: PolicyEngine
   /** Sprint 37 travel disruption engine (tests). */
   disruptionEngine?: TravelDisruptionEngine
+  /** Sprint 38 loyalty platform (tests). */
+  loyaltyPlatform?: LoyaltyPlatform
   plannerOptions?: UnifiedTravelPlannerOptions
   events?: ConversationEvents
   followUps?: FollowUpQuestionEngine
@@ -116,6 +125,8 @@ export function ConversationController(
       postBooking: postBookingService,
       notifications: postBookingService.getNotificationScheduler(),
     })
+  const loyaltyPlatform =
+    options.loyaltyPlatform ?? createLoyaltyPlatform({ enabled: true })
 
   function enabled(): boolean {
     if (typeof options.enabled === 'boolean') return options.enabled
@@ -244,6 +255,12 @@ export function ConversationController(
       || commandKind === 'strike'
       || commandKind === 'visa_rejection'
       || commandKind === 'border_restriction'
+      || commandKind === 'use_rahhal_points'
+      || commandKind === 'most_rewards_hotel'
+      || commandKind === 'upgrade_with_points'
+      || commandKind === 'points_earn_estimate'
+      || commandKind === 'wallet_balance'
+      || commandKind === 'membership_benefits'
 
     if (followUps.shouldAskBeforePlanning(state) && !skipClarifyingForCommand) {
       const question = followUps.nextQuestion(state)
@@ -360,6 +377,68 @@ export function ConversationController(
       sessions.set(input.conversationId, session)
       events.emit(createConversationEvent('response_composed', input.conversationId, {
         tripQuery: commandKind,
+      }))
+      return {
+        session,
+        userMessage,
+        assistantMessage,
+        structured,
+        renderedText,
+        planResult: state.lastPlanResult,
+        commandKind,
+        durationMs: Date.now() - started,
+      }
+    }
+
+    // Sprint 38 — loyalty / rewards / membership (LoyaltyPlatform).
+    const loyaltyQueryKinds = new Set<LoyaltyConversationQueryKind>([
+      'use_rahhal_points',
+      'most_rewards_hotel',
+      'upgrade_with_points',
+      'points_earn_estimate',
+      'wallet_balance',
+      'membership_benefits',
+    ])
+    if (
+      loyaltyQueryKinds.has(commandKind as LoyaltyConversationQueryKind)
+      && shouldHandleLoyaltyQueries()
+    ) {
+      const userId = input.userId ?? 'anonymous'
+      const top = state.lastPlanResult?.topPlan
+      const estimateAmount = top?.cost.total ?? 2000
+      const reply = answerLoyaltyQuery({
+        kind: commandKind as LoyaltyConversationQueryKind,
+        platform: loyaltyPlatform,
+        userId,
+        locale,
+        estimateAmount,
+        estimateService: top?.hotel ? 'hotel' : top?.flight ? 'flight' : 'hotel',
+        context: {
+          conversationNotes: [`User: ${input.userText}`],
+          preferredHotels: top?.hotel?.name ? [top.hotel.name] : undefined,
+          preferredAirlines: top?.flight?.airline ? [top.flight.airline] : undefined,
+        },
+      })
+      state = { ...state, phase: 'presenting' }
+      const structured = composer.compose({
+        planResult: state.lastPlanResult,
+        phase: 'presenting',
+        locale,
+        clarificationQuestion: reply,
+      })
+      structured.summary = reply
+      const renderedText = renderer.render(structured, locale)
+      const assistantMessage = createConversationMessage({
+        conversationId: input.conversationId,
+        role: 'assistant',
+        content: renderedText,
+        structured,
+        meta: { conversationUi: true, loyaltyPlatform: true, loyaltyQuery: commandKind },
+      })
+      session = appendMessage(updateSessionState(session, state), assistantMessage)
+      sessions.set(input.conversationId, session)
+      events.emit(createConversationEvent('response_composed', input.conversationId, {
+        loyaltyQuery: commandKind,
       }))
       return {
         session,

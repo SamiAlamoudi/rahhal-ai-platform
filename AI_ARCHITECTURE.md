@@ -310,6 +310,17 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.travel_disruption_engine` (depends on `brain.refund_policy_engine`).
 - See `docs/SPRINT37_TRAVEL_DISRUPTION_ENGINE.md`.
 
+### Sprint 38 — Universal Loyalty, Rewards & Membership Platform
+
+- Package `src/lib/loyalty/` — Rahhal Points wallet, membership tiers, benefits, airline/hotel loyalty, smart rewards recommendations.
+- Services covered: flights, hotels, cars, activities, insurance, visa, future providers.
+- Wallet ops: earn, redeem, expire, reverse, bonus, promotions, campaigns, transfers, adjustments.
+- Membership: Explorer → Silver → Gold → Platinum → Diamond with configurable benefits.
+- Hotel adapters: Hilton, Marriott, IHG, Accor, Hyatt, Best Western (+ generic).
+- Conversation: “Use my Rahhal points”, most-rewards hotel, upgrade with points, earn estimates.
+- Flag (default **OFF**): `brain.loyalty_platform` (depends on `brain.travel_disruption_engine`).
+- See `docs/SPRINT38_LOYALTY_PLATFORM.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
