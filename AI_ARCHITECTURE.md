@@ -299,6 +299,17 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.refund_policy_engine` (depends on `brain.trip_management`).
 - See `docs/SPRINT36_REFUND_POLICY_ENGINE.md`.
 
+### Sprint 37 — Travel Disruption & Smart Recovery Engine
+
+- Package `src/lib/disruption/` — detect disruption → impact → recovery search → rank → trip update → explain.
+- Supported events: flight delay/cancel/gate/schedule, missed connection, hotel overbooking/unavailable, car/activity, airport closure, weather, strike, visa rejection, border restriction.
+- Recovery options: alternative flight, hotel, rental car, activity, transport, route (deterministic sandbox).
+- Ranking: cost, earliest arrival, minimum disruption, preferences, loyalty, cabin, hotel rating, family/business, visa, conversation context.
+- Automatic trip updates: itinerary, hotel dates, activities, transportation, reminders, notifications, regenerated documents.
+- Conversation phrases (“My flight is delayed/cancelled…”, missed connection, hotel cancelled) invoke the engine without booking forms.
+- Flag (default **OFF**): `brain.travel_disruption_engine` (depends on `brain.refund_policy_engine`).
+- See `docs/SPRINT37_TRAVEL_DISRUPTION_ENGINE.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
