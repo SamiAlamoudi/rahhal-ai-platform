@@ -207,6 +207,18 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.trip_orchestrator` (depends on `brain.search`). Optional: `ui.booking_flow`, `brain.real_providers`.
 - See `docs/SPRINT27_AI_TRIP_ORCHESTRATOR.md`.
 
+## Conversation Memory & Context Engine (Sprint 28)
+
+- Short-term `ConversationMemoryService` (session TTL) + long-term `UserPreferenceStore` (user-scoped, privacy-gated).
+- `MemoryExtractor` pulls structured travel prefs from natural language: airlines, hotel brands, cabin, budget, travelers, family, seats, meals, accessibility, loyalty, visa; **passport/nationality only when explicitly provided**.
+- `ContextAssembler` merges current turn + previous short-term state + stored prefs into working memory for planners.
+- `ConversationSummarizer` compresses long chats into privacy-safe digests and windows recent turns.
+- Minimum follow-up questions — core missing slots only; never asks for passport/nationality proactively.
+- Wired into `AITripOrchestrator` when `brain.context_memory` is on (seeds Brain session from working memory).
+- Expiration: short-term 24h, sensitive fields 2h, long-term prefs 180d; loyalty member numbers never stored long-term.
+- Flag (default **OFF**): `brain.context_memory` (depends on `brain.trip_orchestrator`).
+- See `docs/SPRINT28_CONVERSATION_MEMORY.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

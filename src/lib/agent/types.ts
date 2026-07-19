@@ -262,6 +262,10 @@ export interface AgentProviderMeta {
     searchCollection?: unknown
     /** Sprint 27 — AITripOrchestrator outputs */
     orchestrator?: unknown
+    /** Sprint 28 — Conversation Memory & Context Engine */
+    memory?: unknown
+    memoryFollowUps?: string[] | null
+    memorySummary?: string | null
   }
 }
 

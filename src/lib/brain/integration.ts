@@ -35,6 +35,8 @@ import {
 } from './search'
 import { resetAITripOrchestrator } from './orchestrator/aiTripOrchestrator'
 import type { AITripOrchestratorTurnResult } from './orchestrator/types'
+import { resetMemoryContextEngine } from './memory'
+import type { MemoryEngineTurnResult } from './memory'
 
 const orchestrators = new Map<string, ConversationOrchestratorHandle>()
 const planningEngines = new Map<string, TripPlanningEngineHandle>()
@@ -70,6 +72,10 @@ export type BrainMetaSnapshot = {
   searchCollection?: SearchAggregationTurnResult['collection'] | null
   /** Sprint 27 */
   orchestrator?: AITripOrchestratorTurnResult | null
+  /** Sprint 28 */
+  memory?: MemoryEngineTurnResult | null
+  memoryFollowUps?: string[] | null
+  memorySummary?: string | null
 }
 
 export function resetBrainIntegrationSessions(): void {
@@ -79,6 +85,7 @@ export function resetBrainIntegrationSessions(): void {
   resetTripPlanningSessions()
   resetTravelExecutionSessions()
   resetAITripOrchestrator()
+  resetMemoryContextEngine()
 }
 
 export function isBrainConciergeIntegrationEnabled(options?: {
@@ -199,6 +206,9 @@ export function isBrainRealProvidersEnabled(options?: {
 
 /** Sprint 27 — AI Trip Orchestrator (coordinates search + optional booking + providers). */
 export { isBrainTripOrchestratorEnabled } from './orchestrator/feature'
+
+/** Sprint 28 — Conversation Memory & Context Engine. */
+export { isBrainContextMemoryEnabled } from './memory/feature'
 
 function toBrainLocale(locale: AgentLocale | BrainLocale | undefined): BrainLocale {
   return locale === 'en' ? 'en' : 'ar'
@@ -334,6 +344,7 @@ export function toMetaBrain(
   const planning = (result.planning ?? null) as TripPlanningTurnResult | null
   const execution = (result.execution ?? null) as TravelExecutionTurnResult | null
   const search = (result.search ?? null) as SearchAggregationTurnResult | null
+  const memory = (orchestrator?.memory ?? null) as MemoryEngineTurnResult | null
   return {
     intent: result.plan.intent,
     confidence: result.plan.confidence,
@@ -359,6 +370,9 @@ export function toMetaBrain(
     searchRecommendation: search?.recommendation ?? null,
     searchCollection: search?.collection ?? null,
     orchestrator: orchestrator ?? null,
+    memory,
+    memoryFollowUps: memory?.followUpQuestions ?? null,
+    memorySummary: memory?.summary?.text ?? null,
   }
 }
 
@@ -572,6 +586,9 @@ export function withBrainMeta<T extends AgentProviderMeta>(
     searchRecommendation: brain.searchRecommendation ?? null,
     searchCollection: brain.searchCollection ?? null,
     orchestrator: brain.orchestrator ?? null,
+    memory: brain.memory ?? null,
+    memoryFollowUps: brain.memoryFollowUps ?? null,
+    memorySummary: brain.memorySummary ?? null,
   }
   return { ...meta, brain: brainMeta }
 }

@@ -50,3 +50,4 @@ export {
 } from './cache'
 
 export { isBrainTripOrchestratorEnabled } from './feature'
+export { isBrainContextMemoryEnabled } from '../memory/feature'

@@ -24,6 +24,11 @@ import {
   setOrchestratorCached,
 } from './cache'
 import { buildOrchestratorExecutionPlan } from './executionPlanBuilder'
+import { isBrainContextMemoryEnabled } from '../memory/feature'
+import {
+  getOrCreateMemoryContextEngine,
+  type MemoryEngineTurnResult,
+} from '../memory'
 import { isBrainTripOrchestratorEnabled } from './feature'
 import { extractTravelIntentFromConversation } from './intent'
 import { createOrchestratorLogger } from './logging'
@@ -305,9 +310,15 @@ export function AITripOrchestrator(
         cacheHit: false,
         durationMs: Date.now() - started,
         error: 'trip_orchestrator_disabled',
+        memory: null,
       }
       return result
     }
+
+    const contextMemoryOn =
+      typeof options.contextMemory === 'boolean'
+        ? options.contextMemory
+        : isBrainContextMemoryEnabled()
 
     metrics.markStageStart('intent')
     logger.log('info', 'intent', 'Extracting travel intent from conversation')
@@ -321,6 +332,55 @@ export function AITripOrchestrator(
       intent: classification.intent,
       confidence: classification.confidence,
     })
+
+    /** Sprint 28 — run memory/context engine before the planning pipeline when enabled. */
+    let memoryResult: MemoryEngineTurnResult | null = null
+    if (contextMemoryOn) {
+      logger.log('info', 'orchestrator', 'Running conversation memory & context engine')
+      const memoryEngine = getOrCreateMemoryContextEngine('orchestrator', {
+        enabled: true,
+      })
+      memoryResult = memoryEngine.runTurn({
+        conversationId: input.conversationId,
+        userText: input.userText,
+        locale,
+        userId: input.userId ?? null,
+        intent: classification.intent,
+        persistLongTerm: true,
+      })
+      // Seed shared brain session so planners see long-term + short-term prefs.
+      try {
+        const { getOrCreateBrainOrchestrator } = await import('../integration')
+        const brainOrch = getOrCreateBrainOrchestrator(input.conversationId, locale, {
+          travelEngine: true,
+        })
+        const ctx = brainOrch.getContext()
+        brainOrch.setContext({
+          ...ctx,
+          memory: {
+            ...ctx.memory,
+            ...memoryResult.context.workingMemory,
+            destinations: memoryResult.context.workingMemory.destinations,
+            budget: memoryResult.context.workingMemory.budget,
+            travelDates: memoryResult.context.workingMemory.travelDates,
+            travelers: memoryResult.context.workingMemory.travelers,
+            airlinePreferences: memoryResult.context.workingMemory.airlinePreferences,
+            hotelPreferences: memoryResult.context.workingMemory.hotelPreferences,
+            activities: memoryResult.context.workingMemory.activities,
+            askedFields: memoryResult.context.workingMemory.askedFields,
+            answeredFields: memoryResult.context.workingMemory.answeredFields,
+          },
+        })
+      } catch {
+        // Seeding is best-effort; pipeline still runs.
+      }
+      logger.log('info', 'orchestrator', 'Memory context assembled', {
+        missingSlots: memoryResult.missingSlots,
+        followUps: memoryResult.followUpQuestions.length,
+        summarized: memoryResult.summarized,
+        hasLongTerm: Boolean(memoryResult.longTerm),
+      })
+    }
 
     const cacheKey = buildOrchestratorCacheKey({
       conversationId: input.conversationId,
@@ -344,6 +404,7 @@ export function AITripOrchestrator(
             durationMs: Date.now() - started,
           },
           durationMs: Date.now() - started,
+          memory: memoryResult ?? cached.memory ?? null,
         }
         recordOrchestratorMetrics(hit.metrics)
         return hit
@@ -393,6 +454,19 @@ export function AITripOrchestrator(
         brain = await (options.runPipeline ?? runBrainPipeline)(pipelineInput)
         merged.clear()
         lastError = null
+
+        // Sprint 28 — sync working memory preferences back into short-term after pipeline.
+        if (contextMemoryOn && memoryResult && brain?.context?.memory) {
+          const memoryEngine = getOrCreateMemoryContextEngine('orchestrator', {
+            enabled: true,
+          })
+          memoryEngine.seedFromBrainMemory({
+            conversationId: input.conversationId,
+            userId: input.userId ?? null,
+            locale,
+            memory: brain.context.memory,
+          })
+        }
         break
       } catch (err) {
         merged.clear()
@@ -450,6 +524,7 @@ export function AITripOrchestrator(
         cacheHit: false,
         durationMs: Date.now() - started,
         error: lastError,
+        memory: memoryResult,
       }
       recordOrchestratorMetrics(failed.metrics)
       return failed
@@ -546,6 +621,7 @@ export function AITripOrchestrator(
       cacheHit: false,
       durationMs: Date.now() - started,
       error: null,
+      memory: memoryResult,
     }
 
     if (cacheTtlMs > 0 && result.stage === 'complete') {
