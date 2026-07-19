@@ -164,7 +164,7 @@ export const hotelSearchNormalizer = new HotelSearchNormalizer()
 
 function deriveNightly(row: RawHotelVendorPayload, nights: number): number {
   const total = pickNumber(row.price, row.totalPrice, 0)
-  if (total > 0 && nights > 1 && total > 400) {
+  if (nights > 1 && total > 400) {
     return total / nights
   }
   if (total > 0) return total

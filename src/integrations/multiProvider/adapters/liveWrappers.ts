@@ -254,34 +254,23 @@ function createFoundationHotelMultiAdapter(options: {
 }
 
 function providerRequestToHotelSearch(req: ProviderRequest): HotelSearchRequest {
-  const search = req.search
-  const destination = String(
-    (search as { destination?: string }).destination
-    ?? (search as { to?: string }).to
-    ?? 'City',
-  )
-  const checkIn = String(
-    (search as { checkIn?: string }).checkIn
-    ?? (search as { startDate?: string }).startDate
-    ?? '',
-  )
-  const checkOut = String(
-    (search as { checkOut?: string }).checkOut
-    ?? (search as { endDate?: string }).endDate
-    ?? '',
-  )
-  const adults = Number(
-    (search as { adults?: number }).adults
-    ?? (search as { travelers?: number }).travelers
-    ?? 2,
-  )
+  const search = req.search as unknown as Record<string, unknown>
+  const destination = String(search.destination ?? search.to ?? 'City')
+  const checkIn = String(search.checkIn ?? search.startDate ?? search.departureDate ?? '')
+  const checkOut = String(search.checkOut ?? search.endDate ?? search.returnDate ?? '')
+  const travelers = search.travelers
+  const adultsFromGroup =
+    travelers && typeof travelers === 'object' && 'adults' in travelers
+      ? Number((travelers as { adults?: number }).adults)
+      : Number(travelers)
+  const adults = Number(search.adults ?? adultsFromGroup ?? 2)
   return {
     destination,
     checkIn: checkIn || new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
     checkOut: checkOut || new Date(Date.now() + 17 * 86_400_000).toISOString().slice(0, 10),
     adults: Number.isFinite(adults) && adults > 0 ? adults : 2,
-    children: Number((search as { children?: number }).children ?? 0) || undefined,
-    currency: String((search as { currency?: string }).currency ?? 'SAR'),
+    children: Number(search.children ?? 0) || undefined,
+    currency: String(search.currency ?? search.budgetCurrency ?? 'SAR'),
   }
 }
 

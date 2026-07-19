@@ -2,7 +2,7 @@
  * Sprint 30 — Map NormalizedHotelResult → contracts HotelOffer (additive).
  */
 
-import type { HotelOffer, RoomType } from '../../utils/contracts/models/hotel'
+import type { HotelOffer, RoomType } from '../../../utils/contracts/models/hotel'
 import type { NormalizedHotelResult } from '../types'
 
 export function toContractHotelOffer(offer: NormalizedHotelResult): HotelOffer {

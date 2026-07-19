@@ -19,6 +19,7 @@ import {
   createHotelProviderRegistry,
   createHotelbedsAdapter,
   createMockHotelsAdapter,
+  createSandboxHotelProvider,
   hotelSearchNormalizer,
   hotelSearchRequestFromMemory,
   HotelHealthMonitor,
@@ -247,7 +248,18 @@ describe('HotelProviderRegistry failover / timeout / cache', () => {
 
   it('enforces rate limiting then fails over', async () => {
     const limiter = new HotelRateLimiter({ defaultPerMinute: 1, coolDownMs: 5_000 })
-    const primary = createBookingConnectivityAdapter()
+    const primary = createSandboxHotelProvider({
+      metadata: {
+        id: 'booking_connectivity',
+        displayName: 'Booking.com Connectivity',
+        priority: 95,
+        reliability: 0.92,
+        mode: 'sandbox',
+        version: '1.0.0',
+      },
+      brand: 'Booking',
+      rateLimitPerMinute: 1,
+    })
     const fallback = createMockHotelsAdapter()
     const registry = createHotelProviderRegistry({
       providers: [primary, fallback],

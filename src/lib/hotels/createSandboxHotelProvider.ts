@@ -220,7 +220,7 @@ function errorResult<T>(
     errors: [{
       code: fail.code,
       message: fail.message,
-      retryable: fail.retryable ?? fail.code !== 'invalid_input' && fail.code !== 'not_configured',
+      retryable: fail.retryable ?? (fail.code !== 'invalid_input' && fail.code !== 'not_configured'),
     }],
     warnings: [],
     sandbox: true,
