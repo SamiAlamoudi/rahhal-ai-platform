@@ -10,6 +10,7 @@ import type {
   TravelExecutionEngineOptions,
   TravelExecutionTurnResult,
 } from './types'
+import { clearAllProviderCaches, resetProviderMonitoring } from './providers'
 
 const lastResults = new Map<string, TravelExecutionTurnResult>()
 const orchestrators = new Map<string, ExecutionOrchestratorHandle>()
@@ -17,6 +18,8 @@ const orchestrators = new Map<string, ExecutionOrchestratorHandle>()
 export function resetTravelExecutionSessions(): void {
   lastResults.clear()
   orchestrators.clear()
+  clearAllProviderCaches()
+  resetProviderMonitoring()
 }
 
 /**

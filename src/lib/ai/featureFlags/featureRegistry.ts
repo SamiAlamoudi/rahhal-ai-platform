@@ -408,6 +408,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: brain_search. No live Amadeus/Booking/Maps/Google APIs.',
   },
   {
+    id: 'brain.real_providers',
+    name: 'Real Provider Adapters',
+    description:
+      'Sprint 26 wires real/mixed execution providers (Amadeus/Booking wrappers) behind the same interfaces. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.execution'],
+    notes:
+      'Product alias: brain_real_providers. Phase W VITE_LIVE_PROVIDERS_ENABLED remains the live-HTTP kill switch; mocks always available as fallback.',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

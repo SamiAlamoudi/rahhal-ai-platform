@@ -185,7 +185,8 @@ export interface FlightSearchPayload {
     currency: string
     stops: number
   }>
-  mock: true
+  /** true for mock adapters; false for real/production-shaped adapters. */
+  mock: boolean
 }
 
 export interface HotelSearchPayload {
@@ -198,7 +199,7 @@ export interface HotelSearchPayload {
     nightly: number
     currency: string
   }>
-  mock: true
+  mock: boolean
 }
 
 export interface TransportSearchPayload {
@@ -211,7 +212,7 @@ export interface TransportSearchPayload {
     price: number
     currency: string
   }>
-  mock: true
+  mock: boolean
 }
 
 export interface ActivitiesSearchPayload {
@@ -223,7 +224,7 @@ export interface ActivitiesSearchPayload {
     price: number
     currency: string
   }>
-  mock: true
+  mock: boolean
 }
 
 export interface PackageSearchPayload {
@@ -235,5 +236,8 @@ export interface PackageSearchPayload {
     price: number
     currency: string
   }>
-  mock: true
+  mock: boolean
 }
+
+/** Product alias — contracts layer uses ActivityProvider; brain keeps ActivitiesProvider. */
+export type ActivityProvider = ActivitiesProvider

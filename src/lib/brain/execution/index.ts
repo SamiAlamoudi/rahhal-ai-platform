@@ -22,6 +22,7 @@ export type {
   TransportSearchPayload,
   ActivitiesSearchPayload,
   PackageSearchPayload,
+  ActivityProvider,
 } from './types'
 
 export {
@@ -49,4 +50,26 @@ export {
   createMockTransportProvider,
   createMockActivitiesProvider,
   createMockPackageProvider,
+  createExecutionProviders,
+  resolveExecutionProviderConfig,
+  clearAllProviderCaches,
+  resetProviderMonitoring,
+  createAmadeusFlightExecutionProvider,
+  createBookingHotelExecutionProvider,
+  createMapsTransportExecutionProvider,
+  createRealActivitiesExecutionProvider,
+  createRealActivityExecutionProvider,
+  createRealPackageExecutionProvider,
+  withProviderResilience,
+  getProviderMonitorSnapshot,
+  listProviderMonitorSnapshots,
+  getProviderCache,
+} from './providers'
+export type {
+  CreateExecutionProvidersOptions,
+  CreateExecutionProvidersResult,
+  ExecutionProviderRuntimeConfig,
+  ExecutionProviderMode,
+  ExecutionProviderDomain,
+  ProviderMonitorSnapshot,
 } from './providers'

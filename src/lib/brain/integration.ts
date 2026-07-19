@@ -28,6 +28,7 @@ import {
   type TravelExecutionEngineHandle,
   type TravelExecutionTurnResult,
 } from './execution'
+import { createExecutionProviders } from './execution/providers'
 import {
   aggregateSearch,
   type SearchAggregationTurnResult,
@@ -173,6 +174,24 @@ export function isBrainSearchEnabled(options?: {
   )
 }
 
+/** Sprint 26 — Real provider adapters for execution (mocks remain default). */
+export function isBrainRealProvidersEnabled(options?: {
+  brainRealProvidersEnabled?: boolean
+}): boolean {
+  if (typeof options?.brainRealProvidersEnabled === 'boolean') {
+    return options.brainRealProvidersEnabled
+  }
+  const registry = getFeatureRegistry()
+  return (
+    registry.isEnabled('brain.enabled') &&
+    registry.isEnabled('brain.concierge') &&
+    registry.isEnabled('brain.travel_engine') &&
+    registry.isEnabled('brain.trip_planning') &&
+    registry.isEnabled('brain.execution') &&
+    registry.isEnabled('brain.real_providers')
+  )
+}
+
 function toBrainLocale(locale: AgentLocale | BrainLocale | undefined): BrainLocale {
   return locale === 'en' ? 'en' : 'ar'
 }
@@ -211,7 +230,14 @@ export function getOrCreateTravelExecutionEngine(
 ): TravelExecutionEngineHandle {
   const existing = executionEngines.get(conversationId)
   if (existing) return existing
-  const created = TravelExecutionEngine({ conversationId })
+
+  const realOn = isBrainRealProvidersEnabled()
+  const { providers } = createExecutionProviders({
+    brainRealProvidersEnabled: realOn,
+    mode: realOn ? 'mixed' : 'mock',
+  })
+
+  const created = TravelExecutionEngine({ conversationId, providers })
   executionEngines.set(conversationId, created)
   return created
 }

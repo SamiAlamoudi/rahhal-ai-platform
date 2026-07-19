@@ -188,6 +188,15 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `ui.booking_flow` (depends on `ui.passenger_booking_flow`).
 - See `docs/SPRINT25_PRODUCTION_BOOKING_FLOW.md`.
 
+## Real Provider Integration (Sprint 26)
+
+- Execution providers share one adapter architecture (`FlightProvider`, `HotelProvider`, `TransportProvider`, `ActivitiesProvider` / `ActivityProvider`, `PackageProvider`).
+- Mocks retained; `createExecutionProviders` supports **mock / real / mixed** with priority, health, timeout, retry, and mock fallback.
+- Real flights/hotels wrap Phase W Amadeus / Booking.com adapters and normalize into existing payloads — Search Aggregation business logic unchanged.
+- Caching (search / session / provider TTL) + monitoring (latency, availability, error rate, response quality).
+- Flag (default **OFF**): `brain.real_providers` (depends on `brain.execution`). Live HTTP still gated by Phase W `VITE_LIVE_PROVIDERS_ENABLED`.
+- See `docs/SPRINT26_REAL_PROVIDER_INTEGRATION.md` and `docs/PROVIDER_ADAPTER_GUIDE.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
