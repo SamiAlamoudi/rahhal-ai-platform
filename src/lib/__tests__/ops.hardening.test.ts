@@ -244,6 +244,9 @@ describe('Phase X rate limiting + security helpers', () => {
     // Production CSP must not allow Vite HMR schemes / inline scripts.
     expect(SECURITY_HEADERS['Content-Security-Policy']).not.toMatch(/script-src[^;]*'unsafe-inline'/)
     expect(SECURITY_HEADERS['Content-Security-Policy']).not.toMatch(/connect-src[^;]*\bws:/)
+    // Voice input (Home mic / Chat Web Speech) needs same-origin microphone.
+    expect(SECURITY_HEADERS['Permissions-Policy']).toContain('microphone=(self)')
+    expect(SECURITY_HEADERS['Permissions-Policy']).not.toMatch(/microphone=\(\)/)
 
     const devHeaders = buildSecurityHeaders({ development: true })
     expect(devHeaders['Content-Security-Policy']).toContain("script-src 'self' 'unsafe-inline'")
