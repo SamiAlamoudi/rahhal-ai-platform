@@ -68,6 +68,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `brain.travel_execution_engine` | experimental | **no** | Sprint 33 booking Travel Execution Engine (alias: travel_execution_engine) — depends on `brain.conversation_ui`; distinct from Sprint 23 `brain.execution` |
 | `brain.payments_platform` | experimental | **no** | Sprint 34 Payments & Checkout Platform (alias: payments_platform) — depends on `brain.travel_execution_engine`; distinct from hosted `src/lib/payment` / deprecated `payments.live` |
 | `brain.trip_management` | experimental | **no** | Sprint 35 Post Booking & Trip Management (alias: trip_management) — depends on `brain.payments_platform`; extends existing `src/lib/trips` TripManager |
+| `brain.refund_policy_engine` | experimental | **no** | Sprint 36 Universal Cancellation & Refund Policy Engine (alias: refund_policy_engine) — depends on `brain.trip_management` |
 | `providers.hotel_foundation` | experimental | **no** | Sprint 30 Hotel Provider Foundation — sandbox Hotelbeds / Expedia Rapid / Booking Connectivity (alias: hotel_provider_foundation) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |

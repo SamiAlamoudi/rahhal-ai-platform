@@ -41,6 +41,13 @@ export type ConversationCommandKind =
   | 'download_ticket'
   | 'any_delays'
   | 'what_hotel'
+  | 'cancel_refund_quote'
+  | 'cancel_hotel_only'
+  | 'flight_delay_policy'
+  | 'deposit_refund'
+  | 'cancel_after_checkin'
+  | 'airline_cancels'
+  | 'one_traveler_cancels'
   | 'unknown'
 
 export type ConversationMessageRole = 'user' | 'assistant' | 'system'

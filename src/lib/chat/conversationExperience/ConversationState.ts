@@ -148,6 +148,16 @@ export function applyCommandToState(
       // Sprint 35 trip queries — answered from post-booking store, no re-plan.
       phase = 'presenting'
       break
+    case 'cancel_refund_quote':
+    case 'cancel_hotel_only':
+    case 'flight_delay_policy':
+    case 'deposit_refund':
+    case 'cancel_after_checkin':
+    case 'airline_cancels':
+    case 'one_traveler_cancels':
+      // Sprint 36 refund policy questions — answered via PolicyEngine quotes.
+      phase = 'presenting'
+      break
     case 'clarify_answer':
       phase = 'planning'
       break
@@ -241,6 +251,50 @@ export function detectConversationCommand(userText: string): ConversationCommand
     || /أي فندق|فندقي/.test(lower)
   ) {
     return 'what_hotel'
+  }
+  if (
+    /cancel only the hotel|hotel only|just the hotel/.test(lower)
+    || /ألغي الفندق فقط/.test(lower)
+  ) {
+    return 'cancel_hotel_only'
+  }
+  if (
+    /what happens if my flight is delayed|flight (is )?delayed|delay.*refund/.test(lower)
+    || /تأخير الرحلة/.test(lower)
+  ) {
+    return 'flight_delay_policy'
+  }
+  if (
+    /lose my deposit|deposit refund|will i (get|lose) (my )?deposit/.test(lower)
+    || /العربون|الوديعة/.test(lower)
+  ) {
+    return 'deposit_refund'
+  }
+  if (
+    /cancel after check-?in|after check in|early departure/.test(lower)
+    || /بعد تسجيل الوصول/.test(lower)
+  ) {
+    return 'cancel_after_checkin'
+  }
+  if (
+    /airline cancels|if the airline cancel|carrier cancel/.test(lower)
+    || /إلغاء من شركة الطيران/.test(lower)
+  ) {
+    return 'airline_cancels'
+  }
+  if (
+    /only one (traveler|passenger) cancels|one of us cancels|cancel one (traveler|passenger)/.test(
+      lower,
+    )
+    || /مسافر واحد/.test(lower)
+  ) {
+    return 'one_traveler_cancels'
+  }
+  if (
+    /if i cancel now|how much will i get back|cancel.*refund|refund if i cancel/.test(lower)
+    || /كم سأسترد|إذا ألغيت/.test(lower)
+  ) {
+    return 'cancel_refund_quote'
   }
   if (/^\d+\s*(adults?|travelers?|people|persons?)?$/.test(lower)
     || /^(two|three|four|one)\s*(adults?)?$/.test(lower)

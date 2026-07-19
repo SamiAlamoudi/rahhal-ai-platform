@@ -286,6 +286,19 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.trip_management` (depends on `brain.payments_platform`).
 - See `docs/SPRINT35_TRIP_MANAGEMENT.md`.
 
+## Universal Cancellation & Refund Policy Engine (Sprint 36)
+
+- Package `src/lib/refunds/` — centralized policy normalize → quote → validate → cancel → refund → audit.
+- Provider policy adapters for flights, hotels, car rentals, activities; visa/insurance framework-only.
+- Normalized model: refundability, %, penalties, taxes, fees, deadlines, timelines, special conditions.
+- Partial cancellation scopes (hotel/flight/car/passenger/room/return segment).
+- Executes money movement via Sprint 34 `PaymentOrchestrator.refund`; syncs trip refund status via Sprint 35.
+- Provider failure path rolls back safely, keeps payment/booking references, audits, and supports retry.
+- Conversation explains “If I cancel now…”, hotel-only, delays, deposits, after check-in, airline cancel, one traveler.
+- Admin metrics: refund volume, avg time, success rate, provider latency, reasons.
+- Flag (default **OFF**): `brain.refund_policy_engine` (depends on `brain.trip_management`).
+- See `docs/SPRINT36_REFUND_POLICY_ENGINE.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
