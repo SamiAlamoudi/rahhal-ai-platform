@@ -67,6 +67,7 @@ export {
   isBrainTravelEngineEnabled,
   isBrainTripPlanningEnabled,
   isBrainExecutionEnabled,
+  isBrainSearchEnabled,
   getOrCreateBrainOrchestrator,
   getOrCreateTripPlanningEngine,
   getOrCreateTravelExecutionEngine,
@@ -76,6 +77,7 @@ export {
   withBrainMeta,
   runIntegratedBrainTurn,
   attachTravelExecution,
+  attachSearchAggregation,
   runIntegratedBrainPipeline,
 } from './integration'
 export type {
@@ -146,3 +148,33 @@ export type {
   ActivitiesProvider,
   PackageProvider,
 } from './execution'
+
+export {
+  SearchAggregationEngine,
+  aggregateSearch,
+  aggregateFromExecution,
+  normalizeExecutionResults,
+  deduplicateOptions,
+  rankAndScoreOptions,
+  buildSearchRecommendation,
+} from './search'
+export type {
+  SearchOptionKind,
+  FlightOption,
+  HotelOption,
+  TransportOption,
+  ActivityOption,
+  PackageOption,
+  SearchOption,
+  SearchResult,
+  SearchCollection,
+  RankingFactorScores,
+  RecommendationCandidate,
+  SearchRecommendation,
+  AggregationTimelineEntry,
+  SearchAggregationTurnResult,
+  SearchAggregationContext,
+  SearchAggregationEngineOptions,
+  SearchAggregationEngineHandle,
+  RankingContext,
+} from './search'

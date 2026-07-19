@@ -256,6 +256,10 @@ export interface AgentProviderMeta {
     execution?: unknown
     executionSummary?: unknown
     executionProgress?: unknown
+    /** Sprint 24 — SearchAggregationEngine outputs */
+    search?: unknown
+    searchRecommendation?: unknown
+    searchCollection?: unknown
   }
 }
 

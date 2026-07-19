@@ -388,6 +388,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: brain_execution. No Amadeus/OpenAI/Azure/ElevenLabs/Maps/Booking.com.',
   },
   {
+    id: 'brain.search',
+    name: 'Search Aggregation Engine',
+    description:
+      'Sprint 24 aggregates mock provider results into normalized, ranked recommendations. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.execution'],
+    notes: 'Product alias: brain_search. No live Amadeus/Booking/Maps/Google APIs.',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

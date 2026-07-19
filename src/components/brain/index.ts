@@ -12,3 +12,5 @@ export type { PlannerViewerProps } from './PlannerViewer'
 
 export { ExecutionViewer } from './ExecutionViewer'
 export type { ExecutionViewerProps } from './ExecutionViewer'
+export { SearchViewer } from './SearchViewer'
+export type { SearchViewerProps } from './SearchViewer'

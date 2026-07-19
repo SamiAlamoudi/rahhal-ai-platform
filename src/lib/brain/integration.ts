@@ -1,5 +1,5 @@
 /**
- * Sprint 20–23 — Brain ↔ Agent / Concierge / Voice / Travel / Trip Planning / Execution.
+ * Sprint 20–24 — Brain ↔ Agent / Concierge / Voice / Travel / Planning / Execution / Search.
  * Flag-gated; default OFF. No LLM providers or external APIs.
  */
 
@@ -28,6 +28,10 @@ import {
   type TravelExecutionEngineHandle,
   type TravelExecutionTurnResult,
 } from './execution'
+import {
+  aggregateSearch,
+  type SearchAggregationTurnResult,
+} from './search'
 
 const orchestrators = new Map<string, ConversationOrchestratorHandle>()
 const planningEngines = new Map<string, TripPlanningEngineHandle>()
@@ -57,6 +61,10 @@ export type BrainMetaSnapshot = {
   execution?: TravelExecutionTurnResult | null
   executionSummary?: TravelExecutionTurnResult['summary'] | null
   executionProgress?: TravelExecutionTurnResult['progress'] | null
+  /** Sprint 24 */
+  search?: SearchAggregationTurnResult | null
+  searchRecommendation?: SearchAggregationTurnResult['recommendation'] | null
+  searchCollection?: SearchAggregationTurnResult['collection'] | null
 }
 
 export function resetBrainIntegrationSessions(): void {
@@ -144,6 +152,24 @@ export function isBrainExecutionEnabled(options?: {
     registry.isEnabled('brain.travel_engine') &&
     registry.isEnabled('brain.trip_planning') &&
     registry.isEnabled('brain.execution')
+  )
+}
+
+/** Sprint 24 — Search Aggregation Engine. */
+export function isBrainSearchEnabled(options?: {
+  brainSearchEnabled?: boolean
+}): boolean {
+  if (typeof options?.brainSearchEnabled === 'boolean') {
+    return options.brainSearchEnabled
+  }
+  const registry = getFeatureRegistry()
+  return (
+    registry.isEnabled('brain.enabled') &&
+    registry.isEnabled('brain.concierge') &&
+    registry.isEnabled('brain.travel_engine') &&
+    registry.isEnabled('brain.trip_planning') &&
+    registry.isEnabled('brain.execution') &&
+    registry.isEnabled('brain.search')
   )
 }
 
@@ -270,6 +296,7 @@ export function brainMemoryToRequirementsPatch(
 export function toMetaBrain(result: BrainTurnResult): BrainMetaSnapshot {
   const planning = (result.planning ?? null) as TripPlanningTurnResult | null
   const execution = (result.execution ?? null) as TravelExecutionTurnResult | null
+  const search = (result.search ?? null) as SearchAggregationTurnResult | null
   return {
     intent: result.plan.intent,
     confidence: result.plan.confidence,
@@ -291,6 +318,9 @@ export function toMetaBrain(result: BrainTurnResult): BrainMetaSnapshot {
     execution,
     executionSummary: execution?.summary ?? null,
     executionProgress: execution?.progress ?? null,
+    search,
+    searchRecommendation: search?.recommendation ?? null,
+    searchCollection: search?.collection ?? null,
   }
 }
 
@@ -306,6 +336,8 @@ export type RunIntegratedBrainTurnInput = {
   tripPlanning?: boolean
   /** Sprint 23 — force execution on/off (otherwise FeatureRegistry). */
   execution?: boolean
+  /** Sprint 24 — force search aggregation on/off (otherwise FeatureRegistry). */
+  search?: boolean
   signal?: AbortSignal
 }
 
@@ -319,10 +351,12 @@ export function runIntegratedBrainTurn(
   input: RunIntegratedBrainTurnInput,
 ): BrainTurnResult {
   const locale = toBrainLocale(input.locale)
+  const search =
+    typeof input.search === 'boolean' ? input.search : isBrainSearchEnabled()
   const execution =
     typeof input.execution === 'boolean'
       ? input.execution
-      : isBrainExecutionEnabled()
+      : isBrainExecutionEnabled() || search
   const tripPlanning =
     typeof input.tripPlanning === 'boolean'
       ? input.tripPlanning
@@ -353,7 +387,7 @@ export function runIntegratedBrainTurn(
   })
 
   if (!tripPlanning) {
-    return { ...result, execution: null }
+    return { ...result, execution: null, search: null }
   }
 
   const engine = getOrCreateTripPlanningEngine(input.conversationId, locale)
@@ -366,6 +400,7 @@ export function runIntegratedBrainTurn(
     ...result,
     planning,
     execution: null,
+    search: null,
   }
 }
 
@@ -394,15 +429,46 @@ export async function attachTravelExecution(input: {
 }
 
 /**
- * Full text/voice pipeline: Brain → TripPlanning → TravelExecution.
+ * Sprint 24 — aggregate execution results into ranked recommendations.
+ * Shared by text and voice — same pipeline as execution.
+ */
+export function attachSearchAggregation(input: {
+  conversationId: string
+  planning: TripPlanningTurnResult | null | unknown
+  execution: TravelExecutionTurnResult | null | unknown
+  searchEnabled?: boolean
+}): SearchAggregationTurnResult | null {
+  const enabled =
+    typeof input.searchEnabled === 'boolean'
+      ? input.searchEnabled
+      : isBrainSearchEnabled()
+  if (!enabled) return null
+
+  const execution = input.execution as TravelExecutionTurnResult | null
+  if (!execution?.plan || !execution.results?.length) return null
+
+  const planning = input.planning as TripPlanningTurnResult | null
+  return aggregateSearch({
+    conversationId: input.conversationId,
+    executionPlan: execution.plan,
+    executionResults: execution.results,
+    executionTasks: execution.plan.tasks,
+    tripPlan: planning?.tripPlan ?? null,
+  })
+}
+
+/**
+ * Full text/voice pipeline: Brain → TripPlanning → TravelExecution → SearchAggregation.
  */
 export async function runIntegratedBrainPipeline(
   input: RunIntegratedBrainTurnInput,
 ): Promise<BrainTurnResult> {
+  const searchEnabled =
+    typeof input.search === 'boolean' ? input.search : isBrainSearchEnabled()
   const executionEnabled =
     typeof input.execution === 'boolean'
       ? input.execution
-      : isBrainExecutionEnabled()
+      : isBrainExecutionEnabled() || searchEnabled
 
   const result = runIntegratedBrainTurn({
     ...input,
@@ -411,6 +477,7 @@ export async function runIntegratedBrainPipeline(
         ? input.tripPlanning
         : isBrainTripPlanningEnabled() || executionEnabled,
     execution: executionEnabled,
+    search: searchEnabled,
   })
 
   const execution = await attachTravelExecution({
@@ -420,9 +487,17 @@ export async function runIntegratedBrainPipeline(
     executionEnabled,
   })
 
+  const search = attachSearchAggregation({
+    conversationId: input.conversationId,
+    planning: result.planning,
+    execution,
+    searchEnabled,
+  })
+
   return {
     ...result,
     execution,
+    search,
   }
 }
 
@@ -455,6 +530,9 @@ export function withBrainMeta<T extends AgentProviderMeta>(
     execution: brain.execution ?? null,
     executionSummary: brain.executionSummary ?? null,
     executionProgress: brain.executionProgress ?? null,
+    search: brain.search ?? null,
+    searchRecommendation: brain.searchRecommendation ?? null,
+    searchCollection: brain.searchCollection ?? null,
   }
   return { ...meta, brain: brainMeta }
 }

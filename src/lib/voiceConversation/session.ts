@@ -14,7 +14,9 @@ import { createVoiceProvider } from './providers'
 import type { VoiceProvider, VoiceProviderId } from './providers'
 import {
   attachTravelExecution,
+  attachSearchAggregation,
   isBrainExecutionEnabled,
+  isBrainSearchEnabled,
   isBrainVoiceIntegrationEnabled,
   runIntegratedBrainTurn,
 } from '../brain/integration'
@@ -52,6 +54,7 @@ export function createVoiceSession(options: VoiceSessionOptions = {}) {
   let transitionLock = false
   let lastBrainPlan: VoiceSessionSnapshot['lastBrainPlan'] = null
   let lastExecution: VoiceSessionSnapshot['lastExecution'] = null
+  let lastSearch: VoiceSessionSnapshot['lastSearch'] = null
   let pendingExecution: Promise<unknown> | null = null
 
   const messages: VoiceMessage[] = []
@@ -79,6 +82,7 @@ export function createVoiceSession(options: VoiceSessionOptions = {}) {
       reconnectCount,
       lastBrainPlan,
       lastExecution,
+      lastSearch,
     }
   }
 
@@ -242,13 +246,16 @@ export function createVoiceSession(options: VoiceSessionOptions = {}) {
       pushEvent('user_transcript', 'normal', { transcript: text })
       pushEvent('user_speech_ended', 'normal')
 
-      // Sprint 20–23 — speech uses the same Brain (+ optional execution) pipeline as text.
+      // Sprint 20–24 — speech uses the same Brain (+ optional execution/search) pipeline as text.
       if (isBrainVoiceIntegrationEnabled()) {
+        const searchOn = isBrainSearchEnabled()
+        const executionOn = isBrainExecutionEnabled() || searchOn
         const brainResult = runIntegratedBrainTurn({
           conversationId,
           userText: text,
           locale: 'ar',
-          execution: isBrainExecutionEnabled(),
+          execution: executionOn,
+          search: searchOn,
         })
         lastBrainPlan = {
           intent: brainResult.plan.intent,
@@ -263,19 +270,38 @@ export function createVoiceSession(options: VoiceSessionOptions = {}) {
           action: brainResult.plan.action,
         })
 
-        if (isBrainExecutionEnabled()) {
+        if (executionOn) {
           pendingExecution = attachTravelExecution({
             conversationId,
             planning: brainResult.planning,
             executionEnabled: true,
           }).then((execution) => {
             lastExecution = execution
+            if (searchOn) {
+              lastSearch = attachSearchAggregation({
+                conversationId,
+                planning: brainResult.planning,
+                execution,
+                searchEnabled: true,
+              })
+            } else {
+              lastSearch = null
+            }
             emit()
             if (execution) {
               pushEvent('timeline_marker', 'normal', {
                 kind: 'execution_summary',
                 state: execution.state,
                 headline: execution.summary.headline,
+              })
+            }
+            if (lastSearch) {
+              pushEvent('timeline_marker', 'normal', {
+                kind: 'search_recommendation',
+                confidence: (lastSearch as { recommendation?: { confidenceScore?: number } })
+                  .recommendation?.confidenceScore,
+                top: (lastSearch as { recommendation?: { top?: { title?: string } | null } })
+                  .recommendation?.top?.title,
               })
             }
             return execution
