@@ -31,6 +31,10 @@ export type FeatureId =
   | 'ui.smart_itinerary'
   | 'ui.travel_insights'
   | 'ui.daily_planner'
+  | 'ui.voice_conversation'
+  | 'voice.realtime'
+  | 'voice.provider'
+  | 'voice.mock'
   | 'payments.live'
   | 'providers.live_master'
 
