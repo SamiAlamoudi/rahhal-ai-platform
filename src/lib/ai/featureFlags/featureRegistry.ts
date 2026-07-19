@@ -518,6 +518,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: travel_disruption_engine. Extends PostBookingService / NotificationScheduler; does not rewrite planner, payments, or refund policy calculation.',
   },
   {
+    id: 'brain.loyalty_platform',
+    name: 'Universal Loyalty, Rewards & Membership Platform',
+    description:
+      'Sprint 38 loyalty platform — Rahhal Points wallet, membership tiers/benefits, airline & hotel loyalty adapters, and smart rewards recommendations across travel services. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.travel_disruption_engine'],
+    notes:
+      'Product alias: loyalty_platform. Additive rewards layer; does not rewrite planner, payments, refunds, or disruption recovery.',
+  },
+  {
     id: 'providers.hotel_foundation',
     name: 'Hotel Provider Foundation',
     description:

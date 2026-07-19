@@ -241,6 +241,46 @@ export function detectConversationCommand(userText: string): ConversationCommand
     return 'download_ticket'
   }
 
+  // Sprint 38 — loyalty / rewards (before disruption & planning).
+  if (
+    /use (my )?(rahhal )?points|redeem (my )?points|pay with points/.test(lower)
+    || /استخدم نقاطي|استخدم نقاط رحّال/.test(lower)
+  ) {
+    return 'use_rahhal_points'
+  }
+  if (
+    /which hotel (gives|has) (me )?the most rewards|most rewards|best (hotel )?rewards|most (hotel )?points/.test(
+      lower,
+    )
+    || /أكثر مكافآت|أفضل فندق للمكافآت/.test(lower)
+  ) {
+    return 'most_rewards_hotel'
+  }
+  if (
+    /upgrade using points|upgrade with points|can i upgrade/.test(lower)
+    || /ترقية باستخدام النقاط|هل يمكنني الترقية/.test(lower)
+  ) {
+    return 'upgrade_with_points'
+  }
+  if (
+    /how many points will i earn|points will i earn|earn (if i book|on this)/.test(lower)
+    || /كم نقطة سأكسب/.test(lower)
+  ) {
+    return 'points_earn_estimate'
+  }
+  if (
+    /how many (rahhal )?points|my (points )?balance|wallet balance|points balance/.test(lower)
+    || /رصيد نقاطي|كم نقطة لدي/.test(lower)
+  ) {
+    return 'wallet_balance'
+  }
+  if (
+    /membership benefits|my (membership )?tier|what (are )?my benefits/.test(lower)
+    || /مزايا العضوية|مستواي/.test(lower)
+  ) {
+    return 'membership_benefits'
+  }
+
   // Sprint 37 — operational disruption recovery (before status/refund queries).
   if (/missed (my )?connection|miss(ed)? my connecting/.test(lower) || /فاتتني المواصلة/.test(lower)) {
     return 'missed_connection'

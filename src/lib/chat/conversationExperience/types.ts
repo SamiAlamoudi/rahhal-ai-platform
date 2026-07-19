@@ -61,6 +61,12 @@ export type ConversationCommandKind =
   | 'strike'
   | 'visa_rejection'
   | 'border_restriction'
+  | 'use_rahhal_points'
+  | 'most_rewards_hotel'
+  | 'upgrade_with_points'
+  | 'points_earn_estimate'
+  | 'wallet_balance'
+  | 'membership_benefits'
   | 'unknown'
 
 export type ConversationMessageRole = 'user' | 'assistant' | 'system'
