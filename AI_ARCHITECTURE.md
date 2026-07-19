@@ -118,6 +118,17 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Existing Home mic (`useSpeechRecognition`) and Chat STT/TTS remain the production voice input path.
 - See `docs/SPRINT18_VOICE_FOUNDATION.md`.
 
+## AI Travel Brain (Sprint 19)
+
+- Additive conversation intelligence layer (`src/lib/brain`) — orchestration only, **no LLM providers**.
+- Pipeline: intent → extract entities → update memory → missing slots → travel/response plan.
+- Slot-filled `ConversationMemory` (destination, budget, dates, travelers, cabin, airlines, hotels, activities, visa, language, currency).
+- Never-ask-twice missing-field detection; structured `BrainResponsePlan` (summary/goal/action/uiHints/search/booking/recs).
+- Hooks: `useConversationBrain`, `useConversationMemory`, `useTravelContext`; debug UI under `src/components/brain`.
+- Flags (default **OFF**): `brain.enabled`, `brain.memory`, `brain.intent`, `brain.planner`, `brain.debug`.
+- Existing agent/concierge (`src/lib/agent`, `src/lib/concierge`) unchanged and remain production SoT until brain is wired.
+- See `docs/SPRINT19_AI_BRAIN.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

@@ -35,6 +35,11 @@ export type FeatureId =
   | 'voice.realtime'
   | 'voice.provider'
   | 'voice.mock'
+  | 'brain.enabled'
+  | 'brain.memory'
+  | 'brain.intent'
+  | 'brain.planner'
+  | 'brain.debug'
   | 'payments.live'
   | 'providers.live_master'
 

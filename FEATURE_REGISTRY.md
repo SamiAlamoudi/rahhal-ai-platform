@@ -47,6 +47,11 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `voice.realtime` | experimental | **no** | Sprint 18 realtime transport gate — stubs only (alias: voice_realtime) |
 | `voice.provider` | experimental | **no** | Sprint 18 provider abstraction gate (alias: voice_provider) |
 | `voice.mock` | experimental | **no** | Sprint 18 mock voice provider harness (alias: voice_mock) |
+| `brain.enabled` | experimental | **no** | Sprint 19 AI Travel Brain orchestration (alias: brain_enabled) |
+| `brain.memory` | experimental | **no** | Sprint 19 conversation memory slots (alias: brain_memory) |
+| `brain.intent` | experimental | **no** | Sprint 19 travel intent classifier (alias: brain_intent) |
+| `brain.planner` | experimental | **no** | Sprint 19 response / travel planner (alias: brain_planner) |
+| `brain.debug` | experimental | **no** | Sprint 19 debug panel UI (alias: brain_debug) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |
 
