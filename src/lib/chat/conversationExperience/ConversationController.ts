@@ -59,6 +59,13 @@ import {
   type LoyaltyConversationQueryKind,
   type LoyaltyPlatform,
 } from '../../loyalty'
+import {
+  answerDocumentQuery,
+  createTravelDocumentsPlatform,
+  shouldHandleDocumentQueries,
+  type DocumentConversationQueryKind,
+  type TravelDocumentsPlatform,
+} from '../../travelDocuments'
 import type {
   ConversationSession,
   ConversationTurnInput,
@@ -80,6 +87,8 @@ export type ConversationControllerOptions = {
   disruptionEngine?: TravelDisruptionEngine
   /** Sprint 38 loyalty platform (tests). */
   loyaltyPlatform?: LoyaltyPlatform
+  /** Sprint 39 travel documents platform (tests). */
+  travelDocumentsPlatform?: TravelDocumentsPlatform
   plannerOptions?: UnifiedTravelPlannerOptions
   events?: ConversationEvents
   followUps?: FollowUpQuestionEngine
@@ -127,6 +136,9 @@ export function ConversationController(
     })
   const loyaltyPlatform =
     options.loyaltyPlatform ?? createLoyaltyPlatform({ enabled: true })
+  const travelDocumentsPlatform =
+    options.travelDocumentsPlatform
+    ?? createTravelDocumentsPlatform({ enabled: true })
 
   function enabled(): boolean {
     if (typeof options.enabled === 'boolean') return options.enabled
@@ -261,6 +273,12 @@ export function ConversationController(
       || commandKind === 'points_earn_estimate'
       || commandKind === 'wallet_balance'
       || commandKind === 'membership_benefits'
+      || commandKind === 'can_travel_to'
+      || commandKind === 'need_visa'
+      || commandKind === 'passport_expiry'
+      || commandKind === 'transit_visa'
+      || commandKind === 'what_documents'
+      || commandKind === 'vaccination_requirements'
 
     if (followUps.shouldAskBeforePlanning(state) && !skipClarifyingForCommand) {
       const question = followUps.nextQuestion(state)
@@ -377,6 +395,68 @@ export function ConversationController(
       sessions.set(input.conversationId, session)
       events.emit(createConversationEvent('response_composed', input.conversationId, {
         tripQuery: commandKind,
+      }))
+      return {
+        session,
+        userMessage,
+        assistantMessage,
+        structured,
+        renderedText,
+        planResult: state.lastPlanResult,
+        commandKind,
+        durationMs: Date.now() - started,
+      }
+    }
+
+    // Sprint 39 — travel documents / visa intelligence.
+    const documentQueryKinds = new Set<DocumentConversationQueryKind>([
+      'can_travel_to',
+      'need_visa',
+      'passport_expiry',
+      'transit_visa',
+      'what_documents',
+      'vaccination_requirements',
+    ])
+    if (
+      documentQueryKinds.has(commandKind as DocumentConversationQueryKind)
+      && shouldHandleDocumentQueries()
+    ) {
+      const top = state.lastPlanResult?.topPlan
+      const reply = answerDocumentQuery({
+        kind: commandKind as DocumentConversationQueryKind,
+        platform: travelDocumentsPlatform,
+        userId: input.userId ?? 'anonymous',
+        userText: input.userText,
+        locale,
+        nationality: 'SA',
+        defaults: {
+          destination: top?.flight?.to ?? undefined,
+          tripDurationDays: top?.hotel?.nights ?? 7,
+          hasTravelInsurance: true,
+          blankPages: 3,
+          machineReadable: true,
+        },
+      })
+      state = { ...state, phase: 'presenting' }
+      const structured = composer.compose({
+        planResult: state.lastPlanResult,
+        phase: 'presenting',
+        locale,
+        clarificationQuestion: reply,
+      })
+      structured.summary = reply
+      const renderedText = renderer.render(structured, locale)
+      const assistantMessage = createConversationMessage({
+        conversationId: input.conversationId,
+        role: 'assistant',
+        content: renderedText,
+        structured,
+        meta: { conversationUi: true, travelDocuments: true, documentQuery: commandKind },
+      })
+      session = appendMessage(updateSessionState(session, state), assistantMessage)
+      sessions.set(input.conversationId, session)
+      events.emit(createConversationEvent('response_composed', input.conversationId, {
+        documentQuery: commandKind,
       }))
       return {
         session,

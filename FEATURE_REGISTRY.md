@@ -71,6 +71,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `brain.refund_policy_engine` | experimental | **no** | Sprint 36 Universal Cancellation & Refund Policy Engine (alias: refund_policy_engine) — depends on `brain.trip_management` |
 | `brain.travel_disruption_engine` | experimental | **no** | Sprint 37 Travel Disruption & Smart Recovery Engine (alias: travel_disruption_engine) — depends on `brain.refund_policy_engine` |
 | `brain.loyalty_platform` | experimental | **no** | Sprint 38 Universal Loyalty, Rewards & Membership Platform (alias: loyalty_platform) — depends on `brain.travel_disruption_engine` |
+| `brain.travel_documents` | experimental | **no** | Sprint 39 Universal Travel Documents & Visa Intelligence Platform (alias: travel_documents) — depends on `brain.loyalty_platform` |
 | `providers.hotel_foundation` | experimental | **no** | Sprint 30 Hotel Provider Foundation — sandbox Hotelbeds / Expedia Rapid / Booking Connectivity (alias: hotel_provider_foundation) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |

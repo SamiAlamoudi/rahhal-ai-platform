@@ -59,6 +59,7 @@ export type FeatureId =
   | 'brain.refund_policy_engine'
   | 'brain.travel_disruption_engine'
   | 'brain.loyalty_platform'
+  | 'brain.travel_documents'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

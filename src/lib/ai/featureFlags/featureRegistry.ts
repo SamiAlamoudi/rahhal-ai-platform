@@ -529,6 +529,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: loyalty_platform. Additive rewards layer; does not rewrite planner, payments, refunds, or disruption recovery.',
   },
   {
+    id: 'brain.travel_documents',
+    name: 'Universal Travel Documents & Visa Intelligence Platform',
+    description:
+      'Sprint 39 travel-document intelligence — destination rules, passport/visa/vaccination checks, alerts, and conversation explanations across travel services. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.loyalty_platform'],
+    notes:
+      'Product alias: travel_documents. Sandbox destination rules with future government-integration hooks; does not rewrite booking/payments stacks.',
+  },
+  {
     id: 'providers.hotel_foundation',
     name: 'Hotel Provider Foundation',
     description:
