@@ -485,6 +485,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: payments_platform. Additive to src/lib/payment hosted checkout; does not duplicate planning/execution/booking logic. Sandbox adapters only — no live Stripe/Adyen credentials.',
   },
   {
+    id: 'brain.trip_management',
+    name: 'Post Booking & Trip Management',
+    description:
+      'Sprint 35 post-booking My Trip experience — itinerary/documents, notifications, flight status, cancellation/refund tracking after payments platform. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.payments_platform'],
+    notes:
+      'Product alias: trip_management. Extends existing src/lib/trips TripManager/TripRepository; does not duplicate payment/execution/planner logic.',
+  },
+  {
     id: 'providers.hotel_foundation',
     name: 'Hotel Provider Foundation',
     description:

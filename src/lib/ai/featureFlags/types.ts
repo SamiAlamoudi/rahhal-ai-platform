@@ -55,6 +55,7 @@ export type FeatureId =
   | 'brain.conversation_ui'
   | 'brain.travel_execution_engine'
   | 'brain.payments_platform'
+  | 'brain.trip_management'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

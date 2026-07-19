@@ -36,6 +36,11 @@ export type ConversationCommandKind =
   | 'compare_options'
   | 'continue'
   | 'pay_now'
+  | 'my_trip'
+  | 'show_itinerary'
+  | 'download_ticket'
+  | 'any_delays'
+  | 'what_hotel'
   | 'unknown'
 
 export type ConversationMessageRole = 'user' | 'assistant' | 'system'

@@ -274,6 +274,18 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.payments_platform` (depends on `brain.travel_execution_engine`).
 - See `docs/SPRINT34_PAYMENTS_PLATFORM.md`.
 
+## Post Booking & Trip Management (Sprint 35)
+
+- Extends existing `src/lib/trips/` (Phase V `TripManager` / `TripRepository`) — does not replace My Trips UI or booking records.
+- After Sprint 34 `COMPLETED` payment, `PostBookingService.createFromPayment` auto-creates My Trip, itinerary, vouchers, e-ticket, boarding pass abstraction, PDF itinerary, and invoice bundle.
+- Lifecycle timeline buckets: Upcoming / Active / Completed / Cancelled.
+- `NotificationScheduler` abstracts push / email / WhatsApp / SMS for booking, payment, check-in, gate, delay, boarding, hotel, and trip-completed triggers.
+- `FlightStatusMonitor` provider port for status / gate changes / delays / cancellations (sandbox mock).
+- `CancellationManager` + `RefundStatusTracker` for post-booking lifecycle (refunds still executed by payments platform).
+- Conversation answers “My trip”, itinerary, ticket download, delays, and hotel questions without re-planning.
+- Flag (default **OFF**): `brain.trip_management` (depends on `brain.payments_platform`).
+- See `docs/SPRINT35_TRIP_MANAGEMENT.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
