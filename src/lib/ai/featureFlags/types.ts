@@ -60,6 +60,7 @@ export type FeatureId =
   | 'brain.travel_disruption_engine'
   | 'brain.loyalty_platform'
   | 'brain.travel_documents'
+  | 'brain.supplier_marketplace'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

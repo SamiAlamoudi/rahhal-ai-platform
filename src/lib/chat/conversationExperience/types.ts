@@ -73,6 +73,11 @@ export type ConversationCommandKind =
   | 'transit_visa'
   | 'what_documents'
   | 'vaccination_requirements'
+  | 'trusted_suppliers_only'
+  | 'premium_hotel_providers'
+  | 'avoid_poor_refunds'
+  | 'fastest_confirmation'
+  | 'rank_suppliers'
   | 'unknown'
 
 export type ConversationMessageRole = 'user' | 'assistant' | 'system'
