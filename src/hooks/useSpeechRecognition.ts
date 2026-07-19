@@ -215,20 +215,38 @@ export function createSpeechRecognitionSession(
 
   const listeners = new Set<() => void>()
 
-  const emit = () => {
-    for (const listener of listeners) listener()
-  }
-
-  const snapshot = (): SpeechRecognitionSnapshot => ({
+  // Cached for useSyncExternalStore — getSnapshot must return a stable
+  // reference when data has not changed (React prod error #185 otherwise).
+  let cachedSnapshot: SpeechRecognitionSnapshot = {
     status,
     error,
     errorMessage,
     isSupported: status !== 'unsupported' && !!getCtor(),
-    isListening: status === 'listening',
+    isListening: false,
     lang,
     interimTranscript,
     finalTranscript,
-  })
+  }
+
+  const rebuildSnapshot = () => {
+    cachedSnapshot = {
+      status,
+      error,
+      errorMessage,
+      isSupported: status !== 'unsupported' && !!getCtor(),
+      isListening: status === 'listening',
+      lang,
+      interimTranscript,
+      finalTranscript,
+    }
+  }
+
+  const emit = () => {
+    rebuildSnapshot()
+    for (const listener of listeners) listener()
+  }
+
+  const snapshot = (): SpeechRecognitionSnapshot => cachedSnapshot
 
   const clearTimers = () => {
     if (silenceTimer) {

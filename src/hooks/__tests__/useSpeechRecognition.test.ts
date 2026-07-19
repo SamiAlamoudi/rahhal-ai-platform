@@ -113,6 +113,24 @@ describe('createSpeechRecognitionSession', () => {
     session.dispose()
   })
 
+  it('returns a referentially stable getSnapshot (React #185 regression)', () => {
+    const Ctor = createMockCtor([])
+    const session = createSpeechRecognitionSession({
+      getCtor: () => Ctor as never,
+    })
+    const a = session.getSnapshot()
+    const b = session.getSnapshot()
+    expect(Object.is(a, b)).toBe(true)
+
+    session.start()
+    const c = session.getSnapshot()
+    const d = session.getSnapshot()
+    expect(Object.is(c, d)).toBe(true)
+    expect(Object.is(a, c)).toBe(false)
+    expect(c.isListening).toBe(true)
+    session.dispose()
+  })
+
   it('toggles listening on and off', () => {
     const instances: MockRecognition[] = []
     const Ctor = createMockCtor(instances)
