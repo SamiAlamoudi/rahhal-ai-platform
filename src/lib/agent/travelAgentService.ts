@@ -45,17 +45,31 @@ import type {
 import { withTripPlan } from './types'
 import {
   buildBookingHistoryConciergeReply,
+  findLatestBookingRecord,
   getBookingHistoryUserId,
+  getBookingOrchestrator,
   loadUserBookingRecords,
   type BookingHistoryIntent,
   type BookingRecord,
 } from '../booking'
+import {
+  buildConfirmationConciergeReply,
+  confirmationStateFromSession,
+  type ConfirmationConciergeIntent,
+} from '../bookingConfirmation'
 
 const BOOKING_HISTORY_INTENTS = new Set<AgentIntent>([
   'show_trips',
   'show_latest_booking',
   'show_booking_details',
   'summarize_itinerary',
+])
+
+const CONFIRMATION_INTENTS = new Set<AgentIntent>([
+  'booking_confirmed',
+  'show_confirmation',
+  'booking_reference',
+  'booking_status',
 ])
 
 export interface TravelAgentTurnInput {
@@ -184,6 +198,9 @@ export function createTravelAgentService(
   const isBookingHistoryEnabled = (): boolean =>
     getFeatureRegistry().isEnabled('ui.booking_history')
 
+  const isBookingConfirmationEnabled = (): boolean =>
+    getFeatureRegistry().isEnabled('ui.booking_confirmation')
+
   const listBookingRecords = async (): Promise<BookingRecord[]> => {
     if (options.listBookingRecords) return options.listBookingRecords()
     const userId = getBookingHistoryUserId()
@@ -249,6 +266,40 @@ export function createTravelAgentService(
       }
       memory.missingFields = missingRequirementFields(memory.requirements)
       memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
+
+      // Sprint 14 — confirmation intents (above history / concierge intake).
+      if (
+        CONFIRMATION_INTENTS.has(extracted.intent)
+        && isBookingConfirmationEnabled()
+      ) {
+        const records = await listBookingRecords()
+        const latest = findLatestBookingRecord(records)
+        const session = latest
+          ? getBookingOrchestrator().getBookingSession(latest.sessionId)
+          : null
+        const confirmationState = session ? confirmationStateFromSession(session) : null
+        const reply = buildConfirmationConciergeReply({
+          intent: extracted.intent as ConfirmationConciergeIntent,
+          state: confirmationState,
+          record: latest,
+          locale: memory.locale,
+        })
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          toolResults: [],
+        }
+        return {
+          reply,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta,
+          toolBatch: null,
+        }
+      }
 
       // Sprint 13 — booking history intents (above concierge intake; no tools).
       if (

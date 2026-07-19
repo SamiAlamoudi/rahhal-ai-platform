@@ -16,6 +16,7 @@ export default function BookingDetailsPage() {
   const navigate = useNavigate()
   const { user, loading: authLoading } = useAuth()
   const enabled = getFeatureRegistry().isEnabled('ui.booking_history')
+  const confirmationEnabled = getFeatureRegistry().isEnabled('ui.booking_confirmation')
   const [locale] = useState<'ar' | 'en'>('en')
 
   const [record, setRecord] = useState<BookingRecord | null>(null)
@@ -228,6 +229,15 @@ export default function BookingDetailsPage() {
             ))}
           </ol>
         </section>
+
+        {confirmationEnabled && (
+          <Link
+            to={`/booking/confirmation/${encodeURIComponent(record.sessionId)}`}
+            className="inline-flex rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700"
+          >
+            {t('فتح شاشة التأكيد', 'Open confirmation')}
+          </Link>
+        )}
       </main>
     </div>
   )

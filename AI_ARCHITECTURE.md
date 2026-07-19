@@ -66,6 +66,15 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flags: `ui.my_trips` (myTrips), `ui.booking_history` (bookingHistory).
 - See `docs/SPRINT13_MY_TRIPS.md`.
 
+## Booking Confirmation Engine (Sprint 14)
+
+- Provider-independent confirmation lifecycle: pending → confirming → confirmed | failed | cancelled.
+- Supplier adapter ports (`src/lib/supplierAdapters`) — Amadeus adapter active; Duffel/Travelport/Sabre stubs.
+- Confirmation UI + reusable Booking Timeline (ticket-pending ready).
+- Concierge: confirmed? / show confirmation / reference / status.
+- Flags: `ui.booking_confirmation`, `ui.supplier_adapter`, `ui.booking_timeline`.
+- See `docs/SPRINT14_CONFIRMATION_ENGINE.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

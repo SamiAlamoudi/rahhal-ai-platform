@@ -112,6 +112,36 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: bookingHistory',
   },
   {
+    id: 'ui.booking_confirmation',
+    name: 'Booking Confirmation Engine',
+    description:
+      'Sprint 14 confirmation lifecycle (pending→confirming→confirmed/failed) and confirmation UI.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.booking_history'],
+    notes: 'Product alias: booking_confirmation',
+  },
+  {
+    id: 'ui.supplier_adapter',
+    name: 'Supplier Adapter Layer',
+    description:
+      'Sprint 14 provider-independent supplier booking ports (Amadeus active; Duffel/Travelport/Sabre stubs).',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.booking_confirmation'],
+    notes: 'Product alias: supplier_adapter',
+  },
+  {
+    id: 'ui.booking_timeline',
+    name: 'Booking Timeline',
+    description:
+      'Sprint 14 confirmation timeline UI (created → supplier → ticket pending → completed).',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.booking_confirmation'],
+    notes: 'Product alias: booking_timeline',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',
