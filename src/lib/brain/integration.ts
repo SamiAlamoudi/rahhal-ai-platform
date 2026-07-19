@@ -4,7 +4,7 @@
  */
 
 import { getFeatureRegistry } from '../ai'
-import type { AgentLocale, TripRequirements } from '../agent/types'
+import type { AgentLocale, AgentProviderMeta, TripRequirements } from '../agent/types'
 import type {
   BrainLocale,
   BrainResponsePlan,
@@ -199,10 +199,22 @@ export function runIntegratedBrainTurn(
 /**
  * Attach brain plan onto agent provider meta (additive).
  */
-export function withBrainMeta<T extends { brain?: BrainMetaSnapshot }>(
+export function withBrainMeta<T extends AgentProviderMeta>(
   meta: T,
   brain: BrainMetaSnapshot | null | undefined,
 ): T {
   if (!brain) return meta
-  return { ...meta, brain }
+  const brainMeta: NonNullable<AgentProviderMeta['brain']> = {
+    intent: brain.intent,
+    confidence: brain.confidence,
+    action: brain.action,
+    summary: brain.summary,
+    assistantGoal: brain.assistantGoal,
+    missingFields: [...brain.missingFields],
+    searchRequests: [...brain.searchRequests],
+    bookingRequests: [...brain.bookingRequests],
+    recommendations: [...brain.recommendations],
+    uiHints: brain.uiHints,
+  }
+  return { ...meta, brain: brainMeta }
 }
