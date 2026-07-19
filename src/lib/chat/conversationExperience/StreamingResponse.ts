@@ -50,7 +50,7 @@ export async function* streamConversationResponse(
     meta: {
       conversationUi: true,
       structured,
-      ...(options.meta ?? {}),
+      ...options.meta,
     },
   }
 }
