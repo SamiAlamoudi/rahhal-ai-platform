@@ -7,6 +7,7 @@ import {
   isDemoAuthEnabled,
   readDemoSession,
 } from './demoAuth'
+import { setBookingHistoryUserId } from '../booking/bookingHistoryContext'
 
 interface AuthContextValue {
   user: User | null
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return
       setSession(next)
       setUser(next?.user ?? null)
+      setBookingHistoryUserId(next?.user?.id ?? null)
       setLoading(false)
     }
 

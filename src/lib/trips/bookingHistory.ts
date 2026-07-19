@@ -3,6 +3,10 @@
  */
 
 import type { BookingSession } from '../booking/bookingTypes'
+import {
+  classifyTripBucket,
+  resolveBookingReference,
+} from '../booking/bookingRecord'
 import type { RahhalOrder } from '../payment/checkoutTypes'
 import type { NotificationSession } from '../notifications/types'
 import type { ConfirmationDocument, TicketSession } from '../ticketing/types'
@@ -26,6 +30,8 @@ export function toBookingHistoryEntry(session: BookingSession): BookingHistoryEn
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     confirmedAt: session.confirmedAt,
+    bookingReference: resolveBookingReference(session),
+    bucket: classifyTripBucket(session),
   }
 }
 

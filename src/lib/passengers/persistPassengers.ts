@@ -3,6 +3,7 @@
  */
 
 import {
+  attachBookingRecordMetadata,
   getBookingOrchestrator,
   syncBookingSession,
   upsertLocalBookingSession,
@@ -193,13 +194,17 @@ export async function persistPassengersToSession(
     throw new Error(orchestrator.getLastError() || 'Failed to persist passengers')
   }
 
-  await syncBookingSession(updated, session.status)
-  upsertLocalBookingSession(updated)
+  // Sprint 13 — attach durable booking reference / record snapshot
+  const withRecord = attachBookingRecordMetadata(updated)
+  orchestrator.importSession(withRecord)
+
+  await syncBookingSession(withRecord, session.status)
+  upsertLocalBookingSession(withRecord)
   savePassengerDraft(input.sessionId, normalizedPassengers)
 
   if (input.passengersComplete) {
     clearPassengerDraft(input.sessionId)
   }
 
-  return { session: updated, itemId: item.id }
+  return { session: withRecord, itemId: item.id }
 }

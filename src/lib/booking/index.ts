@@ -52,6 +52,44 @@ export {
   canResumeBookingSession,
   canCancelBookingSession,
 } from './myTripsActions'
+export type {
+  TripBucket,
+  BookingTimelineEvent,
+  BookingRecordFlight,
+  BookingRecord,
+} from './bookingRecord'
+export {
+  temporaryBookingReference,
+  resolveBookingReference,
+  classifyTripBucket,
+  buildBookingTimeline,
+  toBookingRecord,
+  attachBookingRecordMetadata,
+} from './bookingRecord'
+export type { MyTripsLists } from './myTripsQueries'
+export {
+  loadUserBookingRecords,
+  partitionBookingRecords,
+  loadMyTrips,
+  filterRecordsByBucket,
+  findLatestBookingRecord,
+  findBookingRecordById,
+  sessionsToRecords,
+  resolveBookingSessionForUser,
+} from './myTripsQueries'
+export type { BookingHistoryIntent } from './bookingHistoryConcierge'
+export {
+  buildShowTripsReply,
+  buildLatestBookingReply,
+  buildBookingDetailsReply,
+  buildItinerarySummaryReply,
+  buildBookingHistoryConciergeReply,
+} from './bookingHistoryConcierge'
+export { buildBookingDetailsConciergeSummary } from './bookingRecordConciergeSummary'
+export {
+  setBookingHistoryUserId,
+  getBookingHistoryUserId,
+} from './bookingHistoryContext'
 export {
   bookingSessionRepository,
   type BookingSessionRow,

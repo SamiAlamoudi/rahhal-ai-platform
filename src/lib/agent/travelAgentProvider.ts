@@ -32,6 +32,9 @@ export function createTravelAgentProvider(
     tools: options.tools,
     llms: options.llms,
     savePlan,
+    concierge: options.concierge,
+    conciergeEnabled: options.conciergeEnabled,
+    listBookingRecords: options.listBookingRecords,
   })
 
   return {
