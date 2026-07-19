@@ -92,6 +92,26 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     dependsOn: ['ui.flight_results_experience'],
   },
   {
+    id: 'ui.my_trips',
+    name: 'My Trips',
+    description:
+      'Sprint 13 production My Trips experience (upcoming/completed/cancelled) over booking sessions.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.passenger_booking_flow'],
+    notes: 'Product alias: myTrips',
+  },
+  {
+    id: 'ui.booking_history',
+    name: 'Booking History',
+    description:
+      'Sprint 13 booking records, details, timeline, and concierge booking-history intents.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.my_trips'],
+    notes: 'Product alias: bookingHistory',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

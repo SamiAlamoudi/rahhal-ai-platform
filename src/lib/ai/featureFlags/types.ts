@@ -16,6 +16,8 @@ export type FeatureId =
   | 'ai.concierge'
   | 'ui.flight_results_experience'
   | 'ui.passenger_booking_flow'
+  | 'ui.my_trips'
+  | 'ui.booking_history'
   | 'payments.live'
   | 'providers.live_master'
 

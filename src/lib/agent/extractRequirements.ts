@@ -147,6 +147,28 @@ export function extractFromUserText(
 }
 
 function detectIntent(lower: string, original: string, locale: AgentLocale): AgentIntent {
+  // Sprint 13 — booking history / My Trips intents (before generic plan/save)
+  if (
+    /\bsummarize\b.*\b(itinerary|trip|booking)\b|\bitinerary summary\b|لخّص|لخص|ملخص (?:الرحلة|الحجز|مساري)/.test(lower + original)
+  ) {
+    return 'summarize_itinerary'
+  }
+  if (
+    /\b(booking|trip)\s+details\b|\bshow\b.*\bbooking details\b|تفاصيل الحجز|تفاصيل رحلتي/.test(lower + original)
+  ) {
+    return 'show_booking_details'
+  }
+  if (
+    /\blatest booking\b|\blast booking\b|\bmy (?:latest|last) (?:booking|trip)\b|أحدث حجز|اخر حجز|آخر حجز/.test(lower + original)
+  ) {
+    return 'show_latest_booking'
+  }
+  if (
+    /\bshow my trips\b|\bmy trips\b|\blist (?:my )?(?:trips|bookings)\b|\bbooking history\b|رحلاتي|حجوزاتي|اعرض رحلاتي|أظهر رحلاتي/.test(lower + original)
+  ) {
+    return 'show_trips'
+  }
+
   if (
     /\bregenerate\s+day\b|أعد اليوم|اعد اليوم|جدّد اليوم|جدد اليوم|أعد إنشاء اليوم|اعد انشاء اليوم/.test(lower)
     || /أعد\s*اليوم|اعد\s*اليوم/.test(original)

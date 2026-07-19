@@ -34,6 +34,7 @@ import { selectToolsForTurn } from './tools/selectTools'
 import { createDefaultAgentToolRegistry } from './tools/stubs'
 import type { AgentToolRegistry, AgentToolResult, ToolExecutionBatch } from './tools/types'
 import type {
+  AgentIntent,
   AgentMemory,
   AgentProviderMeta,
   AgentToolRunSummary,
@@ -42,6 +43,20 @@ import type {
   TripRequirements,
 } from './types'
 import { withTripPlan } from './types'
+import {
+  buildBookingHistoryConciergeReply,
+  getBookingHistoryUserId,
+  loadUserBookingRecords,
+  type BookingHistoryIntent,
+  type BookingRecord,
+} from '../booking'
+
+const BOOKING_HISTORY_INTENTS = new Set<AgentIntent>([
+  'show_trips',
+  'show_latest_booking',
+  'show_booking_details',
+  'summarize_itinerary',
+])
 
 export interface TravelAgentTurnInput {
   conversationId: string
@@ -72,6 +87,11 @@ export interface TravelAgentServiceOptions {
   concierge?: ConciergeService | false
   /** Explicit override for the `ai.concierge` feature flag. */
   conciergeEnabled?: boolean
+  /**
+   * Sprint 13 — inject booking records for My Trips / history intents.
+   * Defaults to loading the signed-in user's BookingSession projections.
+   */
+  listBookingRecords?: () => Promise<BookingRecord[]>
 }
 
 export interface TravelAgentService {
@@ -161,6 +181,16 @@ export function createTravelAgentService(
     return getFeatureRegistry().isEnabled('ai.concierge')
   }
 
+  const isBookingHistoryEnabled = (): boolean =>
+    getFeatureRegistry().isEnabled('ui.booking_history')
+
+  const listBookingRecords = async (): Promise<BookingRecord[]> => {
+    if (options.listBookingRecords) return options.listBookingRecords()
+    const userId = getBookingHistoryUserId()
+    if (!userId) return []
+    return loadUserBookingRecords(userId)
+  }
+
   const runToolsForPlan = async (input: {
     memory: AgentMemory
     conversationId: string
@@ -219,6 +249,34 @@ export function createTravelAgentService(
       }
       memory.missingFields = missingRequirementFields(memory.requirements)
       memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
+
+      // Sprint 13 — booking history intents (above concierge intake; no tools).
+      if (
+        BOOKING_HISTORY_INTENTS.has(extracted.intent)
+        && isBookingHistoryEnabled()
+      ) {
+        const records = await listBookingRecords()
+        const reply = buildBookingHistoryConciergeReply({
+          intent: extracted.intent as BookingHistoryIntent,
+          records,
+          locale: memory.locale,
+        })
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          toolResults: [],
+        }
+        return {
+          reply,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta,
+          toolBatch: null,
+        }
+      }
 
       let conciergeState: ConciergeState | null = rebuildConciergeStateFromMessages(
         input.messages.slice(0, -1),

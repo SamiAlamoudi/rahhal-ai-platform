@@ -152,6 +152,10 @@ export interface BookingHistoryEntry {
   createdAt: string
   updatedAt: string
   confirmedAt: string | null
+  /** Sprint 13 — temporary or supplier booking reference. */
+  bookingReference?: string
+  /** Sprint 13 — upcoming | completed | cancelled */
+  bucket?: 'upcoming' | 'completed' | 'cancelled'
 }
 
 export interface PaymentHistoryEntry {

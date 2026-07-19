@@ -57,6 +57,15 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag: `ui.passenger_booking_flow` (depends on `ui.flight_results_experience`).
 - See `docs/SPRINT12_PASSENGERS.md`.
 
+## My Trips & Booking Records (Sprint 13)
+
+- Booking Record projection over `BookingSession` (single source of truth) with temporary `RHL-*` references.
+- My Trips UI: upcoming / completed / cancelled + empty/loading/error states.
+- Booking Details: flight, passengers, fare, reference, status, timeline, concierge summary.
+- Concierge intents: show trips / latest booking / details / summarize itinerary (agent-layer load + consultant voice).
+- Flags: `ui.my_trips` (myTrips), `ui.booking_history` (bookingHistory).
+- See `docs/SPRINT13_MY_TRIPS.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

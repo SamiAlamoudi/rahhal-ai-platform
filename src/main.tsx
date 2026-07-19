@@ -23,6 +23,7 @@ import BookingReview from './pages/BookingReview.tsx'
 import PassengerBookingPage from './pages/PassengerBookingPage.tsx'
 import BookingReturn from './pages/BookingReturn.tsx'
 import MyTrips from './pages/MyTrips.tsx'
+import BookingDetailsPage from './pages/BookingDetailsPage.tsx'
 import SavedTrips from './pages/SavedTrips.tsx'
 import Settings from './pages/Settings.tsx'
 import ChatPage from './pages/ChatPage.tsx'
@@ -120,6 +121,11 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/my-trips" element={
             <ProtectedRoute>
               <MyTrips />
+            </ProtectedRoute>
+          } />
+          <Route path="/my-trips/:sessionId" element={
+            <ProtectedRoute>
+              <BookingDetailsPage />
             </ProtectedRoute>
           } />
           <Route path="/saved-trips" element={

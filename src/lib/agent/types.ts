@@ -22,6 +22,10 @@ export type AgentIntent =
   | 'regenerate_day'
   | 'edit'
   | 'save'
+  | 'show_trips'
+  | 'show_latest_booking'
+  | 'show_booking_details'
+  | 'summarize_itinerary'
   | 'unknown'
 
 /** Scoped regeneration target for the Intelligent Decision Engine. */
