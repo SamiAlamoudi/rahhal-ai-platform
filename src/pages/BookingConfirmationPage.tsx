@@ -18,6 +18,13 @@ import {
   BookingTimeline,
   ConfirmationStatusBadge,
 } from '../components/bookingConfirmation'
+import {
+  createOrderFromBooking,
+  findManagedOrderBySessionId,
+  buildOrderTimeline,
+  activeOrderTimelineType,
+  type ManagedOrder,
+} from '../lib/orderManagement'
 
 export default function BookingConfirmationPage() {
   const { sessionId: routeSessionId = '' } = useParams<{ sessionId: string }>()
@@ -27,13 +34,37 @@ export default function BookingConfirmationPage() {
   const { user, loading: authLoading } = useAuth()
   const enabled = getFeatureRegistry().isEnabled('ui.booking_confirmation')
   const timelineEnabled = getFeatureRegistry().isEnabled('ui.booking_timeline')
+  const orderEnabled = getFeatureRegistry().isEnabled('ui.order_management')
+  const checkoutEnabled = getFeatureRegistry().isEnabled('ui.checkout_review')
   const [locale] = useState<'ar' | 'en'>('en')
 
   const [record, setRecord] = useState<BookingRecord | null>(null)
   const [state, setState] = useState<ConfirmationState | null>(null)
+  const [order, setOrder] = useState<ManagedOrder | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const ensureOrder = useCallback(async (
+    sid: string,
+    uid: string,
+    status: ConfirmationState['status'],
+  ) => {
+    if (!orderEnabled || status !== 'confirmed') return null
+    try {
+      const existing = findManagedOrderBySessionId(sid)
+      if (existing) {
+        setOrder(existing)
+        return existing
+      }
+      const result = await createOrderFromBooking({ bookingSessionId: sid, userId: uid })
+      setOrder(result.order)
+      return result.order
+    } catch (err) {
+      console.warn('[order] createOrderFromBooking failed', err)
+      return null
+    }
+  }, [orderEnabled])
 
   const runConfirm = useCallback(async (mode: 'start' | 'retry') => {
     if (!user?.id || !sessionId) return
@@ -47,12 +78,13 @@ export default function BookingConfirmationPage() {
       if (!result.ok && result.error) setError(result.error)
       const session = await resolveBookingSessionForUser(sessionId, user.id)
       if (session) setRecord(toBookingRecord(session))
+      await ensureOrder(sessionId, user.id, result.state.status)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Confirmation failed')
     } finally {
       setBusy(false)
     }
-  }, [user?.id, sessionId, locale])
+  }, [user?.id, sessionId, locale, ensureOrder])
 
   useEffect(() => {
     if (!enabled || authLoading) return
@@ -75,7 +107,6 @@ export default function BookingConfirmationPage() {
         const existing = confirmationStateFromSession(session)
         setState(existing)
         if (existing.status === 'pending' || existing.status === 'failed') {
-          // Auto-start confirmation when landing on the page
           const result = existing.status === 'failed'
             ? await retryConfirmation({ sessionId, userId: user.id, locale })
             : await startConfirmation({ sessionId, userId: user.id, locale })
@@ -84,7 +115,10 @@ export default function BookingConfirmationPage() {
             if (!result.ok && result.error) setError(result.error)
             const refreshed = await resolveBookingSessionForUser(sessionId, user.id)
             if (refreshed) setRecord(toBookingRecord(refreshed))
+            await ensureOrder(sessionId, user.id, result.state.status)
           }
+        } else if (existing.status === 'confirmed') {
+          await ensureOrder(sessionId, user.id, existing.status)
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load confirmation')
@@ -95,12 +129,17 @@ export default function BookingConfirmationPage() {
     return () => {
       cancelled = true
     }
-  }, [enabled, authLoading, user?.id, sessionId, locale])
+  }, [enabled, authLoading, user?.id, sessionId, locale, ensureOrder])
 
   const conciergeText = useMemo(
     () => (state ? buildConfirmationScreenSummary(state, locale) : ''),
     [state, locale],
   )
+
+  const orderTimeline = useMemo(() => {
+    if (!order || !state) return null
+    return buildOrderTimeline({ order, confirmation: state })
+  }, [order, state])
 
   if (!enabled) return <Navigate to="/my-trips" replace />
   if (authLoading || loading) {
@@ -211,23 +250,47 @@ export default function BookingConfirmationPage() {
           ) : null}
         </section>
 
+        {orderEnabled && order && (
+          <section
+            className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-5 shadow-sm"
+            data-testid="confirmation-order-card"
+          >
+            <h2 className="text-sm font-bold text-slate-900">{t('الطلب', 'Order')}</h2>
+            <p className="mt-2 font-mono text-sm font-semibold text-slate-800">{order.orderNumber}</p>
+            <p className="mt-1 text-xs text-slate-600">
+              {t('الحالة', 'Status')}: {order.orderStatus} · {t('الدفع', 'Payment')}: {order.paymentStatus}
+            </p>
+            <p className="mt-1 text-xs text-slate-600">
+              {t('الإجمالي', 'Total')}: {order.totalAmount.toLocaleString()} {order.currency}
+            </p>
+          </section>
+        )}
+
         {timelineEnabled && (
           <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
             <h2 className="text-sm font-bold text-slate-900">{t('الخط الزمني', 'Timeline')}</h2>
             <div className="mt-3">
-              <BookingTimeline
-                events={state.events}
-                locale={locale}
-                activeType={
-                  status === 'confirmed'
-                    ? 'supplier_confirmed'
-                    : status === 'failed'
-                      ? 'confirmation_failed'
-                      : status === 'confirming'
-                        ? 'confirming'
-                        : 'waiting_for_supplier'
-                }
-              />
+              {order && orderTimeline ? (
+                <BookingTimeline
+                  events={orderTimeline}
+                  locale={locale}
+                  activeType={activeOrderTimelineType(order)}
+                />
+              ) : (
+                <BookingTimeline
+                  events={state.events}
+                  locale={locale}
+                  activeType={
+                    status === 'confirmed'
+                      ? 'supplier_confirmed'
+                      : status === 'failed'
+                        ? 'confirmation_failed'
+                        : status === 'confirming'
+                          ? 'confirming'
+                          : 'waiting_for_supplier'
+                  }
+                />
+              )}
             </div>
           </section>
         )}
@@ -246,6 +309,15 @@ export default function BookingConfirmationPage() {
                   ? t('إعادة المحاولة', 'Retry')
                   : t('تأكيد الحجز', 'Confirm booking')}
             </button>
+          )}
+          {checkoutEnabled && order && (
+            <Link
+              to={order.checkoutPath}
+              data-testid="confirmation-to-checkout"
+              className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700"
+            >
+              {t('مراجعة الدفع', 'Checkout review')}
+            </Link>
           )}
           <Link
             to={`/my-trips/${encodeURIComponent(sessionId)}`}

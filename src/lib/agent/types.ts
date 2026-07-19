@@ -30,6 +30,10 @@ export type AgentIntent =
   | 'show_confirmation'
   | 'booking_reference'
   | 'booking_status'
+  | 'how_much_will_i_pay'
+  | 'is_order_ready'
+  | 'show_checkout'
+  | 'what_is_payment_status'
   | 'unknown'
 
 /** Scoped regeneration target for the Intelligent Decision Engine. */

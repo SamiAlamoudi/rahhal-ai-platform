@@ -57,6 +57,11 @@ import {
   confirmationStateFromSession,
   type ConfirmationConciergeIntent,
 } from '../bookingConfirmation'
+import {
+  buildOrderConciergeReply,
+  findManagedOrderBySessionId,
+  type OrderConciergeIntent,
+} from '../orderManagement'
 
 const BOOKING_HISTORY_INTENTS = new Set<AgentIntent>([
   'show_trips',
@@ -70,6 +75,13 @@ const CONFIRMATION_INTENTS = new Set<AgentIntent>([
   'show_confirmation',
   'booking_reference',
   'booking_status',
+])
+
+const ORDER_PAYMENT_INTENTS = new Set<AgentIntent>([
+  'how_much_will_i_pay',
+  'is_order_ready',
+  'show_checkout',
+  'what_is_payment_status',
 ])
 
 export interface TravelAgentTurnInput {
@@ -201,6 +213,9 @@ export function createTravelAgentService(
   const isBookingConfirmationEnabled = (): boolean =>
     getFeatureRegistry().isEnabled('ui.booking_confirmation')
 
+  const isOrderManagementEnabled = (): boolean =>
+    getFeatureRegistry().isEnabled('ui.order_management')
+
   const listBookingRecords = async (): Promise<BookingRecord[]> => {
     if (options.listBookingRecords) return options.listBookingRecords()
     const userId = getBookingHistoryUserId()
@@ -266,6 +281,42 @@ export function createTravelAgentService(
       }
       memory.missingFields = missingRequirementFields(memory.requirements)
       memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
+
+      // Sprint 15 — order / payment intents (above confirmation / history).
+      if (
+        ORDER_PAYMENT_INTENTS.has(extracted.intent)
+        && isOrderManagementEnabled()
+      ) {
+        const records = await listBookingRecords()
+        const latest = findLatestBookingRecord(records)
+        const customerId = getBookingHistoryUserId() ?? latest?.userId
+        const order = latest
+          ? findManagedOrderBySessionId(latest.sessionId)
+          : null
+        const reply = buildOrderConciergeReply(
+          extracted.intent as OrderConciergeIntent,
+          {
+            bookingSessionId: latest?.sessionId,
+            customerId: customerId ?? undefined,
+            order,
+          },
+        )
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          toolResults: [],
+        }
+        return {
+          reply,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta,
+          toolBatch: null,
+        }
+      }
 
       // Sprint 14 — confirmation intents (above history / concierge intake).
       if (

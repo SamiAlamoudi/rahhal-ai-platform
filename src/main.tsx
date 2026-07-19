@@ -30,6 +30,7 @@ import Settings from './pages/Settings.tsx'
 import ChatPage from './pages/ChatPage.tsx'
 import CheckoutPage from './pages/CheckoutPage.tsx'
 import CheckoutReviewPage from './pages/CheckoutReviewPage.tsx'
+import OrderCheckoutReviewPage from './pages/OrderCheckoutReviewPage.tsx'
 import CheckoutPaymentPage from './pages/CheckoutPaymentPage.tsx'
 import CheckoutReturnPage from './pages/CheckoutReturnPage.tsx'
 import CheckoutSuccessPage from './pages/CheckoutSuccessPage.tsx'
@@ -192,6 +193,11 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/checkout/review" element={
             <ProtectedRoute>
               <CheckoutReviewPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/checkout/order/:orderId" element={
+            <ProtectedRoute>
+              <OrderCheckoutReviewPage />
             </ProtectedRoute>
           } />
           <Route path="/checkout/payment" element={

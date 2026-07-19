@@ -1,7 +1,14 @@
-import type { ConfirmationEvent } from '../../lib/bookingConfirmation'
+/** Compatible with ConfirmationEvent and OrderTimelineEvent. */
+export interface TimelineEventView {
+  id: string
+  type: string
+  at: string
+  labelEn: string
+  labelAr: string
+}
 
 export interface BookingTimelineProps {
-  events: ConfirmationEvent[]
+  events: TimelineEventView[]
   locale?: 'ar' | 'en'
   /** Highlight the latest / active step. */
   activeType?: string | null

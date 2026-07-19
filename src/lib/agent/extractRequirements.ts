@@ -147,6 +147,33 @@ export function extractFromUserText(
 }
 
 function detectIntent(lower: string, original: string, locale: AgentLocale): AgentIntent {
+  // Sprint 15 — order / payment intents (before confirmation / history / plan)
+  // Test `lower` and `original` separately so concatenating does not erase \b boundaries.
+  if (
+    /\bhow much (?:will|do) i pay\b|\bhow much (?:is|for) (?:my )?(?:order|total|payment)\b|\bwhat (?:is|will be) (?:the |my )?(?:total|price|amount)\b/.test(lower)
+    || /كم سأدفع|كم ادفع|كم المبلغ|ما هو الإجمالي/.test(original)
+  ) {
+    return 'how_much_will_i_pay'
+  }
+  if (
+    /\bis my order ready\b|\border ready\b|\bis (?:the |my )?order (?:ready|complete)\b/.test(lower)
+    || /هل الطلب جاهز|هل طلبي جاهز/.test(original)
+  ) {
+    return 'is_order_ready'
+  }
+  if (
+    /\bshow (?:my )?checkout\b|\bcheckout (?:review|summary|page)\b/.test(lower)
+    || /أظهر الدفع|اعرض الدفع|مراجعة الدفع|صفحة الدفع/.test(original)
+  ) {
+    return 'show_checkout'
+  }
+  if (
+    /\bwhat is my payment status\b|\bpayment status\b|\bhave i paid\b/.test(lower)
+    || /حالة الدفع|هل دفعت/.test(original)
+  ) {
+    return 'what_is_payment_status'
+  }
+
   // Sprint 14 — confirmation intents (before Sprint 13 history / plan)
   if (
     /\bhas my booking been confirmed\b|\bis my booking confirmed\b|\bbooking confirmed\b|هل تم تأكيد|هل حجزي مؤكد|تأكد الحجز/.test(lower + original)
