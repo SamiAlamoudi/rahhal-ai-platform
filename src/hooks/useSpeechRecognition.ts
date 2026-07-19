@@ -48,16 +48,25 @@ type SpeechRecognitionErrorEventLike = {
 
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike
 
+/** Default silence gap before auto-stop (3–5s range for iPhone Safari UX). */
+export const DEFAULT_SILENCE_MS = 4000
+
+/** Hard cap for a continuous listening session. */
+export const DEFAULT_MAX_LISTEN_MS = 60_000
+
+/** Brief delay before restarting after an unexpected browser end (WebKit). */
+const RESTART_DELAY_MS = 160
+
 export type UseSpeechRecognitionOptions = {
-  /** Called with final transcript when recognition completes. Never auto-sends. */
+  /** Called with the full session transcript when listening ends. Never auto-sends. */
   onResult?: (transcript: string) => void
   /** Optional interim transcript for live preview. */
   onInterim?: (transcript: string) => void
   /** Force language; default auto-detects from browser. */
   lang?: SpeechLang
-  /** Auto-stop after this many ms of silence (default 2200). */
+  /** Auto-stop after this many ms of silence (default 4000). */
   silenceMs?: number
-  /** Hard timeout for a listening session (default 20000). */
+  /** Hard timeout for a listening session (default 60000). */
   maxListenMs?: number
 }
 
@@ -87,7 +96,7 @@ declare global {
   }
 }
 
-/** Singleton owner so only one recognizer runs at a time (requirement #9). */
+/** Singleton owner so only one recognizer runs at a time. */
 let activeOwnerId: symbol | null = null
 let activeRecognition: SpeechRecognitionLike | null = null
 
@@ -180,13 +189,13 @@ export type SpeechRecognitionSessionOptions = {
 
 /**
  * Framework-free speech recognition session (testable in Node).
- * Mobile Safari: webkitSpeechRecognition, continuous=false, silence auto-stop.
+ * Mobile Safari: webkitSpeechRecognition with continuous restart + silence gate.
  */
 export function createSpeechRecognitionSession(
   options: SpeechRecognitionSessionOptions = {},
 ) {
-  let silenceMs = options.silenceMs ?? 2200
-  let maxListenMs = options.maxListenMs ?? 20_000
+  let silenceMs = options.silenceMs ?? DEFAULT_SILENCE_MS
+  let maxListenMs = options.maxListenMs ?? DEFAULT_MAX_LISTEN_MS
   let langOverride = options.lang
   const getCtor = options.getCtor ?? getSpeechRecognitionCtor
   const detectLang = options.detectLang ?? (() => langOverride ?? detectSpeechLang())
@@ -207,11 +216,14 @@ export function createSpeechRecognitionSession(
   let recognition: SpeechRecognitionLike | null = null
   let silenceTimer: ReturnType<typeof setTimeout> | null = null
   let maxTimer: ReturnType<typeof setTimeout> | null = null
+  let restartTimer: ReturnType<typeof setTimeout> | null = null
   let interimBuffer = ''
   let finalBuffer = ''
   let delivered = false
   let cancelled = false
   let disposed = false
+  /** True from start until Stop / silence / max timeout / cancel. */
+  let listeningDesired = false
 
   const listeners = new Set<() => void>()
 
@@ -248,16 +260,48 @@ export function createSpeechRecognitionSession(
 
   const snapshot = (): SpeechRecognitionSnapshot => cachedSnapshot
 
-  const clearTimers = () => {
+  const clearSilenceTimer = () => {
     if (silenceTimer) {
       clearTimeout(silenceTimer)
       silenceTimer = null
     }
+  }
+
+  const clearRestartTimer = () => {
+    if (restartTimer) {
+      clearTimeout(restartTimer)
+      restartTimer = null
+    }
+  }
+
+  const clearMaxTimer = () => {
     if (maxTimer) {
       clearTimeout(maxTimer)
       maxTimer = null
     }
   }
+
+  const clearTimers = () => {
+    clearSilenceTimer()
+    clearMaxTimer()
+    clearRestartTimer()
+  }
+
+  const commitInterimToFinal = () => {
+    const piece = interimBuffer.trim()
+    if (!piece) {
+      interimBuffer = ''
+      interimTranscript = ''
+      return
+    }
+    finalBuffer = `${finalBuffer} ${piece}`.trim()
+    finalTranscript = finalBuffer
+    interimBuffer = ''
+    interimTranscript = ''
+  }
+
+  const sessionTranscript = () =>
+    [finalBuffer, interimBuffer].filter(Boolean).join(' ').trim()
 
   const deliverResult = (transcript: string) => {
     if (delivered || cancelled) return
@@ -268,6 +312,38 @@ export function createSpeechRecognitionSession(
       onResult?.(trimmed)
       emit()
     }
+  }
+
+  const endListeningSession = (opts?: { errorKind?: SpeechRecognitionErrorKind }) => {
+    listeningDesired = false
+    clearTimers()
+    commitInterimToFinal()
+    const text = finalBuffer.trim()
+    if (!cancelled) {
+      deliverResult(text)
+    }
+    recognition = null
+    if (activeOwnerId === ownerId) {
+      activeRecognition = null
+      activeOwnerId = null
+    }
+    interimTranscript = ''
+    interimBuffer = ''
+    if (opts?.errorKind) {
+      const mapped = mapError(
+        opts.errorKind === 'timeout'
+          ? 'timeout'
+          : opts.errorKind === 'no-speech'
+            ? 'no-speech'
+            : 'network',
+      )
+      error = opts.errorKind
+      errorMessage = mapped.message
+      status = mapped.status === 'idle' ? 'idle' : mapped.status
+    } else if (status === 'listening' || status === 'idle') {
+      status = 'idle'
+    }
+    emit()
   }
 
   const detachRecognition = (rec: SpeechRecognitionLike | null) => {
@@ -296,29 +372,26 @@ export function createSpeechRecognitionSession(
     }
   }
 
+  /** Reset silence gate only when speech activity is observed (ignores short pauses). */
   const bumpSilenceTimer = () => {
-    if (silenceTimer) clearTimeout(silenceTimer)
+    if (!listeningDesired) return
+    clearSilenceTimer()
     silenceTimer = setTimeout(() => {
+      // Longer silence → end session (do not restart).
+      listeningDesired = false
       try {
         recognition?.stop()
       } catch {
         /* ignore */
       }
+      // If recognition already gone, finish now.
+      if (!recognition) {
+        endListeningSession()
+      }
     }, silenceMs)
   }
 
-  const start = () => {
-    if (disposed) return
-    const Ctor = getCtor()
-    if (!Ctor) {
-      status = 'unsupported'
-      error = 'unsupported'
-      errorMessage = 'Voice input is not supported in this browser.'
-      emit()
-      return
-    }
-
-    // Prevent duplicate recognizers — release any previous owner.
+  const claimSingleton = () => {
     if (activeOwnerId && activeOwnerId !== ownerId) {
       try {
         activeRecognition?.abort()
@@ -328,46 +401,51 @@ export function createSpeechRecognitionSession(
       activeRecognition = null
       activeOwnerId = null
     }
-    if (recognition) {
-      tearDown(true)
+  }
+
+  const attachAndStart = (): boolean => {
+    if (disposed || cancelled || !listeningDesired) return false
+    const Ctor = getCtor()
+    if (!Ctor) {
+      listeningDesired = false
+      status = 'unsupported'
+      error = 'unsupported'
+      errorMessage = 'Voice input is not supported in this browser.'
+      emit()
+      return false
     }
 
-    lang = detectLang()
-    interimBuffer = ''
-    finalBuffer = ''
-    delivered = false
-    cancelled = false
-    interimTranscript = ''
-    finalTranscript = ''
-    error = null
-    errorMessage = null
+    claimSingleton()
+    if (recognition) {
+      const prev = recognition
+      recognition = null
+      detachRecognition(prev)
+      try {
+        prev.abort()
+      } catch {
+        /* ignore */
+      }
+    }
 
     const next = new Ctor()
     next.lang = lang
-    // Safari / iOS: continuous false is more reliable; silence timer covers auto-stop.
+    // Safari / iOS: continuous=false is more reliable; we restart while listeningDesired.
     next.continuous = false
     next.interimResults = true
     next.maxAlternatives = 1
 
     next.onstart = () => {
+      if (!listeningDesired) return
       status = 'listening'
+      error = null
+      errorMessage = null
       emit()
+      // Arm silence on start so idle mic still auto-stops; speech results extend it.
       bumpSilenceTimer()
-      maxTimer = setTimeout(() => {
-        const mapped = mapError('timeout')
-        error = mapped.kind
-        errorMessage = mapped.message
-        status = mapped.status
-        emit()
-        try {
-          next.stop()
-        } catch {
-          /* ignore */
-        }
-      }, maxListenMs)
     }
 
     next.onresult = (event) => {
+      if (!listeningDesired) return
       let interim = ''
       let finalChunk = ''
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -377,6 +455,7 @@ export function createSpeechRecognitionSession(
         else interim += text
       }
       if (finalChunk) {
+        // Append — never replace prior finals in this session.
         finalBuffer = `${finalBuffer} ${finalChunk}`.trim()
         finalTranscript = finalBuffer
       }
@@ -388,9 +467,10 @@ export function createSpeechRecognitionSession(
     }
 
     next.onerror = (event) => {
-      clearTimers()
       if (cancelled || event.error === 'aborted') {
         if (cancelled) {
+          listeningDesired = false
+          clearTimers()
           status = 'idle'
           error = 'user-cancelled'
           errorMessage = 'Voice input cancelled.'
@@ -398,27 +478,57 @@ export function createSpeechRecognitionSession(
         }
         return
       }
+
+      // Safari often ends a non-continuous turn with no-speech; keep listeningDesired
+      // and let onend restart so short pauses do not kill the session.
+      if (event.error === 'no-speech' && listeningDesired) {
+        return
+      }
+
+      listeningDesired = false
+      clearSilenceTimer()
+      clearRestartTimer()
       const mapped = mapError(event.error)
       error = mapped.kind
       errorMessage = mapped.message
       status = mapped.status === 'idle' ? 'idle' : mapped.status
-      if (mapped.kind === 'no-speech' || mapped.kind === 'timeout') {
+      if (mapped.kind === 'timeout') {
+        deliverResult(sessionTranscript())
+      } else if (mapped.kind === 'no-speech') {
         deliverResult(finalBuffer)
       }
       emit()
     }
 
     next.onend = () => {
-      clearTimers()
-      const text = [finalBuffer, interimBuffer].filter(Boolean).join(' ').trim()
-      if (!cancelled) {
-        deliverResult(text)
-      }
+      // Fold any leftover interim into the session transcript before restart/end.
+      commitInterimToFinal()
       recognition = null
       if (activeOwnerId === ownerId) {
         activeRecognition = null
         activeOwnerId = null
       }
+
+      if (disposed || cancelled) {
+        emit()
+        return
+      }
+
+      if (listeningDesired) {
+        // Unexpected browser end while mic still active → continuous restart.
+        status = 'listening'
+        emit()
+        clearRestartTimer()
+        restartTimer = setTimeout(() => {
+          restartTimer = null
+          if (!listeningDesired || disposed || cancelled) return
+          attachAndStart()
+        }, RESTART_DELAY_MS)
+        return
+      }
+
+      // Intentional end: Stop, silence, or hard timeout already cleared listeningDesired.
+      deliverResult(finalBuffer)
       if (status === 'listening') {
         status = 'idle'
       }
@@ -433,33 +543,121 @@ export function createSpeechRecognitionSession(
 
     try {
       next.start()
+      return true
     } catch {
-      tearDown(true)
+      recognition = null
+      detachRecognition(next)
+      if (activeOwnerId === ownerId) {
+        activeRecognition = null
+        activeOwnerId = null
+      }
+      // One retry shortly after — WebKit sometimes rejects immediate restart.
+      if (listeningDesired) {
+        clearRestartTimer()
+        restartTimer = setTimeout(() => {
+          restartTimer = null
+          if (!listeningDesired || disposed || cancelled) return
+          attachAndStart()
+        }, RESTART_DELAY_MS)
+        return false
+      }
+      listeningDesired = false
       status = 'error'
       error = 'recognition-failure'
       errorMessage = 'Could not start speech recognition.'
       emit()
+      return false
     }
+  }
+
+  const start = () => {
+    if (disposed) return
+    const Ctor = getCtor()
+    if (!Ctor) {
+      status = 'unsupported'
+      error = 'unsupported'
+      errorMessage = 'Voice input is not supported in this browser.'
+      emit()
+      return
+    }
+
+    clearTimers()
+    claimSingleton()
+    if (recognition) {
+      const prev = recognition
+      recognition = null
+      detachRecognition(prev)
+      try {
+        prev.abort()
+      } catch {
+        /* ignore */
+      }
+    }
+
+    lang = detectLang()
+    interimBuffer = ''
+    finalBuffer = ''
+    delivered = false
+    cancelled = false
+    listeningDesired = true
+    interimTranscript = ''
+    finalTranscript = ''
+    error = null
+    errorMessage = null
+    status = 'listening'
+    emit()
+
+    // Session-level max listen (not reset on each continuous restart).
+    maxTimer = setTimeout(() => {
+      listeningDesired = false
+      const mapped = mapError('timeout')
+      error = mapped.kind
+      errorMessage = mapped.message
+      status = mapped.status
+      emit()
+      try {
+        recognition?.stop()
+      } catch {
+        /* ignore */
+      }
+      if (!recognition) {
+        endListeningSession({ errorKind: 'timeout' })
+      }
+    }, maxListenMs)
+
+    attachAndStart()
   }
 
   const stop = () => {
     if (disposed) return
+    // Manual Stop must work immediately — no restart.
+    listeningDesired = false
+    clearRestartTimer()
+    clearSilenceTimer()
+    clearMaxTimer()
+
     if (!recognition && status !== 'listening') {
       status = 'idle'
       emit()
       return
     }
-    clearTimers()
-    try {
-      recognition?.stop()
-    } catch {
-      /* ignore */
+
+    if (!recognition) {
+      endListeningSession()
+      return
     }
+
+    try {
+      recognition.stop()
+    } catch {
+      endListeningSession()
+      return
+    }
+
     // Fallback if onend is delayed (some WebKit builds).
     setTimeout(() => {
-      if (status === 'listening') {
-        status = 'idle'
-        emit()
+      if (status === 'listening' && !listeningDesired) {
+        endListeningSession()
       }
     }, 300)
   }
@@ -467,6 +665,7 @@ export function createSpeechRecognitionSession(
   const cancel = () => {
     if (disposed) return
     cancelled = true
+    listeningDesired = false
     delivered = true
     clearTimers()
     try {
@@ -483,7 +682,7 @@ export function createSpeechRecognitionSession(
   }
 
   const toggle = () => {
-    if (status === 'listening') stop()
+    if (status === 'listening' || listeningDesired) stop()
     else start()
   }
 
@@ -500,6 +699,7 @@ export function createSpeechRecognitionSession(
     if (disposed) return
     disposed = true
     cancelled = true
+    listeningDesired = false
     delivered = true
     clearTimers()
     tearDown(true)
@@ -552,8 +752,8 @@ export function useSpeechRecognition(
     onResult,
     onInterim,
     lang: langOverride,
-    silenceMs = 2200,
-    maxListenMs = 20_000,
+    silenceMs = DEFAULT_SILENCE_MS,
+    maxListenMs = DEFAULT_MAX_LISTEN_MS,
   } = options
 
   const sessionRef = useRef<SpeechRecognitionSession | null>(null)
