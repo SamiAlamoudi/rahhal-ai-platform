@@ -7,7 +7,9 @@ Templates:
 - `.env.staging.example` — staging
 - `.env.production.example` — production
 
-Preview runbook: [PREVIEW_DEPLOYMENT.md](./PREVIEW_DEPLOYMENT.md)
+Preview runbook: [PREVIEW_DEPLOYMENT.md](./PREVIEW_DEPLOYMENT.md)  
+Live flight provider (Sprint 10): [LIVE_PROVIDER.md](./LIVE_PROVIDER.md)  
+Amadeus sandbox pilot: [AMADEUS_SANDBOX.md](./AMADEUS_SANDBOX.md)
 
 ## SPA (`VITE_*`)
 

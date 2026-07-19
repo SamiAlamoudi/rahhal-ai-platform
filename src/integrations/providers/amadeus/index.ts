@@ -15,6 +15,7 @@ export {
   type ApiClientConfig as AmadeusApiClientConfig,
   type ApiClientResult as AmadeusApiClientResult,
   type AmadeusFlightOffersResponse,
+  type AmadeusFlightOffersPricingResponse,
   type AmadeusFlightOffer,
   type AmadeusItinerary,
   type AmadeusSegment,
@@ -25,7 +26,17 @@ export {
   type AmadeusLocationResult,
   type AmadeusLocationsResponse,
 } from './amadeusFlightApiClient'
-export { AmadeusFlightAdapter, type AmadeusFlightAdapterConfig } from './amadeusFlightAdapter'
+export {
+  AmadeusFlightAdapter,
+  type AmadeusFlightAdapterConfig,
+  type AmadeusOfferDetailsResult,
+} from './amadeusFlightAdapter'
+export {
+  buildAmadeusBookingReadyPayload,
+  buildTravelerSlots,
+  type AmadeusBookingReadyPayload,
+  type BookingReadyTravelerSlot,
+} from './bookingReadyPayload'
 export {
   normalizeAmadeusResponse,
   normalizeAmadeusFlightOffer,

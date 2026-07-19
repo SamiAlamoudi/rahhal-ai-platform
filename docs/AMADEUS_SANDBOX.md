@@ -65,6 +65,10 @@ CI suite: `src/integrations/providers/amadeus/__tests__/amadeusSandbox.funnel.ve
 | Provider-agnostic abstraction | Custom `FlightProvider` satisfies the same contract as Amadeus/mock |
 | Optional live network | Runs only when `AMADEUS_CLIENT_ID` + `AMADEUS_CLIENT_SECRET` are present and sandbox DNS is reachable |
 
+## Related
+
+Sprint 10 live flight integration (RT/children/pricing/booking-ready): [LIVE_PROVIDER.md](./LIVE_PROVIDER.md)
+
 ## Related code
 
 - Adapter: `src/integrations/providers/amadeus/amadeusFlightAdapter.ts`
@@ -72,3 +76,4 @@ CI suite: `src/integrations/providers/amadeus/__tests__/amadeusSandbox.funnel.ve
 - Registry: `src/integrations/registry/providerRegistry.ts`
 - Funnel map: `src/utils/liveSearchOrchestrator.ts` (`mapFlightOffer`)
 - Verification: `amadeusSandbox.funnel.verification.test.ts`
+- Sprint 10 suite: `amadeus.liveProvider.sprint10.test.ts`
