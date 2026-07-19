@@ -378,6 +378,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: brain_trip_planning. No external AI providers.',
   },
   {
+    id: 'brain.execution',
+    name: 'Travel Execution Engine',
+    description:
+      'Sprint 23 converts TripPlan into executable search tasks via mock provider adapters. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.trip_planning'],
+    notes: 'Product alias: brain_execution. No Amadeus/OpenAI/Azure/ElevenLabs/Maps/Booking.com.',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

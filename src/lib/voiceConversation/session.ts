@@ -13,6 +13,8 @@ import { createVoiceQueue } from './voiceQueue'
 import { createVoiceProvider } from './providers'
 import type { VoiceProvider, VoiceProviderId } from './providers'
 import {
+  attachTravelExecution,
+  isBrainExecutionEnabled,
   isBrainVoiceIntegrationEnabled,
   runIntegratedBrainTurn,
 } from '../brain/integration'
@@ -49,6 +51,8 @@ export function createVoiceSession(options: VoiceSessionOptions = {}) {
   let disposed = false
   let transitionLock = false
   let lastBrainPlan: VoiceSessionSnapshot['lastBrainPlan'] = null
+  let lastExecution: VoiceSessionSnapshot['lastExecution'] = null
+  let pendingExecution: Promise<unknown> | null = null
 
   const messages: VoiceMessage[] = []
   const transitions: VoiceStateTransition[] = []
@@ -74,6 +78,7 @@ export function createVoiceSession(options: VoiceSessionOptions = {}) {
       interruptedCount,
       reconnectCount,
       lastBrainPlan,
+      lastExecution,
     }
   }
 
@@ -237,12 +242,13 @@ export function createVoiceSession(options: VoiceSessionOptions = {}) {
       pushEvent('user_transcript', 'normal', { transcript: text })
       pushEvent('user_speech_ended', 'normal')
 
-      // Sprint 20 — speech uses the same Brain pipeline as text (when brain.voice is on).
+      // Sprint 20–23 — speech uses the same Brain (+ optional execution) pipeline as text.
       if (isBrainVoiceIntegrationEnabled()) {
         const brainResult = runIntegratedBrainTurn({
           conversationId,
           userText: text,
           locale: 'ar',
+          execution: isBrainExecutionEnabled(),
         })
         lastBrainPlan = {
           intent: brainResult.plan.intent,
@@ -256,6 +262,25 @@ export function createVoiceSession(options: VoiceSessionOptions = {}) {
           summary: brainResult.plan.summary,
           action: brainResult.plan.action,
         })
+
+        if (isBrainExecutionEnabled()) {
+          pendingExecution = attachTravelExecution({
+            conversationId,
+            planning: brainResult.planning,
+            executionEnabled: true,
+          }).then((execution) => {
+            lastExecution = execution
+            emit()
+            if (execution) {
+              pushEvent('timeline_marker', 'normal', {
+                kind: 'execution_summary',
+                state: execution.state,
+                headline: execution.summary.headline,
+              })
+            }
+            return execution
+          })
+        }
       }
 
       timeline.begin('thinking', 'thinking', 'thinking')
@@ -392,6 +417,13 @@ export function createVoiceSession(options: VoiceSessionOptions = {}) {
 
     peekNextState(reason: VoiceSessionTransitionReason) {
       return nextVoiceState(state, reason)
+    },
+
+    /** Sprint 23 — await background execution started by commitUserUtterance. */
+    async awaitPendingExecution() {
+      if (!pendingExecution) return lastExecution
+      await pendingExecution
+      return lastExecution
     },
 
     dispose() {

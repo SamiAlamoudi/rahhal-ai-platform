@@ -1,22 +1,30 @@
-import type { BrainResponsePlan, ConversationContext, IntentClassification } from '../../lib/brain'
+import type {
+  BrainResponsePlan,
+  ConversationContext,
+  IntentClassification,
+} from '../../lib/brain'
+import type { TravelExecutionTurnResult } from '../../lib/brain/execution'
 import { IntentViewer } from './IntentViewer'
 import { MemoryViewer } from './MemoryViewer'
 import { PlannerViewer } from './PlannerViewer'
+import { ExecutionViewer } from './ExecutionViewer'
 
 export interface ConversationDebugPanelProps {
   context: ConversationContext
   classification?: IntentClassification | null
   plan?: BrainResponsePlan | null
+  execution?: TravelExecutionTurnResult | null
   className?: string
 }
 
 /**
- * Debug panel for Sprint 19 brain — gated by brain.debug (not mounted in prod routes).
+ * Debug panel for Sprint 19–23 brain — gated by brain.debug (not mounted in prod routes).
  */
 export function ConversationDebugPanel({
   context,
   classification = null,
   plan = null,
+  execution = null,
   className = '',
 }: ConversationDebugPanelProps) {
   return (
@@ -37,6 +45,7 @@ export function ConversationDebugPanel({
       />
       <MemoryViewer memory={context.memory} missingFields={context.missingFields} />
       <PlannerViewer plan={plan} />
+      <ExecutionViewer execution={execution} />
     </aside>
   )
 }

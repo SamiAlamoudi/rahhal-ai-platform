@@ -275,6 +275,11 @@ export interface BrainTurnResult {
    * consumers use TripPlanningTurnResult via integration / tripPlanning exports.
    */
   planning: unknown | null
+  /**
+   * Sprint 23 — travel execution result when brain.execution is on.
+   * Typed as unknown to avoid circular imports; use TravelExecutionTurnResult from execution/.
+   */
+  execution: unknown | null
 }
 
 /** Sprint 21 — BrainResponsePlan → real travel domain drafts (no live API calls). */

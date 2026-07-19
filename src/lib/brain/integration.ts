@@ -1,5 +1,5 @@
 /**
- * Sprint 20/21/22 — Brain ↔ Agent / Concierge / Voice / Travel / Trip Planning integration.
+ * Sprint 20–23 — Brain ↔ Agent / Concierge / Voice / Travel / Trip Planning / Execution.
  * Flag-gated; default OFF. No LLM providers or external APIs.
  */
 
@@ -22,9 +22,16 @@ import {
   type TripPlanningEngineHandle,
   type TripPlanningTurnResult,
 } from './tripPlanning'
+import {
+  TravelExecutionEngine,
+  resetTravelExecutionSessions,
+  type TravelExecutionEngineHandle,
+  type TravelExecutionTurnResult,
+} from './execution'
 
 const orchestrators = new Map<string, ConversationOrchestratorHandle>()
 const planningEngines = new Map<string, TripPlanningEngineHandle>()
+const executionEngines = new Map<string, TravelExecutionEngineHandle>()
 
 export type BrainMetaSnapshot = {
   intent: TravelIntent
@@ -46,12 +53,18 @@ export type BrainMetaSnapshot = {
   clarificationQuestion?: string | null
   travelSummary?: TripPlanningTurnResult['travelSummary'] | null
   engineTripPlan?: TripPlanningTurnResult['tripPlan'] | null
+  /** Sprint 23 */
+  execution?: TravelExecutionTurnResult | null
+  executionSummary?: TravelExecutionTurnResult['summary'] | null
+  executionProgress?: TravelExecutionTurnResult['progress'] | null
 }
 
 export function resetBrainIntegrationSessions(): void {
   orchestrators.clear()
   planningEngines.clear()
+  executionEngines.clear()
   resetTripPlanningSessions()
+  resetTravelExecutionSessions()
 }
 
 export function isBrainConciergeIntegrationEnabled(options?: {
@@ -117,6 +130,23 @@ export function isBrainTripPlanningEnabled(options?: {
   )
 }
 
+/** Sprint 23 — Travel Execution Engine. */
+export function isBrainExecutionEnabled(options?: {
+  brainExecutionEnabled?: boolean
+}): boolean {
+  if (typeof options?.brainExecutionEnabled === 'boolean') {
+    return options.brainExecutionEnabled
+  }
+  const registry = getFeatureRegistry()
+  return (
+    registry.isEnabled('brain.enabled') &&
+    registry.isEnabled('brain.concierge') &&
+    registry.isEnabled('brain.travel_engine') &&
+    registry.isEnabled('brain.trip_planning') &&
+    registry.isEnabled('brain.execution')
+  )
+}
+
 function toBrainLocale(locale: AgentLocale | BrainLocale | undefined): BrainLocale {
   return locale === 'en' ? 'en' : 'ar'
 }
@@ -147,6 +177,16 @@ export function getOrCreateTripPlanningEngine(
   if (existing) return existing
   const created = TripPlanningEngine({ conversationId, locale })
   planningEngines.set(conversationId, created)
+  return created
+}
+
+export function getOrCreateTravelExecutionEngine(
+  conversationId: string,
+): TravelExecutionEngineHandle {
+  const existing = executionEngines.get(conversationId)
+  if (existing) return existing
+  const created = TravelExecutionEngine({ conversationId })
+  executionEngines.set(conversationId, created)
   return created
 }
 
@@ -229,6 +269,7 @@ export function brainMemoryToRequirementsPatch(
 
 export function toMetaBrain(result: BrainTurnResult): BrainMetaSnapshot {
   const planning = (result.planning ?? null) as TripPlanningTurnResult | null
+  const execution = (result.execution ?? null) as TravelExecutionTurnResult | null
   return {
     intent: result.plan.intent,
     confidence: result.plan.confidence,
@@ -247,6 +288,9 @@ export function toMetaBrain(result: BrainTurnResult): BrainMetaSnapshot {
     clarificationQuestion: planning?.clarification.question ?? null,
     travelSummary: planning?.travelSummary ?? null,
     engineTripPlan: planning?.tripPlan ?? null,
+    execution,
+    executionSummary: execution?.summary ?? null,
+    executionProgress: execution?.progress ?? null,
   }
 }
 
@@ -260,21 +304,29 @@ export type RunIntegratedBrainTurnInput = {
   travelEngine?: boolean
   /** Sprint 22 — force trip planning on/off (otherwise FeatureRegistry). */
   tripPlanning?: boolean
+  /** Sprint 23 — force execution on/off (otherwise FeatureRegistry). */
+  execution?: boolean
+  signal?: AbortSignal
 }
 
 /**
- * Shared reasoning entrypoint for text + voice.
+ * Shared reasoning entrypoint for text + voice (sync planning path).
  * Always produces a BrainResponsePlan when called (caller must gate flags).
- * When trip planning is on, also runs TripPlanningEngine (same pipeline for speech/text).
+ * When trip planning is on, also runs TripPlanningEngine.
+ * Execution is attached via `attachTravelExecution` / `runIntegratedBrainPipeline` (async).
  */
 export function runIntegratedBrainTurn(
   input: RunIntegratedBrainTurnInput,
 ): BrainTurnResult {
   const locale = toBrainLocale(input.locale)
+  const execution =
+    typeof input.execution === 'boolean'
+      ? input.execution
+      : isBrainExecutionEnabled()
   const tripPlanning =
     typeof input.tripPlanning === 'boolean'
       ? input.tripPlanning
-      : isBrainTripPlanningEnabled()
+      : isBrainTripPlanningEnabled() || execution
   const travelEngine =
     typeof input.travelEngine === 'boolean'
       ? input.travelEngine
@@ -301,7 +353,7 @@ export function runIntegratedBrainTurn(
   })
 
   if (!tripPlanning) {
-    return result
+    return { ...result, execution: null }
   }
 
   const engine = getOrCreateTripPlanningEngine(input.conversationId, locale)
@@ -313,6 +365,64 @@ export function runIntegratedBrainTurn(
   return {
     ...result,
     planning,
+    execution: null,
+  }
+}
+
+/**
+ * Sprint 23 — run TravelExecutionEngine when TripPlan is complete.
+ * Shared by text (planTurn) and voice (session) — same pipeline.
+ */
+export async function attachTravelExecution(input: {
+  conversationId: string
+  planning: TripPlanningTurnResult | null | unknown
+  signal?: AbortSignal
+  executionEnabled?: boolean
+}): Promise<TravelExecutionTurnResult | null> {
+  const enabled =
+    typeof input.executionEnabled === 'boolean'
+      ? input.executionEnabled
+      : isBrainExecutionEnabled()
+  if (!enabled) return null
+
+  const planning = input.planning as TripPlanningTurnResult | null
+  const tripPlan = planning?.tripPlan
+  if (!tripPlan || tripPlan.status !== 'complete') return null
+
+  const engine = getOrCreateTravelExecutionEngine(input.conversationId)
+  return engine.execute({ tripPlan, signal: input.signal })
+}
+
+/**
+ * Full text/voice pipeline: Brain → TripPlanning → TravelExecution.
+ */
+export async function runIntegratedBrainPipeline(
+  input: RunIntegratedBrainTurnInput,
+): Promise<BrainTurnResult> {
+  const executionEnabled =
+    typeof input.execution === 'boolean'
+      ? input.execution
+      : isBrainExecutionEnabled()
+
+  const result = runIntegratedBrainTurn({
+    ...input,
+    tripPlanning:
+      typeof input.tripPlanning === 'boolean'
+        ? input.tripPlanning
+        : isBrainTripPlanningEnabled() || executionEnabled,
+    execution: executionEnabled,
+  })
+
+  const execution = await attachTravelExecution({
+    conversationId: input.conversationId,
+    planning: result.planning,
+    signal: input.signal,
+    executionEnabled,
+  })
+
+  return {
+    ...result,
+    execution,
   }
 }
 
@@ -342,6 +452,9 @@ export function withBrainMeta<T extends AgentProviderMeta>(
     clarificationQuestion: brain.clarificationQuestion ?? null,
     travelSummary: brain.travelSummary ?? null,
     engineTripPlan: brain.engineTripPlan ?? null,
+    execution: brain.execution ?? null,
+    executionSummary: brain.executionSummary ?? null,
+    executionProgress: brain.executionProgress ?? null,
   }
   return { ...meta, brain: brainMeta }
 }

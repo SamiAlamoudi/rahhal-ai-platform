@@ -252,6 +252,10 @@ export interface AgentProviderMeta {
     clarificationQuestion?: string | null
     travelSummary?: unknown
     engineTripPlan?: unknown
+    /** Sprint 23 — TravelExecutionEngine outputs */
+    execution?: unknown
+    executionSummary?: unknown
+    executionProgress?: unknown
   }
 }
 
