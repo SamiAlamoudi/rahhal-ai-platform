@@ -85,6 +85,11 @@ function buildSegment(
     aircraft: aircraftName,
     cabin,
     durationMinutes: parseDuration(raw.duration),
+    departureTerminal: raw.departure.terminal ?? null,
+    arrivalTerminal: raw.arrival.terminal ?? null,
+    operatingCarrier: carrierName,
+    fareFamily: fareDetail?.brandedFare ?? null,
+    bookingClass: fareDetail?.class ?? null,
   }
 }
 

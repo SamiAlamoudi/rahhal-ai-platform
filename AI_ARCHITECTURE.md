@@ -40,6 +40,14 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Speaks only to agent abstractions; handoff modes are `plan | search | refine | none`.
 - Flag: `ai.concierge`. See `docs/CONCIERGE.md`.
 
+## Flight Results Experience (Sprint 11)
+
+- UI/logic for premium flight cards, sort/filter, details, and select→booking session.
+- Package: `src/lib/flightResults` + `src/components/flightResults`.
+- Recommendation banner reuses Concierge `buildConsultantReply` (no hardcoded result copy).
+- Flag: `ui.flight_results_experience` (depends on `ai.concierge`).
+- See `docs/SPRINT11_RESULTS.md` and `docs/LIVE_PROVIDER.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

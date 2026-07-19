@@ -10,6 +10,13 @@ export interface FlightSegment {
   aircraft: string | null
   cabin: CabinClass
   durationMinutes: number
+  /** Optional enrichment when the provider supplies terminals. */
+  departureTerminal?: string | null
+  arrivalTerminal?: string | null
+  /** Marketing vs operating carrier when distinct. */
+  operatingCarrier?: string | null
+  fareFamily?: string | null
+  bookingClass?: string | null
 }
 
 export interface FlightItinerary {
