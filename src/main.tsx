@@ -17,6 +17,7 @@ import AdminBookingsPage from './pages/AdminBookingsPage.tsx'
 import AdminPaymentsPage from './pages/AdminPaymentsPage.tsx'
 import Notifications from './pages/Notifications.tsx'
 import ResultsPage from './pages/ResultsPage.tsx'
+import FlightDetailsPage from './pages/FlightDetailsPage.tsx'
 import IntegrationDiagnostics from './pages/IntegrationDiagnostics.tsx'
 import BookingReview from './pages/BookingReview.tsx'
 import BookingReturn from './pages/BookingReturn.tsx'
@@ -88,6 +89,11 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/results" element={
             <ProtectedRoute>
               <ResultsRoute />
+            </ProtectedRoute>
+          } />
+          <Route path="/flights/:offerId" element={
+            <ProtectedRoute>
+              <FlightDetailsPage />
             </ProtectedRoute>
           } />
           <Route path="/diagnostics" element={

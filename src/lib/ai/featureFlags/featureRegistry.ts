@@ -74,6 +74,15 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     enabled: true,
   },
   {
+    id: 'ui.flight_results_experience',
+    name: 'Flight Results Experience',
+    description:
+      'Sprint 11 premium flight cards, sort/filter, details, concierge summary, and select→booking session.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.concierge'],
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

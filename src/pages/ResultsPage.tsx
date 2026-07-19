@@ -11,6 +11,10 @@ import { DecisionConfidenceCard } from '../components/DecisionConfidenceCard'
 import { ComparisonTable } from '../components/ComparisonTable'
 import { PrintableReport } from '../components/PrintableReport'
 import { toBookingSelectedItems } from '../lib/booking'
+import { createSessionFromFlightSelection, onlyFlights } from '../lib/flightResults'
+import { FlightResultsList } from '../components/flightResults'
+import { getFeatureRegistry } from '../lib/ai'
+import { useAuth } from '../lib/auth'
 
 const ResultsExperience = lazy(() => import('../components/ResultsExperience'))
 const DecisionDashboard = lazy(() => import('../components/DecisionDashboard'))
@@ -101,11 +105,16 @@ export default function ResultsPage({
   travelSessionId = null,
 }: Props) {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const flightResultsEnabled = getFeatureRegistry().isEnabled('ui.flight_results_experience')
+  const flightOptions = useMemo(() => onlyFlights(rankedOptions), [rankedOptions])
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<ViewMode>('cards')
   const [showPrintView, setShowPrintView] = useState(false)
+  const [selectingId, setSelectingId] = useState<string | null>(null)
+  const [selectError, setSelectError] = useState<string | null>(null)
 
   const reports = useMemo(
     () => buildFullReport(rankedOptions, reasoningResults),
@@ -191,6 +200,46 @@ export default function ResultsPage({
     })
   }, [navigate, searchRequest.budgetCurrency, selectedOptions, travelSessionId])
 
+  const handleSelectFlight = useCallback(async (option: NormalizedTravelOption) => {
+    if (!user?.id) {
+      setSelectError('Please sign in to select a flight.')
+      return
+    }
+    setSelectError(null)
+    setSelectingId(option.id)
+    try {
+      const result = await createSessionFromFlightSelection({
+        option,
+        searchRequest,
+        userId: user.id,
+        travelSessionId,
+      })
+      navigate('/booking/review', {
+        state: {
+          bookingSessionId: result.session.id,
+          selectedItems: toBookingSelectedItems([option]),
+          travelSessionId,
+          currency: option.currency || searchRequest.budgetCurrency || 'SAR',
+        },
+      })
+    } catch (err) {
+      setSelectError(err instanceof Error ? err.message : 'Could not create booking session')
+    } finally {
+      setSelectingId(null)
+    }
+  }, [navigate, searchRequest, travelSessionId, user?.id])
+
+  const handleOpenFlightDetails = useCallback((option: NormalizedTravelOption) => {
+    navigate(`/flights/${encodeURIComponent(option.id)}`, {
+      state: {
+        option,
+        searchRequest,
+        travelSessionId,
+        locale: 'en',
+      },
+    })
+  }, [navigate, searchRequest, travelSessionId])
+
   const handlePrint = useCallback(() => {
     setShowPrintView(true)
     setTimeout(() => {
@@ -252,6 +301,22 @@ export default function ResultsPage({
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* Left column — recommendations */}
           <div className="lg:col-span-8 xl:col-span-9 print:col-span-12">
+            {flightResultsEnabled && flightOptions.length > 0 && (
+              <div className="mb-6 print:hidden">
+                <FlightResultsList
+                  rankedOptions={rankedOptions}
+                  searchRequest={searchRequest}
+                  locale="en"
+                  selectingId={selectingId}
+                  onSelectFlight={handleSelectFlight}
+                  onOpenDetails={handleOpenFlightDetails}
+                />
+                {selectError && (
+                  <p className="mt-2 text-xs font-medium text-rose-600">{selectError}</p>
+                )}
+              </div>
+            )}
+
             {/* Filters */}
             <div className="mb-4 print:hidden">
               <InteractiveFilters
