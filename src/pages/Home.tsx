@@ -3,8 +3,10 @@ import { useNavigate, Link } from 'react-router-dom'
 import TravelConversationCard from '../components/TravelConversationCard'
 import QuickActions from '../components/QuickActions'
 import { useAuth } from '../lib/auth'
+import { getFeatureRegistry } from '../lib/ai'
+import AiHomeExperience from './AiHomeExperience'
 
-export default function Home() {
+function LegacyHome() {
   const navigate = useNavigate()
   const { isAdmin } = useAuth()
   const [tripText, setTripText] = useState('')
@@ -114,4 +116,10 @@ export default function Home() {
       </main>
     </div>
   )
+}
+
+export default function Home() {
+  const aiHomeEnabled = getFeatureRegistry().isEnabled('ui.ai_home')
+  if (aiHomeEnabled) return <AiHomeExperience />
+  return <LegacyHome />
 }

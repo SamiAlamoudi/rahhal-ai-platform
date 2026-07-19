@@ -24,6 +24,10 @@ export type FeatureId =
   | 'ui.order_management'
   | 'ui.checkout_review'
   | 'ui.payment_preparation'
+  | 'ui.ai_home'
+  | 'ui.conversation_home'
+  | 'ui.travel_cards'
+  | 'ui.continue_booking'
   | 'payments.live'
   | 'providers.live_master'
 

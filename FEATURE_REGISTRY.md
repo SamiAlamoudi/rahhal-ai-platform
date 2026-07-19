@@ -36,6 +36,10 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ui.order_management` | beta | yes | Sprint 15 Order entity from confirmed bookings (alias: order_management) |
 | `ui.checkout_review` | beta | yes | Sprint 15 checkout review page (alias: checkout_review) |
 | `ui.payment_preparation` | beta | yes | Sprint 15 payment ports + sessions, mock only (alias: payment_preparation) |
+| `ui.ai_home` | beta | yes | Sprint 16 conversation-first AI Home (alias: ai_home) |
+| `ui.conversation_home` | beta | yes | Sprint 16 home → Chat seed entry (alias: conversation_home) |
+| `ui.travel_cards` | beta | yes | Sprint 16 smart travel cards on Home (alias: travel_cards) |
+| `ui.continue_booking` | beta | yes | Sprint 16 continue-booking panel (alias: continue_booking) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |
 

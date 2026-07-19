@@ -172,6 +172,46 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: payment_preparation. Does not enable payments.live.',
   },
   {
+    id: 'ui.ai_home',
+    name: 'AI Home Experience',
+    description:
+      'Sprint 16 conversation-first home (hero, composer, suggestions) — replaces legacy OTA-style home when enabled.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.concierge'],
+    notes: 'Product alias: ai_home',
+  },
+  {
+    id: 'ui.conversation_home',
+    name: 'Conversation Home Entry',
+    description:
+      'Sprint 16 routes home composer / prompts into Chat with seed message (Sprint 9 agent).',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.ai_home'],
+    notes: 'Product alias: conversation_home',
+  },
+  {
+    id: 'ui.travel_cards',
+    name: 'Smart Travel Cards',
+    description:
+      'Sprint 16 home cards: upcoming trips, recent orders, recommendations, inspiration.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.ai_home'],
+    notes: 'Product alias: travel_cards',
+  },
+  {
+    id: 'ui.continue_booking',
+    name: 'Continue Booking',
+    description:
+      'Sprint 16 unfinished booking resume panel on AI Home (BookingSession projection).',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.ai_home', 'ui.my_trips'],
+    notes: 'Product alias: continue_booking',
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',
