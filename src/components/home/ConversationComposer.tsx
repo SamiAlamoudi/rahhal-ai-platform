@@ -1,5 +1,6 @@
-import { useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import type { HomeLocale } from '../../lib/aiHome'
+import { useSpeechRecognition } from '../../hooks/useSpeechRecognition'
 import { HomeButton } from './HomeButton'
 
 export interface ConversationComposerProps {
@@ -7,6 +8,7 @@ export interface ConversationComposerProps {
   value: string
   onChange: (value: string) => void
   onSubmit: (value: string) => void
+  /** Optional override; when omitted, built-in speech recognition is used. */
   onVoiceClick?: () => void
   disabled?: boolean
 }
@@ -20,7 +22,18 @@ export function ConversationComposer({
   disabled,
 }: ConversationComposerProps) {
   const [focused, setFocused] = useState(false)
+  const valueRef = useRef(value)
+  valueRef.current = value
   const t = (ar: string, en: string) => (locale === 'ar' ? ar : en)
+
+  const speech = useSpeechRecognition({
+    lang: locale === 'ar' ? 'ar-SA' : 'en-US',
+    onResult: (transcript) => {
+      // Insert into composer — never auto-send.
+      const current = valueRef.current.trim()
+      onChange(current ? `${current} ${transcript}` : transcript)
+    },
+  })
 
   const submit = () => {
     const trimmed = value.trim()
@@ -40,12 +53,40 @@ export function ConversationComposer({
     }
   }
 
+  const onMicClick = () => {
+    if (onVoiceClick) {
+      onVoiceClick()
+      return
+    }
+    if (!speech.isSupported) {
+      speech.start() // sets unsupported error state
+      return
+    }
+    speech.clearError()
+    speech.toggle()
+  }
+
+  const listening = !onVoiceClick && speech.isListening
+  const showVoiceError =
+    !onVoiceClick &&
+    !!speech.errorMessage &&
+    speech.error !== 'user-cancelled' &&
+    (speech.status === 'error' ||
+      speech.status === 'permission-denied' ||
+      speech.status === 'unsupported')
+
+  const micLabel = listening
+    ? t('إيقاف الاستماع', 'Stop listening')
+    : t('إدخال صوتي', 'Voice input')
+
   return (
     <form
       onSubmit={onForm}
       data-testid="ai-home-composer"
       className={`rounded-3xl border bg-white p-3 shadow-xl shadow-slate-900/8 transition-all duration-200 sm:p-4 ${
-        focused ? 'border-primary-400 ring-2 ring-primary-500/15' : 'border-slate-100'
+        focused || listening
+          ? 'border-primary-400 ring-2 ring-primary-500/15'
+          : 'border-slate-100'
       }`}
     >
       <label className="sr-only" htmlFor="ai-home-input">
@@ -67,20 +108,73 @@ export function ConversationComposer({
         className="w-full resize-none bg-transparent px-2 py-2 text-sm leading-relaxed text-slate-800 placeholder:text-slate-400 focus:outline-none sm:text-base"
       />
       <div className="mt-2 flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={onVoiceClick}
-          disabled={disabled}
-          data-testid="ai-home-voice"
-          aria-label={t('إدخال صوتي (قريباً)', 'Voice input (coming soon)')}
-          title={t('الإدخال الصوتي — الواجهة جاهزة', 'Voice entry — UI ready')}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 disabled:opacity-40"
-        >
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={onMicClick}
+            disabled={disabled}
+            data-testid="ai-home-voice"
+            data-listening={listening ? 'true' : 'false'}
+            aria-label={micLabel}
+            aria-pressed={listening}
+            title={micLabel}
+            className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors disabled:opacity-40 ${
+              listening
+                ? 'voice-mic-pulse border-rose-300 bg-rose-50 text-rose-600'
+                : 'border-slate-200 text-slate-500 hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700'
+            }`}
+          >
+            {listening ? (
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5 animate-pulse"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <rect x="6" y="6" width="12" height="12" rx="2" />
+              </svg>
+            ) : (
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden="true"
+              >
+                <path
+                  d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </button>
+          {listening ? (
+            <span
+              className="flex items-center gap-1.5 text-xs font-medium text-rose-600"
+              role="status"
+              aria-live="polite"
+              data-testid="ai-home-voice-listening"
+            >
+              <span
+                className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500"
+                aria-hidden="true"
+              />
+              {t('جاري الاستماع…', 'Listening...')}
+              {speech.interimTranscript ? (
+                <span className="truncate text-slate-500 max-w-[10rem] sm:max-w-[16rem]">
+                  {speech.interimTranscript}
+                </span>
+              ) : null}
+            </span>
+          ) : null}
+        </div>
         <HomeButton
           type="submit"
           size="md"
@@ -88,11 +182,49 @@ export function ConversationComposer({
           data-testid="ai-home-send"
         >
           {t('ابدأ المحادثة', 'Start conversation')}
-          <svg viewBox="0 0 24 24" className="h-4 w-4 rtl:rotate-180" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4 rtl:rotate-180"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
             <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </HomeButton>
       </div>
+      {showVoiceError ? (
+        <p
+          className="mt-2 px-1 text-[11px] text-rose-600"
+          role="alert"
+          data-testid="ai-home-voice-error"
+        >
+          {speech.error === 'unsupported'
+            ? t(
+                'الإدخال الصوتي غير مدعوم في هذا المتصفح.',
+                'Voice input is not supported in this browser.',
+              )
+            : speech.error === 'permission-denied'
+              ? t(
+                  'تم رفض إذن الميكروفون. اسمح بالوصول وحاول مرة أخرى.',
+                  speech.errorMessage ?? 'Microphone permission denied.',
+                )
+              : speech.error === 'no-speech'
+                ? t(
+                    'لم يتم رصد كلام. اضغط الميكروفون وحاول مرة أخرى.',
+                    speech.errorMessage ?? 'No speech detected.',
+                  )
+                : speech.error === 'timeout'
+                  ? t(
+                      'انتهت مهلة الاستماع. اضغط الميكروفون للمحاولة مرة أخرى.',
+                      speech.errorMessage ?? 'Listening timed out.',
+                    )
+                  : t(
+                      'تعذر التعرف على الكلام. حاول مرة أخرى.',
+                      speech.errorMessage ?? 'Speech recognition failed.',
+                    )}
+        </p>
+      ) : null}
     </form>
   )
 }

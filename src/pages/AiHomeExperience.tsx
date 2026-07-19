@@ -41,7 +41,6 @@ export default function AiHomeExperience() {
   const [model, setModel] = useState<AiHomeModel | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [voiceHint, setVoiceHint] = useState(false)
 
   const displayName = useMemo(() => {
     const meta = user?.user_metadata as { full_name?: string; name?: string } | undefined
@@ -219,16 +218,7 @@ export default function AiHomeExperience() {
                 value={draft}
                 onChange={setDraft}
                 onSubmit={startConversation}
-                onVoiceClick={() => setVoiceHint(true)}
               />
-              {voiceHint ? (
-                <p className="mt-2 text-center text-[11px] text-slate-500" role="status">
-                  {t(
-                    'الإدخال الصوتي جاهز في واجهة المحادثة — افتح المحادثة لاستخدام الميكروفون.',
-                    'Voice entry is ready in Chat — open conversation to use the microphone.',
-                  )}
-                </p>
-              ) : null}
             </div>
 
             {continueEnabled && model.continueBooking ? (

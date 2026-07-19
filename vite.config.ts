@@ -36,7 +36,8 @@ function securityHeaders(development: boolean): Record<string, string> {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    // microphone=(self) required for Home / Chat Web Speech on Safari & Chrome.
+    'Permissions-Policy': 'camera=(), microphone=(self), geolocation=()',
     'Cross-Origin-Opener-Policy': 'same-origin',
     'X-DNS-Prefetch-Control': 'off',
   }
