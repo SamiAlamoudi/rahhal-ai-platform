@@ -507,6 +507,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: refund_policy_engine. Reuses PaymentOrchestrator.refund and PostBookingService; adapters normalize provider policies without embedding supplier SDKs.',
   },
   {
+    id: 'brain.travel_disruption_engine',
+    name: 'Travel Disruption & Smart Recovery Engine',
+    description:
+      'Sprint 37 disruption detection and smart recovery — severity/impact, alternative search, ranked recovery plans, automatic trip updates, and conversation-triggered handling. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.refund_policy_engine'],
+    notes:
+      'Product alias: travel_disruption_engine. Extends PostBookingService / NotificationScheduler; does not rewrite planner, payments, or refund policy calculation.',
+  },
+  {
     id: 'providers.hotel_foundation',
     name: 'Hotel Provider Foundation',
     description:

@@ -240,9 +240,60 @@ export function detectConversationCommand(userText: string): ConversationCommand
   ) {
     return 'download_ticket'
   }
+
+  // Sprint 37 — operational disruption recovery (before status/refund queries).
+  if (/missed (my )?connection|miss(ed)? my connecting/.test(lower) || /فاتتني المواصلة/.test(lower)) {
+    return 'missed_connection'
+  }
   if (
-    /any delays\??|flight (status|delay)|is my flight delayed|gate change/.test(lower)
-    || /تأخير|حالة الرحلة/.test(lower)
+    /my flight (was |is )?cancelled|flight (was |is )?cancelled|canceled my flight/.test(lower)
+    || /ألغيت رحلتي|تم إلغاء رحلتي/.test(lower)
+  ) {
+    return 'flight_cancelled'
+  }
+  if (
+    (/my flight (is |was )?delayed|delayed by \d+/.test(lower) || /تأجلت رحلتي|رحلتي متأخرة/.test(lower))
+    && !/what happens if|refund|policy|will i get/.test(lower)
+  ) {
+    return 'flight_delayed'
+  }
+  if (
+    /my hotel (cancelled|canceled)|hotel cancelled my|hotel canceled my|hotel overbook/.test(lower)
+    || /ألغى الفندق|الفندق ألغى/.test(lower)
+  ) {
+    return 'hotel_cancelled'
+  }
+  if (/gate (was |has )?changed|new gate\b/.test(lower)) {
+    return 'gate_changed'
+  }
+  if (/schedule (was |has )?changed|rescheduled/.test(lower)) {
+    return 'schedule_changed'
+  }
+  if (/car (is )?unavailable|rental (was )?cancelled/.test(lower)) {
+    return 'car_unavailable'
+  }
+  if (/activity (was |is )?cancelled|tour cancelled/.test(lower)) {
+    return 'activity_cancelled'
+  }
+  if (/airport (is )?closed|airport closure/.test(lower)) {
+    return 'airport_closure'
+  }
+  if (/weather (disruption|delay|cancel)|\bstorm\b|\bfog\b/.test(lower)) {
+    return 'weather_disruption'
+  }
+  if (/\bstrike\b|industrial action/.test(lower)) {
+    return 'strike'
+  }
+  if (/visa (was )?rejected|visa denial/.test(lower)) {
+    return 'visa_rejection'
+  }
+  if (/border (restriction|closed)|entry ban/.test(lower)) {
+    return 'border_restriction'
+  }
+
+  if (
+    /any delays\??|flight status|is my flight delayed/.test(lower)
+    || /حالة الرحلة/.test(lower)
   ) {
     return 'any_delays'
   }
@@ -252,6 +303,7 @@ export function detectConversationCommand(userText: string): ConversationCommand
   ) {
     return 'what_hotel'
   }
+
   if (
     /cancel only the hotel|hotel only|just the hotel/.test(lower)
     || /ألغي الفندق فقط/.test(lower)
@@ -259,7 +311,7 @@ export function detectConversationCommand(userText: string): ConversationCommand
     return 'cancel_hotel_only'
   }
   if (
-    /what happens if my flight is delayed|flight (is )?delayed|delay.*refund/.test(lower)
+    /what happens if my flight is delayed|delay.*refund|flight delay.*refund/.test(lower)
     || /تأخير الرحلة/.test(lower)
   ) {
     return 'flight_delay_policy'

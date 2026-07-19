@@ -45,6 +45,13 @@ import {
   type PolicyEngine,
   type RefundConversationQueryKind,
 } from '../../refunds'
+import {
+  answerDisruptionQuery,
+  createTravelDisruptionEngine,
+  shouldHandleDisruptionQueries,
+  type DisruptionConversationQueryKind,
+  type TravelDisruptionEngine,
+} from '../../disruption'
 import type {
   ConversationSession,
   ConversationTurnInput,
@@ -62,6 +69,8 @@ export type ConversationControllerOptions = {
   postBookingService?: PostBookingService
   /** Sprint 36 policy engine (tests). */
   policyEngine?: PolicyEngine
+  /** Sprint 37 travel disruption engine (tests). */
+  disruptionEngine?: TravelDisruptionEngine
   plannerOptions?: UnifiedTravelPlannerOptions
   events?: ConversationEvents
   followUps?: FollowUpQuestionEngine
@@ -100,6 +109,13 @@ export function ConversationController(
     })
   const postBookingService = options.postBookingService ?? getPostBookingService()
   const policyEngine = options.policyEngine ?? createPolicyEngine({ enabled: true })
+  const disruptionEngine =
+    options.disruptionEngine
+    ?? createTravelDisruptionEngine({
+      enabled: true,
+      postBooking: postBookingService,
+      notifications: postBookingService.getNotificationScheduler(),
+    })
 
   function enabled(): boolean {
     if (typeof options.enabled === 'boolean') return options.enabled
@@ -199,7 +215,37 @@ export function ConversationController(
     session = appendMessage(session, userMessage)
 
     // Ask follow-up only when absolutely required (destination / travelers).
-    if (followUps.shouldAskBeforePlanning(state) && commandKind !== 'compare_options') {
+    // Skip for post-booking / policy / disruption commands — those do not need a new plan.
+    const skipClarifyingForCommand =
+      commandKind === 'compare_options'
+      || commandKind === 'pay_now'
+      || commandKind === 'my_trip'
+      || commandKind === 'show_itinerary'
+      || commandKind === 'download_ticket'
+      || commandKind === 'any_delays'
+      || commandKind === 'what_hotel'
+      || commandKind === 'cancel_refund_quote'
+      || commandKind === 'cancel_hotel_only'
+      || commandKind === 'flight_delay_policy'
+      || commandKind === 'deposit_refund'
+      || commandKind === 'cancel_after_checkin'
+      || commandKind === 'airline_cancels'
+      || commandKind === 'one_traveler_cancels'
+      || commandKind === 'flight_delayed'
+      || commandKind === 'flight_cancelled'
+      || commandKind === 'missed_connection'
+      || commandKind === 'hotel_cancelled'
+      || commandKind === 'gate_changed'
+      || commandKind === 'schedule_changed'
+      || commandKind === 'car_unavailable'
+      || commandKind === 'activity_cancelled'
+      || commandKind === 'airport_closure'
+      || commandKind === 'weather_disruption'
+      || commandKind === 'strike'
+      || commandKind === 'visa_rejection'
+      || commandKind === 'border_restriction'
+
+    if (followUps.shouldAskBeforePlanning(state) && !skipClarifyingForCommand) {
       const question = followUps.nextQuestion(state)
       const phase: ConversationPhase = 'clarifying'
       state = {
@@ -314,6 +360,96 @@ export function ConversationController(
       sessions.set(input.conversationId, session)
       events.emit(createConversationEvent('response_composed', input.conversationId, {
         tripQuery: commandKind,
+      }))
+      return {
+        session,
+        userMessage,
+        assistantMessage,
+        structured,
+        renderedText,
+        planResult: state.lastPlanResult,
+        commandKind,
+        durationMs: Date.now() - started,
+      }
+    }
+
+    // Sprint 37 — travel disruption recovery (TravelDisruptionEngine).
+    const disruptionQueryKinds = new Set<DisruptionConversationQueryKind>([
+      'flight_delayed',
+      'flight_cancelled',
+      'missed_connection',
+      'hotel_cancelled',
+      'gate_changed',
+      'schedule_changed',
+      'car_unavailable',
+      'activity_cancelled',
+      'airport_closure',
+      'weather_disruption',
+      'strike',
+      'visa_rejection',
+      'border_restriction',
+    ])
+    if (
+      disruptionQueryKinds.has(commandKind as DisruptionConversationQueryKind)
+      && shouldHandleDisruptionQueries()
+    ) {
+      const trip = postBookingService.listUserTrips(input.userId ?? 'anonymous')[0]
+      const top = state.lastPlanResult?.topPlan
+      const currency = trip?.currency ?? top?.cost.currency ?? 'SAR'
+      const delayMatch = input.userText.match(/delayed by\s+(\d+)\s*(hours?|hrs?|minutes?|mins?)?/i)
+      let delayMinutes: number | undefined
+      if (delayMatch) {
+        const n = Number(delayMatch[1])
+        const unit = (delayMatch[2] ?? 'hours').toLowerCase()
+        delayMinutes = /min/.test(unit) ? n : n * 60
+      }
+      const reply = answerDisruptionQuery({
+        kind: commandKind as DisruptionConversationQueryKind,
+        engine: disruptionEngine,
+        context: {
+          tripId: trip?.tripId ?? 'trip_conversation',
+          userId: input.userId ?? 'anonymous',
+          conversationId: input.conversationId,
+          destination:
+            trip?.destination
+            ?? top?.flight?.to
+            ?? state.lastPlanResult?.headline
+            ?? 'destination',
+          origin: trip?.origin ?? top?.flight?.from ?? null,
+          currency,
+          hotelName: trip?.hotelName ?? top?.hotel?.name ?? null,
+          flightConfirmation: trip?.references.flightConfirmation ?? null,
+          hotelConfirmation: trip?.references.hotelConfirmation ?? null,
+          startDate: trip?.documents.itinerary?.startDate ?? null,
+          endDate: trip?.documents.itinerary?.endDate ?? null,
+          cabinClass: top?.flight?.cabin ?? 'economy',
+          hotelStars: top?.hotel?.stars ?? 4,
+          conversationNotes: [`User: ${input.userText}`],
+          currentDelayMinutes: delayMinutes,
+        },
+        delayMinutes,
+        locale,
+      })
+      state = { ...state, phase: 'presenting' }
+      const structured = composer.compose({
+        planResult: state.lastPlanResult,
+        phase: 'presenting',
+        locale,
+        clarificationQuestion: reply,
+      })
+      structured.summary = reply
+      const renderedText = renderer.render(structured, locale)
+      const assistantMessage = createConversationMessage({
+        conversationId: input.conversationId,
+        role: 'assistant',
+        content: renderedText,
+        structured,
+        meta: { conversationUi: true, travelDisruption: true, disruptionQuery: commandKind },
+      })
+      session = appendMessage(updateSessionState(session, state), assistantMessage)
+      sessions.set(input.conversationId, session)
+      events.emit(createConversationEvent('response_composed', input.conversationId, {
+        disruptionQuery: commandKind,
       }))
       return {
         session,
