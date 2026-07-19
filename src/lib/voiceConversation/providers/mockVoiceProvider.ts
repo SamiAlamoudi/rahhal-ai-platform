@@ -14,13 +14,11 @@ import type {
 export function createMockVoiceProvider(): VoiceProvider {
   let connected = false
   let sessionActive = false
-  let conversationId: string | null = null
   let handlers: VoiceProviderStartOptions['handlers']
 
   const transport: VoiceTransport = {
     transportId: 'mock-transport',
-    async connect(options: VoiceTransportConnectOptions) {
-      conversationId = options.conversationId
+    async connect(_options: VoiceTransportConnectOptions) {
       connected = true
     },
     async disconnect() {
@@ -59,7 +57,6 @@ export function createMockVoiceProvider(): VoiceProvider {
     getTransport: () => transport,
     getAudio: () => audio,
     async startSession(options) {
-      conversationId = options.conversationId
       handlers = options.handlers
       if (!transport.isConnected()) {
         await transport.connect({ conversationId: options.conversationId })
