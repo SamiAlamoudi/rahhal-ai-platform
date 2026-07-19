@@ -203,7 +203,11 @@ export class BookingOrchestrator {
     return this.cloneSession(session)
   }
 
-  updateBookingItem(sessionId: string, itemId: string, updates: Partial<Pick<BookingItem, 'bookingUrl' | 'price' | 'expiresAt' | 'metadata'>>): BookingSession | null {
+  updateBookingItem(
+    sessionId: string,
+    itemId: string,
+    updates: Partial<Pick<BookingItem, 'bookingUrl' | 'price' | 'expiresAt' | 'metadata' | 'travelerSummary'>>,
+  ): BookingSession | null {
     const session = this.sessions.get(sessionId)
     if (!session) {
       this.lastError = 'Session not found'
@@ -217,6 +221,7 @@ export class BookingOrchestrator {
     if (updates.bookingUrl !== undefined) item.bookingUrl = updates.bookingUrl
     if (updates.price !== undefined) item.price = updates.price
     if (updates.expiresAt !== undefined) item.expiresAt = updates.expiresAt
+    if (updates.travelerSummary !== undefined) item.travelerSummary = updates.travelerSummary
     if (updates.metadata !== undefined) item.metadata = { ...item.metadata, ...updates.metadata }
     this.recalculate(session)
     session.updatedAt = nowIso()

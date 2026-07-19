@@ -214,7 +214,8 @@ export default function ResultsPage({
         userId: user.id,
         travelSessionId,
       })
-      navigate('/booking/review', {
+      const passengerFlow = getFeatureRegistry().isEnabled('ui.passenger_booking_flow')
+      navigate(passengerFlow ? '/booking/passengers' : '/booking/review', {
         state: {
           bookingSessionId: result.session.id,
           selectedItems: toBookingSelectedItems([option]),

@@ -83,6 +83,15 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     dependsOn: ['ai.concierge'],
   },
   {
+    id: 'ui.passenger_booking_flow',
+    name: 'Passenger Management & Booking Flow',
+    description:
+      'Sprint 12 passenger forms, validation, booking summary, and session persistence before review.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.flight_results_experience'],
+  },
+  {
     id: 'payments.live',
     name: 'Live payment providers',
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',

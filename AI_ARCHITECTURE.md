@@ -48,6 +48,15 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag: `ui.flight_results_experience` (depends on `ai.concierge`).
 - See `docs/SPRINT11_RESULTS.md` and `docs/LIVE_PROVIDER.md`.
 
+## Passenger Management & Booking Flow (Sprint 12)
+
+- Passenger slots (adult/child/infant) matching itinerary counts, forms, validation, fare summary.
+- Package: `src/lib/passengers` + `src/components/passengers` + `/booking/passengers`.
+- Concierge party/passport guidance reuses `buildConsultantReply`.
+- Persists passengers onto booking session metadata for refresh resume.
+- Flag: `ui.passenger_booking_flow` (depends on `ui.flight_results_experience`).
+- See `docs/SPRINT12_PASSENGERS.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
