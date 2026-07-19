@@ -250,6 +250,17 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.conversation_ui` (depends on `brain.unified_travel_planner`).
 - See `docs/SPRINT32_AI_CONVERSATION_EXPERIENCE.md`.
 
+## Travel Execution Engine — Booking (Sprint 33)
+
+- Booking orchestration package at `src/lib/execution/` — converts a selected `UnifiedTravelPlanOption` into sandbox flight/hotel reservations.
+- **Distinct from Sprint 23** `src/lib/brain/execution` (search-task `TravelExecutionEngine` behind `brain.execution`).
+- Pipeline: validate → reserve flight → reserve hotel → references → persist → summary → events; rollback cancels flight hold if hotel fails.
+- State machine: `CREATED` → `VALIDATED` → `FLIGHT_RESERVED` → `HOTEL_RESERVED` → `COMPLETED` (+ `FAILED` / `CANCELLED` / `ROLLBACK`).
+- Uses reservation ports only — no embedded Booking.com / Hotelbeds / Expedia / Amadeus booking logic; sandbox stubs keyed by provider id.
+- Audit, metrics, retry policy, and execution events for production observability.
+- Flag (default **OFF**): `brain.travel_execution_engine` (depends on `brain.conversation_ui`).
+- See `docs/SPRINT33_TRAVEL_EXECUTION_ENGINE.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

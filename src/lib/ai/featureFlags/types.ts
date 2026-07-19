@@ -53,6 +53,7 @@ export type FeatureId =
   | 'brain.context_memory'
   | 'brain.unified_travel_planner'
   | 'brain.conversation_ui'
+  | 'brain.travel_execution_engine'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

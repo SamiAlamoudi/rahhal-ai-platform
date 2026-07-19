@@ -463,6 +463,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: conversation_ui. Additive chat experience — reuses planner/orchestrator/memory; does not duplicate planning or booking logic.',
   },
   {
+    id: 'brain.travel_execution_engine',
+    name: 'Travel Execution Engine',
+    description:
+      'Sprint 33 booking Travel Execution Engine — converts a selected UnifiedTravelPlanOption into sandbox flight/hotel reservations via provider ports. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.conversation_ui'],
+    notes:
+      'Product alias: travel_execution_engine. Distinct from Sprint 23 brain.execution (search tasks). Orchestrates providers without embedding supplier logic.',
+  },
+  {
     id: 'providers.hotel_foundation',
     name: 'Hotel Provider Foundation',
     description:
