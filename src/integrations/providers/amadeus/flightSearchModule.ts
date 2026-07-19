@@ -77,11 +77,20 @@ export async function buildAmadeusFlightSearchQuery(
     }
   }
 
+  const adults = Math.max(1, search.travelers.adults || 1)
+  const children = Math.max(0, search.travelers.children || 0)
+  const infants = Math.max(0, search.travelers.infants || 0)
+  const departureDate = search.departureDate || defaultDepartureDate()
+  const returnDate = search.returnDate?.trim() || undefined
+
   const query: FlightSearchQuery = {
     origin: originResult.airport.iataCode,
     destination: destinationResult.airport.iataCode,
-    departureDate: search.departureDate || defaultDepartureDate(),
-    adults: search.travelers.adults || 1,
+    departureDate,
+    ...(returnDate ? { returnDate } : {}),
+    adults,
+    ...(children > 0 ? { children } : {}),
+    ...(infants > 0 ? { infants } : {}),
     cabin: mapCabinForApi(search.preferredCabin),
     currency: search.budgetCurrency || 'SAR',
     maxResults: 10,

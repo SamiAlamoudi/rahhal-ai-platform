@@ -100,10 +100,25 @@ export interface FlightSearchQuery {
   origin: string
   destination: string
   departureDate: string
+  /** ISO date — when set, Amadeus returns round-trip itineraries. */
+  returnDate?: string
   adults: number
+  children?: number
+  infants?: number
   cabin?: string
   currency?: string
   maxResults?: number
+}
+
+/** Response from POST /v1/shopping/flight-offers/pricing */
+export interface AmadeusFlightOffersPricingResponse {
+  data?: {
+    type?: string
+    flightOffers?: AmadeusFlightOffer[]
+    bookingRequirements?: Record<string, unknown>
+  }
+  dictionaries?: AmadeusDictionaries
+  warnings?: Array<{ code?: number; title?: string; detail?: string }>
 }
 
 /** Amadeus Airport & City Search location entry. */
@@ -156,8 +171,12 @@ function log(level: LogLevel, message: string, context?: Record<string, unknown>
 
 function mapHttpError(status: number, body: string): ProviderError {
   const ts = new Date().toISOString()
+  const lower = body.toLowerCase()
   if (status === 401) {
     return { code: 'AMADEUS_TOKEN_EXPIRED', category: 'auth', severity: 'error', message: `Token expired or invalid (401): ${body}`, retryable: true, timestamp: ts }
+  }
+  if (status === 403 && (lower.includes('quota') || lower.includes('credit') || lower.includes('limit'))) {
+    return { code: 'AMADEUS_QUOTA_EXCEEDED', category: 'rate-limit', severity: 'error', message: `Quota exceeded (403): ${body}`, retryable: false, timestamp: ts }
   }
   if (status === 429) {
     return { code: 'AMADEUS_RATE_LIMITED', category: 'rate-limit', severity: 'warning', message: 'Rate limited (429)', retryable: true, timestamp: ts }
@@ -167,6 +186,9 @@ function mapHttpError(status: number, body: string): ProviderError {
   }
   if (status === 400) {
     return { code: 'AMADEUS_BAD_REQUEST', category: 'validation', severity: 'warning', message: `Bad request (400): ${body}`, retryable: false, timestamp: ts }
+  }
+  if (status === 404) {
+    return { code: 'AMADEUS_UNAVAILABLE', category: 'provider', severity: 'error', message: `Provider endpoint unavailable (404): ${body}`, retryable: false, timestamp: ts }
   }
   return { code: 'AMADEUS_HTTP_ERROR', category: 'provider', severity: 'error', message: `HTTP ${status}: ${body}`, retryable: status >= 500, timestamp: ts }
 }
@@ -315,12 +337,25 @@ export class AmadeusFlightApiClient {
           adults: String(query.adults),
           max: String(query.maxResults ?? 10),
         })
+        if (query.returnDate) params.append('returnDate', query.returnDate)
+        if (query.children != null && query.children > 0) {
+          params.append('children', String(query.children))
+        }
+        if (query.infants != null && query.infants > 0) {
+          params.append('infants', String(query.infants))
+        }
         if (query.cabin) params.append('travelClass', query.cabin.toUpperCase())
         if (query.currency) params.append('currencyCode', query.currency)
         params.append('nonStop', 'false')
 
         const url = `${amadeusV1Url(this.host, '/shopping/flight-offers')}?${params.toString()}`
-        log('info', `Searching flight offers (attempt ${attempt})`, { origin: query.origin, destination: query.destination })
+        log('info', `Searching flight offers (attempt ${attempt})`, {
+          origin: query.origin,
+          destination: query.destination,
+          returnDate: query.returnDate ?? null,
+          adults: query.adults,
+          children: query.children ?? 0,
+        })
 
         const response = await fetch(url, {
           method: 'GET',
@@ -359,6 +394,84 @@ export class AmadeusFlightApiClient {
         const latency = Date.now() - start
         const error = mapNetworkError(err)
         log('error', `Request failed on attempt ${attempt}`, { latency, error: error.code })
+        if (!error.retryable || attempt > this.config.maxRetries) {
+          return { data: null, error, latency, attempts: attempt, tokenRefreshed }
+        }
+      }
+    }
+
+    return { data: null, error: null, latency: 0, attempts: this.config.maxRetries + 1, tokenRefreshed }
+  }
+
+  /**
+   * Confirm offer pricing / details via Flight Offers Price.
+   * Endpoint: POST /v1/shopping/flight-offers/pricing
+   * Does not create an order or collect payment.
+   */
+  async priceFlightOffers(
+    flightOffers: AmadeusFlightOffer[],
+  ): Promise<ApiClientResult<AmadeusFlightOffersPricingResponse>> {
+    let tokenRefreshed = false
+
+    for (let attempt = 1; attempt <= this.config.maxRetries + 1; attempt++) {
+      const tokenResult = await this.oauthClient.getToken()
+      if (tokenResult.error || !tokenResult.token) {
+        return { data: null, error: tokenResult.error, latency: 0, attempts: attempt, tokenRefreshed: false }
+      }
+
+      const start = Date.now()
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
+
+      try {
+        const url = amadeusV1Url(this.host, '/shopping/flight-offers/pricing')
+        log('info', `Pricing flight offers (attempt ${attempt})`, { count: flightOffers.length })
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `${tokenResult.token.tokenType} ${tokenResult.token.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            data: {
+              type: 'flight-offers-pricing',
+              flightOffers,
+            },
+          }),
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+        const latency = Date.now() - start
+
+        if (response.status === 401 && attempt === 1) {
+          log('warn', 'Token expired during pricing, refreshing')
+          this.oauthClient.clearToken()
+          tokenRefreshed = true
+          continue
+        }
+
+        if (!response.ok) {
+          const body = await response.text().catch(() => '')
+          const error = mapHttpError(response.status, body)
+          log('warn', `HTTP ${response.status} on pricing attempt ${attempt}`, { latency, error: error.code })
+          if (!error.retryable || attempt > this.config.maxRetries) {
+            return { data: null, error, latency, attempts: attempt, tokenRefreshed }
+          }
+          continue
+        }
+
+        const data = await response.json() as AmadeusFlightOffersPricingResponse
+        log('info', 'Flight offer pricing received', {
+          latency,
+          count: data.data?.flightOffers?.length ?? 0,
+        })
+        return { data, error: null, latency, attempts: attempt, tokenRefreshed }
+      } catch (err) {
+        clearTimeout(timeoutId)
+        const latency = Date.now() - start
+        const error = mapNetworkError(err)
+        log('error', `Pricing request failed on attempt ${attempt}`, { latency, error: error.code })
         if (!error.retryable || attempt > this.config.maxRetries) {
           return { data: null, error, latency, attempts: attempt, tokenRefreshed }
         }
