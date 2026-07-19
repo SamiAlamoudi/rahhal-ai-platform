@@ -61,6 +61,7 @@ export type FeatureId =
   | 'brain.loyalty_platform'
   | 'brain.travel_documents'
   | 'brain.supplier_marketplace'
+  | 'brain.finance_platform'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

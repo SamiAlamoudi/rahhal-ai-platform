@@ -78,6 +78,12 @@ export type ConversationCommandKind =
   | 'avoid_poor_refunds'
   | 'fastest_confirmation'
   | 'rank_suppliers'
+  | 'finance_revenue_month'
+  | 'finance_profit_destination'
+  | 'finance_highest_margin_supplier'
+  | 'finance_unpaid_settlements'
+  | 'finance_refund_losses'
+  | 'finance_vat_report'
   | 'unknown'
 
 export type ConversationMessageRole = 'user' | 'assistant' | 'system'

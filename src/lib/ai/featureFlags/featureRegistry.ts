@@ -551,6 +551,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: supplier_marketplace. Additive supplier layer; does not replace existing provider adapters or booking execution.',
   },
   {
+    id: 'brain.finance_platform',
+    name: 'Universal Revenue, Finance & Settlement Platform',
+    description:
+      'Sprint 41 post-booking finance backbone — revenue recognition, wallets, settlements, double-entry ledger, invoices, tax/FX, and financial reports. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.supplier_marketplace'],
+    notes:
+      'Product alias: finance_platform. Not a payment gateway; additive finance layer after booking/payments.',
+  },
+  {
     id: 'providers.hotel_foundation',
     name: 'Hotel Provider Foundation',
     description:
