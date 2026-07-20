@@ -1,6 +1,11 @@
 import type { ChatMessage } from '../chat/chatTypes'
 import type { AgentMemory, AgentProviderMeta, TripPlan, TripRequirements } from './types'
 import { emptyMemory, emptyRequirements, INTAKE_FIELD_ORDER, withTripPlan } from './types'
+import {
+  inferSoftRequirements,
+  isSmartClarificationEnabled,
+  missingClarificationFields,
+} from './clarification'
 
 export function isAgentProviderMeta(value: unknown): value is AgentProviderMeta {
   if (!value || typeof value !== 'object') return false
@@ -88,7 +93,21 @@ export function mergeRequirements(
   return merged
 }
 
-export function missingRequirementFields(requirements: TripRequirements): Array<keyof TripRequirements> {
+export function missingRequirementFields(
+  requirements: TripRequirements,
+  options: { smart?: boolean } = {},
+): Array<keyof TripRequirements> {
+  const smart = typeof options.smart === 'boolean'
+    ? options.smart
+    : isSmartClarificationEnabled()
+
+  if (smart) {
+    // Infer soft slots first so planning never blocks on form-style preferences.
+    const inferred = inferSoftRequirements(requirements).requirements
+    return missingClarificationFields(inferred, { smart: true })
+  }
+
+  // Legacy full intake (flag off) — keep soft slots blocking.
   const req = normalizeRequirements(requirements)
   const missing: Array<keyof TripRequirements> = []
 
@@ -139,6 +158,20 @@ export function missingRequirementFields(requirements: TripRequirements): Array<
   }
 
   return missing
+}
+
+/**
+ * Apply never-ask-twice soft inference onto requirements (mutates via return).
+ * Call before planning / tool selection so defaults are concrete.
+ */
+export function applySmartClarification(
+  requirements: TripRequirements,
+  options: { locale?: AgentMemory['locale']; enabled?: boolean } = {},
+): { requirements: TripRequirements; inferred: Array<keyof TripRequirements>; rationale: string[] } {
+  if (!isSmartClarificationEnabled({ enabled: options.enabled })) {
+    return { requirements, inferred: [], rationale: [] }
+  }
+  return inferSoftRequirements(requirements, { locale: options.locale })
 }
 
 /** Next single intake question for conversational flow. */

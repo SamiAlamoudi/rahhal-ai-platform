@@ -84,6 +84,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: travel_reasoning',
   },
   {
+    id: 'ai.smart_clarification',
+    name: 'Smart Clarification / Never-Ask-Twice',
+    description:
+      'Sprint 46 — infer soft preferences (interests, weather, hotel, package, budget style, traveler type) so the AI never form-asks them; only hard slots block planning.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.concierge'],
+    notes: 'Product alias: smart_clarification',
+  },
+  {
     id: 'ui.flight_results_experience',
     name: 'Flight Results Experience',
     description:

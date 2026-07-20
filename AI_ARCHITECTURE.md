@@ -65,6 +65,14 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag: `ai.travel_reasoning` (default **ON**; depends on `ai.concierge` + `ai.recommendation_engine`).
 - See `docs/SPRINT45_TRAVEL_REASONING.md`.
 
+## Smart Clarification / Never-Ask-Twice (Sprint 46)
+
+- Soft preferences (interests, weather, hotel, package, budget style, traveler type) are **inferred**, never form-asked.
+- Only hard slots (destination*, duration, budget, travelers) block planning.
+- Package: `src/lib/agent/clarification`; wired in `planTurn` after reasoning / preference seed.
+- Flag: `ai.smart_clarification` (default **ON**; depends on `ai.concierge`).
+- See `docs/SPRINT46_SMART_CLARIFICATION.md`.
+
 ## Flight Results Experience (Sprint 11)
 
 - UI/logic for premium flight cards, sort/filter, details, and select→booking session.
