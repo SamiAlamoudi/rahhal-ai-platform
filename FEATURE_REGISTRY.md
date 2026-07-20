@@ -31,6 +31,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ai.persistent_memory` | beta | yes | Sprint 48 durable preference profiles via localStorage (alias: persistent_memory) |
 | `ai.rahhal_brain` | beta | yes | Sprint 50 Rahhal Brain Core orchestration on production agent path (alias: rahhal_brain) |
 | `ai.travel_executive` | beta | yes | Phase 2 AI Travel Executive — context, rejections, optimizer, consultant replies (alias: travel_executive) |
+| `ai.real_world_intelligence` | beta | yes | Sprint 53 Real World Intelligence — live flight/hotel/weather/visa/event/safety/FX/transport/price-watch via providers (alias: real_world_intelligence) |
 | `ai.executive_os` | beta | yes | Sprint 52 Executive Operating System — knowledge, optimizers, graph, prediction, negotiation, goals, strategy, explanation v2, self-review (alias: executive_os) |
 | `ai.executive_platform` | beta | yes | Sprint 51 Executive Travel Platform — ten engines via RahhalBrain (alias: executive_platform) |
 | `ui.flight_results_experience` | beta | yes | Sprint 11 flight cards, sort/filter, details, select→session |

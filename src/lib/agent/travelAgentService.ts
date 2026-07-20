@@ -335,6 +335,23 @@ function toMetaExecutiveOs(
   }
 }
 
+function toMetaLiveIntelligence(
+  live: NonNullable<RahhalBrainTurnResult['liveIntelligence']>,
+): NonNullable<AgentProviderMeta['liveIntelligence']> {
+  return {
+    domains: live.domains,
+    providerIds: live.providerIds,
+    confidence: live.confidence,
+    degraded: live.degraded,
+    latencyMs: live.latencyMs,
+    cacheHits: live.cacheHits,
+    cacheMisses: live.cacheMisses,
+    hasSummary: Boolean(live.summary),
+    flightCount: live.flights.length,
+    hotelCount: live.hotels.length,
+  }
+}
+
 function toMetaRahhalBrain(
   meta: RahhalBrainMetaSnapshot,
 ): NonNullable<AgentProviderMeta['rahhalBrain']> {
@@ -509,6 +526,7 @@ export function createTravelAgentService(
       let rahhalBrainMeta: RahhalBrainMetaSnapshot | undefined
       let travelExecutiveSnapshot: RahhalBrainTurnResult['executive']
       let executivePlatformSnapshot: RahhalBrainTurnResult['executivePlatform']
+      let liveIntelligenceSnapshot: RahhalBrainTurnResult['liveIntelligence']
 
       if (isBrainCoreEnabled()) {
         const brainTurn = runRahhalBrainTurn(
@@ -533,6 +551,7 @@ export function createTravelAgentService(
         rahhalBrainMeta = brainTurn.meta
         travelExecutiveSnapshot = brainTurn.executive
         executivePlatformSnapshot = brainTurn.executivePlatform
+        liveIntelligenceSnapshot = brainTurn.liveIntelligence
 
         if (
           brainTurn.decision.type === 'respond'
@@ -556,6 +575,9 @@ export function createTravelAgentService(
               : undefined,
             executiveOs: brainTurn.executivePlatform
               ? toMetaExecutiveOs(brainTurn.executivePlatform)
+              : undefined,
+            liveIntelligence: brainTurn.liveIntelligence
+              ? toMetaLiveIntelligence(brainTurn.liveIntelligence)
               : undefined,
           }
           return {
@@ -838,12 +860,19 @@ export function createTravelAgentService(
       }
 
       const attachExecutivePlatform = <T extends AgentProviderMeta>(meta: T): T => {
-        if (!executivePlatformSnapshot) return meta
+        if (!executivePlatformSnapshot && !liveIntelligenceSnapshot) return meta
         return {
           ...meta,
-          executivePlatform: toMetaExecutivePlatform(executivePlatformSnapshot),
-          ...(toMetaExecutiveOs(executivePlatformSnapshot)
-            ? { executiveOs: toMetaExecutiveOs(executivePlatformSnapshot) }
+          ...(executivePlatformSnapshot
+            ? {
+              executivePlatform: toMetaExecutivePlatform(executivePlatformSnapshot),
+              ...(toMetaExecutiveOs(executivePlatformSnapshot)
+                ? { executiveOs: toMetaExecutiveOs(executivePlatformSnapshot) }
+                : {}),
+            }
+            : {}),
+          ...(liveIntelligenceSnapshot
+            ? { liveIntelligence: toMetaLiveIntelligence(liveIntelligenceSnapshot) }
             : {}),
         }
       }

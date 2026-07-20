@@ -2,6 +2,17 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Sprint 53: Real World Intelligence Layer
+
+### Added
+
+- Live intelligence package (`src/lib/brain/intelligence`) orchestrated through RahhalBrain.
+- Provider abstraction (`search` / `availability` / `pricing` / `booking` / `cancel` / `status`) with nine mock domain providers.
+- Event bus, multi-layer cache, retry/timeout/circuit breaker, telemetry dashboard.
+- Feature flag `ai.real_world_intelligence` (default ON).
+- Meta: `AgentProviderMeta.liveIntelligence`.
+- Docs: `docs/SPRINT53_REAL_WORLD_INTELLIGENCE.md`; tests: `realWorldIntelligence.sprint53.test.ts`.
+
 ## [Unreleased] — Sprint 52: Executive Operating System v1
 
 ### Added

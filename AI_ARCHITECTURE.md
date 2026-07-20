@@ -97,6 +97,14 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag: `ai.executive_os` (default **ON**; depends on `ai.executive_platform`).
 - See `docs/SPRINT52_EXECUTIVE_OS.md`.
 
+## Real World Intelligence Layer (Sprint 53)
+
+- Live signals for flights, hotels, weather, visa, events, safety, FX, transport, and price watch.
+- Provider abstraction + event bus + multi-layer cache + circuit breaker; mock adapters when credentials unavailable.
+- Package: `src/lib/brain/intelligence` — called only from RahhalBrain.
+- Flag: `ai.real_world_intelligence` (default **ON**; depends on `ai.rahhal_brain`).
+- See `docs/SPRINT53_REAL_WORLD_INTELLIGENCE.md`.
+
 ## Smart Clarification / Never-Ask-Twice (Sprint 46)
 
 - Soft preferences (interests, weather, hotel, package, budget style, traveler type) are **inferred**, never form-asked.

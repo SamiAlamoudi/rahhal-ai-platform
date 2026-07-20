@@ -8,6 +8,7 @@ import type { AgentMemory, AgentProviderMeta } from '../../agent/types'
 import type { TravelReasoningResult } from '../../agent/reasoning/types'
 import type { ExecutiveEnhancement } from '../executive/types'
 import type { ExecutivePlatformResult } from '../executive/platform'
+import type { LiveIntelligenceSnapshot } from '../intelligence'
 
 export type BrainModuleId =
   | 'memory'
@@ -24,6 +25,7 @@ export type BrainModuleId =
   | 'executive'
   | 'executive_platform'
   | 'executive_os'
+  | 'live_intelligence'
   | 'flights'
   | 'hotels'
   | 'planning'
@@ -135,6 +137,7 @@ export interface RahhalBrainTurnResult {
   clarificationMeta?: AgentProviderMeta['clarification']
   executive?: ExecutiveEnhancement
   executivePlatform?: ExecutivePlatformResult
+  liveIntelligence?: LiveIntelligenceSnapshot
   decision: RahhalBrainDecision
   meta: RahhalBrainMetaSnapshot
 }
