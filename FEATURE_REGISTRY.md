@@ -84,13 +84,16 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 ## Usage
 
 ```ts
-import { getFeatureRegistry } from './lib/ai'
+import { getFeatureRegistry } from '../lib/ai'
+// or from app code: import { getFeatureRegistry } from '@/lib/ai' (if path alias configured)
 
 const registry = getFeatureRegistry()
 if (registry.isEnabled('ai.personalization')) {
   // load PreferenceEngine
 }
 ```
+
+**RC (`1.1.0-rc.1`):** Sprint 42–44 flags (`ui.conversation_experience`, `brain.ai_orchestrator`, `ui.chatgpt_experience`) remain experimental and default **OFF**. Production chat uses the stable `/chat` agent path without those gates.
 
 Dependency rule: a feature is enabled only if it is marked `enabled` **and** all `dependsOn` features are enabled.
 

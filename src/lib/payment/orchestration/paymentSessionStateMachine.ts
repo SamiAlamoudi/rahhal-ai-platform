@@ -133,7 +133,7 @@ export function transitionPaymentSession(
       : input.session.paidAt,
     metadata: {
       ...input.session.metadata,
-      ...(input.patch?.metadata ?? {}),
+      ...input.patch?.metadata,
       lastTransition: { from, to, at: now },
     },
   }

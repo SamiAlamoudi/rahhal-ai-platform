@@ -31,7 +31,15 @@
 | RapidAPI (Booking) | Prefer `RAPIDAPI_KEY` server-side |
 | Moyasar | Edge only — **disabled** while payment freeze holds |
 
-Forbidden in client: `VITE_AMADEUS_CLIENT_SECRET`, `VITE_GOOGLE_MAPS_API_KEY`, `VITE_OPENWEATHER_API_KEY`, `VITE_MOYASAR_SECRET*`. Validated by `validateEnvironment` and CI hygiene scan.
+Forbidden in client: `VITE_AMADEUS_CLIENT_SECRET`, `VITE_AMADEUS_CLIENT_ID`, `VITE_GOOGLE_MAPS_API_KEY`, `VITE_OPENWEATHER_API_KEY`, `VITE_MOYASAR_SECRET*`. Validated by `validateEnvironment` and CI hygiene scan.
+
+`VITE_RAPIDAPI_KEY` / `VITE_BOOKING_API_KEY` still power the SPA hotel adapter when live hotels are opted in; on preview/staging/production targets `validateEnvironment` **warns** that these are client-bundled — prefer a server proxy before production live hotels.
+
+### RC hardening (`1.1.0-rc.1`)
+
+- Coupons RLS: authenticated **SELECT** only (mutations via service role).
+- Moyasar webhook: accept secrets via headers only (no `?webhook_secret=`).
+- Chat attachment/image/audio URLs filtered by `safeMediaUrl` (blocks `javascript:` and non-image `data:`).
 
 ## Dependency audit
 

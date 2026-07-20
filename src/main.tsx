@@ -1,45 +1,60 @@
-import { StrictMode } from 'react'
+import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import './index.css'
 import { AppErrorBoundary } from './components/ops/AppErrorBoundary'
 import { runStartup } from './lib/ops'
-import Home from './pages/Home.tsx'
-import TravelConversation from './pages/TravelConversation.tsx'
-import SearchWorkspace from './pages/SearchWorkspace.tsx'
-import Login from './pages/Login.tsx'
-import SignUp from './pages/SignUp.tsx'
-import ForgotPassword from './pages/ForgotPassword.tsx'
-import AdminDashboard from './pages/AdminDashboard.tsx'
-import AdminUsersPage from './pages/AdminUsersPage.tsx'
-import AdminTripsPage from './pages/AdminTripsPage.tsx'
-import AdminBookingsPage from './pages/AdminBookingsPage.tsx'
-import AdminPaymentsPage from './pages/AdminPaymentsPage.tsx'
-import Notifications from './pages/Notifications.tsx'
-import ResultsPage from './pages/ResultsPage.tsx'
-import FlightDetailsPage from './pages/FlightDetailsPage.tsx'
-import IntegrationDiagnostics from './pages/IntegrationDiagnostics.tsx'
-import BookingReview from './pages/BookingReview.tsx'
-import PassengerBookingPage from './pages/PassengerBookingPage.tsx'
-import BookingReturn from './pages/BookingReturn.tsx'
-import MyTrips from './pages/MyTrips.tsx'
-import BookingDetailsPage from './pages/BookingDetailsPage.tsx'
-import BookingConfirmationPage from './pages/BookingConfirmationPage.tsx'
-import SmartItineraryPage from './pages/SmartItineraryPage.tsx'
-import SavedTrips from './pages/SavedTrips.tsx'
-import Settings from './pages/Settings.tsx'
-import ChatPage from './pages/ChatPage.tsx'
-import CheckoutPage from './pages/CheckoutPage.tsx'
-import CheckoutReviewPage from './pages/CheckoutReviewPage.tsx'
-import OrderCheckoutReviewPage from './pages/OrderCheckoutReviewPage.tsx'
-import CheckoutPaymentPage from './pages/CheckoutPaymentPage.tsx'
-import CheckoutReturnPage from './pages/CheckoutReturnPage.tsx'
-import CheckoutSuccessPage from './pages/CheckoutSuccessPage.tsx'
-import CheckoutFailurePage from './pages/CheckoutFailurePage.tsx'
+import { AuthProvider } from './lib/auth/AuthContext.tsx'
+import { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './lib/auth/ProtectedRoute.tsx'
 import type { NormalizedTravelOption } from './utils/searchOrchestrator'
 import type { ReasoningResult } from './utils/reasoningEngine'
 import type { TravelSearchRequest } from './utils/travelSearchRequest'
-import { useLocation, Navigate } from 'react-router-dom'
+
+const Home = lazy(() => import('./pages/Home.tsx'))
+const TravelConversation = lazy(() => import('./pages/TravelConversation.tsx'))
+const SearchWorkspace = lazy(() => import('./pages/SearchWorkspace.tsx'))
+const Login = lazy(() => import('./pages/Login.tsx'))
+const SignUp = lazy(() => import('./pages/SignUp.tsx'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword.tsx'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard.tsx'))
+const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage.tsx'))
+const AdminTripsPage = lazy(() => import('./pages/AdminTripsPage.tsx'))
+const AdminBookingsPage = lazy(() => import('./pages/AdminBookingsPage.tsx'))
+const AdminPaymentsPage = lazy(() => import('./pages/AdminPaymentsPage.tsx'))
+const Notifications = lazy(() => import('./pages/Notifications.tsx'))
+const ResultsPage = lazy(() => import('./pages/ResultsPage.tsx'))
+const FlightDetailsPage = lazy(() => import('./pages/FlightDetailsPage.tsx'))
+const IntegrationDiagnostics = lazy(() => import('./pages/IntegrationDiagnostics.tsx'))
+const BookingReview = lazy(() => import('./pages/BookingReview.tsx'))
+const PassengerBookingPage = lazy(() => import('./pages/PassengerBookingPage.tsx'))
+const BookingReturn = lazy(() => import('./pages/BookingReturn.tsx'))
+const MyTrips = lazy(() => import('./pages/MyTrips.tsx'))
+const BookingDetailsPage = lazy(() => import('./pages/BookingDetailsPage.tsx'))
+const BookingConfirmationPage = lazy(() => import('./pages/BookingConfirmationPage.tsx'))
+const SmartItineraryPage = lazy(() => import('./pages/SmartItineraryPage.tsx'))
+const SavedTrips = lazy(() => import('./pages/SavedTrips.tsx'))
+const Settings = lazy(() => import('./pages/Settings.tsx'))
+const ChatPage = lazy(() => import('./pages/ChatPage.tsx'))
+const CheckoutPage = lazy(() => import('./pages/CheckoutPage.tsx'))
+const CheckoutReviewPage = lazy(() => import('./pages/CheckoutReviewPage.tsx'))
+const OrderCheckoutReviewPage = lazy(() => import('./pages/OrderCheckoutReviewPage.tsx'))
+const CheckoutPaymentPage = lazy(() => import('./pages/CheckoutPaymentPage.tsx'))
+const CheckoutReturnPage = lazy(() => import('./pages/CheckoutReturnPage.tsx'))
+const CheckoutSuccessPage = lazy(() => import('./pages/CheckoutSuccessPage.tsx'))
+const CheckoutFailurePage = lazy(() => import('./pages/CheckoutFailurePage.tsx'))
+
+function RouteFallback() {
+  return (
+    <div
+      dir="rtl"
+      className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500"
+      role="status"
+      aria-live="polite"
+    >
+      جاري التحميل...
+    </div>
+  )
+}
 
 function ResultsRoute() {
   const location = useLocation()
@@ -61,8 +76,6 @@ function ResultsRoute() {
     />
   )
 }
-import { AuthProvider } from './lib/auth/AuthContext.tsx'
-import { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './lib/auth/ProtectedRoute.tsx'
 
 // Phase X — startup validation + global error handlers (non-UI).
 runStartup({
@@ -75,6 +88,7 @@ createRoot(document.getElementById('root')!).render(
     <AppErrorBoundary>
     <BrowserRouter>
       <AuthProvider>
+        <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/" element={
             <ProtectedRoute>
@@ -247,6 +261,7 @@ createRoot(document.getElementById('root')!).render(
             </PublicOnlyRoute>
           } />
         </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
     </AppErrorBoundary>

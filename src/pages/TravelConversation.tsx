@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, Suspense, lazy } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   createEmptyTravelSession,
@@ -18,8 +18,9 @@ import { generateReasoning, type ReasoningResult } from '../utils/reasoningEngin
 import { buildRahhalReply, buildWelcomeReply, buildResumedReply, progressText } from '../utils/rahhalVoice'
 import DecisionProfile from '../components/DecisionProfile'
 import LiveSummaryCard from '../components/LiveSummaryCard'
-import ResultsExperience from '../components/ResultsExperience'
-import DecisionDashboard from '../components/DecisionDashboard'
+
+const ResultsExperience = lazy(() => import('../components/ResultsExperience'))
+const DecisionDashboard = lazy(() => import('../components/DecisionDashboard'))
 
 interface ChatMessage {
   id: number
@@ -383,15 +384,21 @@ export default function TravelConversation() {
                       عرض صفحة النتائج الكاملة واختيار الحجز ←
                     </button>
                   </div>
-                  <ResultsExperience
-                    rankedOptions={rankedOptions}
-                    reasoningResults={reasoningResults}
-                  />
-                  <DecisionDashboard
-                    rankedOptions={rankedOptions}
-                    reasoningResults={reasoningResults}
-                    searchRequest={searchRequest}
-                  />
+                  <Suspense fallback={
+                    <div className="flex justify-center py-8">
+                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
+                    </div>
+                  }>
+                    <ResultsExperience
+                      rankedOptions={rankedOptions}
+                      reasoningResults={reasoningResults}
+                    />
+                    <DecisionDashboard
+                      rankedOptions={rankedOptions}
+                      reasoningResults={reasoningResults}
+                      searchRequest={searchRequest}
+                    />
+                  </Suspense>
                 </div>
               )}
             </section>

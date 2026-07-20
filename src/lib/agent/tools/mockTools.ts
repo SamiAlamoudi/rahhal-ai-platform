@@ -49,8 +49,8 @@ function createAggregatedTool(input: {
     async execute(ctx) {
       const started = Date.now()
       const queryInput = {
-        ...(ctx.input ?? {}),
-        ...(input.enrichInput?.(ctx) ?? {}),
+        ...ctx.input,
+        ...input.enrichInput?.(ctx),
         currency: ctx.requirements.budgetCurrency || ctx.input?.currency || 'USD',
       }
       const aggregated = await input.engine.aggregate({

@@ -1,5 +1,7 @@
 # AI Architecture — Phase AB Foundation
 
+> **RC note (`1.1.0-rc.1`):** Sprint 42–44 conversation UX / orchestrator modules are merged and registry-gated (default OFF). This document remains the ownership map; see **Active conversation paths** below for production defaults.
+
 ## Principles
 
 1. **Additive only** — do not break `TripPlan`, `applyIntelligentDecisions`, booking/payment, or `ProviderAdapter` contracts.
@@ -7,6 +9,19 @@
 3. **Privacy first** — personalization/analytics respect settings gates; PII masking via ops helpers.
 4. **Deterministic foundations** — Phase AB engines are interface + deterministic helpers (no new LLM provider).
 5. **ProviderAdapter preserved** — live search remains Phase W aggregation; AI ranking overlays scored candidates.
+
+## Active conversation paths (SoT)
+
+| Path | Modules | Production default |
+|------|---------|-------------------|
+| **Chat (primary)** | `src/pages/ChatPage` → `src/lib/chat` + `src/lib/agent` (+ optional brain/orchestrator flags) | ON |
+| **Chat voice** | `src/lib/chat/voice` + `VoiceComposer` | ON (browser STT/TTS; mocks in CI) |
+| **Legacy intake** | `TravelConversation` / `SearchWorkspace` + `src/utils/travelSession` | ON (mock search) |
+| **Sprint 18 voice foundation** | `src/lib/voiceConversation` | Flag OFF |
+| **Sprint 43 orchestrator** | `src/lib/aiOrchestrator` | Flag `brain.ai_orchestrator` OFF |
+| **Sprint 44 ChatGPT UX** | `src/lib/chat/chatgptExperience` | Flag `ui.chatgpt_experience` OFF |
+
+Do not enable stacked experimental flags in production without a staging pilot.
 
 ## Package map
 

@@ -581,11 +581,9 @@ describe('AmadeusFlightApiClient', () => {
   })
 
   it('retries on 500 server error', async () => {
-    let tokenCalls = 0
     let searchCalls = 0
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
       if (String(url).includes('amadeus-token')) {
-        tokenCalls++
         return Promise.resolve({
           ok: true, status: 200,
           json: async () => ({ access_token: 'tok', token_type: 'Bearer', expires_in: 1800 }),

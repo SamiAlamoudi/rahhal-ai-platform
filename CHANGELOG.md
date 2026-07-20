@@ -2,6 +2,22 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [1.1.0-rc.1] — 2026-07-20
+
+### Stabilization (no new product features)
+
+- Repository cleanup: removed agent batch push artifacts, unused components/pages, duplicate scoring/report utils, unused `@vitest/ui`.
+- Quality: typecheck / lint (0 warnings) / 1600 Vitest tests / production build all green.
+- Performance: route-level `React.lazy` code-splitting + vendor chunks (entry JS ~24 kB vs prior ~2 MB monolith).
+- Security: coupons RLS SELECT-only for authenticated; Moyasar webhook header-only secrets; chat media URL allowlist; RapidAPI `VITE_*` warnings on hardened targets; session persist timer cleanup.
+- Docs: `RELEASE_NOTES_v1.md`, `PRODUCTION_CHECKLIST.md`, `RC_STABILIZATION_REPORT.md`; README / AI architecture / feature registry refreshed.
+
+### Included from main (already merged)
+
+- Sprint 42 Conversation Experience & Booking UX (`ui.conversation_experience`, default OFF).
+- Sprint 43 Rahhal AI Orchestrator (`brain.ai_orchestrator`, default OFF).
+- Sprint 44 ChatGPT-like conversation experience (`ui.chatgpt_experience`, default OFF).
+
 ## [Unreleased] — Production MVP: Preview deployment readiness
 
 ### Added

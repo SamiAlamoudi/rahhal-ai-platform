@@ -79,5 +79,25 @@ export default defineConfig({
   build: {
     // Documented performance budget signal (Phase X) — warn above ~900kB uncompressed chunk.
     chunkSizeWarningLimit: 900,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'vendor-react',
+              test: /node_modules[\\/](react|react-dom|scheduler)([\\/]|$)/,
+            },
+            {
+              name: 'vendor-router',
+              test: /node_modules[\\/]react-router/,
+            },
+            {
+              name: 'vendor-supabase',
+              test: /node_modules[\\/]@supabase/,
+            },
+          ],
+        },
+      },
+    },
   },
 })

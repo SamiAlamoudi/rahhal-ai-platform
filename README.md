@@ -2,7 +2,9 @@
 
 Arabic RTL travel planning SPA: conversation-driven requirements → live flight/hotel search → booking session → (optional) in-app checkout.
 
-> Marketing says “AI”; the conversation/scoring layer is **rule-based** (not LLM). LLM assistance is optional future work.
+> Marketing says “AI”; the conversation/scoring layer is **rule-based** (not LLM). LLM assistance is optional and flag-gated.
+
+**Current package version:** `1.1.0-rc.1` — see [`RELEASE_NOTES_v1.md`](RELEASE_NOTES_v1.md) and [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md).
 
 ## Stack
 
@@ -13,7 +15,7 @@ Arabic RTL travel planning SPA: conversation-driven requirements → live flight
 | Backend | Supabase Auth + Postgres + RLS |
 | Providers | Amadeus (flights), Booking.com RapidAPI (hotels), RentalCars, OpenWeather |
 | Payments | Moyasar hosted checkout via Edge Functions — **frozen for production** pending business verification (see below) |
-| Tests | Vitest unit tests |
+| Tests | Vitest unit tests + Playwright Chromium funnel |
 
 ## Local setup
 
@@ -33,33 +35,37 @@ npm run dev
 | `npm run test:playwright` | Browser booking funnel E2E |
 | `npm run lint` | Oxlint |
 | `npm run test:run` | Vitest once |
+| `npm run typecheck` | TypeScript project build check |
+| `npm run providers:check` | Provider config readiness (no network by default) |
+
+## Product surfaces (production defaults)
+
+| Route | Role |
+|-------|------|
+| `/chat` | Primary AI conversation (streaming + voice) |
+| `/search` | Legacy planning workspace + mock ranked search |
+| `/travel-conversation` | Legacy conversational intake |
+| `/my-trips`, `/checkout/*` | Booking lifecycle (mock payment) |
+
+Experimental Sprint 42–44 UX/orchestrator flags default **OFF** — see `FEATURE_REGISTRY.md`.
 
 ## Product phases (roadmap)
 
 | Phase | Focus | Status |
 |-------|--------|--------|
-| A | Docs, env, CI hygiene | Done |
-| B | Live search via integrations | Done (`orchestrateLiveSearch` / `planTrip`) |
-| C | Persist booking/checkout | Done |
-| D | Real PSP (Moyasar) | **Code complete — production enablement frozen** |
-| E | Saved trips, settings, admin RBAC | Done |
-| F | Admin dashboard management + catalog clarity | Admin overview/users/trips/bookings + mock payments; catalog flags deferred |
-| G | AI Chat (+ shared `chatEngine`) | Text chat, search, streaming, attachment architecture |
-| H | Realtime Voice Conversation on same engine | STT/TTS, PTT/hands-free, interrupt; no phone/video |
-| H.5 | Chat & voice polish (no new features) | Streaming coalesce, mic UX, interrupt/resume, offline/recovery, a11y, tests |
-| I | Travel AI Agent foundation | Orchestration service, TripPlan model, LLM/tool adapters, chat+voice via chatEngine |
-| J | Tool execution framework | Mock flights/hotels/weather/maps/currency/visa/attractions + auto tool selection |
-| K | Multi-provider aggregation | Parallel mock provider query, normalize, dedupe, rank, confidence, merge |
-| L–Y | Intelligent planning → RC1 / v1.0.0 | Done (promoted; see release notes) |
-| AA | Post-launch monitoring & stabilization | Done (ops) |
-| AB | v1.1 planning & AI enhancement foundation | Done (library; post-MVP) |
-| **Production MVP** | Booking persistence → unified funnel → My Trips → Amadeus sandbox → payments prep → E2E → deploy | **Active** — preview deployment readiness (`npm run build:preview` / `preview:verify`); no production deploy |
-| AC+ | Recommendation / itinerary AI (post-launch) | Deferred until Production MVP complete |
+| A–K | Foundation through multi-provider aggregation | Done |
+| L–Y | Intelligent planning → RC1 / v1.0.0 | Done |
+| AA | Post-launch monitoring & stabilization | Done |
+| AB | v1.1 AI enhancement foundation | Done (library) |
+| Sprint 42–44 | Conversation UX / AI orchestrator / ChatGPT-like shell | Merged; flags default OFF |
+| **v1.1.0-rc.1** | Repository cleanup + production readiness | **Active** — `RELEASE_NOTES_v1.md` |
+| D (payments) | Moyasar production enablement | **Frozen** pending business verification |
+| AC+ | Recommendation / itinerary AI | Deferred |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).
 
-v1.1 AI docs: `V1_1_ROADMAP.md`, `FEATURE_REGISTRY.md`, `AI_ARCHITECTURE.md`.  
-Post-launch ops runbooks: `MONITORING_RUNBOOK.md`, `ALERTING_MATRIX.md`, `HOTFIX_PROCESS.md`, `POST_RELEASE_CHECKLIST.md`, `INCIDENT_TEMPLATE.md`, `CUSTOMER_SUPPORT_RUNBOOK.md`.
+v1 docs: `RELEASE_NOTES_v1.md`, `PRODUCTION_CHECKLIST.md`, `FEATURE_REGISTRY.md`, `AI_ARCHITECTURE.md`, `V1_1_ROADMAP.md`, `RC_STABILIZATION_REPORT.md`.  
+Ops runbooks: `MONITORING_RUNBOOK.md`, `ALERTING_MATRIX.md`, `HOTFIX_PROCESS.md`, `POST_RELEASE_CHECKLIST.md`, `INCIDENT_TEMPLATE.md`, `CUSTOMER_SUPPORT_RUNBOOK.md`.
 
 ## Payments freeze (Phase D)
 
@@ -67,18 +73,14 @@ Moyasar hosted checkout is implemented and must not be removed. Production go-li
 
 **TODO checklist:** [docs/PAYMENT_PRODUCTION_TODO.md](docs/PAYMENT_PRODUCTION_TODO.md)
 
-- Business verification
-- Live API keys
-- Live webhook
-- Final sandbox verification
-
-Until then keep `VITE_PAYMENT_PROVIDER=mock` (default). Do not put `MOYASAR_SECRET_KEY` in `VITE_*`.
+Until then keep `VITE_PAYMENT_PROVIDER=mock` (default). Do not put `MOYASAR_SECRET_KEY` in `VITE_*`. Webhooks must use **header** secrets only (no query `webhook_secret`).
 
 ## Security notes
 
 - Do not commit `.env.local` or provider secrets.
 - `/admin` requires authenticated user **and** admin role (`app_metadata.role === 'admin'` or `VITE_ADMIN_USER_IDS`).
 - Moyasar secrets are Edge Function secrets only.
+- See [docs/SECURITY.md](docs/SECURITY.md) and `PRODUCTION_CHECKLIST.md`.
 
 ## License
 
