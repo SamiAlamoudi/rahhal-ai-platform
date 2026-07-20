@@ -20,6 +20,7 @@ export type FeatureId =
   | 'ai.rahhal_brain'
   | 'ai.travel_executive'
   | 'ai.executive_platform'
+  | 'ai.executive_os'
   | 'ui.flight_results_experience'
   | 'ui.passenger_booking_flow'
   | 'ui.my_trips'

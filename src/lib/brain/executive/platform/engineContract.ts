@@ -25,6 +25,17 @@ export type ExecutiveEngineId =
   | 'risk'
   | 'executive_response'
   | 'learning'
+  // Sprint 52 — Executive OS
+  | 'global_knowledge'
+  | 'decision_optimizer'
+  | 'multi_objective_optimizer'
+  | 'travel_graph'
+  | 'prediction'
+  | 'smart_negotiation'
+  | 'goal_planning'
+  | 'executive_strategy'
+  | 'explanation_v2'
+  | 'self_review'
 
 export interface DocumentInput {
   kind: 'passport' | 'visa' | 'boarding_pass' | 'hotel_voucher' | 'flight_confirmation' | 'pdf' | 'image' | 'screenshot' | 'unknown'
@@ -132,6 +143,17 @@ export interface EngineRunResult {
   metadata: ExecutiveEngineMetadata
 }
 
+export interface ExecutiveOsSnapshot {
+  strategy: string | null
+  goal: string | null
+  prediction: Record<string, unknown> | null
+  topOptions: Array<{ id: string; name: string; score: number }>
+  negotiationCount: number
+  selfReviewFindings: Array<{ kind: string; message: string; severity: string }>
+  improvedOnce: boolean
+  engineIds: ExecutiveEngineId[]
+}
+
 export interface ExecutivePlatformResult {
   runs: EngineRunResult[]
   primaryReply: string | null
@@ -140,4 +162,6 @@ export interface ExecutivePlatformResult {
   nextBestAction: string | null
   confidence: number
   engineIds: ExecutiveEngineId[]
+  /** Sprint 52 — present when ai.executive_os ran. */
+  os?: ExecutiveOsSnapshot
 }

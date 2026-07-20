@@ -266,6 +266,17 @@ export interface AgentProviderMeta {
     hasPrimaryReply: boolean
   }
   /**
+   * Sprint 52 — Executive Operating System snapshot.
+   */
+  executiveOs?: {
+    strategy: string | null
+    goal: string | null
+    engineIds: string[]
+    topOptionCount: number
+    improvedOnce: boolean
+    acceptProbability: number | null
+  }
+  /**
    * Phase 2 — Travel Executive orchestration snapshot.
    */
   travelExecutive?: {

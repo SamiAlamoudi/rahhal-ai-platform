@@ -1,5 +1,6 @@
 /**
  * Sprint 51 — Executive engine registry (dependency inversion).
+ * Sprint 52 — OS engines registered and lazily selected by strategy.
  */
 
 import { createTripMonitorEngine } from '../engines/tripMonitor'
@@ -12,9 +13,23 @@ import { createItineraryOptimizerEngine } from '../engines/itineraryOptimizer'
 import { createRiskEngine } from '../engines/riskEngine'
 import { createExecutiveResponseEngine } from '../engines/executiveResponse'
 import { createLearningEngine } from '../engines/learningEngine'
-import type { ExecutiveEngine, ExecutiveEngineId } from './engineContract'
+import {
+  createGlobalKnowledgeEngine,
+  createDecisionOptimizerEngine,
+  createMultiObjectiveOptimizerEngine,
+  createTravelGraphEngine,
+  createPredictionEngine,
+  createSmartNegotiationEngine,
+  createGoalPlanningEngine,
+  createExecutiveStrategyEngine,
+  createExplanationEngineV2,
+  createSelfReviewEngine,
+} from '../engines/os'
+import { enginesForStrategy, selectExecutiveStrategy } from '../os/strategySelection'
+import { isExecutiveOsEnabled } from '../os/feature'
+import type { ExecutiveEngine, ExecutiveEngineContext, ExecutiveEngineId } from './engineContract'
 
-export function createDefaultExecutiveEngines(): ExecutiveEngine[] {
+export function createPlatformEngines(): ExecutiveEngine[] {
   return [
     createTravelMemoryEngine(),
     createMultimodalDocumentEngine(),
@@ -29,6 +44,33 @@ export function createDefaultExecutiveEngines(): ExecutiveEngine[] {
   ]
 }
 
+export function createOsEngines(): ExecutiveEngine[] {
+  return [
+    createExecutiveStrategyEngine(),
+    createGlobalKnowledgeEngine(),
+    createDecisionOptimizerEngine(),
+    createMultiObjectiveOptimizerEngine(),
+    createTravelGraphEngine(),
+    createPredictionEngine(),
+    createSmartNegotiationEngine(),
+    createGoalPlanningEngine(),
+    createExplanationEngineV2(),
+    createSelfReviewEngine(),
+  ]
+}
+
+/** Sprint 51 default — platform engines only (stable length for regression tests). */
+export function createDefaultExecutiveEngines(): ExecutiveEngine[] {
+  return createPlatformEngines()
+}
+
+export function createAllExecutiveEngines(options?: { includeOs?: boolean }): ExecutiveEngine[] {
+  const includeOs = options?.includeOs ?? isExecutiveOsEnabled()
+  return includeOs
+    ? [...createPlatformEngines(), ...createOsEngines()]
+    : createPlatformEngines()
+}
+
 export function selectEnginesForTurn(
   engines: ExecutiveEngine[],
   input: {
@@ -36,6 +78,8 @@ export function selectEnginesForTurn(
     hasReasoning: boolean
     hasTripPlan: boolean
     discoveryMode: boolean
+    osEnabled?: boolean
+    strategyContext?: ExecutiveEngineContext | null
   },
 ): ExecutiveEngine[] {
   const ids = new Set<ExecutiveEngineId>()
@@ -73,5 +117,34 @@ export function selectEnginesForTurn(
   // Always compose if anything else runs.
   ids.add('executive_response')
 
-  return engines.filter((engine) => ids.has(engine.metadata().engineId))
+  // Sprint 52 — lazy OS engine selection by strategy.
+  if (input.osEnabled && input.strategyContext) {
+    const strategy = selectExecutiveStrategy(input.strategyContext)
+    for (const id of enginesForStrategy(strategy)) {
+      ids.add(id as ExecutiveEngineId)
+    }
+    // Negotiation only when friction signals exist.
+    if (
+      !/no|can't|cannot|won't|too expensive|over budget|مستحيل|ما أبي|غالي|رفض|not /i.test(input.userText)
+      && !input.strategyContext.profile.travelStyle.rejectedDestinations.length
+    ) {
+      // Keep negotiation for budget/risk/emergency strategies only.
+      if (strategy === 'fast' || strategy === 'deep' || strategy === 'luxury') {
+        ids.delete('smart_negotiation')
+      }
+    }
+  }
+
+  const selected = engines.filter((engine) => ids.has(engine.metadata().engineId))
+
+  // Stable order: strategy first, self_review last among selected.
+  return selected.sort((a, b) => {
+    const rank = (id: ExecutiveEngineId): number => {
+      if (id === 'executive_strategy') return -2
+      if (id === 'self_review') return 100
+      if (id === 'executive_response') return 99
+      return 0
+    }
+    return rank(a.metadata().engineId) - rank(b.metadata().engineId)
+  })
 }

@@ -18,6 +18,7 @@ import {
   isExecutivePlatformEnabled,
   runExecutivePlatform,
 } from '../executive/platform'
+import { isExecutiveOsEnabled } from '../executive/os/feature'
 import { withTripPlan } from '../../agent/types'
 import type { AgentMemory } from '../../agent/types'
 import { createDefaultRahhalBrainPorts, buildMemoryFromMessages } from './defaultPorts'
@@ -36,6 +37,7 @@ export type RahhalBrainOptions = {
   preferenceMemoryEnabled?: boolean
   travelExecutiveEnabled?: boolean
   executivePlatformEnabled?: boolean
+  executiveOsEnabled?: boolean
 }
 
 function flagOrOverride(flag: boolean, override?: boolean): boolean {
@@ -56,6 +58,8 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
     flagOrOverride(isTravelExecutiveEnabled(), options.travelExecutiveEnabled)
   const isPlatformOn = () =>
     flagOrOverride(isExecutivePlatformEnabled(), options.executivePlatformEnabled)
+  const isOsOn = () =>
+    flagOrOverride(isExecutiveOsEnabled(), options.executiveOsEnabled)
 
   const runTurn = (input: RahhalBrainTurnInput): RahhalBrainTurnResult => {
     const modulesExecuted: BrainModuleId[] = []
@@ -151,6 +155,7 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
     }
 
     // Sprint 51 — Executive Travel Platform (specialized engines via RahhalBrain only).
+    // Sprint 52 — Executive OS engines run inside the same platform orchestrator when flagged.
     let executivePlatform: RahhalBrainTurnResult['executivePlatform'] = undefined
     if (isPlatformOn()) {
       executivePlatform = runExecutivePlatform({
@@ -162,8 +167,12 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
         reasoningResult,
         executiveEnhancement: executiveEnhancement ?? null,
         enabled: true,
+        osEnabled: isOsOn(),
       })
       modulesExecuted.push('executive_platform')
+      if (executivePlatform.os) {
+        modulesExecuted.push('executive_os')
+      }
     }
 
     // Step 5 — Smart Clarification
