@@ -9,6 +9,8 @@ import {
   climateFromPreference,
   detectOpenEndedDestination,
 } from './openEndedDetector'
+import { buildTravelAdvisory } from './travelAdvisory'
+import { buildVisaGuidance } from './visaIntelligence'
 import type {
   ClimateBand,
   DestinationCandidate,
@@ -300,6 +302,8 @@ function scoreDestination(
 
   score = clamp01(score)
   const confidence = clamp01(0.4 + score * 0.5)
+  const visaGuidance = buildVisaGuidance(profile, ctx.locale)
+  const advisoryNotes = buildTravelAdvisory(profile, ctx.locale)
 
   return {
     id: profile.id,
@@ -314,6 +318,8 @@ function scoreDestination(
     budgetFit,
     climateMatch: climateAtMonth,
     visa: profile.visaFromSaudi,
+    visaGuidance,
+    advisoryNotes,
     bestTimingNote: bestTimingNote(profile, ctx.climate, ctx.locale),
     riskNotes,
   }
@@ -460,6 +466,8 @@ function buildFallbackNamed(
     budgetFit: budgetSar != null ? 'fit' : 'unknown',
     climateMatch: null,
     visa: 'unknown',
+    visaGuidance: null,
+    advisoryNotes: [],
     bestTimingNote: null,
     riskNotes: [],
   }
