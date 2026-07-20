@@ -48,8 +48,8 @@ type SpeechRecognitionErrorEventLike = {
 
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike
 
-/** Default silence gap before auto-stop (3–5s range for iPhone Safari UX). */
-export const DEFAULT_SILENCE_MS = 4000
+/** Default silence gap before auto-stop (2–3s pause tolerance for natural speech). */
+export const DEFAULT_SILENCE_MS = 3000
 
 /** Hard cap for a continuous listening session. */
 export const DEFAULT_MAX_LISTEN_MS = 60_000
@@ -64,7 +64,7 @@ export type UseSpeechRecognitionOptions = {
   onInterim?: (transcript: string) => void
   /** Force language; default auto-detects from browser. */
   lang?: SpeechLang
-  /** Auto-stop after this many ms of silence (default 4000). */
+  /** Auto-stop after this many ms of silence (default 3000). */
   silenceMs?: number
   /** Hard timeout for a listening session (default 60000). */
   maxListenMs?: number
@@ -224,6 +224,8 @@ export function createSpeechRecognitionSession(
   let disposed = false
   /** True from start until Stop / silence / max timeout / cancel. */
   let listeningDesired = false
+  /** Silence timer arms only after the first speech result (never cut thinking pauses before talking). */
+  let heardSpeech = false
 
   const listeners = new Set<() => void>()
 
@@ -372,11 +374,13 @@ export function createSpeechRecognitionSession(
     }
   }
 
-  /** Reset silence gate only when speech activity is observed (ignores short pauses). */
+  /** Reset silence gate only when speech activity is observed (tolerates 2–3s pauses). */
   const bumpSilenceTimer = () => {
     if (!listeningDesired) return
     clearSilenceTimer()
     silenceTimer = setTimeout(() => {
+      // Never stop before the user has spoken at least once.
+      if (!heardSpeech) return
       // Longer silence → end session (do not restart).
       listeningDesired = false
       try {
@@ -440,8 +444,8 @@ export function createSpeechRecognitionSession(
       error = null
       errorMessage = null
       emit()
-      // Arm silence on start so idle mic still auto-stops; speech results extend it.
-      bumpSilenceTimer()
+      // Do NOT arm silence on start — waiting to begin speaking must not auto-stop.
+      // Silence arms only after the first speech result (see onresult).
     }
 
     next.onresult = (event) => {
@@ -463,7 +467,10 @@ export function createSpeechRecognitionSession(
       interimTranscript = interim
       onInterim?.([finalBuffer, interim].filter(Boolean).join(' ').trim())
       emit()
-      bumpSilenceTimer()
+      if (finalChunk || interim) {
+        heardSpeech = true
+        bumpSilenceTimer()
+      }
     }
 
     next.onerror = (event) => {
@@ -600,6 +607,7 @@ export function createSpeechRecognitionSession(
     delivered = false
     cancelled = false
     listeningDesired = true
+    heardSpeech = false
     interimTranscript = ''
     finalTranscript = ''
     error = null

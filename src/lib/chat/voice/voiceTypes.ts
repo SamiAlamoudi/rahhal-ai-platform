@@ -5,14 +5,24 @@
 
 export type VoiceLocale = 'ar' | 'en'
 export type VoiceInputMode = 'push_to_talk' | 'hands_free'
+/** ChatGPT-like voice states (Listening → Thinking → Responding → Speaking). */
 export type VoiceSessionStatus =
   | 'idle'
   | 'requesting_permission'
   | 'listening'
-  | 'processing'
+  | 'thinking'
+  | 'responding'
+  | 'processing' // legacy alias kept for compatibility; prefer thinking/responding
   | 'speaking'
   | 'reconnecting'
   | 'error'
+
+/** Default end-of-utterance silence for hands-free (2–3s pause tolerance). */
+export const DEFAULT_HANDS_FREE_SILENCE_MS = 2500
+
+/** Hard floor / ceiling for configurable silence timeout. */
+export const MIN_HANDS_FREE_SILENCE_MS = 1500
+export const MAX_HANDS_FREE_SILENCE_MS = 5000
 
 export interface VoiceLocaleConfig {
   locale: VoiceLocale

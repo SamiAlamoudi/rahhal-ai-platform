@@ -9,6 +9,7 @@ import { conversationRepository } from '../repositories/conversationRepository'
 import { messageRepository } from '../repositories/messageRepository'
 import type { ConversationRow, MessageRow } from '../types'
 import { COMPLETE_JAPAN_7D } from './agentTestFixtures'
+import * as chatAuthGate from '../chat/chatAuthGate'
 
 function conversationRow(overrides: Partial<ConversationRow> = {}): ConversationRow {
   return {
@@ -47,6 +48,7 @@ function messageRow(overrides: Partial<MessageRow> = {}): MessageRow {
 describe('travel agent + chatService integration', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.spyOn(chatAuthGate, 'assertChatDatabaseAuth').mockResolvedValue({ userId: 'user-1' })
     setChatProviderForTests(createTravelAgentProvider())
   })
 

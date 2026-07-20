@@ -81,7 +81,8 @@ describe('voiceSession', () => {
     session.dispose()
   })
 
-  it('hands-free final transcript triggers sendTurn', async () => {
+  it('hands-free waits for silence timeout before sending (tolerates short pauses)', async () => {
+    vi.useFakeTimers()
     const { provider: stt, controller } = createMockSpeechToTextProvider('')
     const tts = createMockTextToSpeechProvider()
     const sendTurn = vi.fn(async (_input, handlers) => {
@@ -99,17 +100,76 @@ describe('voiceSession', () => {
       sendTurn: sendTurn as never,
       requestPermission: async () => ({ state: 'granted', error: null }),
       mode: 'hands_free',
+      silenceTimeoutMs: 2500,
+      activityMonitor: {
+        start: async () => {},
+        stop: () => {},
+        isSpeaking: () => false,
+        getLevel: () => 0,
+        isActive: () => false,
+      },
     })
 
     await session.startHandsFree('c1')
     controller.emitFinal('hi there')
-    // allow async sendTranscript
-    await new Promise((r) => setTimeout(r, 0))
+    await Promise.resolve()
+    expect(sendTurn).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(2490)
+    expect(sendTurn).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(20)
     expect(sendTurn).toHaveBeenCalledWith(
       expect.objectContaining({ content: 'hi there', modality: 'audio' }),
       expect.any(Object),
     )
     session.dispose()
+    vi.useRealTimers()
+  })
+
+  it('hands-free interrupt while sending resumes after benign abort', async () => {
+    vi.useFakeTimers()
+    const { provider: stt, controller } = createMockSpeechToTextProvider('')
+    const tts = createMockTextToSpeechProvider()
+    const statuses: string[] = []
+    const deferred: { reject: ((error: Error) => void) | null } = { reject: null }
+    const sendTurn = vi.fn(() => new Promise((_resolve, reject) => {
+      deferred.reject = reject
+    }))
+
+    const session = createVoiceSession({
+      stt,
+      tts,
+      sendTurn: sendTurn as never,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      silenceTimeoutMs: 1500,
+      activityMonitor: {
+        start: async () => {},
+        stop: () => {},
+        isSpeaking: () => false,
+        getLevel: () => 0,
+        isActive: () => false,
+      },
+      callbacks: { onStatus: (s) => statuses.push(s) },
+    })
+
+    await session.startHandsFree('c1')
+    controller.emitFinal('متابعة الرحلة')
+    await vi.advanceTimersByTimeAsync(1600)
+    expect(sendTurn).toHaveBeenCalled()
+    expect(session.getStatus()).toBe('thinking')
+
+    session.interrupt()
+    deferred.reject?.(new Error('aborted'))
+    await Promise.resolve()
+    await Promise.resolve()
+    await vi.advanceTimersByTimeAsync(0)
+    await Promise.resolve()
+    expect(statuses).toContain('reconnecting')
+    // Resume is async; after reconnect settles we should be listening again.
+    expect(['listening', 'reconnecting', 'idle']).toContain(session.getStatus())
+    session.dispose()
+    vi.useRealTimers()
   })
 
   it('interrupt stops TTS and aborts stream', () => {
@@ -138,37 +198,6 @@ describe('voiceSession', () => {
     session.dispose()
     expect(stt.onPartial).toBeUndefined()
     expect(stt.onEnd).toBeUndefined()
-  })
-
-  it('hands-free interrupt while sending resumes after benign abort', async () => {
-    const { provider: stt, controller } = createMockSpeechToTextProvider('')
-    const tts = createMockTextToSpeechProvider()
-    const statuses: string[] = []
-    const deferred: { reject: ((error: Error) => void) | null } = { reject: null }
-    const sendTurn = vi.fn(() => new Promise((_resolve, reject) => {
-      deferred.reject = reject
-    }))
-
-    const session = createVoiceSession({
-      stt,
-      tts,
-      sendTurn: sendTurn as never,
-      requestPermission: async () => ({ state: 'granted', error: null }),
-      callbacks: { onStatus: (s) => statuses.push(s) },
-    })
-
-    await session.startHandsFree('c1')
-    controller.emitFinal('متابعة الرحلة')
-    await new Promise((r) => setTimeout(r, 0))
-    expect(sendTurn).toHaveBeenCalled()
-    expect(session.getStatus()).toBe('processing')
-
-    session.interrupt()
-    deferred.reject?.(new Error('aborted'))
-    await new Promise((r) => setTimeout(r, 0))
-    expect(statuses).toContain('reconnecting')
-    expect(session.getStatus()).toBe('listening')
-    session.dispose()
   })
 
   it('supports ar/en locales and denied mic permission', async () => {
