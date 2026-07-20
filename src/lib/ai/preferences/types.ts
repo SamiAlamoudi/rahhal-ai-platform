@@ -48,6 +48,8 @@ export interface TravelStyleProfile {
   pace: 'slow' | 'balanced' | 'fast'
   interests: string[]
   weatherPreference: string | null
+  /** Sprint 48 — destinations the traveler repeatedly chooses or locks. */
+  favoriteDestinations: string[]
 }
 
 export interface PreferenceWeights {
@@ -116,6 +118,7 @@ export function emptyPersonalizationProfile(userId: string | null = null): Perso
       pace: 'balanced',
       interests: [],
       weatherPreference: null,
+      favoriteDestinations: [],
     },
     weights: defaultPreferenceWeights(),
     updatedAt: new Date().toISOString(),

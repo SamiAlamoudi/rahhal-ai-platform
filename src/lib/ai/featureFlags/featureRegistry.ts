@@ -94,6 +94,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: smart_clarification',
   },
   {
+    id: 'ai.persistent_memory',
+    name: 'Persistent Preference Memory',
+    description:
+      'Sprint 48 — durable personalization profiles (localStorage) so budget, weather, traveler, hotel, and favorite destinations survive across chat sessions.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.personalization'],
+    notes: 'Product alias: persistent_memory. Taste profiles only — no passport/PII.',
+  },
+  {
     id: 'ui.flight_results_experience',
     name: 'Flight Results Experience',
     description:

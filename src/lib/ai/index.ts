@@ -30,6 +30,7 @@ export {
   InMemoryPreferenceEngine,
   getPreferenceEngine,
   resetPreferenceEngine,
+  createPreferenceEngine,
 } from './preferences'
 
 export {

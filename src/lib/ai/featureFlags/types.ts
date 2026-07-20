@@ -16,6 +16,7 @@ export type FeatureId =
   | 'ai.concierge'
   | 'ai.travel_reasoning'
   | 'ai.smart_clarification'
+  | 'ai.persistent_memory'
   | 'ui.flight_results_experience'
   | 'ui.passenger_booking_flow'
   | 'ui.my_trips'

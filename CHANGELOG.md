@@ -2,6 +2,15 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Sprint 48: Persistent Preference Memory
+
+### Added
+
+- Durable personalization profiles via `PreferenceStorage` (localStorage) behind `ai.persistent_memory` (default ON).
+- `favoriteDestinations` on travel-style profiles; learned when a destination is locked.
+- Cross-session seed of budget / weather / travelers so the agent does not re-ask known preferences.
+- Docs: `docs/SPRINT48_PERSISTENT_MEMORY.md`; tests: `persistentMemory.sprint48.test.ts`.
+
 ## [Unreleased] — Sprint 47: Cold Destination Discovery Expansion
 
 ### Added
