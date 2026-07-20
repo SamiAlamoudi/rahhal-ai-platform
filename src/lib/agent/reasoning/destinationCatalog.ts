@@ -198,15 +198,128 @@ export const DESTINATION_CATALOG: DestinationClimateProfile[] = [
     risks: ['khareef_crowds'],
     flightHoursFromRiyadh: 2.5,
   },
+  // Sprint 47 — cold-destination discovery expansion (mission destination set).
+  {
+    id: 'switzerland',
+    nameEn: 'Switzerland',
+    nameAr: 'سويسرا',
+    region: 'Europe',
+    climateByMonth: months('cold', 'cold', 'cold', 'cool', 'mild', 'mild', 'warm', 'warm', 'mild', 'cool', 'cold', 'cold'),
+    dailyBudgetSar: { low: 1000, mid: 1600, high: 2500 },
+    visaFromSaudi: 'embassy',
+    bestFor: ['nature', 'adventure', 'romance', 'culture'],
+    risks: ['schengen_visa', 'high_cost', 'winter_cold'],
+    flightHoursFromRiyadh: 7,
+  },
+  {
+    id: 'austria',
+    nameEn: 'Austria',
+    nameAr: 'النمسا',
+    region: 'Europe',
+    climateByMonth: months('cold', 'cold', 'cool', 'mild', 'mild', 'warm', 'warm', 'warm', 'mild', 'cool', 'cold', 'cold'),
+    dailyBudgetSar: { low: 750, mid: 1200, high: 1900 },
+    visaFromSaudi: 'embassy',
+    bestFor: ['nature', 'culture', 'adventure', 'family'],
+    risks: ['schengen_visa', 'winter_cold'],
+    flightHoursFromRiyadh: 6.5,
+  },
+  {
+    id: 'norway',
+    nameEn: 'Norway',
+    nameAr: 'النرويج',
+    region: 'Europe',
+    climateByMonth: months('cold', 'cold', 'cold', 'cool', 'mild', 'mild', 'mild', 'mild', 'cool', 'cool', 'cold', 'cold'),
+    dailyBudgetSar: { low: 950, mid: 1500, high: 2300 },
+    visaFromSaudi: 'embassy',
+    bestFor: ['nature', 'adventure', 'culture'],
+    risks: ['schengen_visa', 'high_cost', 'winter_darkness'],
+    flightHoursFromRiyadh: 8,
+  },
+  {
+    id: 'canada',
+    nameEn: 'Canada',
+    nameAr: 'كندا',
+    region: 'North America',
+    climateByMonth: months('cold', 'cold', 'cold', 'cool', 'mild', 'warm', 'warm', 'warm', 'mild', 'cool', 'cold', 'cold'),
+    dailyBudgetSar: { low: 800, mid: 1300, high: 2000 },
+    visaFromSaudi: 'embassy',
+    bestFor: ['nature', 'family', 'adventure', 'city'],
+    risks: ['canada_visa', 'long_haul', 'winter_cold'],
+    flightHoursFromRiyadh: 14,
+  },
+  {
+    id: 'new-zealand',
+    nameEn: 'New Zealand',
+    nameAr: 'نيوزيلندا',
+    region: 'Oceania',
+    // Southern hemisphere: Jun–Aug are cold/cool winter months.
+    climateByMonth: months('warm', 'warm', 'mild', 'cool', 'cold', 'cold', 'cold', 'cold', 'cool', 'mild', 'mild', 'warm'),
+    dailyBudgetSar: { low: 700, mid: 1100, high: 1700 },
+    visaFromSaudi: 'embassy',
+    bestFor: ['nature', 'adventure', 'romance'],
+    risks: ['long_haul', 'visa', 'jet_lag'],
+    flightHoursFromRiyadh: 22,
+  },
+  {
+    id: 'sapporo',
+    nameEn: 'Sapporo',
+    nameAr: 'سابورو',
+    region: 'East Asia',
+    climateByMonth: months('cold', 'cold', 'cold', 'cool', 'mild', 'mild', 'warm', 'warm', 'mild', 'cool', 'cold', 'cold'),
+    dailyBudgetSar: { low: 650, mid: 1000, high: 1600 },
+    visaFromSaudi: 'embassy',
+    bestFor: ['nature', 'food', 'culture', 'adventure'],
+    risks: ['long_haul', 'visa', 'winter_cold'],
+    flightHoursFromRiyadh: 13,
+  },
+  {
+    id: 'iceland',
+    nameEn: 'Iceland',
+    nameAr: 'آيسلندا',
+    region: 'Europe',
+    climateByMonth: months('cold', 'cold', 'cold', 'cool', 'cool', 'mild', 'mild', 'mild', 'cool', 'cool', 'cold', 'cold'),
+    dailyBudgetSar: { low: 1100, mid: 1700, high: 2600 },
+    visaFromSaudi: 'embassy',
+    bestFor: ['nature', 'adventure', 'romance'],
+    risks: ['schengen_visa', 'high_cost', 'winter_darkness'],
+    flightHoursFromRiyadh: 10,
+  },
 ]
+
+/** Extra name aliases for selection / lookup (country ↔ city). */
+const DESTINATION_ALIASES: Record<string, string> = {
+  japan: 'tokyo',
+  اليابان: 'tokyo',
+  hokkaido: 'sapporo',
+  هوكايدو: 'sapporo',
+  zurich: 'switzerland',
+  زوريخ: 'switzerland',
+  alps: 'switzerland',
+  innsbruck: 'austria',
+  vienna: 'austria',
+  فيينا: 'austria',
+  oslo: 'norway',
+  bergen: 'norway',
+  montreal: 'canada',
+  toronto: 'canada',
+  vancouver: 'canada',
+  queenstown: 'new-zealand',
+  auckland: 'new-zealand',
+  reykjavik: 'iceland',
+  ريكيافيك: 'iceland',
+}
 
 export function findDestinationProfile(name: string | null | undefined): DestinationClimateProfile | null {
   if (!name) return null
   const key = name.trim().toLowerCase()
+  const aliased = DESTINATION_ALIASES[key]
+  const resolved = aliased ?? key
   return DESTINATION_CATALOG.find((row) =>
-    row.id === key
+    row.id === resolved
     || row.nameEn.toLowerCase() === key
+    || row.nameEn.toLowerCase() === resolved
     || row.nameAr === name.trim()
     || key.includes(row.id)
+    || resolved.includes(row.id)
   ) ?? null
 }

@@ -137,7 +137,7 @@ export function applyReasoningToRequirements(
   }
 
   if (result.inferredClimate && !next.weatherPreference) {
-    next.weatherPreference = result.inferredClimate === 'cold' ? 'cool' : result.inferredClimate
+    next.weatherPreference = result.inferredClimate
   }
 
   const suggested = [
@@ -375,11 +375,10 @@ function toSar(amount: number | null, currency: string): number | null {
 function climateMatches(wanted: ClimateBand, actual: ClimateBand): 'exact' | 'near' | 'miss' {
   if (wanted === 'flexible') return 'near'
   if (wanted === actual) return 'exact'
-  if (wanted === 'cool' && actual === 'cold') return 'near'
-  if (wanted === 'cold' && actual === 'cool') return 'near'
+  // Cold-seekers: treat cold/cool as the same family (exact), not a soft near-miss.
+  if (COOL_FAMILY.includes(wanted) && COOL_FAMILY.includes(actual)) return 'exact'
   if (wanted === 'warm' && actual === 'hot') return 'near'
   if (wanted === 'hot' && actual === 'warm') return 'near'
-  if (COOL_FAMILY.includes(wanted) && COOL_FAMILY.includes(actual)) return 'near'
   if (WARM_FAMILY.includes(wanted) && WARM_FAMILY.includes(actual)) return 'near'
   return 'miss'
 }
