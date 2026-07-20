@@ -62,11 +62,22 @@ export function extractFromUserText(
   const regenerateScope = matchRegenerateScope(lower, normalized, intent)
   if (regenerateScope) patch.regenerateScope = regenerateScope
 
+  const origin = matchOrigin(lower, normalized)
+  if (origin) patch.origin = origin
+
   const destination = matchDestination(lower)
-  if (destination) {
+  const originOnly =
+    Boolean(origin)
+    && Boolean(destination)
+    && origin === destination
+    && /(?:من\s+مطار|من|مغادرة|السفر\s+من|from\b|depart)/.test(normalized + lower)
+    && !/(?:إلى|الى|to\b|in\b)/.test(
+      normalized.replace(/(?:من\s+مطار|من)\s+[^\s،,]+/g, ''),
+    )
+  if (destination && !originOnly) {
     patch.destination = destination
     patch.destinations = [destination]
-  } else {
+  } else if (!originOnly) {
     const toMatch = lower.match(/\b(?:to|in)\s+([a-z][a-z\s]{1,40})/)
       || normalized.match(/(?:إلى|الى|في)\s+([^\s،,]{2,40})/)
     if (toMatch?.[1]) {
@@ -343,6 +354,26 @@ function matchDestination(lower: string): string | null {
   return null
 }
 
+function matchOrigin(lower: string, original: string): string | null {
+  const ar = original.match(
+    /(?:من\s+مطار|مغادرة\s+من|السفر\s+من|من)\s+([^\s،,]{2,40})/,
+  )
+  const en = lower.match(/\b(?:from|depart(?:ing)?\s+from)\s+([a-z][a-z\s]{1,40})/)
+  const raw = (ar?.[1] || en?.[1] || '').replace(/[?.!].*$/, '').trim()
+  if (!raw) return null
+  const alias = matchDestination(raw.toLowerCase())
+    || matchDestination(lower.includes(raw.toLowerCase()) ? lower : raw.toLowerCase())
+  if (alias) return alias
+  // Re-scan aliases against the origin token itself (Arabic city names).
+  for (const entry of DESTINATION_ALIASES) {
+    if (entry.keys.some((key) => raw.includes(key) || raw.toLowerCase().includes(key.toLowerCase()))) {
+      return entry.value
+    }
+  }
+  const capped = capitalizeDestination(raw)
+  return capped && !isStopWord(capped) ? capped : null
+}
+
 function matchDuration(lower: string, original: string): number | null {
   const en = lower.match(/(\d+)\s*-?\s*day/)
   if (en) return clampDays(Number(en[1]))
@@ -371,6 +402,53 @@ function matchDuration(lower: string, original: string): number | null {
     }
     const n = map[weekWord[1]!]
     if (n) return clampDays(n * 7)
+  }
+  // Word forms: "seven days", "لمدة سبعة أيام"
+  const dayWordEn = lower.match(
+    /\b(one|two|three|four|five|six|seven|eight|nine|ten|a|an)\s+-?\s*days?\b/,
+  )
+  if (dayWordEn) {
+    const map: Record<string, number> = {
+      a: 1,
+      an: 1,
+      one: 1,
+      two: 2,
+      three: 3,
+      four: 4,
+      five: 5,
+      six: 6,
+      seven: 7,
+      eight: 8,
+      nine: 9,
+      ten: 10,
+    }
+    const n = map[dayWordEn[1]!]
+    if (n) return clampDays(n)
+  }
+  const dayWordAr = original.match(
+    /(?:لمدة\s*)?(يومين|يومان|يوم|واحد|اثنين|اثنان|ثلاثة|ثلاث|أربعة|اربعة|خمسة|ستة|سبعة|ثمانية|تسعة|عشرة)\s*(?:أيام|ايام|يوم)?/,
+  )
+  if (dayWordAr) {
+    const map: Record<string, number> = {
+      يوم: 1,
+      واحد: 1,
+      يومين: 2,
+      يومان: 2,
+      اثنين: 2,
+      اثنان: 2,
+      ثلاثة: 3,
+      ثلاث: 3,
+      أربعة: 4,
+      اربعة: 4,
+      خمسة: 5,
+      ستة: 6,
+      سبعة: 7,
+      ثمانية: 8,
+      تسعة: 9,
+      عشرة: 10,
+    }
+    const n = map[dayWordAr[1]!]
+    if (n) return clampDays(n)
   }
   if (/\bfortnight\b/.test(lower)) return 14
   if (/أسبوعين|اسبوعين/.test(original)) return 14

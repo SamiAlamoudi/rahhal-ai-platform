@@ -50,6 +50,21 @@ describe('extractFromUserText', () => {
     expect(result.intent).toBe('answer')
   })
 
+  it('parses Arabic word durations and departure origin without overwriting destination', () => {
+    const morocco = extractFromUserText(
+      'أريد السفر إلى المغرب مع زوجتي لمدة سبعة أيام في سبتمبر بميزانية 12000 ريال',
+    )
+    expect(morocco.patch.destination).toBe('Morocco')
+    expect(morocco.patch.durationDays).toBe(7)
+    expect(morocco.patch.travelers).toBe(2)
+    expect(morocco.patch.budgetAmount).toBe(12000)
+
+    const originOnly = extractFromUserText('السفر من الرياض، فندق متوسط الفئة')
+    expect(originOnly.patch.origin).toBe('Riyadh')
+    expect(originOnly.patch.destination).toBeUndefined()
+    expect(originOnly.patch.budgetStyle).toBe('midrange')
+  })
+
   it('detects regenerate and save intents', () => {
     expect(extractFromUserText('Regenerate the itinerary').intent).toBe('regenerate')
     expect(extractFromUserText('احفظ الخطة').intent).toBe('save')
