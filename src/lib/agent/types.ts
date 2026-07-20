@@ -355,6 +355,24 @@ export interface AgentProviderMeta {
     retryCount?: number
   }
   /**
+   * Sprint 55 — Real Booking Intelligence snapshot (fusion, ranking, readiness, confidence).
+   * Additive; explanations are facts for Conversation Brain — never replace reply authorship.
+   */
+  bookingIntelligence?: {
+    bookingReady: boolean
+    clarification: string | null
+    primaryOfferId: string | null
+    rankedCount: number
+    domainsSearched: string[]
+    providerIds: string[]
+    topConfidence: number
+    topExplanation: string | null
+    bestCombinationId: string | null
+    bestCombinationTotal: { amount: number; currency: string } | null
+    preferenceUserId: string | null
+    durationMs: number
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.

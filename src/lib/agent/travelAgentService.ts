@@ -43,6 +43,11 @@ import {
   type AutonomousAgentSnapshot,
   type AutonomousProgressEvent,
 } from './autonomous'
+import {
+  enrichWithBookingIntelligence,
+  isBookingIntelligenceEnabled,
+  type BookingIntelligenceResult,
+} from './bookingIntelligence'
 import type {
   AgentIntent,
   AgentMemory,
@@ -235,6 +240,11 @@ export interface TravelAgentServiceOptions {
    */
   autonomousAgentEnabled?: boolean
   /**
+   * Sprint 55 — Real Booking Intelligence (fusion, ranking v2, cost optimizer, readiness).
+   * Default: FeatureRegistry `ai.booking_intelligence` (ON).
+   */
+  bookingIntelligenceEnabled?: boolean
+  /**
    * Phase 2 — AI Travel Executive intelligence.
    * Default: FeatureRegistry `ai.travel_executive` (ON).
    */
@@ -411,6 +421,30 @@ function toMetaAutonomous(
   }
 }
 
+function toMetaBookingIntelligence(
+  result: BookingIntelligenceResult,
+): NonNullable<AgentProviderMeta['bookingIntelligence']> {
+  return {
+    bookingReady: result.snapshot.bookingReady,
+    clarification: result.snapshot.clarification,
+    primaryOfferId: result.snapshot.primaryOfferId,
+    rankedCount: result.snapshot.rankedCount,
+    domainsSearched: result.snapshot.domainsSearched,
+    providerIds: result.snapshot.providerIds,
+    topConfidence: result.snapshot.topConfidence,
+    topExplanation: result.snapshot.topExplanation,
+    bestCombinationId: result.snapshot.bestCombinationId,
+    bestCombinationTotal: result.snapshot.bestCombinationTotal
+      ? {
+        amount: result.snapshot.bestCombinationTotal.amount,
+        currency: result.snapshot.bestCombinationTotal.currency,
+      }
+      : null,
+    preferenceUserId: result.snapshot.preferenceUserId,
+    durationMs: result.snapshot.durationMs,
+  }
+}
+
 function priorAutonomousFromMessages(messages: ChatMessage[]): AutonomousAgentSnapshot | null {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const msg = messages[i]
@@ -556,6 +590,9 @@ export function createTravelAgentService(
   const isAutonomousEnabled = (): boolean =>
     isAutonomousAgentEnabled({ enabled: options.autonomousAgentEnabled })
 
+  const isBookingIntelEnabled = (): boolean =>
+    isBookingIntelligenceEnabled({ enabled: options.bookingIntelligenceEnabled })
+
   const isFlowEnabled = (): boolean =>
     isBookingFlowEnabled({
       bookingFlowEnabled: options.bookingFlowEnabled,
@@ -581,7 +618,26 @@ export function createTravelAgentService(
     plan: TripPlan
     batch: ToolExecutionBatch
     autonomous?: AutonomousAgentSnapshot
+    bookingIntelligence?: BookingIntelligenceResult
   }> => {
+    const applyBookingIntel = async (
+      plan: TripPlan,
+      memory: AgentMemory,
+    ): Promise<{ plan: TripPlan; bookingIntelligence?: BookingIntelligenceResult }> => {
+      if (!isBookingIntelEnabled()) return { plan }
+      const enriched = await enrichWithBookingIntelligence({
+        memory,
+        tripPlan: plan,
+        userId: input.conversationId,
+        enabled: options.bookingIntelligenceEnabled,
+        signal: input.signal,
+      })
+      return {
+        plan: enriched.tripPlan,
+        bookingIntelligence: enriched.bookingIntelligence ?? undefined,
+      }
+    }
+
     if (isAutonomousEnabled()) {
       const autonomous = await runAutonomousTurn({
         conversationId: input.conversationId,
@@ -595,10 +651,12 @@ export function createTravelAgentService(
         onProgress: input.onProgress,
       })
       if (autonomous.planBuilt && autonomous.tripPlan) {
+        const intel = await applyBookingIntel(autonomous.tripPlan, input.memory)
         return {
-          plan: autonomous.tripPlan,
+          plan: intel.plan,
           batch: autonomous.batch,
           autonomous: autonomous.snapshot,
+          bookingIntelligence: intel.bookingIntelligence,
         }
       }
       // Clarification / blocked — fall through to a lightweight base plan without tools.
@@ -647,8 +705,13 @@ export function createTravelAgentService(
       seed: input.seed,
     })
     const merged = mergeToolResultsIntoPlan(base, batch.results)
-    const plan = applyIntelligentDecisions(merged, batch.results, input.memory.requirements)
-    return { plan, batch }
+    const decided = applyIntelligentDecisions(merged, batch.results, input.memory.requirements)
+    const intel = await applyBookingIntel(decided, input.memory)
+    return {
+      plan: intel.plan,
+      batch,
+      bookingIntelligence: intel.bookingIntelligence,
+    }
   }
 
   const service: TravelAgentService = {
@@ -677,6 +740,7 @@ export function createTravelAgentService(
         ? priorAutonomousFromMessages(input.messages.slice(0, -1))
         : null
       const priorAutonomous = autonomousSnapshot
+      let bookingIntelligenceResult: BookingIntelligenceResult | null = null
 
       if (isBrainCoreEnabled()) {
         const brainTurn = runRahhalBrainTurn(
@@ -1051,9 +1115,12 @@ export function createTravelAgentService(
         const withAutonomous = autonomousSnapshot
           ? { ...meta, autonomous: toMetaAutonomous(autonomousSnapshot) }
           : meta
+        const withBooking = bookingIntelligenceResult
+          ? { ...withAutonomous, bookingIntelligence: toMetaBookingIntelligence(bookingIntelligenceResult) }
+          : withAutonomous
         const enriched = attachExecutivePlatform(
           attachTravelExecutive(
-            attachRahhalBrain(attachClarification(attachReasoning(attachBrain(withAutonomous)))),
+            attachRahhalBrain(attachClarification(attachReasoning(attachBrain(withBooking)))),
           ),
         )
         const spokenText = enriched.spokenText?.trim()
@@ -1458,6 +1525,7 @@ export function createTravelAgentService(
         })
         toolBatch = ran.batch
         if (ran.autonomous) autonomousSnapshot = ran.autonomous
+        if (ran.bookingIntelligence) bookingIntelligenceResult = ran.bookingIntelligence
         memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, ran.plan)
         objective = 'present_plan'
       } else if (extracted.intent === 'edit' && !hasPlanningPatch(extracted.patch) && memory.tripPlan) {
@@ -1497,6 +1565,7 @@ export function createTravelAgentService(
         let plan = ran.plan
         toolBatch = ran.batch
         if (ran.autonomous) autonomousSnapshot = ran.autonomous
+        if (ran.bookingIntelligence) bookingIntelligenceResult = ran.bookingIntelligence
         if (llmResult.draft?.notes?.length) {
           plan = { ...plan, notes: [...plan.notes, ...llmResult.draft.notes] }
         }
@@ -1550,6 +1619,10 @@ export function createTravelAgentService(
         missingSlots: memory.missingFields.map(String),
         toolResults: toolBatch ? toToolSummaries(toolBatch.results) : undefined,
         savedTitle,
+        recommendations: bookingIntelligenceResult?.recommendationFacts,
+        warnings: bookingIntelligenceResult && !bookingIntelligenceResult.readiness.bookingReady
+          ? [bookingIntelligenceResult.readiness.clarification].filter(Boolean) as string[]
+          : undefined,
       })
       const spoken = await speakTravelFacts({
         llms,

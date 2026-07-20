@@ -154,6 +154,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: autonomous_agent. Additive orchestration over existing tools; no hardcoded replies.',
   },
   {
+    id: 'ai.booking_intelligence',
+    name: 'Real Booking Intelligence',
+    description:
+      'Sprint 55 — provider registry, result fusion, ranking v2, preference-aware scoring, cost optimization, booking readiness, confidence, and user-facing explanations. Simulated providers until live APIs.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.autonomous_agent'],
+    notes: 'Product alias: booking_intelligence. Post-tool enrichment; Conversation Brain narrates facts only.',
+  },
+  {
     id: 'ai.persistent_memory',
     name: 'Persistent Preference Memory',
     description:
