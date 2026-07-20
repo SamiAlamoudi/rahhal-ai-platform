@@ -121,7 +121,7 @@ describe('RahhalBrain orchestration', () => {
       userId: 'user-50',
     })
     expect(turn.decision.type).toBe('respond')
-    expect(turn.decision.reply).toMatch(/consultant|ترشيحاتي|My picks/i)
+    expect(turn.decision.reply).toMatch(/consultant|ترشيحاتي|My picks|I found destinations|وجدت|optimize for scenery/i)
     expect(turn.reasoningResult?.primary).toBeTruthy()
     expect(turn.meta.modulesExecuted).toContain('reasoning')
     expect(turn.meta.reflected).toBe(true)
@@ -187,7 +187,7 @@ describe('planTurn integration', () => {
         userMessage('I want somewhere cold next month with a budget of 12000 SAR'),
       ],
     })
-    expect(result.reply).toMatch(/consultant|ترشيحاتي|My picks/i)
+    expect(result.reply).toMatch(/consultant|ترشيحاتي|My picks|I found destinations|وجدت|optimize for scenery/i)
     expect(result.meta.rahhalBrain?.decision).toBe('respond')
     expect(result.meta.rahhalBrain?.primaryIntent).toBe('destination_discovery')
     expect(result.meta.reasoning?.candidateIds.length).toBeGreaterThan(0)
@@ -205,7 +205,7 @@ describe('planTurn integration', () => {
         userMessage('I want somewhere cold next month with a budget of 12000 SAR'),
       ],
     })
-    expect(result.reply).toMatch(/consultant|ترشيحاتي|My picks/i)
+    expect(result.reply).toMatch(/consultant|ترشيحاتي|My picks|I found destinations|وجدت|optimize for scenery/i)
     expect(result.meta.rahhalBrain).toBeUndefined()
   })
 })

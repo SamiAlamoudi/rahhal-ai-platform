@@ -89,6 +89,7 @@ import {
   runRahhalBrainTurn,
   isRahhalBrainEnabled,
   type RahhalBrainMetaSnapshot,
+  type RahhalBrainTurnResult,
 } from '../brain/core'
 import {
   detectBookingFlowConversationEdit,
@@ -216,6 +217,11 @@ export interface TravelAgentServiceOptions {
    */
   rahhalBrainEnabled?: boolean
   /**
+   * Phase 2 — AI Travel Executive intelligence.
+   * Default: FeatureRegistry `ai.travel_executive` (ON).
+   */
+  travelExecutiveEnabled?: boolean
+  /**
    * Sprint 25 — Production Booking Flow orchestration.
    * Default: FeatureRegistry `ui.booking_flow` (OFF).
    */
@@ -284,6 +290,18 @@ function toMetaConcierge(state: ConciergeState): NonNullable<AgentProviderMeta['
     lastAction: state.lastAction,
     heardSummary: [...state.heardSummary],
     turnCount: state.turnCount,
+  }
+}
+
+function toMetaTravelExecutive(
+  executive: NonNullable<RahhalBrainTurnResult['executive']>,
+): NonNullable<AgentProviderMeta['travelExecutive']> {
+  return {
+    travelStyle: executive.context.travelStyle,
+    optimizationAxis: executive.context.optimizationAxis,
+    rejectedCount: executive.context.rejectedDestinations.length,
+    learnedRejections: executive.learnedRejections,
+    budgetWarnings: executive.budgetWarnings,
   }
 }
 
@@ -459,6 +477,7 @@ export function createTravelAgentService(
       let reasoningMeta: AgentProviderMeta['reasoning'] | undefined
       let clarificationMeta: NonNullable<AgentProviderMeta['clarification']> | undefined
       let rahhalBrainMeta: RahhalBrainMetaSnapshot | undefined
+      let travelExecutiveSnapshot: RahhalBrainTurnResult['executive']
 
       if (isBrainCoreEnabled()) {
         const brainTurn = runRahhalBrainTurn(
@@ -472,6 +491,7 @@ export function createTravelAgentService(
           {
             reasoningEnabled: options.travelReasoningEnabled,
             clarificationEnabled: options.smartClarificationEnabled,
+            travelExecutiveEnabled: options.travelExecutiveEnabled,
           },
         )
         memory = brainTurn.memory
@@ -480,6 +500,7 @@ export function createTravelAgentService(
         reasoningMeta = brainTurn.reasoningMeta
         clarificationMeta = brainTurn.clarificationMeta
         rahhalBrainMeta = brainTurn.meta
+        travelExecutiveSnapshot = brainTurn.executive
 
         if (
           (brainTurn.decision.type === 'respond' || brainTurn.decision.type === 'clarify')
@@ -495,6 +516,9 @@ export function createTravelAgentService(
             reasoning: reasoningMeta,
             clarification: clarificationMeta,
             rahhalBrain: toMetaRahhalBrain(brainTurn.meta),
+            travelExecutive: brainTurn.executive
+              ? toMetaTravelExecutive(brainTurn.executive)
+              : undefined,
           }
           return {
             reply: brainTurn.decision.reply,
@@ -767,13 +791,18 @@ export function createTravelAgentService(
         return { ...meta, clarification: clarificationMeta }
       }
 
+      const attachTravelExecutive = <T extends AgentProviderMeta>(meta: T): T => {
+        if (!travelExecutiveSnapshot) return meta
+        return { ...meta, travelExecutive: toMetaTravelExecutive(travelExecutiveSnapshot) }
+      }
+
       const attachRahhalBrain = <T extends AgentProviderMeta>(meta: T): T => {
         if (!rahhalBrainMeta) return meta
         return { ...meta, rahhalBrain: toMetaRahhalBrain(rahhalBrainMeta) }
       }
 
       const attachTurnMeta = <T extends AgentProviderMeta>(meta: T): T =>
-        attachRahhalBrain(attachClarification(attachReasoning(attachBrain(meta))))
+        attachTravelExecutive(attachRahhalBrain(attachClarification(attachReasoning(attachBrain(meta)))))
 
       // Sprint 45 — open-ended reasoning owns the consultant reply when proposing destinations.
       if (

@@ -3,6 +3,7 @@
  */
 
 import { extractFromUserText } from '../../agent/extractRequirements'
+import { getPreferenceEngine } from '../../ai/preferences'
 import {
   isSmartClarificationEnabled,
 } from '../../agent/clarification'
@@ -23,6 +24,11 @@ import {
 } from '../../agent/reasoning'
 import type { AgentMemory, AgentProviderMeta } from '../../agent/types'
 import { withTripPlan } from '../../agent/types'
+import {
+  composeExecutiveDiscoveryReply,
+  isTravelExecutiveEnabled,
+  processExecutiveIntelligence,
+} from '../executive'
 import { understandConversation } from './conversationUnderstanding'
 import { classifyBrainIntents } from './intentEngine'
 import { buildInternalPlan } from './planningEngine'
@@ -145,8 +151,56 @@ export function createDefaultRahhalBrainPorts(): RahhalBrainPorts {
       reflect: reflectOnResponse,
     },
     response: {
-      compose: composeBrainResponse,
+      compose(input) {
+        if (
+          isTravelExecutiveEnabled()
+          && input.reasoningResult
+          && input.memory.requirements.destinationFlexible
+          && !input.memory.requirements.destination
+          && input.reasoningResult.primary
+          && input.executiveContext
+        ) {
+          const body = composeExecutiveDiscoveryReply({
+            result: input.reasoningResult,
+            requirements: input.memory.requirements,
+            context: input.executiveContext,
+          })
+          const warnings = [
+            ...(input.executiveBudgetWarnings ?? []),
+            ...(input.reasoningResult.rejected
+              .filter((row) => row.budgetFit === 'over')
+              .map((row) => input.locale === 'ar'
+                ? `${row.nameAr || row.name} تتجاوز الميزانية`
+                : `${row.name} exceeds budget`)),
+          ]
+          return {
+            reasoning: input.reasoningResult.rationale.slice(0, 4),
+            recommendation: input.reasoningResult.primary.name,
+            tradeoffs: [],
+            warnings: warnings.slice(0, 4),
+            nextStep: input.locale === 'ar'
+              ? 'هل تفضّل أن أُحسّن الترتيب للمناظر، الأنشطة، أم التكلفة الإجمالية؟'
+              : 'Would you like me to optimize for scenery, activities, or total cost?',
+            body,
+          }
+        }
+
+        return composeBrainResponse(input)
+      },
       composeClarification: composeClarificationQuestion,
+    },
+    executive: {
+      process(input) {
+        return processExecutiveIntelligence({
+          userText: input.userText,
+          memory: input.memory,
+          understanding: input.understanding,
+          intents: input.intents,
+          reasoningResult: input.reasoningResult,
+          userId: input.userId,
+          profile: getPreferenceEngine().getProfile(input.userId),
+        })
+      },
     },
   }
 }

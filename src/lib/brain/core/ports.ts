@@ -6,6 +6,7 @@
 import type { ExtractionResult } from '../../agent/extractRequirements'
 import type { AgentMemory, TripRequirements } from '../../agent/types'
 import type { TravelReasoningResult } from '../../agent/reasoning/types'
+import type { ExecutiveContext, ExecutiveEnhancement } from '../executive/types'
 import type {
   BrainIntentResult,
   ComposedResponse,
@@ -94,6 +95,8 @@ export interface ResponseComposerPort {
     memory: AgentMemory
     reasoningResult: TravelReasoningResult | null
     missingFields: Array<keyof TripRequirements>
+    executiveContext?: ExecutiveContext
+    executiveBudgetWarnings?: string[]
   }): ComposedResponse | null
   composeClarification(input: {
     locale: AgentMemory['locale']
@@ -101,6 +104,17 @@ export interface ResponseComposerPort {
     missingFields: Array<keyof TripRequirements>
     understanding: ConversationUnderstanding
   }): string | null
+}
+
+export interface ExecutivePort {
+  process(input: {
+    userText: string
+    memory: AgentMemory
+    understanding: ConversationUnderstanding
+    intents: BrainIntentResult
+    reasoningResult: TravelReasoningResult | null
+    userId: string
+  }): ExecutiveEnhancement
 }
 
 export interface RahhalBrainPorts {
@@ -112,4 +126,5 @@ export interface RahhalBrainPorts {
   planning: PlanningEnginePort
   reflection: ReflectionEnginePort
   response: ResponseComposerPort
+  executive: ExecutivePort
 }
