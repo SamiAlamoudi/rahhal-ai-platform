@@ -40,6 +40,8 @@ export interface ChatStreamChunk {
   error?: string
   /** Optional structured metadata attached on `done` (e.g. Travel AI Agent itinerary). */
   meta?: Record<string, unknown>
+  /** Sprint 44 — progressive ChatGPT-like experience state (optional on deltas). */
+  experienceState?: string
 }
 
 export interface ChatCompletionRequest {

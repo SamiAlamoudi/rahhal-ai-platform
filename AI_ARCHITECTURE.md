@@ -376,6 +376,19 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.ai_orchestrator` (depends on `brain.conversation_ui`, `brain.finance_platform`).
 - See `docs/SPRINT43_AI_ORCHESTRATOR.md`.
 
+## ChatGPT-like Conversation Experience (Sprint 44)
+
+- **Conversation UX orchestration only** — no new travel / hotel / flight / supplier / payment engines.
+- Package: `src/lib/chat/chatgptExperience`.
+- Pipeline: Memory Manager → Intent Understanding → Response Planner → Tool Decision → immediate streaming → natural reply + smart follow-ups.
+- Reuses Sprint 28 `MemoryContextEngine` (rolling window, summaries, preferences, tool-result memory) and Sprint 32 conversation-ui provider when tools are required.
+- Clarifying follow-ups defer tool calls (e.g. Japan → tourism / business / family) before searching.
+- Experience states: Listening → Understanding → Thinking → Using tools → Searching → Generating → Responding → Speaking → Done.
+- Context recovery (draft, modality, voice mode/locale, pins) + ChatGPT-style message actions (copy, regenerate, stop, continue, edit, retry, timestamps, pin, search).
+- Provider id: `chatgpt-experience` (selected by `chatProviderFactory` when flag ON).
+- Flag (default **OFF**): `ui.chatgpt_experience` (depends on `ui.conversation_experience`).
+- See `docs/SPRINT44_CHATGPT_EXPERIENCE.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |

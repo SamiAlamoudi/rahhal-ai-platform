@@ -11,6 +11,7 @@ import { chatEngine } from '../lib/chat/chatEngine'
 import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
 import { validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
 import { isBenignChatError, logChatError } from '../lib/chat/chatLogger'
+import { userFacingErrorMessage } from '../lib/chat/pipelineDiagnostics'
 import {
   buildChatSearch,
   resolveInitialConversationId,
@@ -39,6 +40,14 @@ import { createSpeechToTextProvider, createTextToSpeechProvider } from '../lib/c
 import { createVoiceSession, type CreateVoiceSessionOptions, type VoiceSession } from '../lib/chat/voice/voiceSession'
 import { subscribeMicrophonePermission } from '../lib/chat/voice/microphonePermission'
 import type { VoiceInputMode, VoiceLocale, VoiceSessionStatus } from '../lib/chat/voice/voiceTypes'
+import {
+  EXPERIENCE_STATE_LABELS,
+  isChatGptExperienceEnabled,
+  readSessionUiRecovery,
+  togglePinnedConversation,
+  writeSessionUiRecovery,
+  type ChatGptExperienceState,
+} from '../lib/chat/chatgptExperience'
 
 type ComposerMode = 'text' | 'voice'
 
@@ -70,6 +79,7 @@ export default function ChatPage() {
   const [voiceMode, setVoiceMode] = useState<VoiceInputMode>('push_to_talk')
   const [voiceLocale, setVoiceLocale] = useState<VoiceLocale>('ar')
   const [partialTranscript, setPartialTranscript] = useState('')
+  const [voiceLevel, setVoiceLevel] = useState(0)
   const [micError, setMicError] = useState<string | null>(null)
   const [permissionState, setPermissionState] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null)
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine)
@@ -84,8 +94,13 @@ export default function ChatPage() {
   const voiceRef = useRef<VoiceSession | null>(null)
   const activeIdRef = useRef<string | null>(null)
   const streamingRef = useRef(false)
+  const detailRequestRef = useRef(0)
   const bookingBridgeRef = useRef(createConversationBookingBridge())
   const experienceEnabled = isConversationExperienceEnabled()
+  const chatgptOn = isChatGptExperienceEnabled()
+  const [experienceState, setExperienceState] = useState<ChatGptExperienceState>('idle')
+  const [pinnedIds, setPinnedIds] = useState<string[]>(() => readSessionUiRecovery()?.pinnedIds ?? [])
+  const stickToBottomRef = useRef(true)
 
   const filtered = useMemo(
     () => chatEngine.searchConversations(conversations, query),
@@ -93,7 +108,12 @@ export default function ChatPage() {
   )
 
   const isStreaming = messages.some((m) => m.status === 'streaming') || sending
-  const voiceBusy = voiceStatus === 'processing' || voiceStatus === 'speaking' || voiceStatus === 'reconnecting'
+  const voiceBusy =
+    voiceStatus === 'processing'
+    || voiceStatus === 'thinking'
+    || voiceStatus === 'responding'
+    || voiceStatus === 'speaking'
+    || voiceStatus === 'reconnecting'
   streamingRef.current = isStreaming || voiceBusy
 
   const scrollToBottom = useCallback((smooth = false) => {
@@ -118,10 +138,14 @@ export default function ChatPage() {
   }, [applyMessage])
 
   const upsertMessage = useCallback((message: ChatMessage) => {
+    const state = message.providerMeta?.experienceState
+    if (typeof state === 'string') setExperienceState(state as ChatGptExperienceState)
     if (message.status === 'streaming') coalescerRef.current.push(message)
     else {
       coalescerRef.current.flushNow()
       applyMessage(message)
+      if (message.status === 'complete') setExperienceState('done')
+      if (message.status === 'error' || message.status === 'cancelled') setExperienceState('error')
     }
   }, [applyMessage])
 
@@ -160,7 +184,7 @@ export default function ChatPage() {
       }
     } catch (e) {
       logChatError('chat.list', e)
-      setListError(e instanceof Error ? e.message : 'تعذر تحميل المحادثات')
+      setListError(userFacingErrorMessage(e, 'تعذر تحميل المحادثات'))
       setConversations([])
     } finally {
       setListLoading(false)
@@ -168,20 +192,26 @@ export default function ChatPage() {
   }, [navigate])
 
   const loadDetail = useCallback(async (id: string) => {
+    // Avoid wiping in-flight streamed messages with a stale empty detail response.
+    if (streamingRef.current) return
+    const requestId = ++detailRequestRef.current
     setDetailLoading(true)
     setDetailError(null)
     try {
       const detail = await chatEngine.getConversationDetail(id)
+      if (requestId !== detailRequestRef.current || activeIdRef.current !== id) return
+      if (streamingRef.current) return
       setMessages(detail.messages)
       setConversations((prev) =>
         prev.map((c) => (c.id === detail.conversation.id ? detail.conversation : c)),
       )
     } catch (e) {
+      if (requestId !== detailRequestRef.current || activeIdRef.current !== id) return
       logChatError('chat.detail', e)
-      setDetailError(e instanceof Error ? e.message : 'تعذر تحميل المحادثة')
+      setDetailError(userFacingErrorMessage(e, 'تعذر تحميل المحادثة'))
       setMessages([])
     } finally {
-      setDetailLoading(false)
+      if (requestId === detailRequestRef.current) setDetailLoading(false)
     }
   }, [])
 
@@ -194,6 +224,27 @@ export default function ChatPage() {
   }, [loadConversations])
 
   useEffect(() => {
+    const recovered = readSessionUiRecovery()
+    if (!recovered) return
+    if (recovered.draft) setDraft(recovered.draft)
+    if (recovered.modality === 'voice' || recovered.modality === 'text') setComposerMode(recovered.modality)
+    setVoiceMode(recovered.voiceMode)
+    setVoiceLocale(recovered.voiceLocale)
+    setPinnedIds(recovered.pinnedIds)
+  }, [])
+
+  useEffect(() => {
+    writeSessionUiRecovery({
+      conversationId: activeId,
+      draft,
+      modality: composerMode,
+      voiceMode,
+      voiceLocale,
+      pinnedIds,
+    })
+  }, [activeId, draft, composerMode, voiceMode, voiceLocale, pinnedIds])
+
+  useEffect(() => {
     if (!activeId) {
       setMessages([])
       return
@@ -203,8 +254,79 @@ export default function ChatPage() {
   }, [activeId, loadDetail])
 
   useEffect(() => {
-    scrollToBottom(!streamingRef.current)
+    if (stickToBottomRef.current) scrollToBottom(!streamingRef.current)
   }, [messages, partialTranscript, scrollToBottom])
+
+  useEffect(() => {
+    if (!chatgptOn) return
+    const map: Partial<Record<VoiceSessionStatus, ChatGptExperienceState>> = {
+      listening: 'listening',
+      processing: 'understanding',
+      thinking: 'thinking',
+      responding: 'responding',
+      speaking: 'speaking',
+      idle: 'idle',
+      error: 'error',
+    }
+    const next = map[voiceStatus]
+    if (next) setExperienceState(next)
+  }, [chatgptOn, voiceStatus])
+
+  const handleTogglePin = useCallback((id: string) => {
+    setPinnedIds(togglePinnedConversation(id))
+  }, [])
+
+  const handleRegenerate = async (assistantMessageId: string) => {
+    if (!activeId || isStreaming || voiceBusy || !online) return
+    await runGeneration(async (handlers) => {
+      const updated = await chatEngine.retryAssistantMessage(activeId, assistantMessageId, handlers)
+      upsertMessage(updated)
+    })
+  }
+
+  const handleEditUserMessage = (messageId: string, content: string) => {
+    if (isStreaming || voiceBusy) return
+    setMessages((prev) => {
+      const idx = prev.findIndex((m) => m.id === messageId)
+      if (idx === -1) return prev
+      return prev.slice(0, idx)
+    })
+    setDraft(content)
+    setComposerMode('text')
+    setExperienceState('idle')
+  }
+
+  const handleContinueGenerating = async () => {
+    if (!activeId || isStreaming || voiceBusy || !online) return
+    const last = [...messages].reverse().find((m) => m.role === 'assistant')
+    if (!last || (last.status !== 'cancelled' && last.status !== 'complete')) return
+    await runGeneration(async (handlers) => {
+      const result = await chatEngine.sendMessage({
+        conversationId: activeId,
+        content: 'Please continue from where you left off.',
+        modality: 'text',
+      }, handlers)
+      setMessages((prev) => {
+        const withoutAssistant = prev.filter((m) => m.id !== result.assistant.id)
+        return [...withoutAssistant, result.user, result.assistant]
+      })
+    })
+  }
+
+  const canContinue = useMemo(() => {
+    if (!chatgptOn || isStreaming || voiceBusy) return false
+    const last = [...messages].reverse().find((m) => m.role === 'assistant')
+    if (!last) return false
+    if (last.status === 'cancelled') return true
+    const text = last.content.trim()
+    return text.length > 40 && !/[.!?…。؟]$/.test(text)
+  }, [chatgptOn, isStreaming, voiceBusy, messages])
+
+  const experienceStatusLabel = useMemo(() => {
+    if (!chatgptOn) return null
+    if (experienceState === 'idle' || experienceState === 'done') return null
+    return EXPERIENCE_STATE_LABELS[experienceState]?.en ?? experienceState
+  }, [chatgptOn, experienceState])
 
   useEffect(() => {
     const onOnline = () => {
@@ -236,6 +358,7 @@ export default function ChatPage() {
       onStatus: setVoiceStatus,
       onPartialTranscript: setPartialTranscript,
       onFinalTranscript: setPartialTranscript,
+      onLevel: setVoiceLevel,
       onPermission: (state) => {
         setPermissionState(state.state)
         if (state.state !== 'granted') setMicError(state.error || 'يلزم إذن الميكروفون')
@@ -289,7 +412,7 @@ export default function ChatPage() {
       setMobileSidebarOpen(false)
     } catch (e) {
       logChatError('chat.create', e)
-      setActionError(e instanceof Error ? e.message : 'تعذر إنشاء المحادثة')
+      setActionError(userFacingErrorMessage(e, 'تعذر إنشاء المحادثة'))
     }
   }
 
@@ -333,6 +456,7 @@ export default function ChatPage() {
     abortRef.current?.abort()
     abortRef.current = null
     setSending(false)
+    if (chatgptOn) setExperienceState('done')
     voiceRef.current?.interrupt(() => {
       abortRef.current?.abort()
     }, { resumeHandsFree: voiceMode === 'hands_free' })
@@ -749,9 +873,11 @@ export default function ChatPage() {
               <h1 className="truncate text-base font-bold text-slate-900 dark:text-slate-100">وكيل سفر رحّال</h1>
               <p className="text-[10px] text-slate-400">
                 {online
-                  ? experienceEnabled
-                    ? 'تجربة محادثة الإنتاج · بطاقات وحجز داخل الدردشة'
-                    : 'تخطيط رحلات منظم · نص وصوت على نفس المحرك'
+                  ? chatgptOn
+                    ? 'ChatGPT-style conversation · streaming · voice · memory'
+                    : experienceEnabled
+                      ? 'تجربة محادثة الإنتاج · بطاقات وحجز داخل الدردشة'
+                      : 'تخطيط رحلات منظم · نص وصوت على نفس المحرك'
                   : 'غير متصل — وضع القراءة فقط مؤقتاً'}
               </p>
             </div>
@@ -806,11 +932,13 @@ export default function ChatPage() {
             conversations={filtered}
             activeId={activeId}
             query={query}
+            pinnedIds={chatgptOn ? pinnedIds : []}
             onQueryChange={setQuery}
             onSelect={(id) => selectConversation(id)}
             onCreate={() => void handleCreate()}
             onRename={(id) => void handleRename(id)}
             onDelete={(id) => void handleDelete(id)}
+            onTogglePin={chatgptOn ? handleTogglePin : undefined}
             loading={listLoading}
             mobileOpen={mobileSidebarOpen}
             onCloseMobile={() => setMobileSidebarOpen(false)}
@@ -849,6 +977,17 @@ export default function ChatPage() {
             </div>
           )}
 
+          {experienceStatusLabel && (
+            <div
+              className="mx-4 mt-3 flex items-center gap-2 text-xs font-medium text-slate-500 transition-opacity duration-300"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary-500" aria-hidden="true" />
+              {experienceStatusLabel}
+            </div>
+          )}
+
           {!activeId && !listLoading && (
             <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center">
               <p className="text-sm text-slate-500">ابدأ محادثة ثم بدّل بين الكتابة والصوت في أي وقت</p>
@@ -864,7 +1003,14 @@ export default function ChatPage() {
 
           {activeId && (
             <>
-              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+              <div
+                className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"
+                onScroll={(e) => {
+                  const el = e.currentTarget
+                  const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+                  stickToBottomRef.current = distance < 96
+                }}
+              >
                 {detailLoading && (
                   <p className="py-10 text-center text-sm text-slate-400">جاري تحميل الرسائل...</p>
                 )}
@@ -882,9 +1028,13 @@ export default function ChatPage() {
                 )}
                 {!detailLoading && !detailError && messages.length === 0 && (
                   <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-12 text-center">
-                    <p className="text-sm font-medium text-slate-700">ابدأ وكيل السفر</p>
+                    <p className="text-sm font-medium text-slate-700">
+                      {chatgptOn ? 'Start a natural conversation' : 'ابدأ وكيل السفر'}
+                    </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      مثال: I want to travel to Japan — الوكيل يسأل عن التوقيت والميزانية والمسافرين ثم يبني الخطة
+                      {chatgptOn
+                        ? 'Ask anything — Rahhal remembers context, streams instantly, and supports voice like ChatGPT.'
+                        : 'مثال: I want to travel to Japan — الوكيل يسأل عن التوقيت والميزانية والمسافرين ثم يبني الخطة'}
                     </p>
                   </div>
                 )}
@@ -907,6 +1057,8 @@ export default function ChatPage() {
                           : []
                       }
                       onRetry={(id) => void handleRetry(id)}
+                      onRegenerate={chatgptOn ? (id) => void handleRegenerate(id) : undefined}
+                      onEditUserMessage={chatgptOn ? handleEditUserMessage : undefined}
                       onSaveItinerary={(itinerary) => void handleSaveItinerary(itinerary)}
                       onRegenerateItinerary={(id) => void handleRegenerateItinerary(id)}
                       onRegenerateDay={(id, day) => void handleRegenerateDay(id, day)}
@@ -932,6 +1084,7 @@ export default function ChatPage() {
                     permissionState={permissionState}
                     busy={isStreaming || voiceBusy}
                     online={online}
+                    level={voiceLevel}
                     onModeChange={setVoiceMode}
                     onLocaleChange={setVoiceLocale}
                     onPushStart={() => void handlePushStart()}
@@ -971,6 +1124,15 @@ export default function ChatPage() {
                             className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-100"
                           >
                             إيقاف
+                          </button>
+                        )}
+                        {canContinue && (
+                          <button
+                            type="button"
+                            onClick={() => void handleContinueGenerating()}
+                            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                          >
+                            متابعة
                           </button>
                         )}
                         <button

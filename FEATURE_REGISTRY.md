@@ -76,6 +76,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `brain.finance_platform` | experimental | **no** | Sprint 41 Universal Revenue, Finance & Settlement Platform (alias: finance_platform) — depends on `brain.supplier_marketplace` |
 | `ui.conversation_experience` | experimental | **no** | Sprint 42 Conversation Experience & Booking UX (alias: conversation_experience) — depends on `brain.conversation_ui`; presentation only over Sprint 32–35 engines |
 | `brain.ai_orchestrator` | experimental | **no** | Sprint 43 Rahhal AI Orchestrator & Tool Routing (alias: ai_orchestrator) — depends on `brain.conversation_ui`, `brain.finance_platform` |
+| `ui.chatgpt_experience` | experimental | **no** | Sprint 44 ChatGPT-like Conversation Experience (alias: chatgpt_experience) — depends on `ui.conversation_experience`; memory/intent/plan/tool-routing/streaming/voice UX only — no new travel engines |
 | `providers.hotel_foundation` | experimental | **no** | Sprint 30 Hotel Provider Foundation — sandbox Hotelbeds / Expedia Rapid / Booking Connectivity (alias: hotel_provider_foundation) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |

@@ -22,6 +22,8 @@ interface MessageBubbleProps {
   bookingState?: ConversationBookingState | null
   timelineEvents?: ConversationTimelineEvent[]
   onRetry?: (messageId: string) => void
+  onRegenerate?: (messageId: string) => void
+  onEditUserMessage?: (messageId: string, content: string) => void
   onSaveItinerary?: (itinerary: TripPlan, messageId: string) => void
   onRegenerateItinerary?: (messageId: string) => void
   onRegenerateDay?: (messageId: string, day: number) => void
@@ -39,6 +41,8 @@ export default function MessageBubble({
   bookingState = null,
   timelineEvents = [],
   onRetry,
+  onRegenerate,
+  onEditUserMessage,
   onSaveItinerary,
   onRegenerateItinerary,
   onRegenerateDay,
@@ -55,6 +59,7 @@ export default function MessageBubble({
     || null
   const itinerary = tripPlanFromMeta(message.providerMeta)
   const experienceOn = isConversationExperienceEnabled()
+  const timestamp = formatMessageTime(message.createdAt)
 
   const handleCopy = async () => {
     const ok = await copyTextToClipboard(message.content)
@@ -73,11 +78,17 @@ export default function MessageBubble({
             : 'border border-slate-100 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100'
         }`}
       >
-        <div className="mb-1 text-[10px] font-medium opacity-70">
-          {isUser ? 'أنت' : 'وكيل سفر رحّال'}
-          {message.modality === 'audio' ? ' · صوت / نصّ الكلام' : ''}
-          {imageUrl ? ' · صورة' : ''}
-          {isStreaming ? ' · يكتب' : ''}
+        <div className="mb-1 flex flex-wrap items-center gap-2 text-[10px] font-medium opacity-70">
+          <span>
+            {isUser ? 'أنت' : 'رحّال'}
+            {message.modality === 'audio' ? ' · صوت' : ''}
+            {imageUrl ? ' · صورة' : ''}
+            {isStreaming ? ' · يكتب' : ''}
+          </span>
+          {timestamp && <time dateTime={message.createdAt}>{timestamp}</time>}
+          {isStreaming && !isUser && (
+            <span className="inline-block h-3 w-1.5 animate-pulse rounded-sm bg-current" aria-hidden="true" />
+          )}
         </div>
 
         {imageUrl && (
@@ -98,7 +109,18 @@ export default function MessageBubble({
         )}
 
         {isUser ? (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+          <div>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+            {onEditUserMessage && !busy && (
+              <button
+                type="button"
+                onClick={() => onEditUserMessage(message.id, message.content)}
+                className="mt-2 rounded-lg bg-white/10 px-2 py-1 text-[11px] font-medium text-primary-50 hover:bg-white/20"
+              >
+                تعديل
+              </button>
+            )}
+          </div>
         ) : experienceOn ? (
           <>
             <ConversationExperiencePanel
@@ -148,6 +170,15 @@ export default function MessageBubble({
             >
               {copied ? 'تم النسخ' : 'نسخ'}
             </button>
+            {onRegenerate && (
+              <button
+                type="button"
+                onClick={() => onRegenerate(message.id)}
+                className="rounded-lg px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                إعادة التوليد
+              </button>
+            )}
             {onRetry && (
               <button
                 type="button"
@@ -162,4 +193,14 @@ export default function MessageBubble({
       </div>
     </div>
   )
+}
+
+function formatMessageTime(iso: string): string | null {
+  try {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return null
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return null
+  }
 }

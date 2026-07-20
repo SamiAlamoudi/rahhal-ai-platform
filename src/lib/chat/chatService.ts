@@ -17,6 +17,9 @@ import {
   validateConversationTitle,
   validateUserMessage,
 } from './chatHelpers'
+import { assertChatDatabaseAuth } from './chatAuthGate'
+import { diagnosePipelineError, logPipeline } from './pipelineDiagnostics'
+import { AppError } from '../ops/errors/canonicalError'
 
 export interface ConversationDetail {
   conversation: ChatConversation
@@ -98,21 +101,42 @@ async function streamIntoAssistant(
       messages: history,
       signal: handlers.signal,
     })) {
-      if (chunk.type === 'delta' && chunk.text) {
-        content += chunk.text
-        latest = {
-          ...latest,
-          content,
-          status: 'streaming',
-          updatedAt: new Date().toISOString(),
+      if (chunk.type === 'delta') {
+        if (chunk.text) content += chunk.text
+        const experienceState =
+          chunk.experienceState
+          ?? (typeof chunk.meta?.experienceState === 'string' ? chunk.meta.experienceState : null)
+        if (experienceState) {
+          streamMeta = { ...streamMeta, experienceState, chatgptExperience: true }
         }
-        handlers.onDelta?.(latest)
+        if (chunk.meta) {
+          streamMeta = { ...streamMeta, ...chunk.meta }
+        }
+        // Skip empty status-only deltas for content, but still notify UI for state.
+        if (chunk.text || experienceState) {
+          latest = {
+            ...latest,
+            content,
+            status: 'streaming',
+            providerMeta: {
+              providerId: activeProvider.providerId,
+              ...streamMeta,
+            },
+            updatedAt: new Date().toISOString(),
+          }
+          handlers.onDelta?.(latest)
+        }
         // Non-blocking mid-stream persist so network lag does not stall UI deltas
-        if (content.length - lastPersistedLength >= 120) {
+        if (chunk.text && content.length - lastPersistedLength >= 120) {
           lastPersistedLength = content.length
           const snapshot = content
-          void persistAssistantDelta(assistantId, snapshot, 'streaming', null, streamMeta).catch(() => {
-            // final persist still runs on done/error
+          void persistAssistantDelta(assistantId, snapshot, 'streaming', null, streamMeta).catch((err) => {
+            logPipeline({
+              stage: 'database',
+              event: 'mid_stream_persist_failed',
+              error: err,
+              message: err instanceof Error ? err.message : String(err),
+            })
           })
         }
       } else if (chunk.type === 'error') {
@@ -160,8 +184,18 @@ async function streamIntoAssistant(
 
 export const chatService = {
   async listConversations(limit = 50): Promise<ChatConversation[]> {
-    const rows = await conversationRepository.listByUser(limit)
-    return rows.map(conversationFromRow)
+    try {
+      await assertChatDatabaseAuth('listConversations')
+      const rows = await conversationRepository.listByUser(limit)
+      logPipeline({
+        stage: 'conversation',
+        event: 'list_ok',
+        meta: { count: rows.length },
+      })
+      return rows.map(conversationFromRow)
+    } catch (error) {
+      throw diagnosePipelineError('conversation', 'listConversations', error)
+    }
   },
 
   searchConversations(conversations: ChatConversation[], query: string): ChatConversation[] {
@@ -173,33 +207,81 @@ export const chatService = {
       const err = validateConversationTitle(title)
       if (err) throw new Error(err)
     }
-    const row = await conversationRepository.create({
-      title: title?.trim() || 'محادثة جديدة',
-      modality_default: 'text',
-    })
-    if (!row) throw new Error('تعذر إنشاء المحادثة')
-    return conversationFromRow(row)
+    try {
+      await assertChatDatabaseAuth('createConversation')
+      const row = await conversationRepository.create({
+        title: title?.trim() || 'محادثة جديدة',
+        modality_default: 'text',
+      })
+      if (!row) {
+        throw new AppError({
+          code: 'forbidden',
+          message: 'Conversation insert returned null (likely RLS SELECT mismatch)',
+          userMessage: 'تعذر إنشاء المحادثة. تحقق من تسجيل الدخول وصلاحيات قاعدة البيانات.',
+          domain: 'chat.database',
+          operation: 'createConversation',
+          status: 403,
+        })
+      }
+      logPipeline({
+        stage: 'conversation',
+        event: 'create_ok',
+        meta: { id: row.id },
+      })
+      return conversationFromRow(row)
+    } catch (error) {
+      throw diagnosePipelineError('conversation', 'createConversation', error)
+    }
   },
 
   async renameConversation(id: string, title: string): Promise<ChatConversation> {
     const err = validateConversationTitle(title)
     if (err) throw new Error(err)
-    const row = await conversationRepository.update(id, { title: title.trim() })
-    if (!row) throw new Error('تعذر إعادة تسمية المحادثة')
-    return conversationFromRow(row)
+    try {
+      await assertChatDatabaseAuth('renameConversation')
+      const row = await conversationRepository.update(id, { title: title.trim() })
+      if (!row) throw new Error('تعذر إعادة تسمية المحادثة')
+      return conversationFromRow(row)
+    } catch (error) {
+      throw diagnosePipelineError('conversation', 'renameConversation', error)
+    }
   },
 
   async deleteConversation(id: string): Promise<void> {
-    await conversationRepository.delete(id)
+    try {
+      await assertChatDatabaseAuth('deleteConversation')
+      await conversationRepository.delete(id)
+    } catch (error) {
+      throw diagnosePipelineError('conversation', 'deleteConversation', error)
+    }
   },
 
   async getConversationDetail(id: string): Promise<ConversationDetail> {
-    const conversation = await conversationRepository.getById(id)
-    if (!conversation) throw new Error('المحادثة غير موجودة')
-    const messages = await messageRepository.listByConversation(id)
-    return {
-      conversation: conversationFromRow(conversation),
-      messages: messages.map(messageFromRow),
+    try {
+      await assertChatDatabaseAuth('getConversationDetail')
+      const conversation = await conversationRepository.getById(id)
+      if (!conversation) {
+        throw new AppError({
+          code: 'not_found',
+          message: `Conversation not found: ${id}`,
+          userMessage: 'المحادثة غير موجودة أو لم يعد بإمكانك الوصول إليها.',
+          domain: 'chat.database',
+          operation: 'getConversationDetail',
+          status: 404,
+        })
+      }
+      const messages = await messageRepository.listByConversation(id)
+      logPipeline({
+        stage: 'conversation',
+        event: 'detail_ok',
+        meta: { id, messages: messages.length },
+      })
+      return {
+        conversation: conversationFromRow(conversation),
+        messages: messages.map(messageFromRow),
+      }
+    } catch (error) {
+      throw diagnosePipelineError('conversation', 'getConversationDetail', error)
     }
   },
 
@@ -212,50 +294,60 @@ export const chatService = {
     const validation = validateUserMessage(content)
     if (validation) throw new Error(validation)
 
-    const modality: ChatModality = options.modality === 'audio' ? 'audio' : 'text'
-    const attachments = options.attachments ?? []
+    try {
+      await assertChatDatabaseAuth('sendUserMessage')
+      const modality: ChatModality = options.modality === 'audio' ? 'audio' : 'text'
+      const attachments = options.attachments ?? []
 
-    const existing = await messageRepository.listByConversation(conversationId)
-    const userRow = await messageRepository.create({
-      conversation_id: conversationId,
-      role: 'user',
-      modality,
-      content: content.trim(),
-      audio_url: options.audioUrl ?? null,
-      image_url: options.imageUrl ?? null,
-      attachments,
-      status: 'complete',
-    })
-    if (!userRow) throw new Error('تعذر حفظ الرسالة')
-
-    const preview = buildMessagePreview(content)
-    if (existing.length === 0) {
-      const autoTitle = titleFromFirstMessage(content)
-      await conversationRepository.update(conversationId, {
-        title: autoTitle,
-        last_message_preview: preview,
+      const existing = await messageRepository.listByConversation(conversationId)
+      const userRow = await messageRepository.create({
+        conversation_id: conversationId,
+        role: 'user',
+        modality,
+        content: content.trim(),
+        audio_url: options.audioUrl ?? null,
+        image_url: options.imageUrl ?? null,
+        attachments,
+        status: 'complete',
       })
-    } else {
-      await conversationRepository.touch(conversationId, preview)
+      if (!userRow) throw new Error('تعذر حفظ الرسالة')
+
+      const preview = buildMessagePreview(content)
+      if (existing.length === 0) {
+        const autoTitle = titleFromFirstMessage(content)
+        await conversationRepository.update(conversationId, {
+          title: autoTitle,
+          last_message_preview: preview,
+        })
+      } else {
+        await conversationRepository.touch(conversationId, preview)
+      }
+
+      const assistantRow = await messageRepository.create({
+        conversation_id: conversationId,
+        role: 'assistant',
+        modality: 'text',
+        content: '',
+        status: 'streaming',
+        provider_meta: { providerId: activeProvider.providerId },
+      })
+      if (!assistantRow) throw new Error('تعذر بدء رد المساعد')
+
+      const user = messageFromRow(userRow)
+      const assistantSeed = messageFromRow(assistantRow)
+      handlers.onAssistantCreate?.(assistantSeed)
+
+      const history = [...existing.map(messageFromRow), user]
+      logPipeline({
+        stage: 'ai',
+        event: 'stream_started',
+        meta: { conversationId, history: history.length },
+      })
+      const assistant = await streamIntoAssistant(conversationId, history, assistantSeed.id, handlers)
+      return { user, assistant }
+    } catch (error) {
+      throw diagnosePipelineError('conversation', 'sendUserMessage', error)
     }
-
-    const assistantRow = await messageRepository.create({
-      conversation_id: conversationId,
-      role: 'assistant',
-      modality: 'text',
-      content: '',
-      status: 'streaming',
-      provider_meta: { providerId: activeProvider.providerId },
-    })
-    if (!assistantRow) throw new Error('تعذر بدء رد المساعد')
-
-    const user = messageFromRow(userRow)
-    const assistantSeed = messageFromRow(assistantRow)
-    handlers.onAssistantCreate?.(assistantSeed)
-
-    const history = [...existing.map(messageFromRow), user]
-    const assistant = await streamIntoAssistant(conversationId, history, assistantSeed.id, handlers)
-    return { user, assistant }
   },
 
   async retryAssistantMessage(
@@ -263,32 +355,37 @@ export const chatService = {
     assistantMessageId: string,
     handlers: StreamHandlers,
   ): Promise<ChatMessage> {
-    const messages = (await messageRepository.listByConversation(conversationId)).map(messageFromRow)
-    const target = findRetryTarget(messages, assistantMessageId)
-    if (!target) throw new Error('تعذر العثور على الرسالة لإعادة المحاولة')
+    try {
+      await assertChatDatabaseAuth('retryAssistantMessage')
+      const messages = (await messageRepository.listByConversation(conversationId)).map(messageFromRow)
+      const target = findRetryTarget(messages, assistantMessageId)
+      if (!target) throw new Error('تعذر العثور على الرسالة لإعادة المحاولة')
 
-    await messageRepository.update(assistantMessageId, {
-      content: '',
-      status: 'streaming',
-      error: null,
-      provider_meta: { providerId: activeProvider.providerId },
-    })
+      await messageRepository.update(assistantMessageId, {
+        content: '',
+        status: 'streaming',
+        error: null,
+        provider_meta: { providerId: activeProvider.providerId },
+      })
 
-    const seed: ChatMessage = {
-      ...target.assistant,
-      content: '',
-      status: 'streaming',
-      error: null,
-      providerMeta: { providerId: activeProvider.providerId },
+      const seed: ChatMessage = {
+        ...target.assistant,
+        content: '',
+        status: 'streaming',
+        error: null,
+        providerMeta: { providerId: activeProvider.providerId },
+      }
+      handlers.onAssistantCreate?.(seed)
+
+      const truncated: ChatMessage[] = []
+      for (const message of messages) {
+        if (message.id === assistantMessageId) break
+        truncated.push(message)
+      }
+
+      return await streamIntoAssistant(conversationId, truncated, assistantMessageId, handlers)
+    } catch (error) {
+      throw diagnosePipelineError('conversation', 'retryAssistantMessage', error)
     }
-    handlers.onAssistantCreate?.(seed)
-
-    const truncated: ChatMessage[] = []
-    for (const message of messages) {
-      if (message.id === assistantMessageId) break
-      truncated.push(message)
-    }
-
-    return streamIntoAssistant(conversationId, truncated, assistantMessageId, handlers)
   },
 }
