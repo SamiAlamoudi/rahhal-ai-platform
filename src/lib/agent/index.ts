@@ -45,7 +45,7 @@ export {
   applyItineraryEdits,
   regenerateTripDay,
 } from './buildItinerary'
-export { formatTripPlanReply, formatItineraryReply } from './formatReply'
+export { formatTripPlanReply, formatItineraryReply, buildFollowUpQuestion, buildSpokenPlanSummary, composeTripPlanDisplay, buildThinkingBridge } from './formatReply'
 export {
   createDefaultAgentToolRegistry,
   createMockAgentToolRegistry,

@@ -18,8 +18,8 @@ export function composeNaturalReply(input: {
     return {
       text:
         locale === 'ar'
-          ? 'أهلاً بك. أنا معك — قل لي كيف أقدر أساعدك في رحلتك أو أي سؤال عندك.'
-          : 'Hi — I’m here with you. Tell me how I can help with your trip, or ask me anything.',
+          ? 'أهلاً بك. أنا معك — خبرني عن الرحلة اللي في بالك.'
+          : 'Hi — I am right here with you. Tell me about the trip you have in mind.',
       followUp: null,
     }
   }
@@ -28,10 +28,10 @@ export function composeNaturalReply(input: {
     const base =
       locale === 'ar'
         ? dest
-          ? `اختيار ${dest} ممتاز. أحب أعطيك نصيحة عملية تناسب أسلوب سفرك.`
+          ? `${dest} اختيار جميل. خلّني أعطيك نصيحة عملية تناسب أسلوب سفرك.`
           : 'أكيد — أحب أساعدك بنصيحة عملية وواضحة.'
         : dest
-          ? `${dest} is a great pick. I can share practical advice that fits how you like to travel.`
+          ? `${dest} is a lovely pick. I can share practical advice that fits how you like to travel.`
           : 'Absolutely — I can share practical advice in plain language.'
     return {
       text: base,
@@ -43,8 +43,8 @@ export function composeNaturalReply(input: {
     return {
       text:
         locale === 'ar'
-          ? 'فاهم عليك. خلّني أساعدك خطوة بخطوة — بدون تعقيد.'
-          : 'Got it. I’ll help you step by step — no fluff.',
+          ? 'فاهم عليك. خلّنا نكمّل بهدوء — خبرني أكثر.'
+          : 'Got it. Let’s take this gently — tell me a little more.',
       followUp: smartFollowUp({
         intent: input.intent,
         locale,
@@ -58,11 +58,11 @@ export function composeNaturalReply(input: {
     const opener =
       locale === 'ar'
         ? dest
-          ? `اختيار رائع${dest ? ` — ${dest}` : ''}. خلّني أجهّز الخيارات المناسبة لك.`
-          : 'تمام. خلّني أفهم طلبك وأجهّز الخيارات المناسبة.'
+          ? `اختيار رائع — ${dest}. عندي أفكار أولية وسأقارن أفضل الخيارات.`
+          : 'تمام. عندي أفكار أولية — خلّني أضبطها على طلبك.'
         : dest
-          ? `Great choice — ${dest}. I’ll put together options that fit you.`
-          : 'Sounds good. I’ll shape options around what you need.'
+          ? `Great choice — ${dest}. I already have a few ideas; let me compare the best options.`
+          : 'Sounds good. I already have a few ideas — let me shape them around what you need.'
     return {
       text: opener,
       followUp: smartFollowUp({
@@ -77,8 +77,8 @@ export function composeNaturalReply(input: {
   return {
     text:
       locale === 'ar'
-        ? 'فاهم. خلّني أكمّل بناءً على محادثتنا السابقة.'
-        : 'Understood. I’ll continue from where we left off.',
+        ? 'فاهم. خلّني أكمّل من حيث توقفنا.'
+        : 'Understood. I will continue from where we left off.',
     followUp: null,
   }
 }

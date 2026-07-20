@@ -84,4 +84,15 @@ describe('extractFromUserText', () => {
     expect(extractFromUserText('Regenerate day 3').intent).toBe('regenerate_day')
     expect(extractFromUserText('Regenerate day 3').patch.regenerateDay).toBe(3)
   })
+
+  it('parses two weeks in Japan next August with my wife', () => {
+    const result = extractFromUserText(
+      'I want to spend two weeks in Japan next August with my wife.',
+    )
+    expect(result.patch.destination).toBe('Japan')
+    expect(result.patch.durationDays).toBe(14)
+    expect(result.patch.travelerType).toBe('couple')
+    expect(result.patch.travelers).toBe(2)
+    expect(result.patch.startDate).toMatch(/-08-01$/)
+  })
 })

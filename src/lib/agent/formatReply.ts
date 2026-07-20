@@ -8,173 +8,250 @@ import type {
 import { nextMissingIntakeField } from './memory'
 import { t } from './locale'
 
+/**
+ * Conversation-first follow-up (Experience Sprint 1).
+ * One warm acknowledgment + at most ONE natural question.
+ * Never sounds like a form, wizard, or inventory checklist.
+ */
 export function buildFollowUpQuestion(
   memory: AgentMemory,
   missing: Array<keyof TripRequirements>,
 ): string {
   const locale = memory.locale
   const next = missing[0] ?? nextMissingIntakeField(memory.requirements)
-  const known = summarizeKnown(memory.requirements, locale)
 
-  const lines: string[] = [
-    t(locale, {
-      ar: 'سأبني خطة سفر ذكية — لكن أحتاج تفاصيل أكثر قبل التوليد (بدون تخمين).',
-      en: 'I will build a smart trip plan — but I need a few more details before generating (no guessing).',
-    }),
-  ]
-
-  if (known.length) {
-    lines.push('')
-    lines.push(t(locale, { ar: 'ما حفظته حتى الآن:', en: 'What I have so far:' }))
-    for (const row of known) lines.push(`• ${row}`)
-  }
-
-  lines.push('')
   if (!next) {
-    lines.push(t(locale, {
-      ar: 'أعتقد أنني جاهز — أكّد وسأولّد الخطة.',
-      en: 'I think I have enough — confirm and I will generate the plan.',
-    }))
-    return lines.join('\n')
+    return t(locale, {
+      ar: 'ممتاز — عندي ما يكفي لنبدأ. قل «ابني الخطة» وسأجهّز خيارات تناسبك.',
+      en: 'Perfect — I have enough to begin. Say “build the plan” and I will put options together for you.',
+    })
   }
 
-  lines.push(t(locale, { ar: 'سؤال التالي:', en: 'Next question:' }))
-  lines.push(questionForField(next, locale, memory.requirements))
-  return lines.join('\n')
+  const ack = warmAck(memory.requirements, locale)
+  const question = conversationalAsk(next, locale, memory.requirements)
+  return `${ack} ${question}`.trim()
 }
 
-function questionForField(
+/** Short spoken summary for voice — never the full itinerary. */
+export function buildSpokenPlanSummary(plan: TripPlan, locale: AgentLocale): string {
+  const dest = plan.destinations[0] || (locale === 'ar' ? 'وجهتك' : 'your trip')
+  const days = plan.durationDays
+  const daysLabel = locale === 'ar'
+    ? (days === 1 ? 'يوم واحد' : `${days} أيام`)
+    : (days === 1 ? 'one day' : `${days} days`)
+  const party = plan.travelerType
+    ? labelTraveler(plan.travelerType, locale)
+    : (plan.travelers != null
+      ? (locale === 'ar' ? `${plan.travelers} مسافرين` : `${plan.travelers} travelers`)
+      : null)
+  const hotel = plan.accommodations[0]?.name
+  const flight = plan.flights[0]
+  const budget = plan.estimatedCosts
+
+  if (locale === 'ar') {
+    const bits = [
+      `جهّزت لك تصوّراً لـ${dest} لمدة ${daysLabel}${party ? ` — ${party}` : ''}.`,
+    ]
+    if (hotel) bits.push(`الإقامة المقترحة: ${hotel}.`)
+    if (flight?.from && flight?.to) {
+      bits.push(`الطيران من ${flight.from} إلى ${flight.to}.`)
+    }
+    if (budget?.amount != null) {
+      bits.push(`التقدير الإجمالي حوالي ${budget.amount.toLocaleString('en-US')} ${budget.currency}.`)
+    }
+    bits.push('التفاصيل كاملة على الشاشة — قل لي لو تبي نعدّل شيء.')
+    return bits.join(' ')
+  }
+
+  const bits = [
+    `I have a first cut for ${dest} — ${daysLabel}${party ? ` for a ${party}` : ''}.`,
+  ]
+  if (hotel) bits.push(`I am leaning toward ${hotel} for the stay.`)
+  if (flight?.from && flight?.to) {
+    bits.push(`Flights look like ${flight.from} to ${flight.to}.`)
+  }
+  if (budget?.amount != null) {
+    bits.push(`Ballpark total around ${budget.amount.toLocaleString('en-US')} ${budget.currency}.`)
+  }
+  bits.push('The full details are on screen — tell me what you would like to refine.')
+  return bits.join(' ')
+}
+
+/**
+ * Screen content: conversational opener + rich visual itinerary.
+ * Voice should use buildSpokenPlanSummary / meta.spokenText — not this whole string.
+ */
+export function composeTripPlanDisplay(plan: TripPlan, locale: AgentLocale): string {
+  const spoken = buildSpokenPlanSummary(plan, locale)
+  const details = formatTripPlanDetails(plan, locale)
+  return `${spoken}\n\n${details}`
+}
+
+/** @deprecated Prefer composeTripPlanDisplay for chat; keep details helper for tests. */
+export function formatTripPlanReply(plan: TripPlan, locale: AgentLocale): string {
+  return composeTripPlanDisplay(plan, locale)
+}
+
+/** Bridge line spoken immediately while planning runs (ChatGPT-Voice feel). */
+export function buildThinkingBridge(locale: AgentLocale): string {
+  return t(locale, {
+    ar: 'لحظة — عندي أفكار أولية، خلّني أقارن أفضل الخيارات.',
+    en: 'Give me a second — I already have a few ideas. Let me compare the best options.',
+  })
+}
+
+/** Prefer meta.spokenText; fall back to a safe short speech string. */
+export function resolveSpokenText(input: {
+  spokenText?: string | null
+  reply: string
+  tripPlan?: TripPlan | null
+  locale: AgentLocale
+}): string {
+  if (input.spokenText?.trim()) return input.spokenText.trim()
+  if (input.tripPlan) return buildSpokenPlanSummary(input.tripPlan, input.locale)
+  return shortenForSpeech(input.reply)
+}
+
+export function shortenForSpeech(text: string, maxChars = 320): string {
+  const plain = text
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[[^\]]*]\([^)]+\)/g, ' ')
+    .replace(/\[[^\]]*]\([^)]+\)/g, ' ')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^[-*•]\s+/gm, '')
+    .replace(/[#>*_~|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (plain.length <= maxChars) return plain
+  const cut = plain.slice(0, maxChars)
+  const sentence = cut.match(/^[\s\S]*?[.!?؟。](?=\s|$)/)
+  if (sentence && sentence[0].length > 40) return sentence[0].trim()
+  const word = cut.lastIndexOf(' ')
+  return `${(word > 40 ? cut.slice(0, word) : cut).trim()}…`
+}
+
+function warmAck(requirements: TripRequirements, locale: AgentLocale): string {
+  const dest = requirements.destination || requirements.destinations[0]
+  const days = requirements.durationDays
+  const party = partyPhrase(requirements, locale)
+
+  if (dest && days != null && party) {
+    return t(locale, {
+      ar: `ممتاز — ${dest} لمدة ${days} ${days === 1 ? 'يوم' : 'أيام'} ${party} تبدو رحلة جميلة.`,
+      en: `Lovely — ${dest} for ${days} day${days === 1 ? '' : 's'}${party} already sounds like a great trip.`,
+    })
+  }
+  if (dest && days != null) {
+    return t(locale, {
+      ar: `${dest} لمدة ${days} ${days === 1 ? 'يوم' : 'أيام'} — اختيار رائع.`,
+      en: `${dest} for ${days} day${days === 1 ? '' : 's'} — wonderful choice.`,
+    })
+  }
+  if (dest) {
+    return t(locale, {
+      ar: `${dest} تبدو ممتعة جداً.`,
+      en: `${dest} sounds wonderful.`,
+    })
+  }
+  return t(locale, {
+    ar: 'يبدو أن عندك رحلة جميلة في البال.',
+    en: 'That sounds exciting.',
+  })
+}
+
+function conversationalAsk(
   field: keyof TripRequirements,
   locale: AgentLocale,
   requirements: TripRequirements,
 ): string {
+  const dest = requirements.destination || requirements.destinations[0]
   switch (field) {
     case 'destination':
       return t(locale, {
         ar: requirements.destinationFlexible
-          ? '• أي من الترشيحات تفضل؟ أو اقترح وجهة أخرى'
-          : '• إلى أين تريد السفر؟ (مثال: اليابان، بالي، لندن، الرياض)',
+          ? 'أي اتجاه من الترشيحات أقرب لذوقك، أو عندك وجهة في بالك؟'
+          : 'خبرني أكثر عن الرحلة التي تخطط لها — وين تتخيّل نفسك؟',
         en: requirements.destinationFlexible
-          ? '• Which recommendation do you prefer? Or suggest another place'
-          : '• Where do you want to travel? (e.g. Japan, Bali, London, Riyadh)',
+          ? 'Which of those directions feels closest — or do you already have a place in mind?'
+          : 'Tell me a little more about the trip you are planning.',
       })
     case 'durationDays':
       return t(locale, {
-        ar: '• متى؟ كم مدة الرحلة بالأيام، أو تاريخ البداية والنهاية؟',
-        en: '• When? How many days, or what start/end dates?',
+        ar: dest
+          ? `متى تتخيّل ${dest} — كم يوم تقريباً، أو عندك تواريخ؟`
+          : 'متى تقريباً، وكم يوم تتخيّل للرحلة؟',
+        en: dest
+          ? `When are you imagining ${dest} — roughly how many days, or do you have dates?`
+          : 'When are you thinking, and roughly how many days?',
       })
     case 'budgetAmount':
       return t(locale, {
-        ar: '• ما الميزانية التقريبية وعملتها؟ (أو قل «مرنة»)',
-        en: '• What is your budget (amount + currency)? Or say “flexible”.',
+        ar: 'وش الميزانية اللي ترتاح لها — أو نخليها مرنة ونضبط الخيارات عليها؟',
+        en: 'What budget range feels comfortable — or shall we keep it flexible and shape options around that?',
       })
     case 'travelers':
       return t(locale, {
-        ar: '• كم عدد المسافرين؟',
-        en: '• How many travelers?',
+        ar: 'بتسافر لوحدك، ولا مع أحد؟',
+        en: 'Are you traveling solo, or with someone?',
       })
     case 'travelerType':
       return t(locale, {
-        ar: '• سفر فردي، زوجين، عائلة، أصدقاء، أم عمل؟',
-        en: '• Family, solo, couple, friends, or business?',
+        ar: 'هذي رحلة زوجين، عيلة، أصدقاء، ولا عمل؟',
+        en: 'Is this more of a couple trip, family, friends, or business?',
       })
     case 'interests':
       return t(locale, {
-        ar: '• ما اهتماماتك؟ (طعام، ثقافة، شاطئ، طبيعة، تسوق، مغامرة… أو «فاجأني»)',
-        en: '• What are your interests? (food, culture, beach, nature, shopping, adventure… or “surprise me”)',
+        ar: 'وش يهمك أكثر في الرحلة — طعام، ثقافة، هدوء، مغامرة؟',
+        en: 'What matters most on this trip — food, culture, quiet, adventure?',
       })
     case 'weatherPreference':
       return t(locale, {
-        ar: '• ما الطقس المفضل؟ (معتدل، حار، بارد، جاف، مرن…)',
-        en: '• Preferred weather? (mild, warm, cool, dry, flexible…)',
+        ar: 'تحب طقس معتدل، دافئ، بارد، ولا ما يفرق؟',
+        en: 'Do you prefer mild, warm, or cool weather — or no strong preference?',
       })
     case 'budgetStyle':
       return t(locale, {
-        ar: '• أسلوب الرحلة: فاخر، متوسط، أم اقتصادي؟',
-        en: '• Luxury, mid-range, or budget style?',
+        ar: 'تميل لأجواء فاخرة، متوسطة، ولا عملية أكثر؟',
+        en: 'Do you lean luxury, mid-range, or more practical?',
       })
     case 'hotelPreference':
       return t(locale, {
-        ar: '• تفضيل الفندق؟ (وسط المدينة، بوتيك، منتجع، شقة، أي فندق…)',
-        en: '• Hotel preference? (central, boutique, resort, apartment, any…)',
+        ar: 'تفضل إقامة في وسط المدينة، منتجع، ولا أي مكان يناسب الإيقاع؟',
+        en: 'Prefer a central stay, a resort, or wherever fits the rhythm of the trip?',
       })
     case 'packageScope':
       return t(locale, {
-        ar: '• طيران فقط أم باقة كاملة (طيران + فنادق + أنشطة)؟',
-        en: '• Flights only, or a full package (flights + hotels + activities)?',
+        ar: 'تبي نركز على الطيران، ولا باقة كاملة مع الإقامة والأنشطة؟',
+        en: 'Shall I focus on flights, or a full package with stays and activities?',
       })
     default:
       return t(locale, {
-        ar: '• هل يمكنك توضيح هذا التفصيل؟',
-        en: '• Could you clarify that detail?',
+        ar: 'خبرني أكثر عشان أضبط الخيارات لك.',
+        en: 'Tell me a little more so I can tune the options for you.',
       })
   }
 }
 
-function summarizeKnown(requirements: TripRequirements, locale: AgentLocale): string[] {
-  const rows: string[] = []
-  const dest = requirements.destination || requirements.destinations[0]
-  if (dest) {
-    rows.push(locale === 'ar' ? `الوجهة: ${dest}` : `Destination: ${dest}`)
+function partyPhrase(requirements: TripRequirements, locale: AgentLocale): string {
+  if (requirements.travelerType === 'couple') {
+    return locale === 'ar' ? 'لكم كزوجين' : ' for the two of you'
   }
-  if (requirements.durationDays != null) {
-    rows.push(locale === 'ar'
-      ? `المدة: ${requirements.durationDays} أيام`
-      : `Duration: ${requirements.durationDays} days`)
-  } else if (requirements.startDate && requirements.endDate) {
-    rows.push(`${requirements.startDate} → ${requirements.endDate}`)
+  if (requirements.travelerType === 'family') {
+    return locale === 'ar' ? 'للعائلة' : ' for the family'
   }
-  if (requirements.startDate && requirements.durationDays != null) {
-    rows.push(locale === 'ar'
-      ? `التوقيت: من ${requirements.startDate}`
-      : `Timing from: ${requirements.startDate}`)
+  if (requirements.travelerType === 'solo') {
+    return locale === 'ar' ? 'لك' : ' for you'
   }
-  if (requirements.budgetFlexible) {
-    rows.push(locale === 'ar' ? 'الميزانية: مرنة' : 'Budget: flexible')
-  } else if (requirements.budgetAmount != null) {
-    rows.push(locale === 'ar'
-      ? `الميزانية: ${requirements.budgetAmount} ${requirements.budgetCurrency || ''}`
-      : `Budget: ${requirements.budgetAmount} ${requirements.budgetCurrency || ''}`)
+  if (requirements.travelers != null && requirements.travelers > 0) {
+    return locale === 'ar'
+      ? ` لـ${requirements.travelers} مسافرين`
+      : ` for ${requirements.travelers}`
   }
-  if (requirements.travelers != null) {
-    rows.push(locale === 'ar'
-      ? `عدد المسافرين: ${requirements.travelers}`
-      : `Travelers: ${requirements.travelers}`)
-  }
-  if (requirements.travelerType) {
-    rows.push(locale === 'ar'
-      ? `نوع السفر: ${labelTraveler(requirements.travelerType, 'ar')}`
-      : `Party: ${labelTraveler(requirements.travelerType, 'en')}`)
-  }
-  if (requirements.interests.length) {
-    rows.push(locale === 'ar'
-      ? `الاهتمامات: ${requirements.interests.join('، ')}`
-      : `Interests: ${requirements.interests.join(', ')}`)
-  }
-  if (requirements.weatherPreference) {
-    rows.push(locale === 'ar'
-      ? `الطقس المفضل: ${requirements.weatherPreference}`
-      : `Preferred weather: ${requirements.weatherPreference}`)
-  }
-  if (requirements.budgetStyle) {
-    rows.push(locale === 'ar'
-      ? `أسلوب الميزانية: ${requirements.budgetStyle}`
-      : `Budget style: ${requirements.budgetStyle}`)
-  }
-  if (requirements.hotelPreference) {
-    rows.push(locale === 'ar'
-      ? `تفضيل الفندق: ${requirements.hotelPreference}`
-      : `Hotel preference: ${requirements.hotelPreference}`)
-  }
-  if (requirements.packageScope) {
-    rows.push(locale === 'ar'
-      ? `نطاق الباقة: ${requirements.packageScope === 'flights_only' ? 'طيران فقط' : 'باقة كاملة'}`
-      : `Package: ${requirements.packageScope === 'flights_only' ? 'flights only' : 'full package'}`)
-  }
-  return rows
+  return ''
 }
 
-export function formatTripPlanReply(plan: TripPlan, locale: AgentLocale): string {
+function formatTripPlanDetails(plan: TripPlan, locale: AgentLocale): string {
   const lines: string[] = []
   lines.push(`## ${plan.title}`)
   lines.push('')
@@ -293,44 +370,16 @@ export function formatTripPlanReply(plan: TripPlan, locale: AgentLocale): string
     for (const item of plan.packingSuggestions) lines.push(`- ${item}`)
   }
 
+  // Decision scores stay on screen only — never emphasized for voice.
   if (plan.decision) {
     const d = plan.decision
     lines.push('')
-    lines.push(t(locale, { ar: '### محرك القرار', en: '### Decision engine' }))
-    lines.push(t(locale, {
-      ar: `الدرجة الإجمالية: **${d.scores.overall}/100** (طيران ${d.scores.flight} · فندق ${d.scores.hotel} · أيام ${d.scores.dailyItinerary} · ميزانية ${d.scores.budget} · راحة ${d.scores.comfort} · كفاءة الوقت ${d.scores.timeEfficiency})`,
-      en: `Overall score: **${d.scores.overall}/100** (flight ${d.scores.flight} · hotel ${d.scores.hotel} · days ${d.scores.dailyItinerary} · budget ${d.scores.budget} · comfort ${d.scores.comfort} · time ${d.scores.timeEfficiency})`,
-    }))
-    if (d.flight) {
-      lines.push(`- ${d.flight.whySelected} (${t(locale, { ar: 'ثقة', en: 'confidence' })} ${Math.round(d.flight.confidence * 100)}%)`)
-      for (const reason of d.flight.whyAlternativesRejected.slice(0, 2)) {
-        lines.push(`  - ${t(locale, { ar: 'مرفوض', en: 'Rejected' })}: ${reason}`)
-      }
-      if (d.flight.estimatedSavings != null) {
-        lines.push(`  - ${t(locale, { ar: 'توفير تقديري', en: 'Est. savings' })}: ${d.flight.estimatedSavings} ${d.flight.currency ?? ''}`)
-      }
-      if (d.flight.estimatedTimeSavedMinutes != null) {
-        lines.push(`  - ${t(locale, { ar: 'وقت موفّر', en: 'Est. time saved' })}: ${d.flight.estimatedTimeSavedMinutes} min`)
-      }
-    }
-    if (d.hotel) {
-      lines.push(`- ${d.hotel.whySelected} (${t(locale, { ar: 'ثقة', en: 'confidence' })} ${Math.round(d.hotel.confidence * 100)}%)`)
-      for (const reason of d.hotel.whyAlternativesRejected.slice(0, 2)) {
-        lines.push(`  - ${t(locale, { ar: 'مرفوض', en: 'Rejected' })}: ${reason}`)
-      }
-    }
-    if (d.activities) {
-      lines.push(`- ${d.activities.whySelected}`)
-    }
-    if (d.conflicts.length) {
-      lines.push(t(locale, { ar: 'تعارضات مكتشفة:', en: 'Conflicts detected:' }))
-      for (const conflict of d.conflicts.slice(0, 4)) {
-        lines.push(`- [${conflict.severity}] ${conflict.message}${conflict.suggestion ? ` → ${conflict.suggestion}` : ''}`)
-      }
-    }
+    lines.push(t(locale, { ar: '### لماذا هذه الخيارات', en: '### Why these choices' }))
+    if (d.flight) lines.push(`- ${d.flight.whySelected}`)
+    if (d.hotel) lines.push(`- ${d.hotel.whySelected}`)
+    if (d.activities) lines.push(`- ${d.activities.whySelected}`)
     if (d.suggestions.length) {
-      lines.push(t(locale, { ar: 'بدائل مقترحة:', en: 'Better alternatives:' }))
-      for (const tip of d.suggestions.slice(0, 4)) lines.push(`- ${tip}`)
+      for (const tip of d.suggestions.slice(0, 3)) lines.push(`- ${tip}`)
     }
   }
 
@@ -342,26 +391,26 @@ export function formatTripPlanReply(plan: TripPlan, locale: AgentLocale): string
 
   lines.push('')
   lines.push(t(locale, {
-    ar: 'يمكنك إعادة توليد الخطة كاملة، أو يوماً، أو الطيران فقط، أو الفندق فقط، أو الأنشطة فقط عبر المحادثة.',
-    en: 'You can regenerate the whole trip, a single day, flights only, hotels only, or activities only via chat.',
+    ar: 'لو حاب نعدّل يوماً، الطيران، الفندق، أو الأنشطة — قل لي ببساطة.',
+    en: 'If you want to tweak a day, flights, the hotel, or activities — just say the word.',
   }))
   return lines.join('\n')
 }
 
-/** @deprecated Prefer formatTripPlanReply */
+/** @deprecated Prefer formatTripPlanReply / composeTripPlanDisplay */
 export const formatItineraryReply = formatTripPlanReply
 
 export function buildSaveAck(locale: AgentLocale, title: string): string {
   return t(locale, {
-    ar: `تم حفظ الخطة «${title}» في الرحلات المحفوظة. يمكنك فتحها من صفحة المحفوظة أو متابعة التعديل هنا.`,
-    en: `Saved “${title}” to Saved Trips. Open it anytime from Saved Trips, or keep editing here.`,
+    ar: `حفظت «${title}» لك. تقدر ترجع لها من المحفوظات في أي وقت، أو نكمّل التعديل هنا بهدوء.`,
+    en: `I saved “${title}” for you. You can reopen it anytime from Saved Trips, or we can keep refining it here.`,
   })
 }
 
 export function buildEditAck(locale: AgentLocale): string {
   return t(locale, {
-    ar: 'حدّث لي الميزانية، الوجهة، التواريخ، أو عدد المسافرين وسأعيد بناء الخطة مع الإبقاء على ذاكرة المحادثة.',
-    en: 'Tell me the new budget, destination, dates, or traveler count and I will rebuild the plan while keeping conversation memory.',
+    ar: 'تمام — قل لي وش تبي نغيّر: الميزانية، الوجهة، التواريخ، أو عدد المسافرين، وأنا أعدّل الخطة مع الإبقاء على كل اللي اتفقنا عليه.',
+    en: 'Of course — tell me what to change: budget, destination, dates, or travelers, and I will reshape the plan while keeping what we already agreed.',
   })
 }
 

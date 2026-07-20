@@ -114,7 +114,11 @@ export function extractFromUserText(
     patch.tripPurpose = 'family'
     patch.travelerType = 'family'
     // Do not invent party size for "family" unless the user stated a number.
-  } else if (/\bcouple\b|زوجين/.test(lower)) {
+  } else if (
+    /\bcouple\b|زوجين/.test(lower)
+    || /\b(?:with )?(?:my )?(?:wife|husband|spouse|partner)\b/.test(lower)
+    || /زوجتي|زوجي|زوجته|زوجها|خطيبتي|خطيبي/.test(normalized)
+  ) {
     patch.travelerType = 'couple'
     patch.travelers = patch.travelers ?? 2
   } else if (/\bsolo\b|alone|وحدي|منفرد/.test(lower)) {
@@ -346,6 +350,30 @@ function matchDuration(lower: string, original: string): number | null {
   if (ar) return clampDays(Number(ar[1]))
   const week = lower.match(/(\d+)\s*-?\s*week/) || original.match(/(\d+)\s*(?:أسابيع|اسابيع|أسبوع|اسبوع)/)
   if (week) return clampDays(Number(week[1]) * 7)
+  // Word forms: "two weeks", "a fortnight", "أسبوعين"
+  const weekWord = lower.match(
+    /\b(one|two|three|four|five|six|seven|eight|nine|ten|a|an)\s+-?\s*weeks?\b/,
+  )
+  if (weekWord) {
+    const map: Record<string, number> = {
+      a: 1,
+      an: 1,
+      one: 1,
+      two: 2,
+      three: 3,
+      four: 4,
+      five: 5,
+      six: 6,
+      seven: 7,
+      eight: 8,
+      nine: 9,
+      ten: 10,
+    }
+    const n = map[weekWord[1]!]
+    if (n) return clampDays(n * 7)
+  }
+  if (/\bfortnight\b/.test(lower)) return 14
+  if (/أسبوعين|اسبوعين/.test(original)) return 14
   if (/\bone week\b|أسبوع|اسبوع/.test(lower) || /أسبوع|اسبوع/.test(original)) return 7
   return null
 }

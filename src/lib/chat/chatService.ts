@@ -112,8 +112,9 @@ async function streamIntoAssistant(
         if (chunk.meta) {
           streamMeta = { ...streamMeta, ...chunk.meta }
         }
-        // Skip empty status-only deltas for content, but still notify UI for state.
-        if (chunk.text || experienceState) {
+        // Skip empty status-only deltas for content, but still notify UI for state / early voice.
+        const spokenReady = typeof chunk.meta?.spokenText === 'string' && chunk.meta.spokenText.trim().length > 0
+        if (chunk.text || experienceState || spokenReady) {
           latest = {
             ...latest,
             content,
