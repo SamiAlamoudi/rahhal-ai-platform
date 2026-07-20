@@ -233,6 +233,37 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: booking_resume.',
   },
   {
+    id: 'ai.payments',
+    name: 'Payments Platform',
+    description:
+      'Sprint 58 — payment orchestrator (card/Apple/Google/Mada/STC/Tabby/Tamara/bank), lifecycle, sessions, fraud, currency engine. Mock adapters only.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.booking_execution'],
+    notes:
+      'Product alias: payments. Booking Execution requests payment; Conversation Brain narrates facts only. No real gateways.',
+  },
+  {
+    id: 'ai.ticketing',
+    name: 'Ticketing Platform',
+    description:
+      'Sprint 58 — issue unified tickets (flights, hotel/activity vouchers, car, insurance) and document center after successful capture.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.payments'],
+    notes: 'Product alias: ticketing.',
+  },
+  {
+    id: 'ai.refunds',
+    name: 'Refund Engine',
+    description:
+      'Sprint 58 — full/partial refunds, provider cancellation tracking, refund timeline, and refund documents.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.payments'],
+    notes: 'Product alias: refunds.',
+  },
+  {
     id: 'ai.persistent_memory',
     name: 'Persistent Preference Memory',
     description:
