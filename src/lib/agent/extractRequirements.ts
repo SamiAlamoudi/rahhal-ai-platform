@@ -12,6 +12,13 @@ import { detectOpenEndedDestination } from './reasoning/openEndedDetector'
 
 const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
   { keys: ['japan', 'tokyo', 'osaka', 'kyoto', 'اليابان', 'طوكيو', 'اوساكا', 'أوساكا', 'كيوتو'], value: 'Japan' },
+  { keys: ['sapporo', 'hokkaido', 'سابورو', 'هوكايدو'], value: 'Sapporo' },
+  { keys: ['switzerland', 'zurich', 'سويسرا', 'زوريخ'], value: 'Switzerland' },
+  { keys: ['austria', 'vienna', 'innsbruck', 'النمسا', 'فيينا'], value: 'Austria' },
+  { keys: ['norway', 'oslo', 'bergen', 'النرويج', 'أوسلو', 'اوسلو'], value: 'Norway' },
+  { keys: ['canada', 'montreal', 'toronto', 'vancouver', 'كندا', 'مونتريال', 'تورونتو'], value: 'Canada' },
+  { keys: ['new zealand', 'new-zealand', 'queenstown', 'auckland', 'نيوزيلندا', 'نيوزيلاندا'], value: 'New Zealand' },
+  { keys: ['iceland', 'reykjavik', 'آيسلندا', 'ايسلندا', 'ريكيافيك'], value: 'Iceland' },
   { keys: ['riyadh', 'الرياض'], value: 'Riyadh' },
   { keys: ['jeddah', 'جدة'], value: 'Jeddah' },
   { keys: ['dubai', 'دبي'], value: 'Dubai' },
@@ -147,7 +154,7 @@ export function extractFromUserText(
   if (openEnded.isOpenEnded && openEnded.confidence >= 0.5) {
     patch.destinationFlexible = true
     if (openEnded.climateHint && !patch.weatherPreference) {
-      patch.weatherPreference = openEnded.climateHint === 'cold' ? 'cool' : openEnded.climateHint
+      patch.weatherPreference = openEnded.climateHint
     }
   }
 
@@ -513,8 +520,11 @@ function matchInterests(lower: string, original: string): string[] {
 
 function matchWeatherPreference(lower: string, original: string): string | null {
   if (/\bmild\b|معتدل/.test(lower) || /معتدل/.test(original)) return 'mild'
-  if (/\bcold\b|cool\b|بارد|مائل للبرودة/.test(lower) || /بارد/.test(original)) return 'cool'
-  if (/\bhot\b|warm\b|حار|دافئ/.test(lower) || /حار|دافئ/.test(original)) return 'warm'
+  // Distinguish true cold from merely cool — ranking depends on this.
+  if (/\bcold\b|ثلج|snow|تجمد|قارص/.test(lower) || /بارد|ثلج/.test(original)) return 'cold'
+  if (/\bcool\b|مائل للبرودة|منعش/.test(lower) || /مائل للبرودة|منعش/.test(original)) return 'cool'
+  if (/\bhot\b|حار/.test(lower) || /حار/.test(original)) return 'hot'
+  if (/\bwarm\b|دافئ/.test(lower) || /دافئ/.test(original)) return 'warm'
   if (/\bdry\b|جاف/.test(lower) || /جاف/.test(original)) return 'dry'
   if (/\brainy\b|ممطر/.test(lower) || /ممطر/.test(original)) return 'rainy'
   if (/\bany weather\b|flexible weather|أي طقس|طقس مرن|لا يهم الطقس/.test(lower) || /أي\s*طقس/.test(original)) {

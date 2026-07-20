@@ -72,7 +72,7 @@ describe('open-ended detection + extraction', () => {
     )
     expect(result.intent).toBe('discover')
     expect(result.patch.destinationFlexible).toBe(true)
-    expect(result.patch.weatherPreference).toBe('cool')
+    expect(result.patch.weatherPreference).toBe('cold')
     expect(result.patch.budgetAmount).toBe(12000)
     expect(result.patch.budgetCurrency).toBe('SAR')
     expect(result.patch.startDate).toBeTruthy()
@@ -86,7 +86,7 @@ describe('open-ended detection + extraction', () => {
     expect(result.locale).toBe('ar')
     expect(result.intent).toBe('discover')
     expect(result.patch.destinationFlexible).toBe(true)
-    expect(result.patch.weatherPreference).toBe('cool')
+    expect(result.patch.weatherPreference).toBe('cold')
     expect(result.patch.budgetAmount).toBe(12000)
   })
 
@@ -234,7 +234,7 @@ describe('travelAgentService open-ended reasoning turn', () => {
     })
 
     expect(turn.memory.requirements.destinationFlexible).toBe(true)
-    expect(turn.memory.requirements.weatherPreference).toBe('cool')
+    expect(turn.memory.requirements.weatherPreference).toBe('cold')
     expect(turn.memory.requirements.budgetAmount).toBe(12000)
     expect(turn.meta.reasoning).toBeTruthy()
     expect(turn.meta.reasoning?.candidateIds.length).toBeGreaterThan(0)

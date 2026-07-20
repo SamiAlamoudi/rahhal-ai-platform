@@ -2,6 +2,14 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Sprint 47: Cold Destination Discovery Expansion
+
+### Added
+
+- Reasoning catalog expansions: Switzerland, Austria, Norway, Canada, New Zealand, Sapporo, Iceland with seasonal climate priors.
+- Country/city aliases for extraction + profile lookup (Japan→Tokyo, Queenstown→NZ, …).
+- Docs: `docs/SPRINT47_COLD_DESTINATION_DISCOVERY.md`; tests: `coldDestinationDiscovery.sprint47.test.ts`.
+
 ## [Unreleased] — Sprint 46: Smart Clarification / Never-Ask-Twice
 
 ### Added
