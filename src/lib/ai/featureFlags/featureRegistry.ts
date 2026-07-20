@@ -164,6 +164,44 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: booking_intelligence. Post-tool enrichment; Conversation Brain narrates facts only.',
   },
   {
+    id: 'ai.live_providers',
+    name: 'Live Travel Provider Layer',
+    description:
+      'Sprint 56 — provider-agnostic live SDK (Amadeus / Duffel / Booking.com) with health, rate limits, cache, selection, secrets, and metrics. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.booking_intelligence'],
+    notes:
+      'Product alias: live_providers. Structured offers only; Conversation Brain authors traveler-facing text. Requires server secrets — never VITE_* OAuth secrets.',
+  },
+  {
+    id: 'provider.amadeus',
+    name: 'Amadeus live adapter',
+    description: 'Sprint 56 — Amadeus flight search, airports, offers, and pricing via OAuth.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.live_providers'],
+    notes: 'Requires AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET (server-only).',
+  },
+  {
+    id: 'provider.duffel',
+    name: 'Duffel live adapter',
+    description: 'Sprint 56 — Duffel offer search, details, pricing; order/cancel stubs.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.live_providers'],
+    notes: 'Requires DUFFEL_API_TOKEN (server-only).',
+  },
+  {
+    id: 'provider.booking',
+    name: 'Booking.com live adapter',
+    description: 'Sprint 56 — Booking.com hotel search with normalized hotel/price/rating/photos/location.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.live_providers'],
+    notes: 'Requires RAPIDAPI_KEY or BOOKING_RAPIDAPI_KEY (prefer server-only).',
+  },
+  {
     id: 'ai.persistent_memory',
     name: 'Persistent Preference Memory',
     description:

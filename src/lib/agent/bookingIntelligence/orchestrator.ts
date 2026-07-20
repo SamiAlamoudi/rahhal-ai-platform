@@ -10,6 +10,7 @@ import { optimizeBookingCombinations } from './costOptimizer'
 import { explainRecommendations, explanationFacts } from './explanations'
 import { fuseOffers } from './fusion'
 import { normalizeIsoDate } from './normalize'
+import { createLiveBookingProviders } from '../liveProviders'
 import { createBookingProviderRegistry } from './providerRegistry'
 import { rankOffersV2 } from './rankingV2'
 import { createDefaultSimulatedBookingProviders } from './simulatedAdapters'
@@ -37,7 +38,13 @@ let defaultRegistry: BookingProviderRegistry | null = null
 
 export function getDefaultBookingProviderRegistry(): BookingProviderRegistry {
   if (!defaultRegistry) {
-    defaultRegistry = createBookingProviderRegistry(createDefaultSimulatedBookingProviders())
+    // Simulated providers remain the safe default. Live adapters compose in when
+    // `ai.live_providers` (+ per-provider flags / credentials) are enabled.
+    const providers = [
+      ...createDefaultSimulatedBookingProviders(),
+      ...createLiveBookingProviders(),
+    ]
+    defaultRegistry = createBookingProviderRegistry(providers)
   }
   return defaultRegistry
 }

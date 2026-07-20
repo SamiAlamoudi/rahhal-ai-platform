@@ -14,7 +14,7 @@ MATCHES="$(
     --exclude='*.md' \
     --exclude='secret-hygiene-scan.sh' \
     --exclude='ci.yml' \
-    '^\s*VITE_(AMADEUS_CLIENT_SECRET|GOOGLE_MAPS_API_KEY|OPENWEATHER_API_KEY|MOYASAR_SECRET[_A-Z]*)\s*=\s*[^#[:space:]].*' \
+    '^\s*VITE_(AMADEUS_CLIENT_SECRET|AMADEUS_CLIENT_ID|DUFFEL_API_TOKEN|GOOGLE_MAPS_API_KEY|OPENWEATHER_API_KEY|MOYASAR_SECRET[_A-Z]*)\s*=\s*[^#[:space:]].*' \
     . || true
 )"
 
