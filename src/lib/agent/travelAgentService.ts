@@ -317,6 +317,24 @@ function toMetaExecutivePlatform(
   }
 }
 
+function toMetaExecutiveOs(
+  platform: NonNullable<RahhalBrainTurnResult['executivePlatform']>,
+): NonNullable<AgentProviderMeta['executiveOs']> | undefined {
+  if (!platform.os) return undefined
+  const accept = platform.os.prediction
+    && typeof platform.os.prediction.acceptProbability === 'number'
+    ? platform.os.prediction.acceptProbability
+    : null
+  return {
+    strategy: platform.os.strategy,
+    goal: platform.os.goal,
+    engineIds: platform.os.engineIds,
+    topOptionCount: platform.os.topOptions.length,
+    improvedOnce: platform.os.improvedOnce,
+    acceptProbability: accept,
+  }
+}
+
 function toMetaRahhalBrain(
   meta: RahhalBrainMetaSnapshot,
 ): NonNullable<AgentProviderMeta['rahhalBrain']> {
@@ -535,6 +553,9 @@ export function createTravelAgentService(
               : undefined,
             executivePlatform: brainTurn.executivePlatform
               ? toMetaExecutivePlatform(brainTurn.executivePlatform)
+              : undefined,
+            executiveOs: brainTurn.executivePlatform
+              ? toMetaExecutiveOs(brainTurn.executivePlatform)
               : undefined,
           }
           return {
@@ -818,7 +839,13 @@ export function createTravelAgentService(
 
       const attachExecutivePlatform = <T extends AgentProviderMeta>(meta: T): T => {
         if (!executivePlatformSnapshot) return meta
-        return { ...meta, executivePlatform: toMetaExecutivePlatform(executivePlatformSnapshot) }
+        return {
+          ...meta,
+          executivePlatform: toMetaExecutivePlatform(executivePlatformSnapshot),
+          ...(toMetaExecutiveOs(executivePlatformSnapshot)
+            ? { executiveOs: toMetaExecutiveOs(executivePlatformSnapshot) }
+            : {}),
+        }
       }
 
       const attachRahhalBrain = <T extends AgentProviderMeta>(meta: T): T => {

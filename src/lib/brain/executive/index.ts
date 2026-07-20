@@ -17,8 +17,23 @@ export {
   EXECUTIVE_PLATFORM_FEATURE_ID,
   runExecutivePlatform,
   createDefaultExecutiveEngines,
+  createAllExecutiveEngines,
+  createOsEngines,
   selectEnginesForTurn,
 } from './platform'
+export {
+  isExecutiveOsEnabled,
+  EXECUTIVE_OS_FEATURE_ID,
+  getAllDestinationIntelligence,
+  getDestinationIntelligence,
+  buildTravelGraph,
+  relatedDestinations,
+  detectTravelGoal,
+  selectExecutiveStrategy,
+  optimizeDecisions,
+  paretoOptimal,
+  resetExecutiveOsCache,
+} from './os'
 export type {
   OptimizationAxis,
   ExecutiveTravelStyle,
@@ -30,10 +45,18 @@ export type {
   ExecutiveEngine,
   ExecutiveEngineId,
   ExecutivePlatformResult,
+  ExecutiveOsSnapshot,
   DocumentInput,
   TripMonitorSignals,
   EngineRunResult,
 } from './platform'
+export type {
+  TravelGoal,
+  ExecutiveStrategy,
+  DestinationIntelligence,
+  ScoredOption,
+  PredictionResult,
+} from './os'
 export {
   createTripMonitorEngine,
   createLiveConciergeEngine,
@@ -45,6 +68,16 @@ export {
   createRiskEngine,
   createExecutiveResponseEngine,
   createLearningEngine,
+  createGlobalKnowledgeEngine,
+  createDecisionOptimizerEngine,
+  createMultiObjectiveOptimizerEngine,
+  createTravelGraphEngine,
+  createPredictionEngine,
+  createSmartNegotiationEngine,
+  createGoalPlanningEngine,
+  createExecutiveStrategyEngine,
+  createExplanationEngineV2,
+  createSelfReviewEngine,
   extractFields,
   estimateBreakdown,
 } from './engines'

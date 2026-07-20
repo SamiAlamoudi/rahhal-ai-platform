@@ -17,6 +17,13 @@ export type {
 } from './engineContract'
 
 export { isExecutivePlatformEnabled, EXECUTIVE_PLATFORM_FEATURE_ID } from './feature'
-export { createDefaultExecutiveEngines, selectEnginesForTurn } from './registry'
+export {
+  createDefaultExecutiveEngines,
+  createPlatformEngines,
+  createOsEngines,
+  createAllExecutiveEngines,
+  selectEnginesForTurn,
+} from './registry'
 export { runExecutivePlatform } from './orchestrator'
 export type { RunExecutivePlatformInput } from './orchestrator'
+export type { ExecutiveOsSnapshot } from './engineContract'

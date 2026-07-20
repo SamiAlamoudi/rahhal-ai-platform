@@ -2,6 +2,17 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Sprint 52: Executive Operating System v1
+
+### Added
+
+- Executive OS layer under RahhalBrain (`src/lib/brain/executive/os` + `engines/os`).
+- Ten OS engines: global knowledge, decision optimizer, multi-objective (Pareto), travel graph, prediction, smart negotiation, goal planning, executive strategy, explanation v2, self-review.
+- Strategy-gated lazy engine selection + computation cache.
+- Feature flag `ai.executive_os` (default ON; depends on `ai.executive_platform`).
+- Meta: `AgentProviderMeta.executiveOs`; platform snapshot `ExecutivePlatformResult.os`.
+- Docs: `docs/SPRINT52_EXECUTIVE_OS.md`; tests: `executiveOs.sprint52.test.ts`.
+
 ## [Unreleased] — Sprint 51: Executive Travel Platform v1
 
 ### Added
