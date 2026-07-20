@@ -28,6 +28,16 @@ describe('readAmadeusCredentials', () => {
     expect(result.hasCredentials).toBe(true)
     expect(result.host).toBe('https://test.api.amadeus.com')
   })
+
+  it('accepts AMADEUS_API_KEY / AMADEUS_API_SECRET (Sprint 59)', () => {
+    const result = readAmadeusCredentials({
+      AMADEUS_API_KEY: 'api-key',
+      AMADEUS_API_SECRET: 'api-secret',
+    })
+    expect(result.hasCredentials).toBe(true)
+    expect(result.clientId).toBe('api-key')
+    expect(result.clientSecret).toBe('api-secret')
+  })
 })
 
 describe('probeAmadeusConnection', () => {

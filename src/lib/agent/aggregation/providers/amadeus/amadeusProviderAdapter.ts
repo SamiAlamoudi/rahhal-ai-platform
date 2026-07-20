@@ -163,8 +163,19 @@ async function searchAmadeusFlights(
 function aggregationInputToTravelSearch(input: Record<string, unknown>): TravelSearchRequest {
   const destination = String(input.destination ?? '')
   const origin = String(input.origin ?? 'RUH')
-  const travelers = Math.max(1, Number(input.travelers ?? 1))
+  const adults = Math.max(1, Number(input.adults ?? input.travelers ?? 1))
+  const children = Math.max(0, Number(input.children ?? 0))
+  const total = adults + children
   const startDate = input.startDate ? String(input.startDate) : defaultDepartureDate()
+  const cabinRaw = String(input.cabin ?? input.preferredCabin ?? 'economy').toLowerCase()
+  const preferredCabin =
+    cabinRaw.includes('first')
+      ? 'first'
+      : cabinRaw.includes('business')
+        ? 'business'
+        : cabinRaw.includes('premium')
+          ? 'premium-economy'
+          : 'economy'
   // Only fields consumed by buildAmadeusFlightSearchQuery are required here.
   return {
     destination,
@@ -172,13 +183,13 @@ function aggregationInputToTravelSearch(input: Record<string, unknown>): TravelS
     departureDate: startDate,
     returnDate: input.endDate ? String(input.endDate) : '',
     travelers: {
-      adults: travelers,
-      children: 0,
+      adults,
+      children,
       infants: 0,
-      total: travelers,
-      type: travelers === 1 ? 'solo' : 'group',
+      total,
+      type: total === 1 ? 'solo' : children > 0 ? 'family' : 'group',
     },
-    preferredCabin: 'economy',
+    preferredCabin,
     budgetCurrency: String(input.currency ?? 'USD'),
   } as TravelSearchRequest
 }

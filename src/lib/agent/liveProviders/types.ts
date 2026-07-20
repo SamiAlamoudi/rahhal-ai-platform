@@ -101,6 +101,9 @@ export interface LiveFlightSearchInput {
   departureDate: string
   returnDate?: string | null
   adults?: number
+  children?: number
+  /** Economy / premium_economy / business / first (case-insensitive). */
+  cabin?: string | null
   currency?: string
   signal?: AbortSignal
 }

@@ -181,7 +181,8 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'experimental',
     enabled: false,
     dependsOn: ['ai.live_providers'],
-    notes: 'Requires AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET (server-only).',
+    notes:
+      'Requires AMADEUS_API_KEY / AMADEUS_API_SECRET (server-only; CLIENT_ID/SECRET aliases OK).',
   },
   {
     id: 'provider.duffel',

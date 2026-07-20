@@ -3,7 +3,7 @@
 Complete guide to enable live Amadeus flight search on Rahhal.
 
 > **Credential detection (this environment):**  
-> `AMADEUS_CLIENT_ID` and `AMADEUS_CLIENT_SECRET` were **not found**.  
+> `AMADEUS_API_KEY` / `AMADEUS_API_SECRET` (or `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET`) were **not found**.  
 > Until they are set on the server (Vercel / Supabase Edge), Rahhal runs in **mock fallback** mode.
 
 > **Platform notice (2026-07-17):**  
@@ -17,8 +17,10 @@ Complete guide to enable live Amadeus flight search on Rahhal.
 
 | Variable | Where | Purpose |
 |----------|--------|---------|
-| `AMADEUS_CLIENT_ID` | **Server only** (Vercel / Edge) | OAuth API Key |
-| `AMADEUS_CLIENT_SECRET` | **Server only** (Vercel / Edge) | OAuth API Secret — **never** `VITE_*` |
+| `AMADEUS_API_KEY` | **Server only** (Vercel / Edge) | OAuth API Key (preferred; Sprint 59) |
+| `AMADEUS_API_SECRET` | **Server only** (Vercel / Edge) | OAuth API Secret — **never** `VITE_*` |
+| `AMADEUS_CLIENT_ID` | **Server only** (alias) | Same as `AMADEUS_API_KEY` |
+| `AMADEUS_CLIENT_SECRET` | **Server only** (alias) | Same as `AMADEUS_API_SECRET` |
 | `AMADEUS_BASE_URL` | Server | Default `https://test.api.amadeus.com` (sandbox) or production host |
 | `VITE_FLIGHT_PROVIDER` | SPA | Set to `amadeus` |
 | `VITE_AMADEUS_ENABLED` | SPA | Set to `true` |
@@ -38,7 +40,8 @@ Optional:
 
 1. Open the Amadeus developer / Enterprise portal (Self-Service portal was decommissioned 17 Jul 2026).
 2. Create (or request) an application with **Flight Offers Search**, **Airport & City Search**, and **Airline Codes Lookup**.
-3. Copy **API Key** → `AMADEUS_CLIENT_ID` and **API Secret** → `AMADEUS_CLIENT_SECRET`.
+3. Copy **API Key** → `AMADEUS_API_KEY` and **API Secret** → `AMADEUS_API_SECRET`
+   (legacy aliases `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET` still work).
 4. Confirm the **base URL** for your environment and set `AMADEUS_BASE_URL`.
 
 ---
@@ -54,8 +57,8 @@ vercel login
 vercel link
 
 # Add secrets (Production + Preview)
-vercel env add AMADEUS_CLIENT_ID production
-vercel env add AMADEUS_CLIENT_SECRET production
+vercel env add AMADEUS_API_KEY production
+vercel env add AMADEUS_API_SECRET production
 vercel env add AMADEUS_BASE_URL production
 # value: https://test.api.amadeus.com   (or Enterprise host)
 

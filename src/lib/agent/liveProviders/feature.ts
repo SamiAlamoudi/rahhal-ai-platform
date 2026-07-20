@@ -76,8 +76,26 @@ export function readLiveProviderSecret(key: string): string | null {
   return readEnv(key)
 }
 
+/**
+ * Sprint 59 prefers AMADEUS_API_KEY / AMADEUS_API_SECRET.
+ * AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET remain supported aliases.
+ */
+export function readAmadeusApiKey(): string | null {
+  return (
+    readLiveProviderSecret('AMADEUS_API_KEY')
+    ?? readLiveProviderSecret('AMADEUS_CLIENT_ID')
+  )
+}
+
+export function readAmadeusApiSecret(): string | null {
+  return (
+    readLiveProviderSecret('AMADEUS_API_SECRET')
+    ?? readLiveProviderSecret('AMADEUS_CLIENT_SECRET')
+  )
+}
+
 export function hasAmadeusCredentials(): boolean {
-  return Boolean(readLiveProviderSecret('AMADEUS_CLIENT_ID') && readLiveProviderSecret('AMADEUS_CLIENT_SECRET'))
+  return Boolean(readAmadeusApiKey() && readAmadeusApiSecret())
 }
 
 export function hasDuffelCredentials(): boolean {
