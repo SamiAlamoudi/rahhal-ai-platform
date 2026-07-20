@@ -64,6 +64,60 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Extends intake with `destinationFlexible` so Concierge does not re-ask “where?” when reasoning can propose.
 - Flag: `ai.travel_reasoning` (default **ON**; depends on `ai.concierge` + `ai.recommendation_engine`).
 - See `docs/SPRINT45_TRAVEL_REASONING.md`.
+- **Sprint 47:** cold destination catalog expansion (Switzerland, Austria, Norway, Canada, New Zealand, Sapporo, Iceland) — `docs/SPRINT47_COLD_DESTINATION_DISCOVERY.md`.
+- **Sprint 49:** visa + travel advisory intelligence on reasoning candidates — `docs/SPRINT49_VISA_ADVISORY.md`.
+
+## Rahhal Brain Core (Sprint 50)
+
+- **Single decision layer** on the production `/chat` path — `src/lib/brain/core` (`RahhalBrain`).
+- Pipeline: understanding → intent → memory → reasoning → planning → decision → reflection → response.
+- Orchestrates existing engines via dependency-inversion ports; does not duplicate reasoning/clarification logic.
+- Flag: `ai.rahhal_brain` (default **ON**; depends on `ai.concierge`, `ai.travel_reasoning`, `ai.smart_clarification`).
+- Distinct from experimental `brain.enabled` stack (default OFF).
+- See `docs/SPRINT50_RAHHAL_BRAIN_CORE.md`.
+
+## AI Travel Executive (Phase 2)
+
+- Executive intelligence on the production path — rejected destinations, budget warnings, discovery optimizer, consultant replies.
+- Package: `src/lib/brain/executive`; wired through RahhalBrain after reasoning.
+- Flag: `ai.travel_executive` (default **ON**; depends on `ai.rahhal_brain`, `ai.persistent_memory`).
+- See `docs/PHASE2_TRAVEL_EXECUTIVE.md`.
+
+## Executive Travel Platform (Sprint 51)
+
+- Production executive OS — ten specialized engines orchestrated only through RahhalBrain.
+- Package: `src/lib/brain/executive/platform` + `src/lib/brain/executive/engines`.
+- Flag: `ai.executive_platform` (default **ON**; depends on `ai.travel_executive`, `ai.rahhal_brain`).
+- See `docs/SPRINT51_EXECUTIVE_PLATFORM.md`.
+
+## Executive Operating System (Sprint 52)
+
+- Transforms the platform into a Chief Travel Officer OS: knowledge, decision/Pareto optimizers, travel graph, prediction, negotiation, goal planning, dynamic strategy, explanation v2, self-review.
+- Package: `src/lib/brain/executive/os` + `src/lib/brain/executive/engines/os` (runs inside the Sprint 51 orchestrator — no parallel pipeline).
+- Flag: `ai.executive_os` (default **ON**; depends on `ai.executive_platform`).
+- See `docs/SPRINT52_EXECUTIVE_OS.md`.
+
+## Real World Intelligence Layer (Sprint 53)
+
+- Live signals for flights, hotels, weather, visa, events, safety, FX, transport, and price watch.
+- Provider abstraction + event bus + multi-layer cache + circuit breaker; mock adapters when credentials unavailable.
+- Package: `src/lib/brain/intelligence` — called only from RahhalBrain.
+- Flag: `ai.real_world_intelligence` (default **ON**; depends on `ai.rahhal_brain`).
+- See `docs/SPRINT53_REAL_WORLD_INTELLIGENCE.md`.
+
+## Smart Clarification / Never-Ask-Twice (Sprint 46)
+
+- Soft preferences (interests, weather, hotel, package, budget style, traveler type) are **inferred**, never form-asked.
+- Only hard slots (destination*, duration, budget, travelers) block planning.
+- Package: `src/lib/agent/clarification`; wired in `planTurn` after reasoning / preference seed.
+- Flag: `ai.smart_clarification` (default **ON**; depends on `ai.concierge`).
+- See `docs/SPRINT46_SMART_CLARIFICATION.md`.
+
+## Persistent Preference Memory (Sprint 48)
+
+- PreferenceEngine profiles survive reloads via localStorage (`ai.persistent_memory`, default **ON**).
+- Learns favorite destinations when travelers lock a place; seeds budget/weather/party on later chats.
+- See `docs/SPRINT48_PERSISTENT_MEMORY.md`.
 
 ## Flight Results Experience (Sprint 11)
 

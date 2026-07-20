@@ -1,3 +1,72 @@
+export {
+  RahhalBrain,
+  runRahhalBrainTurn,
+  createDefaultRahhalBrainPorts,
+  buildMemoryFromMessages,
+  understandConversation,
+  classifyBrainIntents,
+  buildInternalPlan,
+  reflectOnResponse,
+  composeBrainResponse,
+  composeClarificationQuestion,
+  selectModulesToExecute,
+  isRahhalBrainEnabled,
+  RAHHAL_BRAIN_FEATURE_ID,
+} from './core'
+export type {
+  RahhalBrainHandle,
+  RahhalBrainOptions,
+  RahhalBrainPorts,
+  BrainModuleId,
+  RahhalBrainIntentId,
+  ConversationUnderstanding,
+  BrainIntent,
+  BrainIntentResult,
+  InternalPlan,
+  ComposedResponse,
+  RahhalBrainDecision,
+  RahhalBrainMetaSnapshot,
+  RahhalBrainTurnInput,
+  RahhalBrainTurnResult,
+} from './core'
+export {
+  isTravelExecutiveEnabled,
+  TRAVEL_EXECUTIVE_FEATURE_ID,
+  composeExecutiveDiscoveryReply,
+  detectRejectedDestinations,
+  learnRejectedDestinations,
+  detectOptimizationAxis,
+  processExecutiveIntelligence,
+  isExecutivePlatformEnabled,
+  EXECUTIVE_PLATFORM_FEATURE_ID,
+  runExecutivePlatform,
+  createDefaultExecutiveEngines,
+} from './executive'
+export {
+  isExecutiveOsEnabled,
+  EXECUTIVE_OS_FEATURE_ID,
+} from './executive'
+export {
+  isRealWorldIntelligenceEnabled,
+  REAL_WORLD_INTELLIGENCE_FEATURE_ID,
+  gatherLiveIntelligence,
+  createDefaultLiveProviders,
+} from './intelligence'
+export type {
+  ExecutiveContext,
+  ExecutiveEnhancement,
+  OptimizationAxis,
+  ExecutivePlatformResult,
+  ExecutiveEngineId,
+  TravelGoal,
+  ExecutiveStrategy,
+} from './executive'
+export type {
+  LiveIntelligenceSnapshot,
+  LiveDomain,
+  LiveProvider,
+} from './intelligence'
+
 export type {
   BrainLocale,
   TravelIntent,

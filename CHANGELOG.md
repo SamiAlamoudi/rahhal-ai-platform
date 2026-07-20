@@ -2,6 +2,92 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Sprint 53: Real World Intelligence Layer
+
+### Added
+
+- Live intelligence package (`src/lib/brain/intelligence`) orchestrated through RahhalBrain.
+- Provider abstraction (`search` / `availability` / `pricing` / `booking` / `cancel` / `status`) with nine mock domain providers.
+- Event bus, multi-layer cache, retry/timeout/circuit breaker, telemetry dashboard.
+- Feature flag `ai.real_world_intelligence` (default ON).
+- Meta: `AgentProviderMeta.liveIntelligence`.
+- Docs: `docs/SPRINT53_REAL_WORLD_INTELLIGENCE.md`; tests: `realWorldIntelligence.sprint53.test.ts`.
+
+## [Unreleased] — Sprint 52: Executive Operating System v1
+
+### Added
+
+- Executive OS layer under RahhalBrain (`src/lib/brain/executive/os` + `engines/os`).
+- Ten OS engines: global knowledge, decision optimizer, multi-objective (Pareto), travel graph, prediction, smart negotiation, goal planning, executive strategy, explanation v2, self-review.
+- Strategy-gated lazy engine selection + computation cache.
+- Feature flag `ai.executive_os` (default ON; depends on `ai.executive_platform`).
+- Meta: `AgentProviderMeta.executiveOs`; platform snapshot `ExecutivePlatformResult.os`.
+- Docs: `docs/SPRINT52_EXECUTIVE_OS.md`; tests: `executiveOs.sprint52.test.ts`.
+
+## [Unreleased] — Sprint 51: Executive Travel Platform v1
+
+### Added
+
+- Production executive OS under RahhalBrain (`src/lib/brain/executive/platform` + `engines`).
+- Ten engines with analyze/plan/execute/confidence/metadata contract.
+- Live concierge, trip monitor, explainable decisions, multimodal document extraction, budget v2, risk, optimizer, learning, executive response.
+- Feature flag `ai.executive_platform` (default ON).
+- Docs: `docs/SPRINT51_EXECUTIVE_PLATFORM.md`; tests: `executivePlatform.sprint51.test.ts`.
+
+## [Unreleased] — Phase 2: AI Travel Executive
+
+### Added
+
+- Executive intelligence layer (`src/lib/brain/executive`) orchestrated through RahhalBrain.
+- Rejected-destination memory (`rejectedDestinations` on preference profile).
+- Budget warnings and discovery optimizer (scenery / activities / cost).
+- Consultant one-liner discovery replies with optimization follow-up.
+- Feature flag `ai.travel_executive` (default ON).
+- Docs: `docs/PHASE2_TRAVEL_EXECUTIVE.md`; tests: `travelExecutive.phase2.test.ts`.
+
+## [Unreleased] — Sprint 50: Rahhal Brain Core v1
+
+### Added
+
+- `RahhalBrain` orchestration layer (`src/lib/brain/core`) — conversation understanding, multi-intent detection, internal planning, reflection, response composition.
+- Production wiring in `travelAgentService.planTurn` when `ai.rahhal_brain` is on (default ON).
+- Meta snapshot `AgentProviderMeta.rahhalBrain` for observability.
+- Docs: `docs/SPRINT50_RAHHAL_BRAIN_CORE.md`; tests: `rahhalBrain.sprint50.test.ts`.
+
+## [Unreleased] — Sprint 49: Visa & Travel Advisory Intelligence
+
+### Added
+
+- Consultant-grade visa briefings (processing time, documents, Schengen/UK/Canada/Japan hints) on every reasoning candidate.
+- Travel advisory notes (season, cost, long-haul, safety priors) from catalog risks.
+- Warmer `formatReasoningReply` consultant voice with structured visa/advisory lines.
+- Docs: `docs/SPRINT49_VISA_ADVISORY.md`; tests: `visaIntelligence.sprint49.test.ts`.
+
+## [Unreleased] — Sprint 48: Persistent Preference Memory
+
+### Added
+
+- Durable personalization profiles via `PreferenceStorage` (localStorage) behind `ai.persistent_memory` (default ON).
+- `favoriteDestinations` on travel-style profiles; learned when a destination is locked.
+- Cross-session seed of budget / weather / travelers so the agent does not re-ask known preferences.
+- Docs: `docs/SPRINT48_PERSISTENT_MEMORY.md`; tests: `persistentMemory.sprint48.test.ts`.
+
+## [Unreleased] — Sprint 47: Cold Destination Discovery Expansion
+
+### Added
+
+- Reasoning catalog expansions: Switzerland, Austria, Norway, Canada, New Zealand, Sapporo, Iceland with seasonal climate priors.
+- Country/city aliases for extraction + profile lookup (Japan→Tokyo, Queenstown→NZ, …).
+- Docs: `docs/SPRINT47_COLD_DESTINATION_DISCOVERY.md`; tests: `coldDestinationDiscovery.sprint47.test.ts`.
+
+## [Unreleased] — Sprint 46: Smart Clarification / Never-Ask-Twice
+
+### Added
+
+- Soft preference inference on the production agent path (`ai.smart_clarification`, default ON).
+- Hard-only clarification gates: destination / duration / budget / travelers; interests, weather, hotel, package, budget style, and traveler type are inferred.
+- Docs: `docs/SPRINT46_SMART_CLARIFICATION.md`; tests: `smartClarification.sprint46.test.ts`.
+
 ## [Unreleased] — Sprint 45: Autonomous Travel Reasoning Engine
 
 ### Added

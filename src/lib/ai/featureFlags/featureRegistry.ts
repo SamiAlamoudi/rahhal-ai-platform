@@ -84,6 +84,76 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: travel_reasoning',
   },
   {
+    id: 'ai.smart_clarification',
+    name: 'Smart Clarification / Never-Ask-Twice',
+    description:
+      'Sprint 46 — infer soft preferences (interests, weather, hotel, package, budget style, traveler type) so the AI never form-asks them; only hard slots block planning.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.concierge'],
+    notes: 'Product alias: smart_clarification',
+  },
+  {
+    id: 'ai.real_world_intelligence',
+    name: 'Real World Intelligence Layer (Sprint 53)',
+    description:
+      'Sprint 53 — live flight/hotel/weather/visa/event/safety/exchange/transport/price-watch signals via provider abstractions, event bus, cache, and resilience — orchestrated only through RahhalBrain.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.rahhal_brain'],
+    notes: 'Product alias: real_world_intelligence',
+  },
+  {
+    id: 'ai.executive_os',
+    name: 'Executive Operating System (Sprint 52)',
+    description:
+      'Sprint 52 — Rahhal Executive OS: global knowledge, decision/multi-objective optimizers, travel graph, prediction, negotiation, goal planning, strategy, explanation v2, and self-review via RahhalBrain.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.executive_platform'],
+    notes: 'Product alias: executive_os',
+  },
+  {
+    id: 'ai.executive_platform',
+    name: 'Executive Travel Platform (Sprint 51)',
+    description:
+      'Sprint 51 production executive OS — trip monitor, live concierge, explainable decisions, memory, multimodal documents, budget v2, optimizer, risk, response, and learning engines via RahhalBrain.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.travel_executive', 'ai.rahhal_brain'],
+    notes: 'Product alias: executive_platform',
+  },
+  {
+    id: 'ai.travel_executive',
+    name: 'AI Travel Executive (Phase 2)',
+    description:
+      'Phase 2 executive intelligence — context builder, rejected-destination memory, budget warnings, discovery optimizer, and consultant discovery replies via RahhalBrain.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.rahhal_brain', 'ai.persistent_memory'],
+    notes: 'Product alias: travel_executive',
+  },
+  {
+    id: 'ai.rahhal_brain',
+    name: 'Rahhal Brain Core',
+    description:
+      'Sprint 50 — central AI orchestration: conversation understanding, multi-intent detection, internal planning, reflection, and response composition on the production agent path.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.concierge', 'ai.travel_reasoning', 'ai.smart_clarification'],
+    notes: 'Product alias: rahhal_brain. Orchestrates existing engines; does not replace execution modules.',
+  },
+  {
+    id: 'ai.persistent_memory',
+    name: 'Persistent Preference Memory',
+    description:
+      'Sprint 48 — durable personalization profiles (localStorage) so budget, weather, traveler, hotel, and favorite destinations survive across chat sessions.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.personalization'],
+    notes: 'Product alias: persistent_memory. Taste profiles only — no passport/PII.',
+  },
+  {
     id: 'ui.flight_results_experience',
     name: 'Flight Results Experience',
     description:

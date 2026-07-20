@@ -9,6 +9,8 @@ import {
   climateFromPreference,
   detectOpenEndedDestination,
 } from './openEndedDetector'
+import { buildTravelAdvisory } from './travelAdvisory'
+import { buildVisaGuidance } from './visaIntelligence'
 import type {
   ClimateBand,
   DestinationCandidate,
@@ -137,7 +139,7 @@ export function applyReasoningToRequirements(
   }
 
   if (result.inferredClimate && !next.weatherPreference) {
-    next.weatherPreference = result.inferredClimate === 'cold' ? 'cool' : result.inferredClimate
+    next.weatherPreference = result.inferredClimate
   }
 
   const suggested = [
@@ -300,6 +302,8 @@ function scoreDestination(
 
   score = clamp01(score)
   const confidence = clamp01(0.4 + score * 0.5)
+  const visaGuidance = buildVisaGuidance(profile, ctx.locale)
+  const advisoryNotes = buildTravelAdvisory(profile, ctx.locale)
 
   return {
     id: profile.id,
@@ -314,6 +318,8 @@ function scoreDestination(
     budgetFit,
     climateMatch: climateAtMonth,
     visa: profile.visaFromSaudi,
+    visaGuidance,
+    advisoryNotes,
     bestTimingNote: bestTimingNote(profile, ctx.climate, ctx.locale),
     riskNotes,
   }
@@ -375,11 +381,10 @@ function toSar(amount: number | null, currency: string): number | null {
 function climateMatches(wanted: ClimateBand, actual: ClimateBand): 'exact' | 'near' | 'miss' {
   if (wanted === 'flexible') return 'near'
   if (wanted === actual) return 'exact'
-  if (wanted === 'cool' && actual === 'cold') return 'near'
-  if (wanted === 'cold' && actual === 'cool') return 'near'
+  // Cold-seekers: treat cold/cool as the same family (exact), not a soft near-miss.
+  if (COOL_FAMILY.includes(wanted) && COOL_FAMILY.includes(actual)) return 'exact'
   if (wanted === 'warm' && actual === 'hot') return 'near'
   if (wanted === 'hot' && actual === 'warm') return 'near'
-  if (COOL_FAMILY.includes(wanted) && COOL_FAMILY.includes(actual)) return 'near'
   if (WARM_FAMILY.includes(wanted) && WARM_FAMILY.includes(actual)) return 'near'
   return 'miss'
 }
@@ -461,6 +466,8 @@ function buildFallbackNamed(
     budgetFit: budgetSar != null ? 'fit' : 'unknown',
     climateMatch: null,
     visa: 'unknown',
+    visaGuidance: null,
+    advisoryNotes: [],
     bestTimingNote: null,
     riskNotes: [],
   }

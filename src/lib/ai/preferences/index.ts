@@ -17,4 +17,11 @@ export {
   InMemoryPreferenceEngine,
   getPreferenceEngine,
   resetPreferenceEngine,
+  createPreferenceEngine,
 } from './preferenceEngine'
+export type { PreferenceStorage } from './preferenceStorage'
+export {
+  PREFERENCE_STORAGE_PREFIX,
+  createMemoryPreferenceStorage,
+  createLocalStoragePreferenceStorage,
+} from './preferenceStorage'

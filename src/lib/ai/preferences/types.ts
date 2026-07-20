@@ -48,6 +48,10 @@ export interface TravelStyleProfile {
   pace: 'slow' | 'balanced' | 'fast'
   interests: string[]
   weatherPreference: string | null
+  /** Sprint 48 — destinations the traveler repeatedly chooses or locks. */
+  favoriteDestinations: string[]
+  /** Phase 2 — destinations the traveler explicitly rejected ("not Norway"). */
+  rejectedDestinations: string[]
 }
 
 export interface PreferenceWeights {
@@ -116,6 +120,8 @@ export function emptyPersonalizationProfile(userId: string | null = null): Perso
       pace: 'balanced',
       interests: [],
       weatherPreference: null,
+      favoriteDestinations: [],
+      rejectedDestinations: [],
     },
     weights: defaultPreferenceWeights(),
     updatedAt: new Date().toISOString(),

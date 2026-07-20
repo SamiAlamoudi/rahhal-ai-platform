@@ -249,6 +249,73 @@ export interface AgentProviderMeta {
     inferredClimate: string | null
   }
   /**
+   * Sprint 46 — soft preference inference snapshot (never-ask-twice).
+   */
+  clarification?: {
+    inferredFields: string[]
+    rationale: string[]
+  }
+  /**
+   * Sprint 51 — Executive Travel Platform snapshot.
+   */
+  executivePlatform?: {
+    engineIds: string[]
+    confidence: number
+    alertCount: number
+    recommendationCount: number
+    hasPrimaryReply: boolean
+  }
+  /**
+   * Sprint 53 — Real World Intelligence Layer snapshot.
+   */
+  liveIntelligence?: {
+    domains: string[]
+    providerIds: string[]
+    confidence: number
+    degraded: boolean
+    latencyMs: number
+    cacheHits: number
+    cacheMisses: number
+    hasSummary: boolean
+    flightCount: number
+    hotelCount: number
+  }
+  /**
+   * Sprint 52 — Executive Operating System snapshot.
+   */
+  executiveOs?: {
+    strategy: string | null
+    goal: string | null
+    engineIds: string[]
+    topOptionCount: number
+    improvedOnce: boolean
+    acceptProbability: number | null
+  }
+  /**
+   * Phase 2 — Travel Executive orchestration snapshot.
+   */
+  travelExecutive?: {
+    travelStyle: string
+    optimizationAxis: string | null
+    rejectedCount: number
+    learnedRejections: string[]
+    budgetWarnings: string[]
+  }
+  /**
+   * Sprint 50 — Rahhal Brain Core orchestration snapshot (production path).
+   * Present when `ai.rahhal_brain` runs the turn decision pipeline.
+   */
+  rahhalBrain?: {
+    decision: string
+    primaryIntent: string
+    intentConfidence: number
+    secondaryIntents: string[]
+    discoveryMode: boolean
+    modulesExecuted: string[]
+    reflected: boolean
+    internalPlanSteps: number
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.

@@ -23,6 +23,7 @@ import {
 import { createAgentLlmRegistry } from './llm/factory'
 import type { AgentLlmRegistry } from './llm/types'
 import {
+  applySmartClarification,
   mergeRequirements,
   missingRequirementFields,
   rebuildMemoryFromMessages,
@@ -85,6 +86,12 @@ import {
 } from '../brain/orchestrator'
 import type { BrainTurnResult } from '../brain/types'
 import {
+  runRahhalBrainTurn,
+  isRahhalBrainEnabled,
+  type RahhalBrainMetaSnapshot,
+  type RahhalBrainTurnResult,
+} from '../brain/core'
+import {
   detectBookingFlowConversationEdit,
   getBookingFlowController,
   isBookingFlowEnabled,
@@ -94,6 +101,7 @@ import type { SearchAggregationTurnResult } from '../brain/search'
 import {
   applyReasoningToRequirements,
   formatReasoningReply,
+  isPreferenceMemoryEnabled,
   isTravelReasoningEnabled,
   learnPreferencesFromRequirements,
   matchDestinationSelection,
@@ -199,6 +207,21 @@ export interface TravelAgentServiceOptions {
    */
   travelReasoningEnabled?: boolean
   /**
+   * Sprint 46 — Smart Clarification / Never-Ask-Twice.
+   * Default: FeatureRegistry `ai.smart_clarification` (ON).
+   */
+  smartClarificationEnabled?: boolean
+  /**
+   * Sprint 50 — Rahhal Brain Core orchestration.
+   * Default: FeatureRegistry `ai.rahhal_brain` (ON).
+   */
+  rahhalBrainEnabled?: boolean
+  /**
+   * Phase 2 — AI Travel Executive intelligence.
+   * Default: FeatureRegistry `ai.travel_executive` (ON).
+   */
+  travelExecutiveEnabled?: boolean
+  /**
    * Sprint 25 — Production Booking Flow orchestration.
    * Default: FeatureRegistry `ui.booking_flow` (OFF).
    */
@@ -267,6 +290,80 @@ function toMetaConcierge(state: ConciergeState): NonNullable<AgentProviderMeta['
     lastAction: state.lastAction,
     heardSummary: [...state.heardSummary],
     turnCount: state.turnCount,
+  }
+}
+
+function toMetaTravelExecutive(
+  executive: NonNullable<RahhalBrainTurnResult['executive']>,
+): NonNullable<AgentProviderMeta['travelExecutive']> {
+  return {
+    travelStyle: executive.context.travelStyle,
+    optimizationAxis: executive.context.optimizationAxis,
+    rejectedCount: executive.context.rejectedDestinations.length,
+    learnedRejections: executive.learnedRejections,
+    budgetWarnings: executive.budgetWarnings,
+  }
+}
+
+function toMetaExecutivePlatform(
+  platform: NonNullable<RahhalBrainTurnResult['executivePlatform']>,
+): NonNullable<AgentProviderMeta['executivePlatform']> {
+  return {
+    engineIds: platform.engineIds,
+    confidence: platform.confidence,
+    alertCount: platform.alerts.length,
+    recommendationCount: platform.recommendations.length,
+    hasPrimaryReply: Boolean(platform.primaryReply),
+  }
+}
+
+function toMetaExecutiveOs(
+  platform: NonNullable<RahhalBrainTurnResult['executivePlatform']>,
+): NonNullable<AgentProviderMeta['executiveOs']> | undefined {
+  if (!platform.os) return undefined
+  const accept = platform.os.prediction
+    && typeof platform.os.prediction.acceptProbability === 'number'
+    ? platform.os.prediction.acceptProbability
+    : null
+  return {
+    strategy: platform.os.strategy,
+    goal: platform.os.goal,
+    engineIds: platform.os.engineIds,
+    topOptionCount: platform.os.topOptions.length,
+    improvedOnce: platform.os.improvedOnce,
+    acceptProbability: accept,
+  }
+}
+
+function toMetaLiveIntelligence(
+  live: NonNullable<RahhalBrainTurnResult['liveIntelligence']>,
+): NonNullable<AgentProviderMeta['liveIntelligence']> {
+  return {
+    domains: live.domains,
+    providerIds: live.providerIds,
+    confidence: live.confidence,
+    degraded: live.degraded,
+    latencyMs: live.latencyMs,
+    cacheHits: live.cacheHits,
+    cacheMisses: live.cacheMisses,
+    hasSummary: Boolean(live.summary),
+    flightCount: live.flights.length,
+    hotelCount: live.hotels.length,
+  }
+}
+
+function toMetaRahhalBrain(
+  meta: RahhalBrainMetaSnapshot,
+): NonNullable<AgentProviderMeta['rahhalBrain']> {
+  return {
+    decision: meta.decision,
+    primaryIntent: meta.intents.primary.id,
+    intentConfidence: meta.intents.primary.confidence,
+    secondaryIntents: meta.intents.secondary.map((row) => row.id),
+    discoveryMode: meta.understanding.travelContext.discoveryMode,
+    modulesExecuted: meta.modulesExecuted,
+    reflected: meta.reflected,
+    internalPlanSteps: meta.internalPlan.steps.length,
   }
 }
 
@@ -343,6 +440,16 @@ export function createTravelAgentService(
   const isReasoningEnabled = (): boolean =>
     isTravelReasoningEnabled({ enabled: options.travelReasoningEnabled })
 
+  const isClarificationEnabled = (): boolean => {
+    if (typeof options.smartClarificationEnabled === 'boolean') {
+      return options.smartClarificationEnabled
+    }
+    return getFeatureRegistry().isEnabled('ai.smart_clarification')
+  }
+
+  const isBrainCoreEnabled = (): boolean =>
+    isRahhalBrainEnabled({ enabled: options.rahhalBrainEnabled })
+
   const isFlowEnabled = (): boolean =>
     isBookingFlowEnabled({
       bookingFlowEnabled: options.bookingFlowEnabled,
@@ -403,7 +510,7 @@ export function createTravelAgentService(
       const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
       const userText = lastUser?.content ?? ''
       const prior = rebuildMemoryFromMessages(input.messages.slice(0, -1))
-      const extracted = extractFromUserText(userText, prior.locale)
+      let extracted = extractFromUserText(userText, prior.locale)
       const preferenceUserId = getBookingHistoryUserId() || input.conversationId
 
       let memory: AgentMemory = {
@@ -413,81 +520,174 @@ export function createTravelAgentService(
         requirements: mergeRequirements(prior.requirements, extracted.patch),
       }
 
-      // Sprint 45 — seed empty slots from long-term preference memory (never overwrite).
-      if (isReasoningEnabled()) {
-        memory = {
-          ...memory,
-          requirements: seedRequirementsFromPreferences(memory.requirements, {
+      let reasoningResult: TravelReasoningResult | null = null
+      let reasoningMeta: AgentProviderMeta['reasoning'] | undefined
+      let clarificationMeta: NonNullable<AgentProviderMeta['clarification']> | undefined
+      let rahhalBrainMeta: RahhalBrainMetaSnapshot | undefined
+      let travelExecutiveSnapshot: RahhalBrainTurnResult['executive']
+      let executivePlatformSnapshot: RahhalBrainTurnResult['executivePlatform']
+      let liveIntelligenceSnapshot: RahhalBrainTurnResult['liveIntelligence']
+
+      if (isBrainCoreEnabled()) {
+        const brainTurn = runRahhalBrainTurn(
+          {
+            conversationId: input.conversationId,
+            userText,
+            messages: input.messages,
+            memory,
             userId: preferenceUserId,
-          }),
+          },
+          {
+            reasoningEnabled: options.travelReasoningEnabled,
+            clarificationEnabled: options.smartClarificationEnabled,
+            travelExecutiveEnabled: options.travelExecutiveEnabled,
+          },
+        )
+        memory = brainTurn.memory
+        extracted = brainTurn.extracted
+        reasoningResult = brainTurn.reasoningResult
+        reasoningMeta = brainTurn.reasoningMeta
+        clarificationMeta = brainTurn.clarificationMeta
+        rahhalBrainMeta = brainTurn.meta
+        travelExecutiveSnapshot = brainTurn.executive
+        executivePlatformSnapshot = brainTurn.executivePlatform
+        liveIntelligenceSnapshot = brainTurn.liveIntelligence
+
+        if (
+          brainTurn.decision.type === 'respond'
+          && brainTurn.decision.reply
+        ) {
+          const meta: AgentProviderMeta = {
+            kind: 'travel_agent',
+            version: 2,
+            memory,
+            tripPlan: memory.tripPlan,
+            itinerary: memory.tripPlan,
+            toolResults: [],
+            reasoning: reasoningMeta,
+            clarification: clarificationMeta,
+            rahhalBrain: toMetaRahhalBrain(brainTurn.meta),
+            travelExecutive: brainTurn.executive
+              ? toMetaTravelExecutive(brainTurn.executive)
+              : undefined,
+            executivePlatform: brainTurn.executivePlatform
+              ? toMetaExecutivePlatform(brainTurn.executivePlatform)
+              : undefined,
+            executiveOs: brainTurn.executivePlatform
+              ? toMetaExecutiveOs(brainTurn.executivePlatform)
+              : undefined,
+            liveIntelligence: brainTurn.liveIntelligence
+              ? toMetaLiveIntelligence(brainTurn.liveIntelligence)
+              : undefined,
+          }
+          return {
+            reply: brainTurn.decision.reply,
+            memory,
+            tripPlan: memory.tripPlan,
+            meta,
+            toolBatch: null,
+          }
+        }
+        // 'clarify' is intentionally NOT an early-return here:
+        // downstream intent routers (booking history, order, confirmation, itinerary, brain flags)
+        // must still run. The clarify reply flows through the normal attach/return paths below.
+      } else {
+        // Sprint 45/48 — seed empty slots from long-term preference memory (never overwrite).
+        if (isPreferenceMemoryEnabled() || isReasoningEnabled()) {
+          memory = {
+            ...memory,
+            requirements: seedRequirementsFromPreferences(memory.requirements, {
+              userId: preferenceUserId,
+            }),
+          }
         }
 
-        // Confirm a previously proposed destination ("first one" / named pick).
-        const priorMeta = [...input.messages]
-          .reverse()
-          .map((m) => m.providerMeta)
-          .find((meta) => meta && typeof meta === 'object' && 'reasoning' in meta && meta.reasoning)
-        const priorReasoning = priorMeta && typeof priorMeta === 'object'
-          ? (priorMeta as { reasoning?: AgentProviderMeta['reasoning'] }).reasoning
-          : undefined
-        if (priorReasoning?.candidateIds?.length && !extracted.patch.destination) {
-          const catalogNames = priorReasoning.candidateIds.map((id) => {
-            const hit = memory.requirements.destinations.find((d) =>
-              d.toLowerCase().includes(id) || id.includes(d.toLowerCase()),
-            )
-            return {
-              id,
-              name: hit ?? id.charAt(0).toUpperCase() + id.slice(1),
-              nameAr: hit ?? id,
-            }
-          })
-          const selected = matchDestinationSelection(userText, catalogNames)
-          if (selected) {
-            memory = {
-              ...memory,
-              requirements: mergeRequirements(memory.requirements, {
-                destination: selected,
-                destinations: [selected],
-                destinationFlexible: false,
-              }),
-              lastIntent: 'plan',
+        if (isReasoningEnabled()) {
+          // Confirm a previously proposed destination ("first one" / named pick).
+          const priorMeta = [...input.messages]
+            .reverse()
+            .map((m) => m.providerMeta)
+            .find((meta) => meta && typeof meta === 'object' && 'reasoning' in meta && meta.reasoning)
+          const priorReasoning = priorMeta && typeof priorMeta === 'object'
+            ? (priorMeta as { reasoning?: AgentProviderMeta['reasoning'] }).reasoning
+            : undefined
+          if (priorReasoning?.candidateIds?.length && !extracted.patch.destination) {
+            const catalogNames = priorReasoning.candidateIds.map((id) => {
+              const hit = memory.requirements.destinations.find((d) =>
+                d.toLowerCase().includes(id) || id.includes(d.toLowerCase()),
+              )
+              return {
+                id,
+                name: hit ?? id.charAt(0).toUpperCase() + id.slice(1),
+                nameAr: hit ?? id,
+              }
+            })
+            const selected = matchDestinationSelection(userText, catalogNames)
+            if (selected) {
+              memory = {
+                ...memory,
+                requirements: mergeRequirements(memory.requirements, {
+                  destination: selected,
+                  destinations: [selected],
+                  destinationFlexible: false,
+                }),
+                lastIntent: 'plan',
+              }
             }
           }
         }
-      }
 
-      memory.missingFields = missingRequirementFields(memory.requirements)
-      memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
-
-      let reasoningResult: TravelReasoningResult | null = null
-      let reasoningMeta: AgentProviderMeta['reasoning'] | undefined
-
-      // Sprint 45 — autonomous destination reasoning for open-ended asks.
-      if (
-        isReasoningEnabled()
-        && userText.trim()
-        && !memory.tripPlan
-        && !memory.requirements.destination
-        && (
-          extracted.intent === 'discover'
-          || memory.requirements.destinationFlexible === true
-        )
-      ) {
-        reasoningResult = runTravelReasoning({
-          locale: memory.locale,
-          requirements: memory.requirements,
-          userText,
-        })
-        memory = {
-          ...memory,
-          requirements: applyReasoningToRequirements(memory.requirements, reasoningResult),
+        // Sprint 45 — autonomous destination reasoning for open-ended asks.
+        if (
+          isReasoningEnabled()
+          && userText.trim()
+          && !memory.tripPlan
+          && !memory.requirements.destination
+          && (
+            extracted.intent === 'discover'
+            || memory.requirements.destinationFlexible === true
+          )
+        ) {
+          reasoningResult = runTravelReasoning({
+            locale: memory.locale,
+            requirements: memory.requirements,
+            userText,
+          })
+          memory = {
+            ...memory,
+            requirements: applyReasoningToRequirements(memory.requirements, reasoningResult),
+          }
+          reasoningMeta = toReasoningSnapshot(reasoningResult)
+          learnPreferencesFromRequirements(memory.requirements, { userId: preferenceUserId })
+        } else if (
+          (isReasoningEnabled() || isPreferenceMemoryEnabled())
+          && hasPlanningPatch(extracted.patch as Record<string, unknown>)
+        ) {
+          learnPreferencesFromRequirements(memory.requirements, { userId: preferenceUserId })
         }
-        memory.missingFields = missingRequirementFields(memory.requirements)
+
+        // Sprint 46 — never-ask-twice: infer soft preferences before computing missing slots.
+        if (isClarificationEnabled()) {
+          const clarified = applySmartClarification(memory.requirements, {
+            locale: memory.locale,
+            enabled: true,
+          })
+          memory = {
+            ...memory,
+            requirements: clarified.requirements,
+          }
+          if (clarified.inferred.length > 0) {
+            clarificationMeta = {
+              inferredFields: clarified.inferred as string[],
+              rationale: clarified.rationale,
+            }
+          }
+        }
+
+        memory.missingFields = missingRequirementFields(memory.requirements, {
+          smart: isClarificationEnabled(),
+        })
         memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
-        reasoningMeta = toReasoningSnapshot(reasoningResult)
-        learnPreferencesFromRequirements(memory.requirements, { userId: preferenceUserId })
-      } else if (isReasoningEnabled() && hasPlanningPatch(extracted.patch as Record<string, unknown>)) {
-        learnPreferencesFromRequirements(memory.requirements, { userId: preferenceUserId })
       }
 
       // Sprint 20–27 — every user message through Brain when flags are on.
@@ -546,7 +746,16 @@ export function createTravelAgentService(
               brainMemoryToRequirementsPatch(brainResult.context.memory),
             ),
           }
-          memory.missingFields = missingRequirementFields(memory.requirements)
+          if (isClarificationEnabled()) {
+            const clarified = applySmartClarification(memory.requirements, {
+              locale: memory.locale,
+              enabled: true,
+            })
+            memory = { ...memory, requirements: clarified.requirements }
+          }
+          memory.missingFields = missingRequirementFields(memory.requirements, {
+            smart: isClarificationEnabled(),
+          })
           memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
         }
 
@@ -640,12 +849,50 @@ export function createTravelAgentService(
         return { ...meta, reasoning: reasoningMeta }
       }
 
+      const attachClarification = <T extends AgentProviderMeta>(meta: T): T => {
+        if (!clarificationMeta) return meta
+        return { ...meta, clarification: clarificationMeta }
+      }
+
+      const attachTravelExecutive = <T extends AgentProviderMeta>(meta: T): T => {
+        if (!travelExecutiveSnapshot) return meta
+        return { ...meta, travelExecutive: toMetaTravelExecutive(travelExecutiveSnapshot) }
+      }
+
+      const attachExecutivePlatform = <T extends AgentProviderMeta>(meta: T): T => {
+        if (!executivePlatformSnapshot && !liveIntelligenceSnapshot) return meta
+        return {
+          ...meta,
+          ...(executivePlatformSnapshot
+            ? {
+              executivePlatform: toMetaExecutivePlatform(executivePlatformSnapshot),
+              ...(toMetaExecutiveOs(executivePlatformSnapshot)
+                ? { executiveOs: toMetaExecutiveOs(executivePlatformSnapshot) }
+                : {}),
+            }
+            : {}),
+          ...(liveIntelligenceSnapshot
+            ? { liveIntelligence: toMetaLiveIntelligence(liveIntelligenceSnapshot) }
+            : {}),
+        }
+      }
+
+      const attachRahhalBrain = <T extends AgentProviderMeta>(meta: T): T => {
+        if (!rahhalBrainMeta) return meta
+        return { ...meta, rahhalBrain: toMetaRahhalBrain(rahhalBrainMeta) }
+      }
+
       const attachTurnMeta = <T extends AgentProviderMeta>(meta: T): T =>
-        attachReasoning(attachBrain(meta))
+        attachExecutivePlatform(
+          attachTravelExecutive(
+            attachRahhalBrain(attachClarification(attachReasoning(attachBrain(meta)))),
+          ),
+        )
 
       // Sprint 45 — open-ended reasoning owns the consultant reply when proposing destinations.
       if (
-        reasoningResult
+        !isBrainCoreEnabled()
+        && reasoningResult
         && reasoningMeta
         && memory.requirements.destinationFlexible
         && !memory.requirements.destination

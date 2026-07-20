@@ -28,7 +28,15 @@ export {
   missingRequirementFields,
   nextMissingIntakeField,
   mergeRequirements,
+  applySmartClarification,
 } from './memory'
+export {
+  HARD_CLARIFICATION_FIELDS,
+  SOFT_CLARIFICATION_FIELDS,
+  inferSoftRequirements,
+  missingClarificationFields,
+  isSmartClarificationEnabled,
+} from './clarification'
 export { extractFromUserText } from './extractRequirements'
 export {
   buildTripPlan,
