@@ -260,6 +260,7 @@ createRoot(document.getElementById('root')!).render(
               <ForgotPassword />
             </PublicOnlyRoute>
           } />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
       </AuthProvider>

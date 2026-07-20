@@ -184,7 +184,7 @@ export function buildTravelCards(input: {
     ...recommendedDestinationCards(),
     ...travelInspirationCards(),
   ]
-  if (input.includePlaceholders !== false) {
+  if (input.includePlaceholders === true) {
     cards.push(...placeholderUtilityCards(input.locale ?? 'ar'))
   }
   return cards

@@ -25,27 +25,32 @@ export function shouldRunPayments(input: {
   intent?: string | null
   bookingExecutionStatus?: string | null
 }): boolean {
-  const status = input.bookingExecutionStatus || ''
-  if (status !== 'confirmed' && status !== 'ticketed' && status !== 'pending') {
-    // Allow pending when some bookings confirmed (partial)
-    if (!status) return false
-  }
   const intent = (input.intent || '').toLowerCase()
-  if (
+  const intentCue =
     intent === 'how_much_will_i_pay'
     || intent === 'what_is_payment_status'
     || intent === 'show_checkout'
     || intent === 'booking_confirmed'
-  ) {
-    return true
-  }
   const text = (input.userText || '').toLowerCase()
-  if (!text) return false
-  return (
+  const textCue = Boolean(text) && (
     /ادفع|دفع|أكمل الدفع|سداد/.test(text)
     || /\b(pay now|complete payment|checkout|apple pay|mada|stc pay|tabby|tamara)\b/.test(text)
     || /confirm booking now|book now/.test(text)
   )
+  if (!intentCue && !textCue) return false
+
+  const status = input.bookingExecutionStatus || ''
+  // When status is known and not bookable for payment, skip.
+  if (
+    status
+    && status !== 'confirmed'
+    && status !== 'ticketed'
+    && status !== 'pending'
+    && status !== 'payment_required'
+  ) {
+    return false
+  }
+  return true
 }
 
 export function detectPaymentMethod(userText?: string | null): PaymentMethod {

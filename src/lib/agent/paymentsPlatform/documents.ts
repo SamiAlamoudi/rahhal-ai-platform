@@ -17,13 +17,20 @@ export class DocumentCenter {
   }): DocumentRecord {
     const now = input.now ?? (() => Date.now())
     const id = `doc_${Math.random().toString(36).slice(2, 10)}`
+    const body = [
+      `Rahhal — ${input.label}`,
+      `Session: ${input.paymentSessionId}`,
+      `Type: ${input.kind}`,
+      `Issued: ${new Date(now()).toISOString()}`,
+      input.meta ? `Meta: ${JSON.stringify(input.meta)}` : '',
+    ].filter(Boolean).join('\n')
     const record: DocumentRecord = {
       id,
       paymentSessionId: input.paymentSessionId,
       kind: input.kind,
       label: input.label,
       relatedTicketId: input.relatedTicketId ?? null,
-      downloadUrl: `https://docs.rahhal.local/${input.paymentSessionId}/${id}.pdf`,
+      downloadUrl: `data:text/plain;charset=utf-8,${encodeURIComponent(body)}`,
       createdAt: new Date(now()).toISOString(),
       meta: input.meta,
     }

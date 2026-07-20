@@ -54,6 +54,7 @@ export type PaymentsPlatformEngine = {
   fraud: FraudGuard
   providers: PaymentProviderRegistry
   run(input: RunPaymentInput): Promise<PaymentsPlatformResult>
+  listTickets(sessionId: string): UnifiedTicket[]
   refund(input: {
     sessionId: string
     amount?: number
@@ -104,6 +105,10 @@ export function createPaymentsPlatformEngine(options?: {
     refunds,
     fraud,
     providers,
+
+    listTickets(sessionId) {
+      return [...(ticketsBySession.get(sessionId) ?? [])]
+    },
 
     async run(input) {
       if (!isPaymentsEnabled({ enabled: input.enabled })) {
