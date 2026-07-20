@@ -562,17 +562,6 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: finance_platform. Not a payment gateway; additive finance layer after booking/payments.',
   },
   {
-    id: 'ui.chatgpt_experience',
-    name: 'ChatGPT-like Conversation Experience',
-    description:
-      'Sprint 44 ChatGPT-quality conversation layer — memory manager, intent, response planner, tool decision, streaming UX, voice states, context recovery. Orchestrates existing engines only. Default OFF.',
-    lifecycle: 'experimental',
-    enabled: false,
-    dependsOn: ['ui.conversation_experience'],
-    notes:
-      'Product alias: chatgpt_experience. No new travel engines; focuses on natural, interruptible, contextual chat/voice UX.',
-  },
-  {
     id: 'providers.hotel_foundation',
     name: 'Hotel Provider Foundation',
     description:
@@ -623,6 +612,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     ],
     notes:
       'Product alias: ai_orchestrator. Routes to existing engines only — no duplicated business logic.',
+  },
+  {
+    id: 'ui.chatgpt_experience',
+    name: 'ChatGPT-like Conversation Experience',
+    description:
+      'Sprint 44 ChatGPT-quality conversation layer — memory manager, intent, response planner, tool decision, streaming UX, voice states, context recovery. Orchestrates existing engines only. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.conversation_experience'],
+    notes:
+      'Product alias: chatgpt_experience. No new travel engines; focuses on natural, interruptible, contextual chat/voice UX.',
   },
 ]
 
