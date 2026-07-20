@@ -52,6 +52,23 @@ export {
   RAHHAL_CONVERSATION_SYSTEM_PROMPT,
 } from './conversationBrain'
 export {
+  isAutonomousAgentEnabled,
+  AUTONOMOUS_AGENT_FEATURE_ID,
+  runAutonomousTurn,
+  buildExecutionPlan,
+  upsertTravelGoal,
+  AutonomousStateMachine,
+  runToolPlan,
+  runAutonomousJobInBackground,
+} from './autonomous'
+export type {
+  AutonomousAgentSnapshot,
+  AutonomousExecutionState,
+  AutonomousProgressEvent,
+  AutonomousProgressPhase,
+  AutonomousGoal,
+} from './autonomous'
+export {
   createDefaultAgentToolRegistry,
   createMockAgentToolRegistry,
   createUnavailableAgentToolRegistry,

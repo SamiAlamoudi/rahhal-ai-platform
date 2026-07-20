@@ -3,7 +3,9 @@ import {
   createTravelAgentService,
   type TravelAgentService,
   type TravelAgentServiceOptions,
+  type TravelAgentTurnResult,
 } from './travelAgentService'
+import type { AutonomousProgressEvent } from './autonomous'
 import type { AgentProviderMeta, TripPlan } from './types'
 
 export interface CreateTravelAgentProviderOptions extends TravelAgentServiceOptions {
@@ -34,6 +36,7 @@ export function createTravelAgentProvider(
     savePlan,
     concierge: options.concierge,
     conciergeEnabled: options.conciergeEnabled,
+    autonomousAgentEnabled: options.autonomousAgentEnabled,
     listBookingRecords: options.listBookingRecords,
   })
 
@@ -42,30 +45,92 @@ export function createTravelAgentProvider(
 
     async *streamReply(input: ChatCompletionRequest): AsyncIterable<ChatStreamChunk> {
       // Experience Sprint 2 — no scripted bridge. Conversation Brain authors the full reply.
-      const result = await service.planTurn({
+      // Sprint 54 — stream structured autonomous progress while planTurn runs.
+      const progressQueue: AutonomousProgressEvent[] = []
+      let wake: (() => void) | null = null
+      const waitForProgress = () => new Promise<void>((resolve) => {
+        wake = resolve
+      })
+      const notify = () => {
+        const fn = wake
+        wake = null
+        fn?.()
+      }
+
+      let turnResult: TravelAgentTurnResult | undefined
+      let turnError: unknown
+      let turnDone = false
+
+      const turnPromise = service.planTurn({
         conversationId: input.conversationId,
         messages: input.messages,
         signal: input.signal,
+        onProgress: (event) => {
+          progressQueue.push(event)
+          notify()
+        },
+      }).then((value) => {
+        turnResult = value
+        turnDone = true
+        notify()
+      }).catch((error) => {
+        turnError = error
+        turnDone = true
+        notify()
       })
 
-      const spoken = result.meta.spokenText?.trim() || result.reply
+      while (!turnDone || progressQueue.length > 0) {
+        while (progressQueue.length > 0) {
+          const event = progressQueue.shift()!
+          yield {
+            type: 'delta',
+            text: '',
+            meta: {
+              autonomousProgress: {
+                phase: event.phase,
+                state: event.state,
+                message: event.message,
+                activeTaskKind: event.activeTaskKind,
+                providerId: event.providerId,
+                retryCount: event.retryCount,
+              },
+            },
+          }
+        }
+        if (!turnDone) {
+          await Promise.race([waitForProgress(), turnPromise.then(() => undefined, () => undefined)])
+        }
+      }
+
+      if (turnError) {
+        const message = turnError instanceof Error ? turnError.message : String(turnError ?? 'turn_failed')
+        yield { type: 'error', error: message }
+        return
+      }
+      if (!turnResult) {
+        yield { type: 'error', error: 'empty_turn_result' }
+        return
+      }
+
+      const spoken = turnResult.meta.spokenText?.trim() || turnResult.reply
       const meta: AgentProviderMeta = {
-        ...result.meta,
+        ...turnResult.meta,
         spokenText: spoken,
         voicePhase: 'final',
       }
 
-      // Emit spokenText on the first delta so voice can start ASAP.
+      // Emit spokenText on the first content delta so voice can start ASAP.
       yield {
         type: 'delta',
         text: '',
         meta: {
           spokenText: spoken,
           voicePhase: 'final',
+          ...(meta.autonomous ? { autonomous: meta.autonomous } : {}),
         },
       }
 
-      yield* streamText(result.reply, input.signal, meta)
+      yield* streamText(turnResult.reply, input.signal, meta)
     },
   }
 }
