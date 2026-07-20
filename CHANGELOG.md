@@ -2,6 +2,15 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Sprint 50: Rahhal Brain Core v1
+
+### Added
+
+- `RahhalBrain` orchestration layer (`src/lib/brain/core`) — conversation understanding, multi-intent detection, internal planning, reflection, response composition.
+- Production wiring in `travelAgentService.planTurn` when `ai.rahhal_brain` is on (default ON).
+- Meta snapshot `AgentProviderMeta.rahhalBrain` for observability.
+- Docs: `docs/SPRINT50_RAHHAL_BRAIN_CORE.md`; tests: `rahhalBrain.sprint50.test.ts`.
+
 ## [Unreleased] — Sprint 49: Visa & Travel Advisory Intelligence
 
 ### Added

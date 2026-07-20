@@ -1,3 +1,35 @@
+export {
+  RahhalBrain,
+  runRahhalBrainTurn,
+  createDefaultRahhalBrainPorts,
+  buildMemoryFromMessages,
+  understandConversation,
+  classifyBrainIntents,
+  buildInternalPlan,
+  reflectOnResponse,
+  composeBrainResponse,
+  composeClarificationQuestion,
+  selectModulesToExecute,
+  isRahhalBrainEnabled,
+  RAHHAL_BRAIN_FEATURE_ID,
+} from './core'
+export type {
+  RahhalBrainHandle,
+  RahhalBrainOptions,
+  RahhalBrainPorts,
+  BrainModuleId,
+  RahhalBrainIntentId,
+  ConversationUnderstanding,
+  BrainIntent,
+  BrainIntentResult,
+  InternalPlan,
+  ComposedResponse,
+  RahhalBrainDecision,
+  RahhalBrainMetaSnapshot,
+  RahhalBrainTurnInput,
+  RahhalBrainTurnResult,
+} from './core'
+
 export type {
   BrainLocale,
   TravelIntent,

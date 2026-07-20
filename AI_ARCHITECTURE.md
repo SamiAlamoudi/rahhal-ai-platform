@@ -67,6 +67,15 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - **Sprint 47:** cold destination catalog expansion (Switzerland, Austria, Norway, Canada, New Zealand, Sapporo, Iceland) — `docs/SPRINT47_COLD_DESTINATION_DISCOVERY.md`.
 - **Sprint 49:** visa + travel advisory intelligence on reasoning candidates — `docs/SPRINT49_VISA_ADVISORY.md`.
 
+## Rahhal Brain Core (Sprint 50)
+
+- **Single decision layer** on the production `/chat` path — `src/lib/brain/core` (`RahhalBrain`).
+- Pipeline: understanding → intent → memory → reasoning → planning → decision → reflection → response.
+- Orchestrates existing engines via dependency-inversion ports; does not duplicate reasoning/clarification logic.
+- Flag: `ai.rahhal_brain` (default **ON**; depends on `ai.concierge`, `ai.travel_reasoning`, `ai.smart_clarification`).
+- Distinct from experimental `brain.enabled` stack (default OFF).
+- See `docs/SPRINT50_RAHHAL_BRAIN_CORE.md`.
+
 ## Smart Clarification / Never-Ask-Twice (Sprint 46)
 
 - Soft preferences (interests, weather, hotel, package, budget style, traveler type) are **inferred**, never form-asked.
