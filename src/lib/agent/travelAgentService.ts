@@ -53,6 +53,11 @@ import {
   isBookingExecutionEnabled,
   type BookingExecutionResult,
 } from './bookingExecution'
+import {
+  enrichWithPaymentsPlatform,
+  isPaymentsEnabled,
+  type PaymentsPlatformResult,
+} from './paymentsPlatform'
 import type {
   AgentIntent,
   AgentMemory,
@@ -254,6 +259,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.booking_execution` (ON). Runs only on explicit confirm/book cues.
    */
   bookingExecutionEnabled?: boolean
+  /**
+   * Sprint 58 — Payments & Ticketing Platform (mock adapters only).
+   * Default: FeatureRegistry `ai.payments` (ON). Runs after successful booking execution when pay/confirm cues present.
+   */
+  paymentsEnabled?: boolean
   /**
    * Phase 2 — AI Travel Executive intelligence.
    * Default: FeatureRegistry `ai.travel_executive` (ON).
@@ -475,6 +485,26 @@ function toMetaBookingExecution(
   }
 }
 
+function toMetaPayments(
+  result: PaymentsPlatformResult,
+): NonNullable<AgentProviderMeta['payments']> {
+  return {
+    paymentSessionId: result.snapshot.paymentSessionId,
+    status: result.snapshot.status,
+    method: result.snapshot.method,
+    providerId: result.snapshot.providerId,
+    amount: result.snapshot.amount,
+    currency: result.snapshot.currency,
+    ticketCount: result.snapshot.ticketCount,
+    documentCount: result.snapshot.documentCount,
+    refundCount: result.snapshot.refundCount,
+    riskScore: result.snapshot.riskScore,
+    durationMs: result.snapshot.durationMs,
+    resumed: result.snapshot.resumed,
+    idempotentReplay: result.snapshot.idempotentReplay,
+  }
+}
+
 function priorAutonomousFromMessages(messages: ChatMessage[]): AutonomousAgentSnapshot | null {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const msg = messages[i]
@@ -626,6 +656,9 @@ export function createTravelAgentService(
   const isBookingExecEnabled = (): boolean =>
     isBookingExecutionEnabled({ enabled: options.bookingExecutionEnabled })
 
+  const isPaymentsPlatformEnabled = (): boolean =>
+    isPaymentsEnabled({ enabled: options.paymentsEnabled })
+
   const isFlowEnabled = (): boolean =>
     isBookingFlowEnabled({
       bookingFlowEnabled: options.bookingFlowEnabled,
@@ -653,6 +686,7 @@ export function createTravelAgentService(
     autonomous?: AutonomousAgentSnapshot
     bookingIntelligence?: BookingIntelligenceResult
     bookingExecution?: BookingExecutionResult
+    payments?: PaymentsPlatformResult
   }> => {
     const applyBookingIntel = async (
       plan: TripPlan,
@@ -661,6 +695,7 @@ export function createTravelAgentService(
       plan: TripPlan
       bookingIntelligence?: BookingIntelligenceResult
       bookingExecution?: BookingExecutionResult
+      payments?: PaymentsPlatformResult
     }> => {
       if (!isBookingIntelEnabled()) return { plan }
       const enriched = await enrichWithBookingIntelligence({
@@ -672,6 +707,7 @@ export function createTravelAgentService(
       })
       let nextPlan = enriched.tripPlan
       let bookingExecution: BookingExecutionResult | undefined
+      let payments: PaymentsPlatformResult | undefined
       if (isBookingExecEnabled() && enriched.bookingIntelligence) {
         const executed = await enrichWithBookingExecution({
           memory,
@@ -685,10 +721,24 @@ export function createTravelAgentService(
         nextPlan = executed.tripPlan
         bookingExecution = executed.bookingExecution ?? undefined
       }
+      if (isPaymentsPlatformEnabled() && bookingExecution) {
+        const paid = await enrichWithPaymentsPlatform({
+          memory,
+          tripPlan: nextPlan,
+          userId: input.conversationId,
+          bookingExecution,
+          userText: input.userText,
+          enabled: options.paymentsEnabled,
+          signal: input.signal,
+        })
+        nextPlan = paid.tripPlan
+        payments = paid.payments ?? undefined
+      }
       return {
         plan: nextPlan,
         bookingIntelligence: enriched.bookingIntelligence ?? undefined,
         bookingExecution,
+        payments,
       }
     }
 
@@ -712,6 +762,7 @@ export function createTravelAgentService(
           autonomous: autonomous.snapshot,
           bookingIntelligence: intel.bookingIntelligence,
           bookingExecution: intel.bookingExecution,
+          payments: intel.payments,
         }
       }
       // Clarification / blocked — fall through to a lightweight base plan without tools.
@@ -767,6 +818,7 @@ export function createTravelAgentService(
       batch,
       bookingIntelligence: intel.bookingIntelligence,
       bookingExecution: intel.bookingExecution,
+      payments: intel.payments,
     }
   }
 
@@ -798,6 +850,7 @@ export function createTravelAgentService(
       const priorAutonomous = autonomousSnapshot
       let bookingIntelligenceResult: BookingIntelligenceResult | null = null
       let bookingExecutionResult: BookingExecutionResult | null = null
+      let paymentsResult: PaymentsPlatformResult | null = null
 
       if (isBrainCoreEnabled()) {
         const brainTurn = runRahhalBrainTurn(
@@ -1178,9 +1231,12 @@ export function createTravelAgentService(
         const withExecution = bookingExecutionResult
           ? { ...withBooking, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
           : withBooking
+        const withPayments = paymentsResult
+          ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
+          : withExecution
         const enriched = attachExecutivePlatform(
           attachTravelExecutive(
-            attachRahhalBrain(attachClarification(attachReasoning(attachBrain(withExecution)))),
+            attachRahhalBrain(attachClarification(attachReasoning(attachBrain(withPayments)))),
           ),
         )
         const spokenText = enriched.spokenText?.trim()
@@ -1587,6 +1643,7 @@ export function createTravelAgentService(
         if (ran.autonomous) autonomousSnapshot = ran.autonomous
         if (ran.bookingIntelligence) bookingIntelligenceResult = ran.bookingIntelligence
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
+        if (ran.payments) paymentsResult = ran.payments
         memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, ran.plan)
         objective = 'present_plan'
       } else if (extracted.intent === 'edit' && !hasPlanningPatch(extracted.patch) && memory.tripPlan) {
@@ -1628,6 +1685,7 @@ export function createTravelAgentService(
         if (ran.autonomous) autonomousSnapshot = ran.autonomous
         if (ran.bookingIntelligence) bookingIntelligenceResult = ran.bookingIntelligence
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
+        if (ran.payments) paymentsResult = ran.payments
         if (llmResult.draft?.notes?.length) {
           plan = { ...plan, notes: [...plan.notes, ...llmResult.draft.notes] }
         }
@@ -1684,12 +1742,15 @@ export function createTravelAgentService(
         recommendations: [
           ...(bookingIntelligenceResult?.recommendationFacts ?? []),
           ...(bookingExecutionResult?.executionFacts ?? []),
+          ...(paymentsResult?.paymentFacts ?? []),
         ],
         warnings: bookingIntelligenceResult && !bookingIntelligenceResult.readiness.bookingReady
           ? [bookingIntelligenceResult.readiness.clarification].filter(Boolean) as string[]
           : bookingExecutionResult && bookingExecutionResult.snapshot.failedCount > 0
             ? [`Booking execution failures: ${bookingExecutionResult.snapshot.failedCount}`]
-            : undefined,
+            : paymentsResult && paymentsResult.snapshot.status === 'failed'
+              ? [`Payment failed: ${paymentsResult.session.lastError ?? 'unknown'}`]
+              : undefined,
       })
       const spoken = await speakTravelFacts({
         llms,

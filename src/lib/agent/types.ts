@@ -392,6 +392,25 @@ export interface AgentProviderMeta {
     idempotentReplay: boolean
   }
   /**
+   * Sprint 58 — Payments & Ticketing snapshot (capture, tickets, documents).
+   * Additive structured facts only — Conversation Brain authors traveler-facing text.
+   */
+  payments?: {
+    paymentSessionId: string
+    status: string
+    method: string
+    providerId: string | null
+    amount: number
+    currency: string
+    ticketCount: number
+    documentCount: number
+    refundCount: number
+    riskScore: number
+    durationMs: number
+    resumed: boolean
+    idempotentReplay: boolean
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.
