@@ -20,6 +20,7 @@ import {
 import { assertChatDatabaseAuth } from './chatAuthGate'
 import { diagnosePipelineError, logPipeline } from './pipelineDiagnostics'
 import { AppError } from '../ops/errors/canonicalError'
+import { isLocalChatAuthError, localChatStore } from './localChatStore'
 
 export interface ConversationDetail {
   conversation: ChatConversation
@@ -51,13 +52,33 @@ export function resetChatProviderForTests(): void {
   activeProvider = createChatProvider()
 }
 
+function isLocalConversationId(id: string): boolean {
+  return id.startsWith('lconv_')
+}
+
+function isLocalMessageId(id: string): boolean {
+  return id.startsWith('lmsg_')
+}
+
 async function persistAssistantDelta(
+  conversationId: string,
   messageId: string,
   content: string,
   status: string,
   error: string | null = null,
   providerMeta: Record<string, unknown> = {},
 ): Promise<ChatMessage | null> {
+  if (isLocalMessageId(messageId) || isLocalConversationId(conversationId)) {
+    return localChatStore.updateMessage(conversationId, messageId, {
+      content,
+      status: status as ChatMessage['status'],
+      error,
+      providerMeta: {
+        providerId: activeProvider.providerId,
+        ...providerMeta,
+      },
+    })
+  }
   const row = await messageRepository.update(messageId, {
     content,
     status,
@@ -131,7 +152,7 @@ async function streamIntoAssistant(
         if (chunk.text && content.length - lastPersistedLength >= 120) {
           lastPersistedLength = content.length
           const snapshot = content
-          void persistAssistantDelta(assistantId, snapshot, 'streaming', null, streamMeta).catch((err) => {
+          void persistAssistantDelta(conversationId, assistantId, snapshot, 'streaming', null, streamMeta).catch((err) => {
             logPipeline({
               stage: 'database',
               event: 'mid_stream_persist_failed',
@@ -143,13 +164,13 @@ async function streamIntoAssistant(
       } else if (chunk.type === 'error') {
         const err = chunk.error === 'cancelled' ? 'cancelled' : (chunk.error ?? 'stream error')
         const status = err === 'cancelled' ? 'cancelled' : 'error'
-        const saved = await persistAssistantDelta(assistantId, content, status, err, streamMeta)
+        const saved = await persistAssistantDelta(conversationId, assistantId, content, status, err, streamMeta)
         latest = saved ?? { ...latest, status, error: err, content }
         handlers.onError?.(latest, err)
         return latest
       } else if (chunk.type === 'done') {
         if (chunk.meta) streamMeta = chunk.meta
-        const saved = await persistAssistantDelta(assistantId, content, 'complete', null, streamMeta)
+        const saved = await persistAssistantDelta(conversationId, assistantId, content, 'complete', null, streamMeta)
         latest = saved ?? {
           ...latest,
           content,
@@ -158,12 +179,12 @@ async function streamIntoAssistant(
           providerMeta: { providerId: activeProvider.providerId, ...streamMeta },
         }
         handlers.onComplete?.(latest)
-        await conversationRepository.touch(conversationId, buildMessagePreview(content))
+        await touchConversation(conversationId, buildMessagePreview(content))
         return latest
       }
     }
 
-    const saved = await persistAssistantDelta(assistantId, content, 'complete', null, streamMeta)
+    const saved = await persistAssistantDelta(conversationId, assistantId, content, 'complete', null, streamMeta)
     latest = saved ?? {
       ...latest,
       content,
@@ -171,16 +192,24 @@ async function streamIntoAssistant(
       providerMeta: { providerId: activeProvider.providerId, ...streamMeta },
     }
     handlers.onComplete?.(latest)
-    await conversationRepository.touch(conversationId, buildMessagePreview(content))
+    await touchConversation(conversationId, buildMessagePreview(content))
     return latest
   } catch (e) {
     const err = e instanceof Error ? e.message : 'تعذر توليد الرد'
     const status = handlers.signal.aborted ? 'cancelled' : 'error'
-    const saved = await persistAssistantDelta(assistantId, content, status, err, streamMeta)
+    const saved = await persistAssistantDelta(conversationId, assistantId, content, status, err, streamMeta)
     latest = saved ?? { ...latest, status, error: err, content }
     handlers.onError?.(latest, err)
     return latest
   }
+}
+
+async function touchConversation(conversationId: string, preview: string): Promise<void> {
+  if (isLocalConversationId(conversationId)) {
+    localChatStore.touchConversation(conversationId, preview)
+    return
+  }
+  await conversationRepository.touch(conversationId, preview)
 }
 
 export const chatService = {
@@ -193,8 +222,18 @@ export const chatService = {
         event: 'list_ok',
         meta: { count: rows.length },
       })
-      return rows.map(conversationFromRow)
+      const remote = rows.map(conversationFromRow)
+      const local = localChatStore.listConversations(limit)
+      const byId = new Map<string, ChatConversation>()
+      for (const row of [...local, ...remote]) byId.set(row.id, row)
+      return [...byId.values()]
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .slice(0, limit)
     } catch (error) {
+      if (isLocalChatAuthError(error)) {
+        logPipeline({ stage: 'conversation', event: 'list_local_fallback' })
+        return localChatStore.listConversations(limit)
+      }
       throw diagnosePipelineError('conversation', 'listConversations', error)
     }
   },
@@ -231,6 +270,10 @@ export const chatService = {
       })
       return conversationFromRow(row)
     } catch (error) {
+      if (isLocalChatAuthError(error) || (error as { code?: string })?.code === 'forbidden') {
+        logPipeline({ stage: 'conversation', event: 'create_local_fallback' })
+        return localChatStore.createConversation(title)
+      }
       throw diagnosePipelineError('conversation', 'createConversation', error)
     }
   },
@@ -238,6 +281,7 @@ export const chatService = {
   async renameConversation(id: string, title: string): Promise<ChatConversation> {
     const err = validateConversationTitle(title)
     if (err) throw new Error(err)
+    if (isLocalConversationId(id)) return localChatStore.renameConversation(id, title)
     try {
       await assertChatDatabaseAuth('renameConversation')
       const row = await conversationRepository.update(id, { title: title.trim() })
@@ -249,6 +293,10 @@ export const chatService = {
   },
 
   async deleteConversation(id: string): Promise<void> {
+    if (isLocalConversationId(id)) {
+      localChatStore.deleteConversation(id)
+      return
+    }
     try {
       await assertChatDatabaseAuth('deleteConversation')
       await conversationRepository.delete(id)
@@ -258,6 +306,7 @@ export const chatService = {
   },
 
   async getConversationDetail(id: string): Promise<ConversationDetail> {
+    if (isLocalConversationId(id)) return localChatStore.getConversationDetail(id)
     try {
       await assertChatDatabaseAuth('getConversationDetail')
       const conversation = await conversationRepository.getById(id)
@@ -282,6 +331,7 @@ export const chatService = {
         messages: messages.map(messageFromRow),
       }
     } catch (error) {
+      if (isLocalChatAuthError(error)) return localChatStore.getConversationDetail(id)
       throw diagnosePipelineError('conversation', 'getConversationDetail', error)
     }
   },
@@ -294,6 +344,10 @@ export const chatService = {
   ): Promise<{ user: ChatMessage; assistant: ChatMessage }> {
     const validation = validateUserMessage(content)
     if (validation) throw new Error(validation)
+
+    if (isLocalConversationId(conversationId)) {
+      return sendLocalUserMessage(conversationId, content, handlers, options)
+    }
 
     try {
       await assertChatDatabaseAuth('sendUserMessage')
@@ -347,6 +401,10 @@ export const chatService = {
       const assistant = await streamIntoAssistant(conversationId, history, assistantSeed.id, handlers)
       return { user, assistant }
     } catch (error) {
+      if (isLocalChatAuthError(error)) {
+        const local = localChatStore.createConversation(titleFromFirstMessage(content))
+        return sendLocalUserMessage(local.id, content, handlers, options)
+      }
       throw diagnosePipelineError('conversation', 'sendUserMessage', error)
     }
   },
@@ -356,6 +414,31 @@ export const chatService = {
     assistantMessageId: string,
     handlers: StreamHandlers,
   ): Promise<ChatMessage> {
+    if (isLocalConversationId(conversationId)) {
+      const detail = localChatStore.getConversationDetail(conversationId)
+      const target = findRetryTarget(detail.messages, assistantMessageId)
+      if (!target) throw new Error('تعذر العثور على الرسالة لإعادة المحاولة')
+      localChatStore.updateMessage(conversationId, assistantMessageId, {
+        content: '',
+        status: 'streaming',
+        error: null,
+        providerMeta: { providerId: activeProvider.providerId },
+      })
+      const seed: ChatMessage = {
+        ...target.assistant,
+        content: '',
+        status: 'streaming',
+        error: null,
+        providerMeta: { providerId: activeProvider.providerId },
+      }
+      handlers.onAssistantCreate?.(seed)
+      const truncated: ChatMessage[] = []
+      for (const message of detail.messages) {
+        if (message.id === assistantMessageId) break
+        truncated.push(message)
+      }
+      return streamIntoAssistant(conversationId, truncated, assistantMessageId, handlers)
+    }
     try {
       await assertChatDatabaseAuth('retryAssistantMessage')
       const messages = (await messageRepository.listByConversation(conversationId)).map(messageFromRow)
@@ -389,4 +472,41 @@ export const chatService = {
       throw diagnosePipelineError('conversation', 'retryAssistantMessage', error)
     }
   },
+}
+
+async function sendLocalUserMessage(
+  conversationId: string,
+  content: string,
+  handlers: StreamHandlers,
+  options: SendUserMessageOptions,
+): Promise<{ user: ChatMessage; assistant: ChatMessage }> {
+  const modality: ChatModality = options.modality === 'audio' ? 'audio' : 'text'
+  const detail = localChatStore.getConversationDetail(conversationId)
+  const user = localChatStore.appendMessage({
+    conversationId,
+    role: 'user',
+    content: content.trim(),
+    modality,
+    status: 'complete',
+  })
+  if (detail.messages.length === 0) {
+    localChatStore.renameConversation(conversationId, titleFromFirstMessage(content))
+  }
+  localChatStore.touchConversation(conversationId, buildMessagePreview(content))
+  const assistantSeed = localChatStore.appendMessage({
+    conversationId,
+    role: 'assistant',
+    content: '',
+    status: 'streaming',
+    providerMeta: { providerId: activeProvider.providerId },
+  })
+  handlers.onAssistantCreate?.(assistantSeed)
+  const history = [...detail.messages, user]
+  logPipeline({
+    stage: 'ai',
+    event: 'stream_started_local',
+    meta: { conversationId, history: history.length },
+  })
+  const assistant = await streamIntoAssistant(conversationId, history, assistantSeed.id, handlers)
+  return { user, assistant }
 }

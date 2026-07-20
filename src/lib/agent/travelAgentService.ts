@@ -50,12 +50,17 @@ import {
 } from './bookingIntelligence'
 import {
   enrichWithBookingExecution,
+  findLatestConfirmedBookingExecution,
   isBookingExecutionEnabled,
+  shouldRunBookingExecution,
   type BookingExecutionResult,
 } from './bookingExecution'
 import {
   enrichWithPaymentsPlatform,
+  findLatestPaymentsResult,
   isPaymentsEnabled,
+  shouldRunPayments,
+  shouldShowPaymentSummary,
   type PaymentsPlatformResult,
 } from './paymentsPlatform'
 import type {
@@ -721,7 +726,17 @@ export function createTravelAgentService(
         nextPlan = executed.tripPlan
         bookingExecution = executed.bookingExecution ?? undefined
       }
-      if (isPaymentsPlatformEnabled() && bookingExecution) {
+      // Alpha: pay / confirmation turns reuse the prior booking session in this conversation.
+      const payCue = shouldRunPayments({
+        userText: input.userText,
+        intent: input.memory.lastIntent,
+        bookingExecutionStatus: bookingExecution?.snapshot.status ?? null,
+      })
+      const summaryCue = shouldShowPaymentSummary(input.userText)
+      if (!bookingExecution && (payCue || summaryCue)) {
+        bookingExecution = findLatestConfirmedBookingExecution(input.conversationId) ?? undefined
+      }
+      if (isPaymentsPlatformEnabled() && bookingExecution && payCue) {
         const paid = await enrichWithPaymentsPlatform({
           memory,
           tripPlan: nextPlan,
@@ -733,6 +748,11 @@ export function createTravelAgentService(
         })
         nextPlan = paid.tripPlan
         payments = paid.payments ?? undefined
+      } else if (isPaymentsPlatformEnabled() && summaryCue) {
+        payments = findLatestPaymentsResult(input.conversationId) ?? undefined
+        if (!bookingExecution) {
+          bookingExecution = findLatestConfirmedBookingExecution(input.conversationId) ?? undefined
+        }
       }
       return {
         plan: nextPlan,
@@ -756,6 +776,37 @@ export function createTravelAgentService(
       })
       if (autonomous.planBuilt && autonomous.tripPlan) {
         const intel = await applyBookingIntel(autonomous.tripPlan, input.memory)
+        return {
+          plan: intel.plan,
+          batch: autonomous.batch,
+          autonomous: autonomous.snapshot,
+          bookingIntelligence: intel.bookingIntelligence,
+          bookingExecution: intel.bookingExecution,
+          payments: intel.payments,
+        }
+      }
+      // Alpha — confirm/pay cues still enrich even when autonomous does not rebuild a plan.
+      const journeyCue =
+        shouldRunBookingExecution({
+          userText: input.userText,
+          intent: input.memory.lastIntent,
+          bookingReady: true,
+        })
+        || shouldRunPayments({
+          userText: input.userText,
+          intent: input.memory.lastIntent,
+        })
+        || shouldShowPaymentSummary(input.userText)
+      if (journeyCue) {
+        const plan = input.basePlan
+          ?? input.memory.tripPlan
+          ?? buildTripPlan({
+            requirements: input.memory.requirements,
+            conversationId: input.conversationId,
+            locale: input.memory.locale,
+            seed: input.seed,
+          })
+        const intel = await applyBookingIntel(plan, input.memory)
         return {
           plan: intel.plan,
           batch: autonomous.batch,
@@ -826,6 +877,14 @@ export function createTravelAgentService(
     async planTurn(input) {
       const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
       const userText = lastUser?.content ?? ''
+      // Alpha — booking / payment / confirmation cues must reach Execution + Payments.
+      const alphaBookingCue = shouldRunBookingExecution({
+        userText,
+        bookingReady: true,
+      })
+      const alphaPaymentCue = shouldRunPayments({ userText })
+      const alphaSummaryCue = shouldShowPaymentSummary(userText)
+      const alphaJourneyCue = alphaBookingCue || alphaPaymentCue || alphaSummaryCue
       const prior = rebuildMemoryFromMessages(input.messages.slice(0, -1))
       let extracted = extractFromUserText(userText, prior.locale)
       const preferenceUserId = getBookingHistoryUserId() || input.conversationId
@@ -835,6 +894,24 @@ export function createTravelAgentService(
         locale: extracted.locale || prior.locale,
         lastIntent: extracted.intent,
         requirements: mergeRequirements(prior.requirements, extracted.patch),
+      }
+      memory.missingFields = missingRequirementFields(memory.requirements)
+
+      // Alpha — confirm/pay turns must keep prior trip context even if the last
+      // user line has no destination text (CTAs like "أكد الحجز" / "ادفع الآن").
+      if (alphaJourneyCue && memory.missingFields.length > 0) {
+        for (const message of input.messages.slice(0, -1)) {
+          if (message.role !== 'user') continue
+          const priorExtract = extractFromUserText(message.content, memory.locale)
+          memory = {
+            ...memory,
+            requirements: mergeRequirements(memory.requirements, priorExtract.patch),
+          }
+        }
+        memory.missingFields = missingRequirementFields(memory.requirements)
+        if (!memory.tripPlan && prior.tripPlan) {
+          memory = withTripPlan(memory, prior.tripPlan)
+        }
       }
 
       let reasoningResult: TravelReasoningResult | null = null
@@ -1418,9 +1495,11 @@ export function createTravelAgentService(
       }
 
       // Sprint 15 — order / payment intents (above confirmation / history).
+      // Alpha journey cues continue into Booking Execution + Payments instead.
       if (
         ORDER_PAYMENT_INTENTS.has(extracted.intent)
         && isOrderManagementEnabled()
+        && !alphaJourneyCue
       ) {
         const records = await listBookingRecords()
         const latest = findLatestBookingRecord(records)
@@ -1454,9 +1533,11 @@ export function createTravelAgentService(
       }
 
       // Sprint 14 — confirmation intents (above history / concierge intake).
+      // Alpha journey cues continue into Booking Execution + Payments instead.
       if (
         CONFIRMATION_INTENTS.has(extracted.intent)
         && isBookingConfirmationEnabled()
+        && !alphaJourneyCue
       ) {
         const records = await listBookingRecords()
         const latest = findLatestBookingRecord(records)
@@ -1650,7 +1731,13 @@ export function createTravelAgentService(
         objective = 'acknowledge_edit'
         memory.phase = 'editing'
       } else if (
-        (extracted.intent === 'regenerate' || extracted.intent === 'edit' || extracted.intent === 'plan' || extracted.intent === 'answer')
+        (
+          extracted.intent === 'regenerate'
+          || extracted.intent === 'edit'
+          || extracted.intent === 'plan'
+          || extracted.intent === 'answer'
+          || alphaJourneyCue
+        )
         && memory.missingFields.length === 0
       ) {
         const scope = memory.requirements.regenerateScope

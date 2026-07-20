@@ -222,7 +222,7 @@ describe('Sprint 58 — Payments & Ticketing Platform', () => {
       expect(paid.documents.some((d) => d.kind === 'invoice')).toBe(true)
       expect(paid.documents.some((d) => d.kind === 'receipt')).toBe(true)
       expect(paid.documents.some((d) => d.kind === 'confirmation_pdf')).toBe(true)
-      expect(paid.documents[0]?.downloadUrl).toContain('https://docs.rahhal.local/')
+      expect(paid.documents[0]?.downloadUrl.startsWith('data:text/plain')).toBe(true)
       expect(events).toEqual(expect.arrayContaining([
         'PaymentStarted',
         'Authorized',

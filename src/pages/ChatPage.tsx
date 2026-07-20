@@ -1027,15 +1027,30 @@ export default function ChatPage() {
                   </div>
                 )}
                 {!detailLoading && !detailError && messages.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-12 text-center">
-                    <p className="text-sm font-medium text-slate-700">
-                      {chatgptOn ? 'Start a natural conversation' : 'ابدأ وكيل السفر'}
+                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center dark:border-slate-700">
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                      خطّط رحلتك مع رحّال
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      {chatgptOn
-                        ? 'Ask anything — Rahhal remembers context, streams instantly, and supports voice like ChatGPT.'
-                        : 'مثال: I want to travel to Japan — الوكيل يسأل عن التوقيت والميزانية والمسافرين ثم يبني الخطة'}
+                      اكتب ما تحتاجه بلغة طبيعية — رحّال يسأل عن الناقص فقط ثم يبني الخطة والحجز والدفع داخل نفس المحادثة.
                     </p>
+                    <div className="mx-auto mt-4 flex max-w-xl flex-wrap justify-center gap-2">
+                      {[
+                        'أريد السفر إلى المغرب مع زوجتي لمدة سبعة أيام في سبتمبر بميزانية 12000 ريال',
+                        'Weekend trip to Dubai for two under 5000 SAR',
+                        'Family trip to Istanbul with kids in October',
+                      ].map((prompt) => (
+                        <button
+                          key={prompt}
+                          type="button"
+                          disabled={!online || isStreaming}
+                          onClick={() => void sendAgentCommand(prompt)}
+                          className="rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-[11px] font-semibold text-primary-800 transition-colors hover:bg-primary-100 disabled:opacity-40 dark:border-primary-800 dark:bg-primary-950 dark:text-primary-100"
+                        >
+                          {prompt.length > 54 ? `${prompt.slice(0, 54)}…` : prompt}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
                 <VirtualizedMessageList

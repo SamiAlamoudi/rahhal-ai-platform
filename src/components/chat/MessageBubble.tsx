@@ -7,6 +7,7 @@ import { isConversationExperienceEnabled } from '../../lib/chat/conversationExpe
 import MarkdownContent from './MarkdownContent'
 import ItineraryActions from './ItineraryActions'
 import ConversationExperiencePanel from './experience/ConversationExperiencePanel'
+import AlphaJourneyPanel from './AlphaJourneyPanel'
 import TypingIndicator from './experience/TypingIndicator'
 import type {
   ConversationBookingAction,
@@ -145,7 +146,21 @@ export default function MessageBubble({
             )}
           </>
         ) : (
-          <MarkdownContent content={message.content || (isStreaming ? '…' : '')} />
+          <>
+            <MarkdownContent content={message.content || (isStreaming ? '…' : '')} />
+            {!isStreaming && onSmartAction && (
+              <AlphaJourneyPanel
+                message={message}
+                busy={busy}
+                onCommand={onSmartAction}
+              />
+            )}
+            {isStreaming && (
+              <div className="mt-2">
+                <TypingIndicator />
+              </div>
+            )}
+          </>
         )}
 
         {(message.status === 'error' || message.status === 'cancelled') && (
