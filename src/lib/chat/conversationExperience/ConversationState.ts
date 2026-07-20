@@ -148,6 +148,16 @@ export function applyCommandToState(
       // Sprint 35 trip queries — answered from post-booking store, no re-plan.
       phase = 'presenting'
       break
+    case 'cancel_refund_quote':
+    case 'cancel_hotel_only':
+    case 'flight_delay_policy':
+    case 'deposit_refund':
+    case 'cancel_after_checkin':
+    case 'airline_cancels':
+    case 'one_traveler_cancels':
+      // Sprint 36 refund policy questions — answered via PolicyEngine quotes.
+      phase = 'presenting'
+      break
     case 'clarify_answer':
       phase = 'planning'
       break
@@ -230,9 +240,210 @@ export function detectConversationCommand(userText: string): ConversationCommand
   ) {
     return 'download_ticket'
   }
+
+  // Sprint 41 — finance / revenue / settlement (before supplier & documents).
   if (
-    /any delays\??|flight (status|delay)|is my flight delayed|gate change/.test(lower)
-    || /تأخير|حالة الرحلة/.test(lower)
+    /how much revenue|revenue (did|this month)|rahhal generate.*revenue|generate this month/.test(
+      lower,
+    )
+    || /كم الإيرادات|إيرادات هذا الشهر/.test(lower)
+  ) {
+    return 'finance_revenue_month'
+  }
+  if (
+    /profit from|our profit|profit (in|for)|what was our profit/.test(lower)
+    || /ربح من|أرباح/.test(lower)
+  ) {
+    return 'finance_profit_destination'
+  }
+  if (
+    /highest margin|produced the highest margin|supplier.*highest margin|best margin/.test(lower)
+    || /أعلى هامش|أعلى ربحية/.test(lower)
+  ) {
+    return 'finance_highest_margin_supplier'
+  }
+  if (
+    /unpaid settlements?|show unpaid|outstanding settlements?/.test(lower)
+    || /تسويات غير مدفوعة|التسويات المعلقة/.test(lower)
+  ) {
+    return 'finance_unpaid_settlements'
+  }
+  if (
+    /refund losses?|show refund loss/.test(lower)
+    || /خسائر الاسترداد|خسائر الاسترجاع/.test(lower)
+  ) {
+    return 'finance_refund_losses'
+  }
+  if (
+    /how much vat|vat should be reported|vat (report|payable)|gst (report|payable)/.test(lower)
+    || /ضريبة القيمة المضافة|كم ضريبة/.test(lower)
+  ) {
+    return 'finance_vat_report'
+  }
+
+  // Sprint 40 — supplier marketplace preferences (before documents & planning).
+  if (
+    /trusted suppliers?|book only trusted|only trusted/.test(lower)
+    || /موردين موثوقين|الموردين الموثوقين/.test(lower)
+  ) {
+    return 'trusted_suppliers_only'
+  }
+  if (
+    /premium hotel|premium providers?|use premium/.test(lower)
+    || /فنادق مميزة|مزودين مميزين/.test(lower)
+  ) {
+    return 'premium_hotel_providers'
+  }
+  if (
+    /poor refund|avoid suppliers with poor refund|bad refund/.test(lower)
+    || /استرداد ضعيف|تجنب.*استرداد/.test(lower)
+  ) {
+    return 'avoid_poor_refunds'
+  }
+  if (
+    /fastest confirmation|fast confirmation|quick confirmation/.test(lower)
+    || /أسرع تأكيد|تأكيد سريع/.test(lower)
+  ) {
+    return 'fastest_confirmation'
+  }
+  if (
+    /rank suppliers|best suppliers|which supplier/.test(lower)
+    || /أفضل مورد/.test(lower)
+  ) {
+    return 'rank_suppliers'
+  }
+
+  // Sprint 39 — travel documents / visa intelligence (before loyalty & planning).
+  if (
+    /can i transit|transit through|layover in/.test(lower)
+    || /عبور عبر|ترانزيت/.test(lower)
+  ) {
+    return 'transit_visa'
+  }
+  if (
+    /passport expires|expires in \d+|my passport expire/.test(lower)
+    || /جواز السفر ينتهي|صلاحية الجواز/.test(lower)
+  ) {
+    return 'passport_expiry'
+  }
+  if (
+    /do i need a visa|need a visa|visa (for|to)|visa required/.test(lower)
+    || /هل أحتاج تأشيرة|أحتاج فيزا/.test(lower)
+  ) {
+    return 'need_visa'
+  }
+  if (
+    /what documents|which documents|documents do i need|what do i need/.test(lower)
+    || /ما هي المستندات|ما الوثائق/.test(lower)
+  ) {
+    return 'what_documents'
+  }
+  if (
+    /vaccination|vaccine|yellow fever|health certificate/.test(lower)
+    || /تطعيم|شهادة صحية/.test(lower)
+  ) {
+    return 'vaccination_requirements'
+  }
+  if (
+    /can i travel to|allowed to visit|enter (japan|thailand|london|dubai|usa|uk)/.test(lower)
+    || /هل يمكنني السفر إلى|أسافر إلى/.test(lower)
+  ) {
+    return 'can_travel_to'
+  }
+
+  // Sprint 38 — loyalty / rewards (before disruption & planning).
+  if (
+    /use (my )?(rahhal )?points|redeem (my )?points|pay with points/.test(lower)
+    || /استخدم نقاطي|استخدم نقاط رحّال/.test(lower)
+  ) {
+    return 'use_rahhal_points'
+  }
+  if (
+    /which hotel (gives|has) (me )?the most rewards|most rewards|best (hotel )?rewards|most (hotel )?points/.test(
+      lower,
+    )
+    || /أكثر مكافآت|أفضل فندق للمكافآت/.test(lower)
+  ) {
+    return 'most_rewards_hotel'
+  }
+  if (
+    /upgrade using points|upgrade with points|can i upgrade/.test(lower)
+    || /ترقية باستخدام النقاط|هل يمكنني الترقية/.test(lower)
+  ) {
+    return 'upgrade_with_points'
+  }
+  if (
+    /how many points will i earn|points will i earn|earn (if i book|on this)/.test(lower)
+    || /كم نقطة سأكسب/.test(lower)
+  ) {
+    return 'points_earn_estimate'
+  }
+  if (
+    /how many (rahhal )?points|my (points )?balance|wallet balance|points balance/.test(lower)
+    || /رصيد نقاطي|كم نقطة لدي/.test(lower)
+  ) {
+    return 'wallet_balance'
+  }
+  if (
+    /membership benefits|my (membership )?tier|what (are )?my benefits/.test(lower)
+    || /مزايا العضوية|مستواي/.test(lower)
+  ) {
+    return 'membership_benefits'
+  }
+
+  // Sprint 37 — operational disruption recovery (before status/refund queries).
+  if (/missed (my )?connection|miss(ed)? my connecting/.test(lower) || /فاتتني المواصلة/.test(lower)) {
+    return 'missed_connection'
+  }
+  if (
+    /my flight (was |is )?cancelled|flight (was |is )?cancelled|canceled my flight/.test(lower)
+    || /ألغيت رحلتي|تم إلغاء رحلتي/.test(lower)
+  ) {
+    return 'flight_cancelled'
+  }
+  if (
+    (/my flight (is |was )?delayed|delayed by \d+/.test(lower) || /تأجلت رحلتي|رحلتي متأخرة/.test(lower))
+    && !/what happens if|refund|policy|will i get/.test(lower)
+  ) {
+    return 'flight_delayed'
+  }
+  if (
+    /my hotel (cancelled|canceled)|hotel cancelled my|hotel canceled my|hotel overbook/.test(lower)
+    || /ألغى الفندق|الفندق ألغى/.test(lower)
+  ) {
+    return 'hotel_cancelled'
+  }
+  if (/gate (was |has )?changed|new gate\b/.test(lower)) {
+    return 'gate_changed'
+  }
+  if (/schedule (was |has )?changed|rescheduled/.test(lower)) {
+    return 'schedule_changed'
+  }
+  if (/car (is )?unavailable|rental (was )?cancelled/.test(lower)) {
+    return 'car_unavailable'
+  }
+  if (/activity (was |is )?cancelled|tour cancelled/.test(lower)) {
+    return 'activity_cancelled'
+  }
+  if (/airport (is )?closed|airport closure/.test(lower)) {
+    return 'airport_closure'
+  }
+  if (/weather (disruption|delay|cancel)|\bstorm\b|\bfog\b/.test(lower)) {
+    return 'weather_disruption'
+  }
+  if (/\bstrike\b|industrial action/.test(lower)) {
+    return 'strike'
+  }
+  if (/visa (was )?rejected|visa denial/.test(lower)) {
+    return 'visa_rejection'
+  }
+  if (/border (restriction|closed)|entry ban/.test(lower)) {
+    return 'border_restriction'
+  }
+
+  if (
+    /any delays\??|flight status|is my flight delayed/.test(lower)
+    || /حالة الرحلة/.test(lower)
   ) {
     return 'any_delays'
   }
@@ -241,6 +452,51 @@ export function detectConversationCommand(userText: string): ConversationCommand
     || /أي فندق|فندقي/.test(lower)
   ) {
     return 'what_hotel'
+  }
+
+  if (
+    /cancel only the hotel|hotel only|just the hotel/.test(lower)
+    || /ألغي الفندق فقط/.test(lower)
+  ) {
+    return 'cancel_hotel_only'
+  }
+  if (
+    /what happens if my flight is delayed|delay.*refund|flight delay.*refund/.test(lower)
+    || /تأخير الرحلة/.test(lower)
+  ) {
+    return 'flight_delay_policy'
+  }
+  if (
+    /lose my deposit|deposit refund|will i (get|lose) (my )?deposit/.test(lower)
+    || /العربون|الوديعة/.test(lower)
+  ) {
+    return 'deposit_refund'
+  }
+  if (
+    /cancel after check-?in|after check in|early departure/.test(lower)
+    || /بعد تسجيل الوصول/.test(lower)
+  ) {
+    return 'cancel_after_checkin'
+  }
+  if (
+    /airline cancels|if the airline cancel|carrier cancel/.test(lower)
+    || /إلغاء من شركة الطيران/.test(lower)
+  ) {
+    return 'airline_cancels'
+  }
+  if (
+    /only one (traveler|passenger) cancels|one of us cancels|cancel one (traveler|passenger)/.test(
+      lower,
+    )
+    || /مسافر واحد/.test(lower)
+  ) {
+    return 'one_traveler_cancels'
+  }
+  if (
+    /if i cancel now|how much will i get back|cancel.*refund|refund if i cancel/.test(lower)
+    || /كم سأسترد|إذا ألغيت/.test(lower)
+  ) {
+    return 'cancel_refund_quote'
   }
   if (/^\d+\s*(adults?|travelers?|people|persons?)?$/.test(lower)
     || /^(two|three|four|one)\s*(adults?)?$/.test(lower)

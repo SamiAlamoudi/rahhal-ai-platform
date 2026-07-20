@@ -286,7 +286,77 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.trip_management` (depends on `brain.payments_platform`).
 - See `docs/SPRINT35_TRIP_MANAGEMENT.md`.
 
-## Conversation Experience & Booking UX (Sprint 42)
+## Universal Cancellation & Refund Policy Engine (Sprint 36)
+
+- Package `src/lib/refunds/` — centralized policy normalize → quote → validate → cancel → refund → audit.
+- Provider policy adapters for flights, hotels, car rentals, activities; visa/insurance framework-only.
+- Normalized model: refundability, %, penalties, taxes, fees, deadlines, timelines, special conditions.
+- Partial cancellation scopes (hotel/flight/car/passenger/room/return segment).
+- Executes money movement via Sprint 34 `PaymentOrchestrator.refund`; syncs trip refund status via Sprint 35.
+- Provider failure path rolls back safely, keeps payment/booking references, audits, and supports retry.
+- Conversation explains “If I cancel now…”, hotel-only, delays, deposits, after check-in, airline cancel, one traveler.
+- Admin metrics: refund volume, avg time, success rate, provider latency, reasons.
+- Flag (default **OFF**): `brain.refund_policy_engine` (depends on `brain.trip_management`).
+- See `docs/SPRINT36_REFUND_POLICY_ENGINE.md`.
+
+### Sprint 37 — Travel Disruption & Smart Recovery Engine
+
+- Package `src/lib/disruption/` — detect disruption → impact → recovery search → rank → trip update → explain.
+- Supported events: flight delay/cancel/gate/schedule, missed connection, hotel overbooking/unavailable, car/activity, airport closure, weather, strike, visa rejection, border restriction.
+- Recovery options: alternative flight, hotel, rental car, activity, transport, route (deterministic sandbox).
+- Ranking: cost, earliest arrival, minimum disruption, preferences, loyalty, cabin, hotel rating, family/business, visa, conversation context.
+- Automatic trip updates: itinerary, hotel dates, activities, transportation, reminders, notifications, regenerated documents.
+- Conversation phrases (“My flight is delayed/cancelled…”, missed connection, hotel cancelled) invoke the engine without booking forms.
+- Flag (default **OFF**): `brain.travel_disruption_engine` (depends on `brain.refund_policy_engine`).
+- See `docs/SPRINT37_TRAVEL_DISRUPTION_ENGINE.md`.
+
+### Sprint 38 — Universal Loyalty, Rewards & Membership Platform
+
+- Package `src/lib/loyalty/` — Rahhal Points wallet, membership tiers, benefits, airline/hotel loyalty, smart rewards recommendations.
+- Services covered: flights, hotels, cars, activities, insurance, visa, future providers.
+- Wallet ops: earn, redeem, expire, reverse, bonus, promotions, campaigns, transfers, adjustments.
+- Membership: Explorer → Silver → Gold → Platinum → Diamond with configurable benefits.
+- Hotel adapters: Hilton, Marriott, IHG, Accor, Hyatt, Best Western (+ generic).
+- Conversation: “Use my Rahhal points”, most-rewards hotel, upgrade with points, earn estimates.
+- Flag (default **OFF**): `brain.loyalty_platform` (depends on `brain.travel_disruption_engine`).
+- See `docs/SPRINT38_LOYALTY_PLATFORM.md`.
+
+### Sprint 39 — Universal Travel Documents & Visa Intelligence Platform
+
+- Package `src/lib/travelDocuments/` — destination rules, passport/visa/vaccination intelligence, alerts, conversation explanations.
+- Inputs: nationality, residence, passport, transit countries, destination, purpose, trip duration, age.
+- Visa categories: required, on arrival, eVisa, visa-free, transit, multi-entry (+ processing time / approval probability).
+- Vaccinations: yellow fever, COVID, country-specific, medical declarations, health certificates.
+- Alerts for passport/visa/residence/vaccination expiration and document reminders.
+- Conversation: “Can I travel to Japan?”, visa needs, passport expiry, transit, document checklists.
+- Flag (default **OFF**): `brain.travel_documents` (depends on `brain.loyalty_platform`).
+- See `docs/SPRINT39_TRAVEL_DOCUMENTS.md`.
+
+### Sprint 40 — Universal Supplier Marketplace & Contract Platform
+
+- Package `src/lib/suppliers/` — B2B onboarding/KYC, contracts, inventory, performance, AI ranking, dashboard.
+- Supplier types: airlines, hotels, cars, activities, cruises, insurance, visa, transfers, rail, bus, future.
+- Contracts: commission, markup, net/public rates, corporate/agency, seasonal/promo, cancellation/refund, settlements, revenue share.
+- Inventory: availability, rate plans, blackouts, dynamic pricing, promotions, sync.
+- Ranking factors: price, quality, historical performance, reliability, refunds, preferences, conversation, loyalty, business rules.
+- Conversation: trusted-only, premium hotels, avoid poor refunds, fastest confirmation.
+- Flag (default **OFF**): `brain.supplier_marketplace` (depends on `brain.travel_documents`).
+- See `docs/SPRINT40_SUPPLIER_MARKETPLACE.md`.
+
+### Sprint 41 — Universal Revenue, Finance & Settlement Platform
+
+- Package `src/lib/finance/` — post-booking finance backbone (not a payment gateway).
+- Revenue: commissions, markup, agency/affiliate, corporate/coupon/promo, cashback, points, wallet, partial payments, taxes, fees.
+- Wallets: customer/corporate/supplier/refund/travel-credit/reward with deposit, withdraw, freeze, release, transfer, rollback, expiration.
+- Settlement: daily/weekly/monthly/manual/automatic/partial + multi-currency FX across airlines, hotels, cars, activities, insurance, visa, future suppliers.
+- Accounting: double-entry ledger (debit/credit), payables/receivables, revenue, expenses, refund losses, tax, commission.
+- Documents: invoice, receipt, credit/debit notes, settlement report, supplier/customer/corporate statements.
+- Tax/FX: VAT/GST/sales-tax adapters + historical FX rates.
+- Reports & conversation: revenue/profit/margin, unpaid settlements, refund losses, VAT payable.
+- Flag (default **OFF**): `brain.finance_platform` (depends on `brain.supplier_marketplace`).
+- See `docs/SPRINT41_FINANCE_PLATFORM.md`.
+
+### Sprint 42 — Conversation Experience & Booking UX
 
 - **UI/integration only** — unifies Sprint 28 memory + Sprint 32–35 engines into one production chat experience.
 - Package: `src/lib/chat/conversationExperienceUi` + `src/components/chat/experience`.
@@ -295,6 +365,16 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Themes: light / dark / high contrast; virtualized message list; memoized cards; lazy image previews.
 - Flag (default **OFF**): `ui.conversation_experience` (depends on `brain.conversation_ui`).
 - See `docs/SPRINT42_CONVERSATION_EXPERIENCE.md`.
+
+### Sprint 43 — Rahhal AI Orchestrator & Tool Routing
+
+- Package `src/lib/aiOrchestrator/` — central intent routing, Plan→Execute→Observe→Continue planner, parallel tool waves, ranking, and one conversational response.
+- Reuses existing engines only via thin adapters (conversation, booking/execution/payments handoff, refund, disruption, loyalty, documents/visa, suppliers, finance, trip timeline).
+- Memory-first clarifying via Sprint 28 slots (budget, travellers, passport/nationality, airlines, hotels, seats, loyalty).
+- Observability: selected tools, execution time, planner decisions, fallback reasons, errors.
+- ConversationController calls the orchestrator for multi-tool intents when the flag is on; single-tool handlers remain for exact commands.
+- Flag (default **OFF**): `brain.ai_orchestrator` (depends on `brain.conversation_ui`, `brain.finance_platform`).
+- See `docs/SPRINT43_AI_ORCHESTRATOR.md`.
 
 ## Engines (interfaces)
 
