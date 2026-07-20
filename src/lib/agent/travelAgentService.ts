@@ -482,7 +482,7 @@ export function createTravelAgentService(
         rahhalBrainMeta = brainTurn.meta
 
         if (
-          (brainTurn.decision.type === 'respond' || brainTurn.decision.type === 'clarify')
+          brainTurn.decision.type === 'respond'
           && brainTurn.decision.reply
         ) {
           const meta: AgentProviderMeta = {
