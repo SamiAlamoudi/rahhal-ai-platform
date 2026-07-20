@@ -11,6 +11,7 @@ import { chatEngine } from '../lib/chat/chatEngine'
 import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
 import { validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
 import { isBenignChatError, logChatError } from '../lib/chat/chatLogger'
+import { userFacingErrorMessage } from '../lib/chat/pipelineDiagnostics'
 import {
   buildChatSearch,
   resolveInitialConversationId,
@@ -70,6 +71,7 @@ export default function ChatPage() {
   const [voiceMode, setVoiceMode] = useState<VoiceInputMode>('push_to_talk')
   const [voiceLocale, setVoiceLocale] = useState<VoiceLocale>('ar')
   const [partialTranscript, setPartialTranscript] = useState('')
+  const [voiceLevel, setVoiceLevel] = useState(0)
   const [micError, setMicError] = useState<string | null>(null)
   const [permissionState, setPermissionState] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null)
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine)
@@ -84,6 +86,7 @@ export default function ChatPage() {
   const voiceRef = useRef<VoiceSession | null>(null)
   const activeIdRef = useRef<string | null>(null)
   const streamingRef = useRef(false)
+  const detailRequestRef = useRef(0)
   const bookingBridgeRef = useRef(createConversationBookingBridge())
   const experienceEnabled = isConversationExperienceEnabled()
 
@@ -93,7 +96,12 @@ export default function ChatPage() {
   )
 
   const isStreaming = messages.some((m) => m.status === 'streaming') || sending
-  const voiceBusy = voiceStatus === 'processing' || voiceStatus === 'speaking' || voiceStatus === 'reconnecting'
+  const voiceBusy =
+    voiceStatus === 'processing'
+    || voiceStatus === 'thinking'
+    || voiceStatus === 'responding'
+    || voiceStatus === 'speaking'
+    || voiceStatus === 'reconnecting'
   streamingRef.current = isStreaming || voiceBusy
 
   const scrollToBottom = useCallback((smooth = false) => {
@@ -160,7 +168,7 @@ export default function ChatPage() {
       }
     } catch (e) {
       logChatError('chat.list', e)
-      setListError(e instanceof Error ? e.message : 'تعذر تحميل المحادثات')
+      setListError(userFacingErrorMessage(e, 'تعذر تحميل المحادثات'))
       setConversations([])
     } finally {
       setListLoading(false)
@@ -168,20 +176,26 @@ export default function ChatPage() {
   }, [navigate])
 
   const loadDetail = useCallback(async (id: string) => {
+    // Avoid wiping in-flight streamed messages with a stale empty detail response.
+    if (streamingRef.current) return
+    const requestId = ++detailRequestRef.current
     setDetailLoading(true)
     setDetailError(null)
     try {
       const detail = await chatEngine.getConversationDetail(id)
+      if (requestId !== detailRequestRef.current || activeIdRef.current !== id) return
+      if (streamingRef.current) return
       setMessages(detail.messages)
       setConversations((prev) =>
         prev.map((c) => (c.id === detail.conversation.id ? detail.conversation : c)),
       )
     } catch (e) {
+      if (requestId !== detailRequestRef.current || activeIdRef.current !== id) return
       logChatError('chat.detail', e)
-      setDetailError(e instanceof Error ? e.message : 'تعذر تحميل المحادثة')
+      setDetailError(userFacingErrorMessage(e, 'تعذر تحميل المحادثة'))
       setMessages([])
     } finally {
-      setDetailLoading(false)
+      if (requestId === detailRequestRef.current) setDetailLoading(false)
     }
   }, [])
 
@@ -236,6 +250,7 @@ export default function ChatPage() {
       onStatus: setVoiceStatus,
       onPartialTranscript: setPartialTranscript,
       onFinalTranscript: setPartialTranscript,
+      onLevel: setVoiceLevel,
       onPermission: (state) => {
         setPermissionState(state.state)
         if (state.state !== 'granted') setMicError(state.error || 'يلزم إذن الميكروفون')
@@ -289,7 +304,7 @@ export default function ChatPage() {
       setMobileSidebarOpen(false)
     } catch (e) {
       logChatError('chat.create', e)
-      setActionError(e instanceof Error ? e.message : 'تعذر إنشاء المحادثة')
+      setActionError(userFacingErrorMessage(e, 'تعذر إنشاء المحادثة'))
     }
   }
 
@@ -932,6 +947,7 @@ export default function ChatPage() {
                     permissionState={permissionState}
                     busy={isStreaming || voiceBusy}
                     online={online}
+                    level={voiceLevel}
                     onModeChange={setVoiceMode}
                     onLocaleChange={setVoiceLocale}
                     onPushStart={() => void handlePushStart()}

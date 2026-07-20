@@ -1,11 +1,17 @@
 import type { SpeechToTextProvider, SpeechToTextStartOptions } from './voiceTypes'
 import { speechLangForLocale } from './voiceTypes'
+import { logPipeline } from '../pipelineDiagnostics'
 
 type BrowserSpeechRecognition = {
   lang: string
   continuous: boolean
   interimResults: boolean
-  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> & { length: number; [index: number]: ArrayLike<{ transcript: string }> & { isFinal?: boolean } } }) => void) | null
+  onresult: ((event: {
+    resultIndex: number
+    results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }> & {
+      length: number
+    }
+  }) => void) | null
   onerror: ((event: { error?: string }) => void) | null
   onend: (() => void) | null
   start: () => void
@@ -35,6 +41,7 @@ export function createWebSpeechToTextProvider(): SpeechToTextProvider {
   let recognition: BrowserSpeechRecognition | null = null
   let finalTranscript = ''
   let intentionalStop = false
+  let resultCursor = 0
 
   const provider: SpeechToTextProvider = {
     providerId: 'web-speech-stt',
@@ -45,43 +52,91 @@ export function createWebSpeechToTextProvider(): SpeechToTextProvider {
       detach(recognition)
       finalTranscript = ''
       intentionalStop = false
+      resultCursor = 0
       recognition = new Ctor()
       recognition.lang = speechLangForLocale(options.locale)
       recognition.continuous = options.continuous
       recognition.interimResults = options.interimResults
       recognition.onresult = (event) => {
         let interim = ''
-        let finals = ''
-        for (let i = 0; i < event.results.length; i += 1) {
+        let newFinals = ''
+        const start = Math.max(event.resultIndex, resultCursor)
+        for (let i = start; i < event.results.length; i += 1) {
           const result = event.results[i]
-          const text = result[0]?.transcript ?? ''
-          if ((result as { isFinal?: boolean }).isFinal) finals += text
-          else interim += text
+          const text = result?.[0]?.transcript ?? ''
+          if (result && (result as { isFinal?: boolean }).isFinal) {
+            newFinals += text
+            resultCursor = i + 1
+          } else {
+            interim += text
+          }
         }
-        if (finals) {
-          finalTranscript = `${finalTranscript} ${finals}`.trim()
+        if (newFinals) {
+          finalTranscript = `${finalTranscript} ${newFinals}`.trim()
           provider.onFinal?.({ transcript: finalTranscript, isFinal: true })
-        } else if (interim) {
-          provider.onPartial?.({ transcript: interim, isFinal: false })
+        }
+        if (interim) {
+          const preview = `${finalTranscript} ${interim}`.trim()
+          provider.onPartial?.({ transcript: preview, isFinal: false })
         }
       }
       recognition.onerror = (event) => {
         const error = event.error || 'speech_recognition_error'
         if (intentionalStop && (error === 'aborted' || error === 'no-speech')) return
+        logPipeline({ stage: 'stt', event: 'provider_error', message: error })
         provider.onError?.(error)
       }
       recognition.onend = () => {
         provider.onEnd?.()
       }
-      recognition.start()
+      try {
+        recognition.start()
+        logPipeline({
+          stage: 'stt',
+          event: 'provider_started',
+          meta: { continuous: options.continuous, lang: recognition.lang },
+        })
+      } catch (error) {
+        logPipeline({
+          stage: 'stt',
+          event: 'provider_start_failed',
+          error,
+          message: error instanceof Error ? error.message : String(error),
+        })
+        throw error
+      }
     },
     async stop() {
       intentionalStop = true
-      recognition?.stop()
-      const text = finalTranscript.trim()
-      detach(recognition)
-      recognition = null
-      return text
+      const rec = recognition
+      if (!rec) return finalTranscript.trim()
+
+      return await new Promise<string>((resolve) => {
+        let settled = false
+        const finish = () => {
+          if (settled) return
+          settled = true
+          detach(rec)
+          if (recognition === rec) recognition = null
+          resolve(finalTranscript.trim())
+        }
+        const previousOnEnd = rec.onend
+        rec.onend = () => {
+          try {
+            previousOnEnd?.()
+          } finally {
+            finish()
+          }
+        }
+        try {
+          rec.stop()
+        } catch {
+          finish()
+          return
+        }
+        // Ensure we never hang if onend is skipped by the browser.
+        setTimeout(finish, 800)
+      })
     },
     abort() {
       intentionalStop = true

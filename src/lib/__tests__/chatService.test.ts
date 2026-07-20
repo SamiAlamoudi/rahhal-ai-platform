@@ -8,6 +8,7 @@ import { createDeterministicMockChatProvider } from '../chat/mockChatProvider'
 import { conversationRepository } from '../repositories/conversationRepository'
 import { messageRepository } from '../repositories/messageRepository'
 import type { ConversationRow, MessageRow } from '../types'
+import * as chatAuthGate from '../chat/chatAuthGate'
 
 function conversationRow(overrides: Partial<ConversationRow> = {}): ConversationRow {
   return {
@@ -46,6 +47,7 @@ function messageRow(overrides: Partial<MessageRow> = {}): MessageRow {
 describe('chatService integration', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.spyOn(chatAuthGate, 'assertChatDatabaseAuth').mockResolvedValue({ userId: 'user-1' })
     setChatProviderForTests(createDeterministicMockChatProvider('مرحبا بك\n\n```js\nconsole.log(1)\n```', 0))
   })
 

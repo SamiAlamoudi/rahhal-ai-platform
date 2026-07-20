@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { VoiceInputMode, VoiceLocale, VoiceSessionStatus } from '../../lib/chat/voice/voiceTypes'
 import { VOICE_LOCALES } from '../../lib/chat/voice/voiceTypes'
+import VoiceWaveform from './VoiceWaveform'
 
 interface VoiceComposerProps {
   enabled: boolean
@@ -12,6 +13,7 @@ interface VoiceComposerProps {
   permissionState?: 'granted' | 'denied' | 'prompt' | 'unsupported' | null
   busy: boolean
   online?: boolean
+  level?: number
   onModeChange: (mode: VoiceInputMode) => void
   onLocaleChange: (locale: VoiceLocale) => void
   onPushStart: () => void
@@ -24,9 +26,11 @@ interface VoiceComposerProps {
 const STATUS_LABELS: Record<VoiceSessionStatus, string> = {
   idle: 'جاهز',
   requesting_permission: 'طلب إذن الميكروفون…',
-  listening: 'جاري الاستماع…',
-  processing: 'جاري معالجة الرد…',
-  speaking: 'رحّال يتحدث…',
+  listening: 'Listening…',
+  thinking: 'Thinking…',
+  responding: 'Responding…',
+  processing: 'Thinking…',
+  speaking: 'Speaking…',
   reconnecting: 'إعادة الاتصال بالاستماع…',
   error: 'خطأ',
 }
@@ -41,6 +45,7 @@ export default function VoiceComposer({
   permissionState = null,
   busy,
   online = true,
+  level = 0,
   onModeChange,
   onLocaleChange,
   onPushStart,
@@ -51,10 +56,17 @@ export default function VoiceComposer({
 }: VoiceComposerProps) {
   const listening = status === 'listening'
   const speaking = status === 'speaking'
-  const processing = status === 'processing'
+  const thinking = status === 'thinking' || status === 'processing'
+  const responding = status === 'responding'
+  const processing = thinking || responding
   const reconnecting = status === 'reconnecting'
   const holdRef = useRef(false)
+  const [smoothLevel, setSmoothLevel] = useState(0)
   const showMicHelp = !!permissionError || permissionState === 'denied' || permissionState === 'unsupported'
+
+  useEffect(() => {
+    setSmoothLevel((prev) => prev * 0.55 + level * 0.45)
+  }, [level])
 
   useEffect(() => {
     if (mode !== 'push_to_talk') return
@@ -97,12 +109,12 @@ export default function VoiceComposer({
           className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${
             status === 'error'
               ? 'bg-rose-100 text-rose-700'
-              : listening || speaking || reconnecting
+              : listening || speaking || reconnecting || thinking || responding
                 ? 'bg-primary-50 text-primary-700'
                 : 'bg-slate-100 text-slate-600'
           }`}
         >
-          {(listening || speaking) && (
+          {(listening || speaking || thinking || responding) && (
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" aria-hidden="true" />
           )}
           {STATUS_LABELS[status]}
@@ -157,6 +169,12 @@ export default function VoiceComposer({
         </div>
       )}
 
+      <VoiceWaveform
+        active={listening}
+        level={smoothLevel}
+        label={listening ? 'Recording waveform' : 'Idle waveform'}
+      />
+
       <div
         className="min-h-[3rem] rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700"
         aria-live="polite"
@@ -164,7 +182,7 @@ export default function VoiceComposer({
         {partialTranscript.trim()
           ? partialTranscript
           : listening
-            ? '…تحدث الآن'
+            ? '…تحدث الآن — التوقف القصير (٢–٣ ثوانٍ) لن يقطع التسجيل'
             : 'سيظهر نص كلامك هنا ويُحفظ في سجل المحادثة'}
       </div>
 

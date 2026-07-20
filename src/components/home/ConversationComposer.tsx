@@ -28,6 +28,7 @@ export function ConversationComposer({
 
   const speech = useSpeechRecognition({
     lang: locale === 'ar' ? 'ar-SA' : 'en-US',
+    silenceMs: 3000,
     onResult: (transcript) => {
       // Insert into composer — never auto-send.
       const current = valueRef.current.trim()
