@@ -5,8 +5,8 @@
 
 import {
   ConversationMemoryApi,
-  type ConversationMemory,
-} from '../brain'
+} from '../brain/conversationMemory'
+import type { ConversationMemory } from '../brain/types'
 import type { BookingFlowState } from './types'
 import type { BookingSession } from '../booking/bookingTypes'
 

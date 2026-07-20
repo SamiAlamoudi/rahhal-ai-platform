@@ -1,4 +1,7 @@
-import type { FlightProvider, FlightOffer, ProviderRequest, ProviderResult, ProviderCapabilities } from '../index'
+import type { FlightProvider, ProviderRequest } from '../providers'
+import type { FlightOffer } from '../models'
+import type { ProviderResult } from '../result'
+import type { ProviderCapabilities } from '../capabilities'
 import { okResult } from '../result'
 import { defaultCapabilities } from '../capabilities'
 import type { ProviderMetadata } from '../metadata'

@@ -6,17 +6,15 @@
 
 import type { AgentLocale, TripRequirements } from '../../agent/types'
 import { isBookingFlowEnabled } from '../../bookingFlow/feature'
-import {
-  detectBookingFlowConversationEdit,
-  getBookingFlowController,
-  searchOptionsToBookingSelectedItems,
-} from '../../bookingFlow'
+import { detectBookingFlowConversationEdit } from '../../bookingFlow/conversationEdits'
+import { getBookingFlowController } from '../../bookingFlow/bookingFlowController'
+import { searchOptionsToBookingSelectedItems } from '../../bookingFlow/searchOptionAdapter'
 import type { BookingFlowStage } from '../../bookingFlow/types'
 import type { BrainLocale, BrainTurnResult, TravelIntent } from '../types'
 import type { TravelExecutionTurnResult } from '../execution/types'
 import type { SearchAggregationTurnResult } from '../search/types'
 import type { TripPlanningTurnResult } from '../tripPlanning/types'
-import type { RunIntegratedBrainTurnInput } from '../integration'
+import type { RunIntegratedBrainTurnInput } from '../integrationTypes'
 import {
   buildOrchestratorCacheKey,
   clearOrchestratorCache,
@@ -37,6 +35,11 @@ import {
   recordOrchestratorMetrics,
   resetOrchestratorMetrics,
 } from './metrics'
+import {
+  getOrchestratorHandle,
+  setOrchestratorHandle,
+} from './sessionRegistry'
+import { resetAITripOrchestrator } from './reset'
 import type {
   AITripOrchestratorOptions,
   AITripOrchestratorRunInput,
@@ -637,23 +640,15 @@ export function AITripOrchestrator(
   }
 }
 
-const handles = new Map<string, AITripOrchestratorHandle>()
-
 export function getOrCreateAITripOrchestrator(
   key = 'default',
   options?: AITripOrchestratorOptions,
 ): AITripOrchestratorHandle {
-  const existing = handles.get(key)
+  const existing = getOrchestratorHandle(key) as AITripOrchestratorHandle | undefined
   if (existing && !options) return existing
   const created = AITripOrchestrator(options)
-  handles.set(key, created)
+  setOrchestratorHandle(key, created)
   return created
 }
 
-export function resetAITripOrchestrator(): void {
-  handles.clear()
-  clearOrchestratorCache()
-  resetOrchestratorMetrics()
-}
-
-export { clearOrchestratorCache, resetOrchestratorMetrics }
+export { resetAITripOrchestrator, clearOrchestratorCache, resetOrchestratorMetrics }

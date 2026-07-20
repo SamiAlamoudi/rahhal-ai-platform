@@ -1,4 +1,4 @@
-import type { TravelSession } from './travelSession'
+import type { TravelSession } from './travelSessionTypes'
 
 // ── Types for the analysis profile ──────────────────────────────────────────
 

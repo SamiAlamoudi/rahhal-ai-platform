@@ -33,10 +33,12 @@ import {
   aggregateSearch,
   type SearchAggregationTurnResult,
 } from './search'
-import { resetAITripOrchestrator } from './orchestrator/aiTripOrchestrator'
+import { resetAITripOrchestrator } from './orchestrator/reset'
 import type { AITripOrchestratorTurnResult } from './orchestrator/types'
 import { resetMemoryContextEngine } from './memory'
 import type { MemoryEngineTurnResult } from './memory'
+import type { RunIntegratedBrainTurnInput } from './integrationTypes'
+export type { RunIntegratedBrainTurnInput } from './integrationTypes'
 
 const orchestrators = new Map<string, ConversationOrchestratorHandle>()
 const planningEngines = new Map<string, TripPlanningEngineHandle>()
@@ -379,22 +381,6 @@ export function toMetaBrain(
   }
 }
 
-export type RunIntegratedBrainTurnInput = {
-  conversationId: string
-  userText: string
-  locale?: AgentLocale | BrainLocale
-  /** Optional agent requirements used to seed brain memory before the turn. */
-  requirements?: TripRequirements | null
-  /** Sprint 21 — force travel engine on/off (otherwise FeatureRegistry). */
-  travelEngine?: boolean
-  /** Sprint 22 — force trip planning on/off (otherwise FeatureRegistry). */
-  tripPlanning?: boolean
-  /** Sprint 23 — force execution on/off (otherwise FeatureRegistry). */
-  execution?: boolean
-  /** Sprint 24 — force search aggregation on/off (otherwise FeatureRegistry). */
-  search?: boolean
-  signal?: AbortSignal
-}
 
 /**
  * Shared reasoning entrypoint for text + voice (sync planning path).
