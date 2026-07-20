@@ -209,7 +209,7 @@ function scoreDestination(
   let score = 0.45
   const whySelected: string[] = []
   const pros: string[] = []
-  const cons: string[] = [...profile.risks.map(humanizeRisk)]
+  const cons: string[] = profile.risks.map(humanizeRisk)
   const riskNotes = [...profile.risks]
 
   if (ctx.climate && climateAtMonth) {
