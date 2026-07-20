@@ -103,11 +103,15 @@ describe('Sprint 44 — ChatGPT experience', () => {
     expect(isChatGptExperienceEnabled()).toBe(false)
   })
 
-  it('selects chatgpt-experience provider when flag chain is on', () => {
+  it('creates chatgpt-experience provider when flag chain is on', () => {
     enableChatGptExperienceChain()
-    expect(getDefaultChatProviderType()).toBe('chatgpt-experience')
     const provider = createChatProvider('chatgpt-experience')
     expect(provider.providerId).toBe('chatgpt-experience')
+    // Default selection prefers chatgpt when env does not force mock/conversation-ui.
+    const forced = (import.meta.env.VITE_CHAT_PROVIDER as string | undefined)?.trim().toLowerCase()
+    if (!forced || forced === 'travel-agent') {
+      expect(getDefaultChatProviderType()).toBe('chatgpt-experience')
+    }
   })
 
   it('classifies intents before response generation', () => {
