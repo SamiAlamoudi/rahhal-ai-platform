@@ -86,6 +86,24 @@ export type {
   RankedOffer,
 } from './bookingIntelligence'
 export {
+  isBookingExecutionEnabled,
+  isTransactionManagerEnabled,
+  isBookingResumeEnabled,
+  BOOKING_EXECUTION_FEATURE_ID,
+  TRANSACTION_MANAGER_FEATURE_ID,
+  BOOKING_RESUME_FEATURE_ID,
+  runBookingExecution,
+  createBookingExecutionEngine,
+  lineItemsFromBookingIntelligence,
+  shouldRunBookingExecution,
+} from './bookingExecution'
+export type {
+  BookingExecutionResult,
+  BookingExecutionSnapshot,
+  UnifiedBooking,
+  BookingLifecycleStatus,
+} from './bookingExecution'
+export {
   createDefaultAgentToolRegistry,
   createMockAgentToolRegistry,
   createUnavailableAgentToolRegistry,

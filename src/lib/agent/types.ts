@@ -373,6 +373,25 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 57 — Booking Execution Engine snapshot (lifecycle, confirmations, resume).
+   * Additive structured facts only — Conversation Brain authors traveler-facing text.
+   */
+  bookingExecution?: {
+    sessionId: string
+    status: string
+    bookingIds: string[]
+    confirmedCount: number
+    failedCount: number
+    cancelledCount: number
+    expiredCount: number
+    domains: string[]
+    providerIds: string[]
+    durationMs: number
+    resumed: boolean
+    rolledBack: boolean
+    idempotentReplay: boolean
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.
