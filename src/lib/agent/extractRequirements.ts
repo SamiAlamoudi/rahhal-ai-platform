@@ -143,17 +143,11 @@ export function extractFromUserText(
     normalized,
     Boolean(patch.destination),
   )
-  if (openEnded.isOpenEnded) {
+  // Require a clear open-ended ask (somewhere / مكان / recommend) — weather alone is not enough.
+  if (openEnded.isOpenEnded && openEnded.confidence >= 0.5) {
     patch.destinationFlexible = true
     if (openEnded.climateHint && !patch.weatherPreference) {
       patch.weatherPreference = openEnded.climateHint === 'cold' ? 'cool' : openEnded.climateHint
-    }
-    // Clear accidental stop-word destinations when the ask is clearly open-ended.
-    if (!DESTINATION_ALIASES.some((row) => row.keys.some((k) => lower.includes(k)))) {
-      // keep explicit alias matches; otherwise drop weak "to X" catches for open-ended
-      if (openEnded.confidence >= 0.5) {
-        // preserve alias destinations only
-      }
     }
   }
 

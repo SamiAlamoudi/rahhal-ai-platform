@@ -61,19 +61,21 @@ export function detectOpenEndedDestination(
     || /بدائل|خيارات/.test(trimmed)
     || /\bsurprise\b|فاجأن/.test(lower + trimmed)
 
-  // Weather preference without a named place ⇒ treat as open-ended discovery.
+  // Weather preference without a named place can support discovery, but alone is weak.
   const weatherWithoutPlace = Boolean(climateHint) && !hasNamedDestination
 
-  const isOpenEnded = (!hasNamedDestination && (patternHit || weatherWithoutPlace)) || wantsAlternatives
+  const isOpenEnded = (!hasNamedDestination && patternHit)
+    || wantsAlternatives
+    || (!hasNamedDestination && weatherWithoutPlace && patternHit)
 
   let confidence = 0
   if (patternHit) confidence += 0.55
-  if (weatherWithoutPlace) confidence += 0.35
+  if (weatherWithoutPlace) confidence += 0.25
   if (wantsAlternatives) confidence += 0.2
   if (hasNamedDestination && !wantsAlternatives) confidence = 0
 
   return {
-    isOpenEnded: isOpenEnded && confidence >= 0.35,
+    isOpenEnded: isOpenEnded && confidence >= 0.5,
     climateHint,
     wantsAlternatives,
     confidence: Math.min(1, confidence),

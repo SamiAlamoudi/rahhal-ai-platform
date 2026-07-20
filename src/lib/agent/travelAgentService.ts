@@ -466,15 +466,12 @@ export function createTravelAgentService(
       if (
         isReasoningEnabled()
         && userText.trim()
+        && !memory.tripPlan
+        && !memory.requirements.destination
         && (
           extracted.intent === 'discover'
-          || memory.requirements.destinationFlexible
-          || (
-            !memory.requirements.destination
-            && Boolean(memory.requirements.weatherPreference)
-          )
+          || memory.requirements.destinationFlexible === true
         )
-        && !memory.tripPlan
       ) {
         reasoningResult = runTravelReasoning({
           locale: memory.locale,
