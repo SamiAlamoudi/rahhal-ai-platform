@@ -2,6 +2,15 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Sprint 49: Visa & Travel Advisory Intelligence
+
+### Added
+
+- Consultant-grade visa briefings (processing time, documents, Schengen/UK/Canada/Japan hints) on every reasoning candidate.
+- Travel advisory notes (season, cost, long-haul, safety priors) from catalog risks.
+- Warmer `formatReasoningReply` consultant voice with structured visa/advisory lines.
+- Docs: `docs/SPRINT49_VISA_ADVISORY.md`; tests: `visaIntelligence.sprint49.test.ts`.
+
 ## [Unreleased] — Sprint 48: Persistent Preference Memory
 
 ### Added

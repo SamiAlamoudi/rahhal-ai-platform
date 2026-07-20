@@ -1,6 +1,6 @@
 /**
  * Consultant-style reasoning replies (AR/EN).
- * Feels like an AI travel advisor proposing options — not a form.
+ * Warm, confident travel-advisor voice — not a form or raw data dump.
  */
 
 import type { AgentLocale, TripRequirements } from '../types'
@@ -14,22 +14,24 @@ export function formatReasoningReply(input: {
   const locale = result.locale
   const blocks: string[] = []
 
-  blocks.push(opening(locale, result, requirements))
+  blocks.push(opening(locale, requirements))
 
   const rows = [result.primary, ...result.alternatives].filter(
     (row): row is DestinationCandidate => Boolean(row),
   )
 
   if (rows.length > 0) {
-    blocks.push(locale === 'ar' ? 'ترشيحاتي:' : 'My recommendations:')
+    blocks.push('')
+    blocks.push(locale === 'ar' ? 'ترشيحاتي كمستشار سفر:' : 'My picks as your travel consultant:')
     rows.forEach((row, index) => {
+      blocks.push('')
       blocks.push(formatCandidate(locale, row, index + 1))
     })
   }
 
   if (result.rationale.length > 0) {
     blocks.push('')
-    blocks.push(locale === 'ar' ? 'لماذا هذه الخيارات؟' : 'Why these options?')
+    blocks.push(locale === 'ar' ? 'كيف فكّرت فيها؟' : 'How I reasoned about this:')
     for (const line of result.rationale.slice(0, 4)) {
       blocks.push(`• ${line}`)
     }
@@ -42,18 +44,14 @@ export function formatReasoningReply(input: {
   } else {
     blocks.push('')
     blocks.push(locale === 'ar'
-      ? 'أي وجهة نثبّتها؟ قل الاسم أو «الأولى»، وأبني لك خطة كاملة.'
-      : 'Which destination should we lock? Say the name or “the first one”, and I will build a full plan.')
+      ? 'أي وجهة نثبّتها؟ قل الاسم أو «الأولى» — وأبني لك خطة كاملة مع الطيران والفنادق.'
+      : 'Which destination should we lock? Say the name or “the first one” — I will build a full plan with flights and hotels.')
   }
 
   return blocks.filter(Boolean).join('\n')
 }
 
-function opening(
-  locale: AgentLocale,
-  _result: TravelReasoningResult,
-  requirements: TripRequirements,
-): string {
+function opening(locale: AgentLocale, requirements: TripRequirements): string {
   const bits: string[] = []
   if (requirements.weatherPreference) {
     bits.push(locale === 'ar'
@@ -71,38 +69,51 @@ function opening(
 
   if (locale === 'ar') {
     return bits.length
-      ? `فهمت طلبك (${bits.join(' · ')}). بحثت عن وجهات تناسبك بدون ما أطلب منك تعبئة نموذج.`
-      : 'خلّني أفكر كمستشار سفر وأقترح وجهات مناسبة.'
+      ? `تمام — فهمت (${bits.join(' · ')}). رتّبت لك وجهات مناسبة مع الطقس والميزانية والتأشيرة — بدون أي نموذج.`
+      : 'خلّني أفكّر كمستشار سفر وأقترح وجهات تناسبك.'
   }
   return bits.length
-    ? `Understood (${bits.join(' · ')}). I reasoned through destinations that fit — no form filling.`
-    : 'Let me think like a travel consultant and suggest fitting destinations.'
+    ? `Got it (${bits.join(' · ')}). I ranked destinations for climate, budget, and visa fit — no forms, just options.`
+    : 'Let me think like your travel consultant and short-list fitting destinations.'
 }
 
 function formatCandidate(locale: AgentLocale, row: DestinationCandidate, index: number): string {
   const title = locale === 'ar' ? row.nameAr : row.name
-  const why = row.whySelected[0]
-  const cost = row.estimatedTripCostSar != null
-    ? (locale === 'ar'
-      ? `تقدير ≈ ${row.estimatedTripCostSar} ر.س`
-      : `est. ≈ ${row.estimatedTripCostSar} SAR`)
-    : null
-  const visa = row.visa !== 'unknown'
-    ? (locale === 'ar' ? `تأشيرة: ${row.visa}` : `visa: ${row.visa}`)
-    : null
-  const pros = row.pros[0]
-  const cons = row.cons[0]
+  const lines: string[] = [
+    locale === 'ar' ? `${index}) ${title}` : `${index}) ${title}`,
+  ]
 
-  const parts = [
-    `${index}) ${title}`,
-    why,
-    cost,
-    visa,
-    pros ? (locale === 'ar' ? `إيجابي: ${pros}` : `pro: ${pros}`) : null,
-    cons ? (locale === 'ar' ? `تنبيه: ${cons}` : `note: ${cons}`) : null,
-  ].filter(Boolean)
+  if (row.whySelected[0]) {
+    lines.push(`   ${locale === 'ar' ? 'لماذا' : 'Why'}: ${row.whySelected[0]}`)
+  }
 
-  return parts.join(' — ')
+  if (row.estimatedTripCostSar != null) {
+    lines.push(locale === 'ar'
+      ? `   تقدير الرحلة: ≈ ${row.estimatedTripCostSar} ر.س`
+      : `   Trip estimate: ≈ ${row.estimatedTripCostSar} SAR`)
+  }
+
+  if (row.visaGuidance) {
+    lines.push(`   ${locale === 'ar' ? 'التأشيرة' : 'Visa'}: ${row.visaGuidance.summary}`)
+    if (row.visaGuidance.processingDays) {
+      lines.push(locale === 'ar'
+        ? `   المدة: ${row.visaGuidance.processingDays}`
+        : `   Timing: ${row.visaGuidance.processingDays}`)
+    }
+  }
+
+  if (row.advisoryNotes[0]) {
+    lines.push(`   ${locale === 'ar' ? 'تنبيه' : 'Advisory'}: ${row.advisoryNotes[0]}`)
+  }
+
+  if (row.pros[0]) {
+    lines.push(`   ${locale === 'ar' ? 'إيجابي' : 'Plus'}: ${row.pros[0]}`)
+  }
+  if (row.cons[0]) {
+    lines.push(`   ${locale === 'ar' ? 'انتبه' : 'Watch'}: ${row.cons[0]}`)
+  }
+
+  return lines.join('\n')
 }
 
 function followUpBlock(
@@ -115,8 +126,8 @@ function followUpBlock(
     switch (field) {
       case 'durationDays':
         return locale === 'ar'
-          ? 'كم يوم تتخيّل للرحلة؟ (مثلاً 5–7 أيام تناسب هذا النوع من الميزانيات)'
-          : 'How many days are you imagining? (5–7 often fits this budget band)'
+          ? 'كم يوم تتخيّل؟ (5–7 أيام غالباً مناسبة لهذا النوع من الرحلات)'
+          : 'How many days are you imagining? (5–7 often works for this kind of trip)'
       case 'travelers':
         return locale === 'ar' ? 'كم عدد المسافرين؟' : 'How many travelers?'
       case 'travelerType':
@@ -131,8 +142,8 @@ function followUpBlock(
   void requirements
   if (questions.length === 1) {
     return locale === 'ar'
-      ? `حتى أضبط الترشيح: ${questions[0]}`
-      : `To fine-tune this: ${questions[0]}`
+      ? `سؤال واحد فقط قبل ما نثبّت: ${questions[0]}`
+      : `One quick question before we lock in: ${questions[0]}`
   }
   return [
     locale === 'ar' ? 'سؤالان سريعان قبل ما نثبّت الوجهة:' : 'Two quick questions before we lock a destination:',
