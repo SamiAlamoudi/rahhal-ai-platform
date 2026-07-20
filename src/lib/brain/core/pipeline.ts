@@ -32,7 +32,7 @@ export function selectModulesToExecute(input: {
     || input.memory.requirements.destinationFlexible === true
 
   if (input.reasoningEnabled && discovery && !input.memory.tripPlan) {
-    modules.push('destination_discovery', 'climate', 'reasoning', 'visa', 'advisory', 'ranking')
+    modules.push('destination_discovery', 'climate', 'reasoning', 'visa', 'advisory', 'ranking', 'executive', 'budget')
   }
 
   if (input.memory.requirements.destination && !input.memory.tripPlan) {

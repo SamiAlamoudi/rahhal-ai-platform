@@ -186,6 +186,7 @@ describe('Phase AB AI planning improvements', () => {
           interests: ['food', 'culture'],
           weatherPreference: 'mild',
           favoriteDestinations: [],
+          rejectedDestinations: [],
         },
       },
       ['food', 'shopping'],

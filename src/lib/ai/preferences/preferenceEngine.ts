@@ -73,6 +73,7 @@ export class InMemoryPreferenceEngine implements PreferenceEngine {
         ...profile.travelStyle,
         interests: [...(profile.travelStyle?.interests ?? [])],
         favoriteDestinations: [...(profile.travelStyle?.favoriteDestinations ?? [])],
+        rejectedDestinations: [...(profile.travelStyle?.rejectedDestinations ?? [])],
       },
       updatedAt: new Date().toISOString(),
     }

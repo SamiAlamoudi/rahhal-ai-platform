@@ -94,6 +94,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: smart_clarification',
   },
   {
+    id: 'ai.travel_executive',
+    name: 'AI Travel Executive (Phase 2)',
+    description:
+      'Phase 2 executive intelligence — context builder, rejected-destination memory, budget warnings, discovery optimizer, and consultant discovery replies via RahhalBrain.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.rahhal_brain', 'ai.persistent_memory'],
+    notes: 'Product alias: travel_executive',
+  },
+  {
     id: 'ai.rahhal_brain',
     name: 'Rahhal Brain Core',
     description:

@@ -76,6 +76,13 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Distinct from experimental `brain.enabled` stack (default OFF).
 - See `docs/SPRINT50_RAHHAL_BRAIN_CORE.md`.
 
+## AI Travel Executive (Phase 2)
+
+- Executive intelligence on the production path — rejected destinations, budget warnings, discovery optimizer, consultant replies.
+- Package: `src/lib/brain/executive`; wired through RahhalBrain after reasoning.
+- Flag: `ai.travel_executive` (default **ON**; depends on `ai.rahhal_brain`, `ai.persistent_memory`).
+- See `docs/PHASE2_TRAVEL_EXECUTIVE.md`.
+
 ## Smart Clarification / Never-Ask-Twice (Sprint 46)
 
 - Soft preferences (interests, weather, hotel, package, budget style, traveler type) are **inferred**, never form-asked.

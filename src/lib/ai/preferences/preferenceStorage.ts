@@ -102,6 +102,9 @@ function normalizeStoredProfile(
       favoriteDestinations: Array.isArray(raw.travelStyle?.favoriteDestinations)
         ? raw.travelStyle.favoriteDestinations
         : [],
+      rejectedDestinations: Array.isArray(raw.travelStyle?.rejectedDestinations)
+        ? raw.travelStyle.rejectedDestinations
+        : [],
     },
     weights: { ...base.weights, ...raw.weights },
     updatedAt: raw.updatedAt || new Date().toISOString(),
