@@ -94,6 +94,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: smart_clarification',
   },
   {
+    id: 'ai.real_world_intelligence',
+    name: 'Real World Intelligence Layer (Sprint 53)',
+    description:
+      'Sprint 53 — live flight/hotel/weather/visa/event/safety/exchange/transport/price-watch signals via provider abstractions, event bus, cache, and resilience — orchestrated only through RahhalBrain.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.rahhal_brain'],
+    notes: 'Product alias: real_world_intelligence',
+  },
+  {
     id: 'ai.executive_os',
     name: 'Executive Operating System (Sprint 52)',
     description:
