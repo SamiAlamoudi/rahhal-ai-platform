@@ -40,7 +40,7 @@ describe('Experience Sprint 1 — conversation-first advisor', () => {
     expect(result.patch.durationDays).toBe(14)
     expect(result.patch.travelerType).toBe('couple')
     expect(result.patch.travelers).toBe(2)
-    expect(result.patch.startDate).toMatch(/-08-01$/)
+    expect(result.patch.startDate).toMatch(/-08-15$/)
   })
 
   it('follow-ups never sound like a form wizard', () => {

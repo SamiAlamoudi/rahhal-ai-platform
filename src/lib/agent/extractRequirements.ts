@@ -653,7 +653,10 @@ function matchDates(
   return { start: null, end: null }
 }
 
-/** Resolve soft month hints like "next April" into a planning start date (YYYY-MM-01). */
+/**
+ * Resolve soft month hints like "next April" into a planning start date.
+ * Uses mid-month (15) as an anchor — month-only intake is not a hard booking date.
+ */
 function matchMonthHint(lower: string, original: string): string | null {
   const months: Array<{ keys: string[]; month: number }> = [
     { keys: ['january', 'يناير'], month: 1 },
@@ -682,7 +685,7 @@ function matchMonthHint(lower: string, original: string): string | null {
         }
       }
       const mm = String(entry.month).padStart(2, '0')
-      return `${year}-${mm}-01`
+      return `${year}-${mm}-15`
     }
   }
   return null

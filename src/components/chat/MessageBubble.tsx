@@ -152,6 +152,7 @@ export default function MessageBubble({
               <AlphaJourneyPanel
                 message={message}
                 busy={busy}
+                locale={locale}
                 onCommand={onSmartAction}
               />
             )}

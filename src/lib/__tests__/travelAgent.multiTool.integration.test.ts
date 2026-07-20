@@ -37,7 +37,7 @@ describe('multi-tool execution integration', () => {
     expect(turn.tripPlan).toBeTruthy()
     expect(turn.tripPlan?.destinations).toContain('Japan')
     expect(turn.tripPlan?.durationDays).toBe(5)
-    expect(turn.tripPlan?.startDate).toMatch(/-04-01$/)
+    expect(turn.tripPlan?.startDate).toMatch(/-04-15$/)
 
     expect(turn.toolBatch).toBeTruthy()
     expect(turn.toolBatch!.selected).toEqual(expect.arrayContaining([

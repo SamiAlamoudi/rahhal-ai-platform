@@ -74,7 +74,7 @@ describe('extractFromUserText', () => {
     const result = extractFromUserText('I want to spend 5 days in Japan next April.')
     expect(result.patch.destination).toBe('Japan')
     expect(result.patch.durationDays).toBe(5)
-    expect(result.patch.startDate).toMatch(/-04-01$/)
+    expect(result.patch.startDate).toMatch(/-04-15$/)
   })
 
   it('parses ISO, slash, dash, and relative dates', () => {
@@ -108,7 +108,7 @@ describe('extractFromUserText', () => {
     expect(result.patch.durationDays).toBe(14)
     expect(result.patch.travelerType).toBe('couple')
     expect(result.patch.travelers).toBe(2)
-    expect(result.patch.startDate).toMatch(/-08-01$/)
+    expect(result.patch.startDate).toMatch(/-08-15$/)
   })
 
   it('QA: destination is not stolen by origin city', () => {
