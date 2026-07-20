@@ -40,7 +40,11 @@ export class ProviderHealthMonitor {
   private readonly quota = new Map<LiveProviderId, { remaining: number; limit: number }>()
 
   constructor(options: HealthMonitorOptions = {}) {
-    this.options = { ...DEFAULTS, ...options }
+    this.options = {
+      ...DEFAULTS,
+      ...options,
+      now: options.now ?? DEFAULTS.now,
+    }
   }
 
   recordSuccess(providerId: LiveProviderId, latencyMs: number, quality = 0.8): void {

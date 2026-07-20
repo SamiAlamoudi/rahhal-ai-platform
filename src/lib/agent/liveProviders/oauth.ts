@@ -104,7 +104,7 @@ export class AmadeusOAuthManager {
     const response = await this.fetchImpl(url, {
       ...init,
       headers: {
-        ...(init.headers ?? {}),
+        ...init.headers,
         Authorization: `${first.token.tokenType} ${first.token.accessToken}`,
       },
     })
@@ -119,7 +119,7 @@ export class AmadeusOAuthManager {
     const retry = await this.fetchImpl(url, {
       ...init,
       headers: {
-        ...(init.headers ?? {}),
+        ...init.headers,
         Authorization: `${refreshed.token.tokenType} ${refreshed.token.accessToken}`,
       },
     })

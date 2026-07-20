@@ -97,7 +97,7 @@ export function createDuffelLiveProvider(options: DuffelAdapterOptions = {}): Li
         'Content-Type': 'application/json',
         'Duffel-Version': 'v2',
         Authorization: `Bearer ${token}`,
-        ...(init.headers ?? {}),
+        ...init.headers,
       },
     })
   }
