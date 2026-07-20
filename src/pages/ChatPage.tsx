@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
 import VoiceComposer from '../components/chat/VoiceComposer'
+import LiveNotificationsBanner from '../components/chat/experience/LiveNotificationsBanner'
+import VirtualizedMessageList from '../components/chat/experience/VirtualizedMessageList'
 import { travelAgentService } from '../lib/agent/travelAgentService'
 import type { TripPlan } from '../lib/agent/types'
 import { chatEngine } from '../lib/chat/chatEngine'
@@ -16,6 +18,23 @@ import {
 } from '../lib/chat/chatRecovery'
 import { createDeltaCoalescer } from '../lib/chat/streamUi'
 import type { ChatConversation, ChatMessage } from '../lib/chat/chatTypes'
+import {
+  buildConversationTimeline,
+  chatThemeClassName,
+  createConversationBookingBridge,
+  enrichPlanForBooking,
+  extractConversationUiMeta,
+  getConversationLiveNotificationBus,
+  isConversationExperienceEnabled,
+  readStoredChatTheme,
+  resolveChatTheme,
+  writeStoredChatTheme,
+  type ChatThemeMode,
+  type ConversationBookingAction,
+  type ConversationBookingState,
+  type ConversationLiveEvent,
+  type ConversationTimelineEvent,
+} from '../lib/chat/conversationExperienceUi'
 import { createSpeechToTextProvider, createTextToSpeechProvider } from '../lib/chat/voice/voiceProviderFactory'
 import { createVoiceSession, type CreateVoiceSessionOptions, type VoiceSession } from '../lib/chat/voice/voiceSession'
 import { subscribeMicrophonePermission } from '../lib/chat/voice/microphonePermission'
@@ -54,12 +73,19 @@ export default function ChatPage() {
   const [micError, setMicError] = useState<string | null>(null)
   const [permissionState, setPermissionState] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null)
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine)
+  const [themePreference, setThemePreference] = useState<ChatThemeMode | 'system'>(() => readStoredChatTheme())
+  const [theme, setTheme] = useState<ChatThemeMode>(() => resolveChatTheme(readStoredChatTheme()))
+  const [liveEvents, setLiveEvents] = useState<ConversationLiveEvent[]>([])
+  const [bookingState, setBookingState] = useState<ConversationBookingState | null>(null)
+  const [bookingBusy, setBookingBusy] = useState(false)
   const seedConsumedRef = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const voiceRef = useRef<VoiceSession | null>(null)
   const activeIdRef = useRef<string | null>(null)
   const streamingRef = useRef(false)
+  const bookingBridgeRef = useRef(createConversationBookingBridge())
+  const experienceEnabled = isConversationExperienceEnabled()
 
   const filtered = useMemo(
     () => chatEngine.searchConversations(conversations, query),
@@ -433,6 +459,141 @@ export default function ChatPage() {
     })
   }
 
+  useEffect(() => {
+    const resolved = resolveChatTheme(themePreference)
+    setTheme(resolved)
+    writeStoredChatTheme(themePreference)
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset.chatTheme = resolved
+    }
+  }, [themePreference])
+
+  useEffect(() => {
+    if (!experienceEnabled) return
+    return getConversationLiveNotificationBus().subscribe(setLiveEvents)
+  }, [experienceEnabled])
+
+  const timelineEvents = useMemo<ConversationTimelineEvent[]>(() => {
+    if (!experienceEnabled) return []
+    return buildConversationTimeline({
+      trips: bookingState?.trip ? [bookingState.trip] : [],
+      executionTimeline: bookingState?.execution?.session.timeline ?? [],
+      bookingReference: bookingState?.execution?.summary.references.bookingReference ?? null,
+      paid: Boolean(bookingState?.paymentResult?.success),
+    })
+  }, [experienceEnabled, bookingState])
+
+  const latestStructuredMessage = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const meta = extractConversationUiMeta(messages[i].providerMeta)
+      if (meta.structured) return messages[i]
+    }
+    return null
+  }, [messages])
+
+  const handleBookingAction = async (action: ConversationBookingAction) => {
+    if (!activeId || bookingBusy) return
+    setBookingBusy(true)
+    setActionError(null)
+    try {
+      const bridge = bookingBridgeRef.current
+      if (action === 'reserve') {
+        const plan = enrichPlanForBooking(
+          extractConversationUiMeta(latestStructuredMessage?.providerMeta).structured,
+        )
+        if (!plan) {
+          setActionError('No itinerary available to reserve')
+          return
+        }
+        const next = await bridge.reserve({
+          conversationId: activeId,
+          selectedItinerary: plan,
+          locale: 'ar',
+        })
+        setBookingState(next)
+        if (next.execution?.summary.success) {
+          getConversationLiveNotificationBus().publish({
+            kind: 'supplier_confirmed',
+            title: 'Supplier confirmed',
+            body: next.message,
+            tripId: next.execution.session.context.tripId,
+          })
+        }
+        return
+      }
+      if (!bookingState && action !== 'view_documents' && action !== 'open_trip') {
+        setActionError('Reserve a recommendation first')
+        return
+      }
+      const current = bookingState ?? {
+        execution: null,
+        paymentSession: null,
+        paymentResult: null,
+        trip: null,
+        lastAction: null,
+        message: '',
+      }
+      if (action === 'pay') {
+        const next = await bridge.pay(current)
+        setBookingState(next)
+        if (next.paymentResult?.success) {
+          getConversationLiveNotificationBus().publish({
+            kind: 'documents_issued',
+            title: 'Payment received',
+            body: next.message,
+            tripId: next.trip?.tripId,
+          })
+        }
+        return
+      }
+      if (action === 'cancel') {
+        setBookingState(await bridge.cancel(current))
+        return
+      }
+      if (action === 'refund') {
+        const next = await bridge.refund(current)
+        setBookingState(next)
+        if (next.lastAction === 'refund') {
+          getConversationLiveNotificationBus().publish({
+            kind: 'refund_processed',
+            title: 'Refund update',
+            body: next.message,
+            tripId: next.trip?.tripId,
+          })
+        }
+        return
+      }
+      if (action === 'view_documents') {
+        const docs = bridge.viewDocuments(current)
+        setActionError(
+          docs.documents.length
+            ? docs.documents.map((d) => `${d.label}: ${d.uri}`).join(' · ')
+            : 'No documents yet — pay to issue trip documents',
+        )
+        return
+      }
+      if (action === 'open_trip') {
+        const trip = bridge.openTrip(current)
+        if (trip) {
+          navigate('/my-trips')
+        } else {
+          setActionError('No trip record yet — complete pay to open My Trip')
+        }
+      }
+    } catch (e) {
+      logChatError('chat.booking_action', e)
+      setActionError(e instanceof Error ? e.message : 'Booking action failed')
+    } finally {
+      setBookingBusy(false)
+    }
+  }
+
+  const cycleTheme = () => {
+    const order: Array<ChatThemeMode | 'system'> = ['light', 'dark', 'high_contrast', 'system']
+    const idx = order.indexOf(themePreference)
+    setThemePreference(order[(idx + 1) % order.length])
+  }
+
   // Sprint 16 — seed conversation from AI Home (location.state.seedMessage or ?seed=)
   useEffect(() => {
     if (seedConsumedRef.current || listLoading || !online) return
@@ -561,14 +722,14 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-gradient-to-b from-slate-50/50 via-white to-white">
-      <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/80 backdrop-blur-md">
+    <div className={`flex h-[100dvh] flex-col bg-gradient-to-b from-slate-50/50 via-white to-white ${chatThemeClassName(theme)}`}>
+      <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/80 backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
               onClick={() => navigate('/')}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
               aria-label="رجوع"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
@@ -577,7 +738,7 @@ export default function ChatPage() {
             </button>
             <button
               type="button"
-              className="rounded-lg px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 lg:hidden"
+              className="rounded-lg px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 lg:hidden dark:text-slate-300 dark:hover:bg-slate-800"
               aria-expanded={mobileSidebarOpen}
               aria-controls="chat-sidebar"
               onClick={() => setMobileSidebarOpen(true)}
@@ -585,16 +746,27 @@ export default function ChatPage() {
               المحادثات
             </button>
             <div className="min-w-0">
-              <h1 className="truncate text-base font-bold text-slate-900">وكيل سفر رحّال</h1>
+              <h1 className="truncate text-base font-bold text-slate-900 dark:text-slate-100">وكيل سفر رحّال</h1>
               <p className="text-[10px] text-slate-400">
                 {online
-                  ? 'تخطيط رحلات منظم · نص وصوت على نفس المحرك'
+                  ? experienceEnabled
+                    ? 'تجربة محادثة الإنتاج · بطاقات وحجز داخل الدردشة'
+                    : 'تخطيط رحلات منظم · نص وصوت على نفس المحرك'
                   : 'غير متصل — وضع القراءة فقط مؤقتاً'}
               </p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium" role="tablist" aria-label="وضع الإدخال">
+            <button
+              type="button"
+              onClick={cycleTheme}
+              className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              aria-label={`Theme ${themePreference}`}
+              title="Light / Dark / High contrast"
+            >
+              {themePreference === 'system' ? 'Theme' : themePreference}
+            </button>
+            <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium dark:bg-slate-800" role="tablist" aria-label="وضع الإدخال">
               <button
                 type="button"
                 role="tab"
@@ -603,7 +775,7 @@ export default function ChatPage() {
                   setComposerMode('text')
                   voiceRef.current?.interrupt()
                 }}
-                className={`rounded-md px-2.5 py-1 ${composerMode === 'text' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                className={`rounded-md px-2.5 py-1 ${composerMode === 'text' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500'}`}
               >
                 كتابة
               </button>
@@ -612,7 +784,7 @@ export default function ChatPage() {
                 role="tab"
                 aria-selected={composerMode === 'voice'}
                 onClick={() => setComposerMode('voice')}
-                className={`rounded-md px-2.5 py-1 ${composerMode === 'voice' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                className={`rounded-md px-2.5 py-1 ${composerMode === 'voice' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500'}`}
               >
                 صوت
               </button>
@@ -646,6 +818,16 @@ export default function ChatPage() {
         </div>
 
         <section className="flex min-w-0 flex-1 flex-col" aria-busy={listLoading || detailLoading}>
+          {experienceEnabled && liveEvents.some((e) => e.unread) && (
+            <div className="mx-4 mt-4">
+              <LiveNotificationsBanner
+                events={liveEvents}
+                onDismiss={(id) => getConversationLiveNotificationBus().markRead(id)}
+                onOpenTrip={() => navigate('/my-trips')}
+              />
+            </div>
+          )}
+
           {!online && (
             <div className="mx-4 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
               انقطع الاتصال. يمكنك متابعة القراءة؛ الإرسال سيعود تلقائياً عند الاتصال.
@@ -706,21 +888,35 @@ export default function ChatPage() {
                     </p>
                   </div>
                 )}
-                <div className="space-y-3" aria-live="polite">
-                  {messages.map((message) => (
+                <VirtualizedMessageList
+                  messages={messages}
+                  renderMessage={(message) => (
                     <MessageBubble
-                      key={message.id}
                       message={message}
                       isStreaming={message.status === 'streaming'}
-                      busy={isStreaming || voiceBusy}
+                      busy={isStreaming || voiceBusy || bookingBusy}
+                      locale="ar"
+                      bookingState={
+                        experienceEnabled && message.id === latestStructuredMessage?.id
+                          ? bookingState
+                          : null
+                      }
+                      timelineEvents={
+                        experienceEnabled && message.id === latestStructuredMessage?.id
+                          ? timelineEvents
+                          : []
+                      }
                       onRetry={(id) => void handleRetry(id)}
                       onSaveItinerary={(itinerary) => void handleSaveItinerary(itinerary)}
                       onRegenerateItinerary={(id) => void handleRegenerateItinerary(id)}
                       onRegenerateDay={(id, day) => void handleRegenerateDay(id, day)}
                       onEditItinerary={(patchText) => void sendAgentCommand(patchText)}
+                      onSmartAction={(hint) => void sendAgentCommand(hint)}
+                      onBookingAction={(action) => void handleBookingAction(action)}
+                      onOpenTimelineEvent={() => navigate('/my-trips')}
                     />
-                  ))}
-                </div>
+                  )}
+                />
                 <div ref={bottomRef} />
               </div>
 

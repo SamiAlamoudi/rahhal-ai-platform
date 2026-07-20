@@ -87,6 +87,47 @@ body {
   color-scheme: light;
 }
 
+/* Sprint 42 — conversation experience themes */
+.chat-theme-light {
+  color-scheme: light;
+}
+
+.chat-theme-dark {
+  color-scheme: dark;
+  background: linear-gradient(to bottom, #0f172a, #020617);
+  color: #e2e8f0;
+}
+
+.chat-theme-dark .bg-white,
+.chat-theme-dark .bg-white\/80,
+.chat-theme-dark .bg-white\/90 {
+  background-color: rgb(15 23 42 / 0.92) !important;
+}
+
+.chat-theme-contrast {
+  color-scheme: light;
+  --color-primary-600: #0000ee;
+  background: #ffffff;
+  color: #000000;
+}
+
+.chat-theme-contrast button,
+.chat-theme-contrast a {
+  outline-offset: 2px;
+}
+
+.chat-theme-contrast :focus-visible {
+  outline: 3px solid #000000;
+}
+
+html[data-chat-theme='dark'] {
+  color-scheme: dark;
+}
+
+html[data-chat-theme='high_contrast'] {
+  color-scheme: light;
+}
+
 @media print {
   body {
     background: white;

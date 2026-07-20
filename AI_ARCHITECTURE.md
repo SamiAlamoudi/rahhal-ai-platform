@@ -286,6 +286,16 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag (default **OFF**): `brain.trip_management` (depends on `brain.payments_platform`).
 - See `docs/SPRINT35_TRIP_MANAGEMENT.md`.
 
+## Conversation Experience & Booking UX (Sprint 42)
+
+- **UI/integration only** — unifies Sprint 28 memory + Sprint 32–35 engines into one production chat experience.
+- Package: `src/lib/chat/conversationExperienceUi` + `src/components/chat/experience`.
+- Renders structured `providerMeta.structured` as rich travel cards (flight/hotel/car/activity/visa/insurance), smart actions, booking action bar, timeline, live notifications, map previews, and memory chips.
+- `ConversationBookingBridge` calls existing `TravelExecutionEngine` → `PaymentOrchestrator` → `PostBookingService` for Reserve / Pay / Cancel / Refund / Documents / Open Trip **inside the conversation**.
+- Themes: light / dark / high contrast; virtualized message list; memoized cards; lazy image previews.
+- Flag (default **OFF**): `ui.conversation_experience` (depends on `brain.conversation_ui`).
+- See `docs/SPRINT42_CONVERSATION_EXPERIENCE.md`.
+
 ## Engines (interfaces)
 
 | Engine | Responsibility |
