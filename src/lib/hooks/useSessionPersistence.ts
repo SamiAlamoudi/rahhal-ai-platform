@@ -42,6 +42,10 @@ export function useSessionPersistence() {
     })()
   }, [user, authLoading])
 
+  useEffect(() => () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+  }, [])
+
   const saveSession = useCallback((updated: TravelSession) => {
     setSessionState(updated)
     if (!user) return

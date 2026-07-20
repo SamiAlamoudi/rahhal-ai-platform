@@ -13,6 +13,7 @@ import type {
   ConversationBookingState,
   ConversationTimelineEvent,
 } from '../../lib/chat/conversationExperienceUi'
+import { safeMediaUrl } from '../../lib/ops/security/safeMediaUrl'
 
 interface MessageBubbleProps {
   message: ChatMessage
@@ -54,9 +55,12 @@ export default function MessageBubble({
   const [copied, setCopied] = useState(false)
   const isUser = message.role === 'user'
   const showActions = message.role === 'assistant' && message.status !== 'streaming' && !isStreaming
-  const imageUrl = message.imageUrl
-    || message.attachments.find((a) => a.kind === 'image')?.url
-    || null
+  const imageUrl = safeMediaUrl(
+    message.imageUrl
+      || message.attachments.find((a) => a.kind === 'image')?.url
+      || null,
+  )
+  const audioUrl = safeMediaUrl(message.audioUrl)
   const itinerary = tripPlanFromMeta(message.providerMeta)
   const experienceOn = isConversationExperienceEnabled()
   const timestamp = formatMessageTime(message.createdAt)
@@ -102,8 +106,8 @@ export default function MessageBubble({
           </div>
         )}
 
-        {message.audioUrl && (
-          <audio controls preload="none" className="mb-2 w-full" src={message.audioUrl}>
+        {audioUrl && (
+          <audio controls preload="none" className="mb-2 w-full" src={audioUrl}>
             <track kind="captions" />
           </audio>
         )}

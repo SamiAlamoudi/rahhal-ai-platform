@@ -53,18 +53,18 @@ function timingSafeEqual(a: string, b: string): boolean {
   return out === 0
 }
 
-function verifyWebhookSecret(req: Request, url: URL): boolean {
+function verifyWebhookSecret(req: Request): boolean {
   const expected = Deno.env.get('MOYASAR_WEBHOOK_SECRET')
   if (!expected) {
     return false
   }
 
+  // Header-only — never accept secrets via query string (Referer / access-log leakage).
   const signature = req.headers.get('X-Moyasar-Signature')
     ?? req.headers.get('x-moyasar-signature')
   const sharedHeader = req.headers.get('x-rahhal-webhook-secret')
-  const sharedQuery = url.searchParams.get('webhook_secret')
 
-  const candidates = [signature, sharedHeader, sharedQuery].filter(
+  const candidates = [signature, sharedHeader].filter(
     (v): v is string => typeof v === 'string' && v.length > 0,
   )
 
@@ -80,8 +80,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Method not allowed' }, 405)
   }
 
-  const url = new URL(req.url)
-  if (!verifyWebhookSecret(req, url)) {
+  if (!verifyWebhookSecret(req)) {
     return jsonResponse({ error: 'Unauthorized webhook', code: 'MOYASAR_WEBHOOK_UNAUTHORIZED' }, 401)
   }
 
