@@ -14,7 +14,8 @@
 
 import type { FlightOffer } from '../../../utils/contracts/models/flight'
 import type { FlightProvider as FlightProviderContract } from '../../../utils/contracts/providers/FlightProvider'
-import type { ProviderRequest, ProviderCapabilities } from '../../../utils/contracts'
+import type { ProviderRequest } from '../../../utils/contracts/providers'
+import type { ProviderCapabilities } from '../../../utils/contracts/capabilities'
 import type { ProviderResult } from '../../../utils/contracts/result'
 import { okResult, errorResult } from '../../../utils/contracts/result'
 import { defaultCapabilities } from '../../../utils/contracts/capabilities'

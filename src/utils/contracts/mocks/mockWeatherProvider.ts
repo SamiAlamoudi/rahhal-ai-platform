@@ -1,4 +1,7 @@
-import type { WeatherProvider, WeatherInfo, WeatherForecast, ProviderRequest, ProviderResult, ProviderCapabilities } from '../index'
+import type { WeatherProvider, ProviderRequest } from '../providers'
+import type { WeatherInfo, WeatherForecast } from '../models'
+import type { ProviderResult } from '../result'
+import type { ProviderCapabilities } from '../capabilities'
 import { okResult } from '../result'
 import { defaultCapabilities } from '../capabilities'
 import type { ProviderMetadata } from '../metadata'

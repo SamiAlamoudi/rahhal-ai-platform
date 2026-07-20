@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'cursor/**']
   pull_request:
 
 jobs:
@@ -32,6 +32,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Architecture circular dependency check
+        run: npm run arch:circular
 
       - name: Test
         run: npm run test:run

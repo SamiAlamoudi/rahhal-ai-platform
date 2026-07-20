@@ -1,4 +1,6 @@
-import type { ProviderRequest, ProviderResult, ProviderCapabilities } from '../../utils/contracts'
+import type { ProviderRequest } from '../../utils/contracts/providers'
+import type { ProviderResult } from '../../utils/contracts/result'
+import type { ProviderCapabilities } from '../../utils/contracts/capabilities'
 import type { ProviderContract } from '../../utils/contracts/providers/base'
 import { okResult } from '../../utils/contracts/result'
 import { defaultCapabilities } from '../../utils/contracts/capabilities'

@@ -17,7 +17,7 @@ import {
   type AddBookingItemInput,
 } from '../booking'
 import { prepareBookingPayment } from '../payment'
-import type { ConversationMemory } from '../brain'
+import type { ConversationMemory } from '../brain/types'
 import { searchOptionsToBookingSelectedItems, bookingKindOfItem } from './searchOptionAdapter'
 import {
   saveBookingFlowState,

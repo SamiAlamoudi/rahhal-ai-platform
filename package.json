@@ -25,7 +25,8 @@
     "build:e2e": "VITE_DEMO_AUTH=true VITE_SUPABASE_URL=https://example.supabase.co VITE_SUPABASE_ANON_KEY=eyJhbGciOiJub25lIn0.e30. VITE_PAYMENT_PROVIDER=mock VITE_FLIGHT_PROVIDER=mock VITE_HOTEL_ADAPTER=mock VITE_LIVE_PROVIDERS_ENABLED=false VITE_PROVIDER_MOCK_FALLBACK=true npm run build",
     "build:preview": "VITE_DEPLOY_TARGET=preview VITE_PAYMENT_PROVIDER=mock VITE_LIVE_PROVIDERS_ENABLED=false VITE_PROVIDER_MOCK_FALLBACK=true VITE_FLIGHT_PROVIDER=mock VITE_HOTEL_ADAPTER=mock VITE_BOOKING_PROVIDER=mock VITE_MAPS_PROVIDER=mock VITE_WEATHER_PROVIDER=mock npm run build",
     "test:playwright": "npm run build:e2e && playwright test",
-    "test:browser": "npm run test:playwright"
+    "test:browser": "npm run test:playwright",
+    "arch:circular": "node scripts/check-circular.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
