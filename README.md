@@ -65,7 +65,12 @@ Experimental Sprint 42–44 UX/orchestrator flags default **OFF** — see `FEATU
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).
 
 v1 docs: `RELEASE_NOTES_v1.md`, `PRODUCTION_CHECKLIST.md`, `FEATURE_REGISTRY.md`, `AI_ARCHITECTURE.md`, `V1_1_ROADMAP.md`, `RC_STABILIZATION_REPORT.md`.  
+Architecture: `ARCHITECTURE_GUIDE.md`, `MODULE_MAP.md`, `DEPENDENCY_GRAPH.md`, `SYSTEM_OVERVIEW.md`, `ROADMAP_TECHNICAL.md`, `TECHNICAL_DEBT.md`, `ARCHITECTURE_METRICS.md`, `src/domains/README.md`.  
 Ops runbooks: `MONITORING_RUNBOOK.md`, `ALERTING_MATRIX.md`, `HOTFIX_PROCESS.md`, `POST_RELEASE_CHECKLIST.md`, `INCIDENT_TEMPLATE.md`, `CUSTOMER_SUPPORT_RUNBOOK.md`.
+
+| Script | Purpose |
+|--------|---------|
+| `npm run arch:circular` | Fail CI/local if `src/` gains import cycles |
 
 ## Payments freeze (Phase D)
 

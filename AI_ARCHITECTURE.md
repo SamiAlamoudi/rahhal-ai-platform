@@ -1,6 +1,8 @@
 # AI Architecture — Phase AB Foundation
 
 > **RC note (`1.1.0-rc.1`):** Sprint 42–44 conversation UX / orchestrator modules are merged and registry-gated (default OFF). This document remains the ownership map; see **Active conversation paths** below for production defaults.
+>
+> **DDD note:** Public AI entry is `src/domains/ai` (+ sub-modules under `src/domains/ai/*`). See `ARCHITECTURE_GUIDE.md` and `MODULE_MAP.md`.
 
 ## Principles
 
