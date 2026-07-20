@@ -70,8 +70,6 @@ export function redactSecrets(value: string): string {
 
 export {
   readLiveProviderSecret,
-  readAmadeusApiKey,
-  readAmadeusApiSecret,
   hasAmadeusCredentials,
   hasDuffelCredentials,
   hasBookingCredentials,
