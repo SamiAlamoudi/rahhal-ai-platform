@@ -95,6 +95,7 @@ import type { SearchAggregationTurnResult } from '../brain/search'
 import {
   applyReasoningToRequirements,
   formatReasoningReply,
+  isPreferenceMemoryEnabled,
   isTravelReasoningEnabled,
   learnPreferencesFromRequirements,
   matchDestinationSelection,
@@ -426,15 +427,17 @@ export function createTravelAgentService(
         requirements: mergeRequirements(prior.requirements, extracted.patch),
       }
 
-      // Sprint 45 — seed empty slots from long-term preference memory (never overwrite).
-      if (isReasoningEnabled()) {
+      // Sprint 45/48 — seed empty slots from long-term preference memory (never overwrite).
+      if (isPreferenceMemoryEnabled() || isReasoningEnabled()) {
         memory = {
           ...memory,
           requirements: seedRequirementsFromPreferences(memory.requirements, {
             userId: preferenceUserId,
           }),
         }
+      }
 
+      if (isReasoningEnabled()) {
         // Confirm a previously proposed destination ("first one" / named pick).
         const priorMeta = [...input.messages]
           .reverse()
@@ -494,7 +497,10 @@ export function createTravelAgentService(
         }
         reasoningMeta = toReasoningSnapshot(reasoningResult)
         learnPreferencesFromRequirements(memory.requirements, { userId: preferenceUserId })
-      } else if (isReasoningEnabled() && hasPlanningPatch(extracted.patch as Record<string, unknown>)) {
+      } else if (
+        (isReasoningEnabled() || isPreferenceMemoryEnabled())
+        && hasPlanningPatch(extracted.patch as Record<string, unknown>)
+      ) {
         learnPreferencesFromRequirements(memory.requirements, { userId: preferenceUserId })
       }
 

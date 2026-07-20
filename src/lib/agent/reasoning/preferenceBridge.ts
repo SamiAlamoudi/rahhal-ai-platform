@@ -15,7 +15,10 @@ import type { TripRequirements } from '../types'
 export function isPreferenceMemoryEnabled(options?: { enabled?: boolean }): boolean {
   if (typeof options?.enabled === 'boolean') return options.enabled
   const registry = getFeatureRegistry()
-  return registry.isEnabled('ai.personalization') && registry.isEnabled('ai.travel_reasoning')
+  if (!registry.isEnabled('ai.personalization')) return false
+  return registry.isEnabled('ai.travel_reasoning')
+    || registry.isEnabled('ai.persistent_memory')
+    || registry.isEnabled('ai.smart_clarification')
 }
 
 /**
@@ -148,6 +151,14 @@ export function learnPreferencesFromRequirements(
       ...next.traveler.travelerTypes,
       'business',
     ]) as PersonalizationProfile['traveler']['travelerTypes']
+  }
+
+  const lockedDestination = requirements.destination
+  if (lockedDestination) {
+    next.travelStyle.favoriteDestinations = unique([
+      lockedDestination,
+      ...next.travelStyle.favoriteDestinations,
+    ]).slice(0, 12)
   }
 
   return engine.upsertProfile(next)

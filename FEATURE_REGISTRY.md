@@ -28,6 +28,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ai.concierge` | experimental | yes | Provider-agnostic consultant dialogue above the agent |
 | `ai.travel_reasoning` | beta | yes | Sprint 45 open-ended destination reasoning + preference bridge (alias: travel_reasoning) |
 | `ai.smart_clarification` | beta | yes | Sprint 46 never-ask-twice soft preference inference (alias: smart_clarification) |
+| `ai.persistent_memory` | beta | yes | Sprint 48 durable preference profiles via localStorage (alias: persistent_memory) |
 | `ui.flight_results_experience` | beta | yes | Sprint 11 flight cards, sort/filter, details, select→session |
 | `ui.passenger_booking_flow` | beta | yes | Sprint 12 passengers, validation, summary, session persist (depends on flight results) |
 | `ui.my_trips` | beta | yes | Sprint 13 My Trips (alias: myTrips); depends on passenger booking flow |
