@@ -83,6 +83,13 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag: `ai.travel_executive` (default **ON**; depends on `ai.rahhal_brain`, `ai.persistent_memory`).
 - See `docs/PHASE2_TRAVEL_EXECUTIVE.md`.
 
+## Executive Travel Platform (Sprint 51)
+
+- Production executive OS — ten specialized engines orchestrated only through RahhalBrain.
+- Package: `src/lib/brain/executive/platform` + `src/lib/brain/executive/engines`.
+- Flag: `ai.executive_platform` (default **ON**; depends on `ai.travel_executive`, `ai.rahhal_brain`).
+- See `docs/SPRINT51_EXECUTIVE_PLATFORM.md`.
+
 ## Smart Clarification / Never-Ask-Twice (Sprint 46)
 
 - Soft preferences (interests, weather, hotel, package, budget style, traveler type) are **inferred**, never form-asked.

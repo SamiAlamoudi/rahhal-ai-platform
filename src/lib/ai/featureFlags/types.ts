@@ -19,6 +19,7 @@ export type FeatureId =
   | 'ai.persistent_memory'
   | 'ai.rahhal_brain'
   | 'ai.travel_executive'
+  | 'ai.executive_platform'
   | 'ui.flight_results_experience'
   | 'ui.passenger_booking_flow'
   | 'ui.my_trips'

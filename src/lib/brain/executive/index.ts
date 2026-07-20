@@ -12,6 +12,13 @@ export {
 } from './discoveryOptimizer'
 export { composeExecutiveDiscoveryReply } from './executiveResponseComposer'
 export { processExecutiveIntelligence, executiveReasoningSnapshot } from './executiveEngine'
+export {
+  isExecutivePlatformEnabled,
+  EXECUTIVE_PLATFORM_FEATURE_ID,
+  runExecutivePlatform,
+  createDefaultExecutiveEngines,
+  selectEnginesForTurn,
+} from './platform'
 export type {
   OptimizationAxis,
   ExecutiveTravelStyle,
@@ -19,3 +26,25 @@ export type {
   ExecutiveEnhancement,
   ExecutiveProcessInput,
 } from './types'
+export type {
+  ExecutiveEngine,
+  ExecutiveEngineId,
+  ExecutivePlatformResult,
+  DocumentInput,
+  TripMonitorSignals,
+  EngineRunResult,
+} from './platform'
+export {
+  createTripMonitorEngine,
+  createLiveConciergeEngine,
+  createExplainableDecisionEngine,
+  createTravelMemoryEngine,
+  createMultimodalDocumentEngine,
+  createBudgetIntelligenceV2Engine,
+  createItineraryOptimizerEngine,
+  createRiskEngine,
+  createExecutiveResponseEngine,
+  createLearningEngine,
+  extractFields,
+  estimateBreakdown,
+} from './engines'

@@ -305,6 +305,18 @@ function toMetaTravelExecutive(
   }
 }
 
+function toMetaExecutivePlatform(
+  platform: NonNullable<RahhalBrainTurnResult['executivePlatform']>,
+): NonNullable<AgentProviderMeta['executivePlatform']> {
+  return {
+    engineIds: platform.engineIds,
+    confidence: platform.confidence,
+    alertCount: platform.alerts.length,
+    recommendationCount: platform.recommendations.length,
+    hasPrimaryReply: Boolean(platform.primaryReply),
+  }
+}
+
 function toMetaRahhalBrain(
   meta: RahhalBrainMetaSnapshot,
 ): NonNullable<AgentProviderMeta['rahhalBrain']> {
@@ -478,6 +490,7 @@ export function createTravelAgentService(
       let clarificationMeta: NonNullable<AgentProviderMeta['clarification']> | undefined
       let rahhalBrainMeta: RahhalBrainMetaSnapshot | undefined
       let travelExecutiveSnapshot: RahhalBrainTurnResult['executive']
+      let executivePlatformSnapshot: RahhalBrainTurnResult['executivePlatform']
 
       if (isBrainCoreEnabled()) {
         const brainTurn = runRahhalBrainTurn(
@@ -501,6 +514,7 @@ export function createTravelAgentService(
         clarificationMeta = brainTurn.clarificationMeta
         rahhalBrainMeta = brainTurn.meta
         travelExecutiveSnapshot = brainTurn.executive
+        executivePlatformSnapshot = brainTurn.executivePlatform
 
         if (
           brainTurn.decision.type === 'respond'
@@ -518,6 +532,9 @@ export function createTravelAgentService(
             rahhalBrain: toMetaRahhalBrain(brainTurn.meta),
             travelExecutive: brainTurn.executive
               ? toMetaTravelExecutive(brainTurn.executive)
+              : undefined,
+            executivePlatform: brainTurn.executivePlatform
+              ? toMetaExecutivePlatform(brainTurn.executivePlatform)
               : undefined,
           }
           return {
@@ -799,13 +816,22 @@ export function createTravelAgentService(
         return { ...meta, travelExecutive: toMetaTravelExecutive(travelExecutiveSnapshot) }
       }
 
+      const attachExecutivePlatform = <T extends AgentProviderMeta>(meta: T): T => {
+        if (!executivePlatformSnapshot) return meta
+        return { ...meta, executivePlatform: toMetaExecutivePlatform(executivePlatformSnapshot) }
+      }
+
       const attachRahhalBrain = <T extends AgentProviderMeta>(meta: T): T => {
         if (!rahhalBrainMeta) return meta
         return { ...meta, rahhalBrain: toMetaRahhalBrain(rahhalBrainMeta) }
       }
 
       const attachTurnMeta = <T extends AgentProviderMeta>(meta: T): T =>
-        attachTravelExecutive(attachRahhalBrain(attachClarification(attachReasoning(attachBrain(meta)))))
+        attachExecutivePlatform(
+          attachTravelExecutive(
+            attachRahhalBrain(attachClarification(attachReasoning(attachBrain(meta)))),
+          ),
+        )
 
       // Sprint 45 — open-ended reasoning owns the consultant reply when proposing destinations.
       if (

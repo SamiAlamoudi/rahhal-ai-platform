@@ -256,6 +256,16 @@ export interface AgentProviderMeta {
     rationale: string[]
   }
   /**
+   * Sprint 51 — Executive Travel Platform snapshot.
+   */
+  executivePlatform?: {
+    engineIds: string[]
+    confidence: number
+    alertCount: number
+    recommendationCount: number
+    hasPrimaryReply: boolean
+  }
+  /**
    * Phase 2 — Travel Executive orchestration snapshot.
    */
   travelExecutive?: {

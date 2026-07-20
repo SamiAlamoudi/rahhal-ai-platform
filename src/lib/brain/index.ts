@@ -37,11 +37,17 @@ export {
   learnRejectedDestinations,
   detectOptimizationAxis,
   processExecutiveIntelligence,
+  isExecutivePlatformEnabled,
+  EXECUTIVE_PLATFORM_FEATURE_ID,
+  runExecutivePlatform,
+  createDefaultExecutiveEngines,
 } from './executive'
 export type {
   ExecutiveContext,
   ExecutiveEnhancement,
   OptimizationAxis,
+  ExecutivePlatformResult,
+  ExecutiveEngineId,
 } from './executive'
 
 export type {
