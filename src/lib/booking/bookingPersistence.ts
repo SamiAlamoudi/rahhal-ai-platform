@@ -64,7 +64,7 @@ export function sessionFromRow(row: BookingSessionRow): BookingSession {
     status: row.status as BookingStatus,
     items: parseListField<BookingItem>(row.items).map((item) => ({
       ...item,
-      metadata: { ...(item.metadata ?? {}) },
+      metadata: { ...item.metadata },
     })),
     subtotal: Number(row.subtotal ?? 0),
     fees: Number(row.fees ?? 0),

@@ -242,7 +242,7 @@ describe('Sprint 26 provider adapters', () => {
     const result = await engine.execute({ tripPlan })
     const flight = result.results.find((r) => r.type === 'flight_search')
     expect(flight?.success).toBe(true)
-    expect((flight?.data as FlightSearchPayload).mock).toBe(true)
+    expect((flight?.data as FlightSearchPayload | undefined)?.mock).toBe(true)
 
     const snap = getProviderMonitorSnapshot('amadeus_flights', 'flights')
     expect(snap.errorCount).toBeGreaterThan(0)

@@ -22,7 +22,7 @@ export function aggregationResultToToolData(
       }
     case 'weather':
       return {
-        ...(result.items[0]?.payload ?? {}),
+        ...result.items[0]?.payload,
         aggregation: summary(result),
       }
     case 'maps':
@@ -32,12 +32,12 @@ export function aggregationResultToToolData(
       }
     case 'currency':
       return {
-        ...(result.items[0]?.payload ?? {}),
+        ...result.items[0]?.payload,
         aggregation: summary(result),
       }
     case 'visa':
       return {
-        ...(result.items[0]?.payload ?? {}),
+        ...result.items[0]?.payload,
         aggregation: summary(result),
       }
     case 'attractions':
