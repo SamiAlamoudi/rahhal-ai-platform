@@ -20,12 +20,6 @@ export function buildDestinationIntelligence(
   const tags = new Set(profile.bestFor)
   const risks = profile.risks
 
-  const visaEase =
-    profile.visaFromSaudi === 'visa_free' ? 0.95
-      : profile.visaFromSaudi === 'visa_on_arrival' ? 0.85
-        : profile.visaFromSaudi === 'evisa' ? 0.7
-          : 0.35
-
   const riskScore = clamp01(
     0.15
     + (risks.some((r) => r.includes('visa') || r.includes('schengen')) ? 0.2 : 0)

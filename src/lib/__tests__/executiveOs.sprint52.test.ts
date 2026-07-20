@@ -135,9 +135,12 @@ describe('decision + multi-objective optimizers', () => {
     const ctx = ctxFor('Somewhere cold for a family vacation under 10000 SAR')
     ctx.memory.requirements.budgetAmount = 10000
     ctx.memory.requirements.destinationFlexible = true
-    getPreferenceEngine().updateProfile('u52', {
+    const current = getPreferenceEngine().getProfile('u52')
+    getPreferenceEngine().upsertProfile({
+      ...current,
+      userId: 'u52',
       travelStyle: {
-        ...getPreferenceEngine().getProfile('u52').travelStyle,
+        ...current.travelStyle,
         rejectedDestinations: ['Geneva'],
       },
     })
@@ -189,7 +192,7 @@ describe('strategy lazy selection', () => {
   it('selects fewer engines for fast strategy than deep', () => {
     const all = createAllExecutiveEngines({ includeOs: true })
     const fastCtx = ctxFor('quick short answer please')
-    const deepCtx = ctxFor('Compare destinations in detail and explain why for a luxury trip')
+    const deepCtx = ctxFor('Compare destinations in detail and explain why for my next trip')
 
     expect(selectExecutiveStrategy(fastCtx)).toBe('fast')
     expect(selectExecutiveStrategy(deepCtx)).toBe('deep')
@@ -262,9 +265,12 @@ describe('negotiation + prediction + self review', () => {
   it('self-review improves conflicting replies once', () => {
     const engine = createSelfReviewEngine()
     const ctx = ctxFor('Somewhere nice')
-    getPreferenceEngine().updateProfile('u52', {
+    const current = getPreferenceEngine().getProfile('u52')
+    getPreferenceEngine().upsertProfile({
+      ...current,
+      userId: 'u52',
       travelStyle: {
-        ...getPreferenceEngine().getProfile('u52').travelStyle,
+        ...current.travelStyle,
         rejectedDestinations: ['Geneva'],
       },
     })
@@ -345,7 +351,6 @@ describe('RahhalBrain + planTurn OS integration', () => {
     const result = await service.planTurn({
       conversationId: 'c52-meta',
       messages: [userMessage('quick tip: lost my passport help')],
-      userId: 'u52',
     })
     expect(result.meta.executivePlatform?.engineIds.length).toBeGreaterThan(0)
     expect(result.meta.executiveOs?.strategy).toBeTruthy()

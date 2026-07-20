@@ -7,7 +7,7 @@ import type { AgentMemory } from '../../../agent/types'
 import type { TravelReasoningResult } from '../../../agent/reasoning/types'
 import { cacheWrap } from './computationCache'
 import { getAllDestinationIntelligence } from './globalKnowledge'
-import { detectTravelGoal, goalAxisBoosts } from './goalDetection'
+import { goalAxisBoosts } from './goalDetection'
 import type {
   DestinationIntelligence,
   ObjectiveAxis,
