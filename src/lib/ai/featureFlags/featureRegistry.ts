@@ -202,6 +202,37 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Requires RAPIDAPI_KEY or BOOKING_RAPIDAPI_KEY (prefer server-only).',
   },
   {
+    id: 'ai.booking_execution',
+    name: 'Booking Execution Engine',
+    description:
+      'Sprint 57 — booking lifecycle, multi-domain orchestrator, transaction manager, reservations, sessions, unified booking model, notifications, and audit. Default ON.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.booking_intelligence'],
+    notes:
+      'Product alias: booking_execution. Executes bookings via BookingProvider/Live bridges; Conversation Brain narrates facts only.',
+  },
+  {
+    id: 'ai.transaction_manager',
+    name: 'Booking Transaction Manager',
+    description:
+      'Sprint 57 — retries, rollback, idempotency, timeout handling, and partial failure recovery for booking execution.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.booking_execution'],
+    notes: 'Product alias: transaction_manager.',
+  },
+  {
+    id: 'ai.booking_resume',
+    name: 'Booking Session Resume',
+    description:
+      'Sprint 57 — resume interrupted booking sessions with persisted execution state and restart recovery.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.booking_execution'],
+    notes: 'Product alias: booking_resume.',
+  },
+  {
     id: 'ai.persistent_memory',
     name: 'Persistent Preference Memory',
     description:
