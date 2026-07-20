@@ -94,6 +94,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: smart_clarification',
   },
   {
+    id: 'ai.executive_platform',
+    name: 'Executive Travel Platform (Sprint 51)',
+    description:
+      'Sprint 51 production executive OS — trip monitor, live concierge, explainable decisions, memory, multimodal documents, budget v2, optimizer, risk, response, and learning engines via RahhalBrain.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.travel_executive', 'ai.rahhal_brain'],
+    notes: 'Product alias: executive_platform',
+  },
+  {
     id: 'ai.travel_executive',
     name: 'AI Travel Executive (Phase 2)',
     description:

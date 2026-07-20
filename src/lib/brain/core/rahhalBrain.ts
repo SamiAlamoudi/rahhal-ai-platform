@@ -14,6 +14,10 @@ import {
 } from '../../agent/reasoning'
 import { isSmartClarificationEnabled } from '../../agent/clarification'
 import { isTravelExecutiveEnabled } from '../executive/feature'
+import {
+  isExecutivePlatformEnabled,
+  runExecutivePlatform,
+} from '../executive/platform'
 import { withTripPlan } from '../../agent/types'
 import type { AgentMemory } from '../../agent/types'
 import { createDefaultRahhalBrainPorts, buildMemoryFromMessages } from './defaultPorts'
@@ -31,6 +35,7 @@ export type RahhalBrainOptions = {
   clarificationEnabled?: boolean
   preferenceMemoryEnabled?: boolean
   travelExecutiveEnabled?: boolean
+  executivePlatformEnabled?: boolean
 }
 
 function flagOrOverride(flag: boolean, override?: boolean): boolean {
@@ -49,6 +54,8 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
 
   const isExecutiveOn = () =>
     flagOrOverride(isTravelExecutiveEnabled(), options.travelExecutiveEnabled)
+  const isPlatformOn = () =>
+    flagOrOverride(isExecutivePlatformEnabled(), options.executivePlatformEnabled)
 
   const runTurn = (input: RahhalBrainTurnInput): RahhalBrainTurnResult => {
     const modulesExecuted: BrainModuleId[] = []
@@ -125,7 +132,7 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
     }
 
     // Phase 2 — Travel Executive intelligence (context, rejections, optimizer, budget).
-    let executiveEnhancement: RahhalBrainTurnResult['executive']
+    let executiveEnhancement: RahhalBrainTurnResult['executive'] = undefined
     if (isExecutiveOn()) {
       executiveEnhancement = ports.executive.process({
         userText,
@@ -141,6 +148,22 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
         memory = ports.reasoning.applyToMemory(memory, reasoningResult)
       }
       modulesExecuted.push('executive', 'budget')
+    }
+
+    // Sprint 51 — Executive Travel Platform (specialized engines via RahhalBrain only).
+    let executivePlatform: RahhalBrainTurnResult['executivePlatform'] = undefined
+    if (isPlatformOn()) {
+      executivePlatform = runExecutivePlatform({
+        userId: input.userId,
+        userText,
+        memory,
+        understanding,
+        intents,
+        reasoningResult,
+        executiveEnhancement: executiveEnhancement ?? null,
+        enabled: true,
+      })
+      modulesExecuted.push('executive_platform')
     }
 
     // Step 5 — Smart Clarification
@@ -206,6 +229,18 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
         reflected: true,
       }
       memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
+    } else if (
+      executivePlatform?.primaryReply
+      && executivePlatform.runs.some((run) =>
+        run.engineId === 'live_concierge' && run.execution.applied)
+    ) {
+      // Live concierge owns urgent in-trip replies.
+      decision = {
+        type: 'respond',
+        reply: executivePlatform.primaryReply,
+        reflected: true,
+      }
+      memory = withTripPlan({ ...memory, phase: memory.phase }, memory.tripPlan)
     } else if (!memory.tripPlan && userText) {
       const question = ports.response.composeClarification({
         locale: memory.locale,
@@ -247,6 +282,7 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
       reasoningMeta,
       clarificationMeta,
       executive: executiveEnhancement,
+      executivePlatform,
       decision,
       meta: {
         understanding,

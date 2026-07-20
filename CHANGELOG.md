@@ -2,6 +2,16 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Sprint 51: Executive Travel Platform v1
+
+### Added
+
+- Production executive OS under RahhalBrain (`src/lib/brain/executive/platform` + `engines`).
+- Ten engines with analyze/plan/execute/confidence/metadata contract.
+- Live concierge, trip monitor, explainable decisions, multimodal document extraction, budget v2, risk, optimizer, learning, executive response.
+- Feature flag `ai.executive_platform` (default ON).
+- Docs: `docs/SPRINT51_EXECUTIVE_PLATFORM.md`; tests: `executivePlatform.sprint51.test.ts`.
+
 ## [Unreleased] — Phase 2: AI Travel Executive
 
 ### Added
