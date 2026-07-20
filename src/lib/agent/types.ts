@@ -256,6 +256,20 @@ export interface AgentProviderMeta {
     rationale: string[]
   }
   /**
+   * Sprint 50 — Rahhal Brain Core orchestration snapshot (production path).
+   * Present when `ai.rahhal_brain` runs the turn decision pipeline.
+   */
+  rahhalBrain?: {
+    decision: string
+    primaryIntent: string
+    intentConfidence: number
+    secondaryIntents: string[]
+    discoveryMode: boolean
+    modulesExecuted: string[]
+    reflected: boolean
+    internalPlanSteps: number
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.

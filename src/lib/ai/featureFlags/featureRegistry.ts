@@ -94,6 +94,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: smart_clarification',
   },
   {
+    id: 'ai.rahhal_brain',
+    name: 'Rahhal Brain Core',
+    description:
+      'Sprint 50 — central AI orchestration: conversation understanding, multi-intent detection, internal planning, reflection, and response composition on the production agent path.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.concierge', 'ai.travel_reasoning', 'ai.smart_clarification'],
+    notes: 'Product alias: rahhal_brain. Orchestrates existing engines; does not replace execution modules.',
+  },
+  {
     id: 'ai.persistent_memory',
     name: 'Persistent Preference Memory',
     description:

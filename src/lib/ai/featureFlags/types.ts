@@ -17,6 +17,7 @@ export type FeatureId =
   | 'ai.travel_reasoning'
   | 'ai.smart_clarification'
   | 'ai.persistent_memory'
+  | 'ai.rahhal_brain'
   | 'ui.flight_results_experience'
   | 'ui.passenger_booking_flow'
   | 'ui.my_trips'
