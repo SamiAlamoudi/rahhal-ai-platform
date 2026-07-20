@@ -249,6 +249,13 @@ export interface AgentProviderMeta {
     inferredClimate: string | null
   }
   /**
+   * Sprint 46 — soft preference inference snapshot (never-ask-twice).
+   */
+  clarification?: {
+    inferredFields: string[]
+    rationale: string[]
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.

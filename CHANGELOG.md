@@ -2,6 +2,14 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Sprint 46: Smart Clarification / Never-Ask-Twice
+
+### Added
+
+- Soft preference inference on the production agent path (`ai.smart_clarification`, default ON).
+- Hard-only clarification gates: destination / duration / budget / travelers; interests, weather, hotel, package, budget style, and traveler type are inferred.
+- Docs: `docs/SPRINT46_SMART_CLARIFICATION.md`; tests: `smartClarification.sprint46.test.ts`.
+
 ## [Unreleased] — Sprint 45: Autonomous Travel Reasoning Engine
 
 ### Added

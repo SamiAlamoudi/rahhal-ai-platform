@@ -23,6 +23,7 @@ import {
 import { createAgentLlmRegistry } from './llm/factory'
 import type { AgentLlmRegistry } from './llm/types'
 import {
+  applySmartClarification,
   mergeRequirements,
   missingRequirementFields,
   rebuildMemoryFromMessages,
@@ -199,6 +200,11 @@ export interface TravelAgentServiceOptions {
    */
   travelReasoningEnabled?: boolean
   /**
+   * Sprint 46 — Smart Clarification / Never-Ask-Twice.
+   * Default: FeatureRegistry `ai.smart_clarification` (ON).
+   */
+  smartClarificationEnabled?: boolean
+  /**
    * Sprint 25 — Production Booking Flow orchestration.
    * Default: FeatureRegistry `ui.booking_flow` (OFF).
    */
@@ -343,6 +349,13 @@ export function createTravelAgentService(
   const isReasoningEnabled = (): boolean =>
     isTravelReasoningEnabled({ enabled: options.travelReasoningEnabled })
 
+  const isClarificationEnabled = (): boolean => {
+    if (typeof options.smartClarificationEnabled === 'boolean') {
+      return options.smartClarificationEnabled
+    }
+    return getFeatureRegistry().isEnabled('ai.smart_clarification')
+  }
+
   const isFlowEnabled = (): boolean =>
     isBookingFlowEnabled({
       bookingFlowEnabled: options.bookingFlowEnabled,
@@ -456,9 +469,6 @@ export function createTravelAgentService(
         }
       }
 
-      memory.missingFields = missingRequirementFields(memory.requirements)
-      memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
-
       let reasoningResult: TravelReasoningResult | null = null
       let reasoningMeta: AgentProviderMeta['reasoning'] | undefined
 
@@ -482,13 +492,35 @@ export function createTravelAgentService(
           ...memory,
           requirements: applyReasoningToRequirements(memory.requirements, reasoningResult),
         }
-        memory.missingFields = missingRequirementFields(memory.requirements)
-        memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
         reasoningMeta = toReasoningSnapshot(reasoningResult)
         learnPreferencesFromRequirements(memory.requirements, { userId: preferenceUserId })
       } else if (isReasoningEnabled() && hasPlanningPatch(extracted.patch as Record<string, unknown>)) {
         learnPreferencesFromRequirements(memory.requirements, { userId: preferenceUserId })
       }
+
+      // Sprint 46 — never-ask-twice: infer soft preferences before computing missing slots.
+      let clarificationMeta: NonNullable<AgentProviderMeta['clarification']> | undefined
+      if (isClarificationEnabled()) {
+        const clarified = applySmartClarification(memory.requirements, {
+          locale: memory.locale,
+          enabled: true,
+        })
+        memory = {
+          ...memory,
+          requirements: clarified.requirements,
+        }
+        if (clarified.inferred.length > 0) {
+          clarificationMeta = {
+            inferredFields: clarified.inferred as string[],
+            rationale: clarified.rationale,
+          }
+        }
+      }
+
+      memory.missingFields = missingRequirementFields(memory.requirements, {
+        smart: isClarificationEnabled(),
+      })
+      memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
 
       // Sprint 20–27 — every user message through Brain when flags are on.
       let brainMeta: BrainMetaSnapshot | undefined
@@ -546,7 +578,16 @@ export function createTravelAgentService(
               brainMemoryToRequirementsPatch(brainResult.context.memory),
             ),
           }
-          memory.missingFields = missingRequirementFields(memory.requirements)
+          if (isClarificationEnabled()) {
+            const clarified = applySmartClarification(memory.requirements, {
+              locale: memory.locale,
+              enabled: true,
+            })
+            memory = { ...memory, requirements: clarified.requirements }
+          }
+          memory.missingFields = missingRequirementFields(memory.requirements, {
+            smart: isClarificationEnabled(),
+          })
           memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
         }
 
@@ -640,8 +681,13 @@ export function createTravelAgentService(
         return { ...meta, reasoning: reasoningMeta }
       }
 
+      const attachClarification = <T extends AgentProviderMeta>(meta: T): T => {
+        if (!clarificationMeta) return meta
+        return { ...meta, clarification: clarificationMeta }
+      }
+
       const attachTurnMeta = <T extends AgentProviderMeta>(meta: T): T =>
-        attachReasoning(attachBrain(meta))
+        attachClarification(attachReasoning(attachBrain(meta)))
 
       // Sprint 45 — open-ended reasoning owns the consultant reply when proposing destinations.
       if (
