@@ -74,6 +74,12 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag: `ai.smart_clarification` (default **ON**; depends on `ai.concierge`).
 - See `docs/SPRINT46_SMART_CLARIFICATION.md`.
 
+## Persistent Preference Memory (Sprint 48)
+
+- PreferenceEngine profiles survive reloads via localStorage (`ai.persistent_memory`, default **ON**).
+- Learns favorite destinations when travelers lock a place; seeds budget/weather/party on later chats.
+- See `docs/SPRINT48_PERSISTENT_MEMORY.md`.
+
 ## Flight Results Experience (Sprint 11)
 
 - UI/logic for premium flight cards, sort/filter, details, and select→booking session.
