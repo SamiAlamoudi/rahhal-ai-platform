@@ -50,6 +50,7 @@ export function mergeRequirements(
         : destination
           ? [destination]
           : [],
+    destinationFlexible: patch.destinationFlexible ?? base.destinationFlexible,
     origin: patch.origin ?? base.origin,
     startDate: patch.startDate ?? base.startDate,
     endDate: patch.endDate ?? base.endDate,
@@ -70,6 +71,11 @@ export function mergeRequirements(
     regenerateScope: patch.regenerateScope ?? base.regenerateScope ?? null,
   }
 
+  // Locking a named destination clears flexible discovery.
+  if (patch.destination && patch.destinationFlexible !== true) {
+    merged.destinationFlexible = false
+  }
+
   // Infer traveler type from count when still unset.
   if (merged.travelerType == null && merged.travelers != null) {
     if (merged.travelers === 1) merged.travelerType = 'solo'
@@ -88,6 +94,8 @@ export function missingRequirementFields(requirements: TripRequirements): Array<
 
   for (const field of INTAKE_FIELD_ORDER) {
     if (field === 'destination') {
+      // Sprint 45 — open-ended discovery: destination is proposed by reasoning, not asked.
+      if (req.destinationFlexible) continue
       if (!req.destination && req.destinations.length === 0) missing.push('destination')
       continue
     }
@@ -164,6 +172,7 @@ export function normalizeRequirements(raw: TripRequirements): TripRequirements {
     ...raw,
     destinations: Array.isArray(raw.destinations) ? raw.destinations : [],
     interests: Array.isArray(raw.interests) ? raw.interests : [],
+    destinationFlexible: raw.destinationFlexible ?? null,
     budgetFlexible: raw.budgetFlexible ?? null,
     budgetStyle: raw.budgetStyle ?? null,
     hotelPreference: raw.hotelPreference ?? null,

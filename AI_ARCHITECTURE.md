@@ -57,6 +57,14 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Speaks only to agent abstractions; handoff modes are `plan | search | refine | none`.
 - Flag: `ai.concierge`. See `docs/CONCIERGE.md`.
 
+## Autonomous Travel Reasoning (Sprint 45)
+
+- Production-path destination discovery for open-ended asks (“somewhere cold…”, “مكان بارد…”).
+- Package: `src/lib/agent/reasoning` — climate/budget/visa catalog scoring, preference memory bridge, explainable replies.
+- Extends intake with `destinationFlexible` so Concierge does not re-ask “where?” when reasoning can propose.
+- Flag: `ai.travel_reasoning` (default **ON**; depends on `ai.concierge` + `ai.recommendation_engine`).
+- See `docs/SPRINT45_TRAVEL_REASONING.md`.
+
 ## Flight Results Experience (Sprint 11)
 
 - UI/logic for premium flight cards, sort/filter, details, and select→booking session.

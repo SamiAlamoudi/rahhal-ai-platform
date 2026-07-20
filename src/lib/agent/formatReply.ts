@@ -39,16 +39,24 @@ export function buildFollowUpQuestion(
   }
 
   lines.push(t(locale, { ar: 'سؤال التالي:', en: 'Next question:' }))
-  lines.push(questionForField(next, locale))
+  lines.push(questionForField(next, locale, memory.requirements))
   return lines.join('\n')
 }
 
-function questionForField(field: keyof TripRequirements, locale: AgentLocale): string {
+function questionForField(
+  field: keyof TripRequirements,
+  locale: AgentLocale,
+  requirements: TripRequirements,
+): string {
   switch (field) {
     case 'destination':
       return t(locale, {
-        ar: '• إلى أين تريد السفر؟ (مثال: اليابان، بالي، لندن، الرياض)',
-        en: '• Where do you want to travel? (e.g. Japan, Bali, London, Riyadh)',
+        ar: requirements.destinationFlexible
+          ? '• أي من الترشيحات تفضل؟ أو اقترح وجهة أخرى'
+          : '• إلى أين تريد السفر؟ (مثال: اليابان، بالي، لندن، الرياض)',
+        en: requirements.destinationFlexible
+          ? '• Which recommendation do you prefer? Or suggest another place'
+          : '• Where do you want to travel? (e.g. Japan, Bali, London, Riyadh)',
       })
     case 'durationDays':
       return t(locale, {

@@ -17,6 +17,7 @@ export type AgentPhase = 'collecting' | 'planned' | 'editing'
 
 export type AgentIntent =
   | 'plan'
+  | 'discover'
   | 'answer'
   | 'regenerate'
   | 'regenerate_day'
@@ -51,6 +52,11 @@ export type RegenerateScope =
 export interface TripRequirements {
   destination: string | null
   destinations: string[]
+  /**
+   * Sprint 45 — traveler asked for open-ended discovery ("somewhere cold…")
+   * rather than naming a place. Destination is not a hard intake slot while true.
+   */
+  destinationFlexible: boolean | null
   origin: string | null
   startDate: string | null
   endDate: string | null
@@ -228,6 +234,21 @@ export interface AgentProviderMeta {
     turnCount: number
   }
   /**
+   * Sprint 45 — autonomous travel reasoning snapshot (open-ended destination discovery).
+   * Additive; never replaces TripPlan. Present when `ai.travel_reasoning` produced a turn.
+   */
+  reasoning?: {
+    mode: string
+    overallConfidence: number
+    primaryId: string | null
+    candidateIds: string[]
+    summary: string
+    rationale: string[]
+    followUpFields: string[]
+    inferredMonth: number | null
+    inferredClimate: string | null
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.
@@ -287,6 +308,7 @@ export function emptyRequirements(): TripRequirements {
   return {
     destination: null,
     destinations: [],
+    destinationFlexible: null,
     origin: null,
     startDate: null,
     endDate: null,

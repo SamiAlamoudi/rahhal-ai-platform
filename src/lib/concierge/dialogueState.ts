@@ -18,6 +18,14 @@ const HARD_INTAKE: Array<keyof TripRequirements> = [
   'travelers',
 ]
 
+function isHardIntakeField(
+  field: keyof TripRequirements,
+  requirements: TripRequirements,
+): boolean {
+  if (field === 'destination' && requirements.destinationFlexible) return false
+  return HARD_INTAKE.includes(field)
+}
+
 export function mergeSoftSignals(
   base: ConciergeSoftSignals,
   patch: Partial<ConciergeSoftSignals>,
@@ -35,8 +43,14 @@ export function mergeSoftSignals(
   }
 }
 
-export function hardMissingCount(missingFields: Array<keyof TripRequirements>): number {
-  return missingFields.filter((field) => HARD_INTAKE.includes(field)).length
+export function hardMissingCount(
+  missingFields: Array<keyof TripRequirements>,
+  requirements?: TripRequirements,
+): number {
+  if (!requirements) {
+    return missingFields.filter((field) => HARD_INTAKE.includes(field)).length
+  }
+  return missingFields.filter((field) => isHardIntakeField(field, requirements)).length
 }
 
 export function hasSoftDepth(signals: ConciergeSoftSignals): boolean {
@@ -61,7 +75,7 @@ export function resolveConciergePhase(input: {
 }): ConciergePhase {
   const prev = input.previous ?? emptyConciergeState()
   const { memory, intent, softSignals } = input
-  const hardMissing = hardMissingCount(memory.missingFields)
+  const hardMissing = hardMissingCount(memory.missingFields, memory.requirements)
   const hasPlan = Boolean(memory.tripPlan)
 
   if (hasPlan && (intent === 'edit' || intent === 'regenerate' || intent === 'regenerate_day')) {
@@ -70,7 +84,7 @@ export function resolveConciergePhase(input: {
   if (hasPlan && intent === 'save') {
     return 'refining'
   }
-  if (hasPlan && hardMissing === 0 && (intent === 'plan' || intent === 'answer' || intent === 'unknown')) {
+  if (hasPlan && hardMissing === 0 && (intent === 'plan' || intent === 'answer' || intent === 'unknown' || intent === 'discover')) {
     return prev.phase === 'confirming' || prev.phase === 'executing' ? 'executing' : 'refining'
   }
 

@@ -2,6 +2,16 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Sprint 45: Autonomous Travel Reasoning Engine
+
+### Added
+
+- Open-ended destination discovery on the production `/chat` agent path (`ai.travel_reasoning`, default ON).
+- Deterministic climate × budget × visa reasoning catalog with explainable recommendations (AR/EN).
+- Preference memory bridge: seed empty intake slots from `PreferenceEngine` and learn stated preferences back (never overwrite).
+- `destinationFlexible` intake + Concierge policy so the agent proposes destinations instead of asking “where?”.
+- Docs: `docs/SPRINT45_TRAVEL_REASONING.md`; tests: `travelReasoning.sprint45.test.ts`.
+
 ## [1.1.0-rc.1] — 2026-07-20
 
 ### Stabilization (no new product features)

@@ -71,6 +71,20 @@ export type {
   ToolExecutionMeta,
 } from './tools/types'
 export {
+  runTravelReasoning,
+  formatReasoningReply,
+  detectOpenEndedDestination,
+  seedRequirementsFromPreferences,
+  learnPreferencesFromRequirements,
+  isTravelReasoningEnabled,
+  DESTINATION_CATALOG,
+} from './reasoning'
+export type {
+  TravelReasoningResult,
+  DestinationCandidate,
+  TravelReasoningSnapshot,
+} from './reasoning'
+export {
   createAgentLlmProvider,
   createAgentLlmRegistry,
   getDefaultAgentLlmProviderId,

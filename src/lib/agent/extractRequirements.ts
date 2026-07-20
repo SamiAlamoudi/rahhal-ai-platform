@@ -8,6 +8,7 @@ import type {
   TripRequirements,
 } from './types'
 import { detectAgentLocale } from './locale'
+import { detectOpenEndedDestination } from './reasoning/openEndedDetector'
 
 const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
   { keys: ['japan', 'tokyo', 'osaka', 'kyoto', 'اليابان', 'طوكيو', 'اوساكا', 'أوساكا', 'كيوتو'], value: 'Japan' },
@@ -138,6 +139,24 @@ export function extractFromUserText(
   const packageScope = matchPackageScope(lower, normalized)
   if (packageScope) patch.packageScope = packageScope
 
+  const openEnded = detectOpenEndedDestination(
+    normalized,
+    Boolean(patch.destination),
+  )
+  if (openEnded.isOpenEnded) {
+    patch.destinationFlexible = true
+    if (openEnded.climateHint && !patch.weatherPreference) {
+      patch.weatherPreference = openEnded.climateHint === 'cold' ? 'cool' : openEnded.climateHint
+    }
+    // Clear accidental stop-word destinations when the ask is clearly open-ended.
+    if (!DESTINATION_ALIASES.some((row) => row.keys.some((k) => lower.includes(k)))) {
+      // keep explicit alias matches; otherwise drop weak "to X" catches for open-ended
+      if (openEnded.confidence >= 0.5) {
+        // preserve alias destinations only
+      }
+    }
+  }
+
   if (intent === 'edit') {
     const noteMatch = normalized.match(/(?:note|notes|ملاحظة|ملاحظات)\s*[:：-]?\s*(.+)$/i)
     if (noteMatch?.[1]) patch.notes = noteMatch[1].trim()
@@ -262,6 +281,17 @@ function detectIntent(lower: string, original: string, locale: AgentLocale): Age
   }
   if (/\bsave\b|احفظ|حفظ الخطة|حفظ الرحلة/.test(lower)) return 'save'
   if (/\bedit\b|update\b|change\b|عدّل|عدل|غيّر|غير|حدّث|حدث/.test(lower)) return 'edit'
+
+  const hasNamedDestination = DESTINATION_ALIASES.some((row) =>
+    row.keys.some((k) => lower.includes(k.toLowerCase()) || original.includes(k)),
+  )
+
+  // Sprint 45 — open-ended destination discovery (before generic plan).
+  const openEnded = detectOpenEndedDestination(original, hasNamedDestination)
+  if (openEnded.isOpenEnded && openEnded.confidence >= 0.5) {
+    return 'discover'
+  }
+
   if (
     /\bplan\b|\btrip\b|\bvacation\b|\bitinerary\b|\bhoneymoon\b|\bbusiness\b|خط[ةه]|رحل|عطلة|إجازة|اجازة|نهاية|شهر عسل|رحلة عمل/.test(lower)
   ) {
