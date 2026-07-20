@@ -11,7 +11,10 @@ import { detectAgentLocale } from './locale'
 import { detectOpenEndedDestination } from './reasoning/openEndedDetector'
 
 const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
-  { keys: ['japan', 'tokyo', 'osaka', 'kyoto', 'اليابان', 'طوكيو', 'اوساكا', 'أوساكا', 'كيوتو'], value: 'Japan' },
+  { keys: ['tokyo', 'طوكيو'], value: 'Tokyo' },
+  { keys: ['osaka', 'اوساكا', 'أوساكا'], value: 'Osaka' },
+  { keys: ['kyoto', 'كيوتو'], value: 'Kyoto' },
+  { keys: ['japan', 'اليابان'], value: 'Japan' },
   { keys: ['sapporo', 'hokkaido', 'سابورو', 'هوكايدو'], value: 'Sapporo' },
   { keys: ['switzerland', 'zurich', 'سويسرا', 'زوريخ'], value: 'Switzerland' },
   { keys: ['austria', 'vienna', 'innsbruck', 'النمسا', 'فيينا'], value: 'Austria' },
@@ -22,7 +25,10 @@ const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
   { keys: ['riyadh', 'الرياض'], value: 'Riyadh' },
   { keys: ['jeddah', 'جدة'], value: 'Jeddah' },
   { keys: ['dubai', 'دبي'], value: 'Dubai' },
-  { keys: ['paris', 'باريس', 'france', 'فرنسا'], value: 'Paris' },
+  { keys: ['paris', 'باريس'], value: 'Paris' },
+  { keys: ['rome', 'روما', 'italy', 'إيطاليا', 'ايطاليا'], value: 'Rome' },
+  { keys: ['barcelona', 'برشلونة', 'spain', 'إسبانيا', 'اسبانيا'], value: 'Barcelona' },
+  { keys: ['france', 'فرنسا'], value: 'Paris' },
   { keys: ['istanbul', 'اسطنبول', 'إسطنبول', 'تركيا', 'turkey'], value: 'Istanbul' },
   { keys: ['london', 'لندن', 'uk', 'britain'], value: 'London' },
   { keys: ['cairo', 'القاهرة', 'egypt', 'مصر'], value: 'Cairo' },
@@ -65,28 +71,10 @@ export function extractFromUserText(
   const origin = matchOrigin(lower, normalized)
   if (origin) patch.origin = origin
 
-  const destination = matchDestination(lower)
-  const originOnly =
-    Boolean(origin)
-    && Boolean(destination)
-    && origin === destination
-    && /(?:من\s+مطار|من|مغادرة|السفر\s+من|from\b|depart)/.test(normalized + lower)
-    && !/(?:إلى|الى|to\b|in\b)/.test(
-      normalized.replace(/(?:من\s+مطار|من)\s+[^\s،,]+/g, ''),
-    )
-  if (destination && !originOnly) {
-    patch.destination = destination
-    patch.destinations = [destination]
-  } else if (!originOnly) {
-    const toMatch = lower.match(/\b(?:to|in)\s+([a-z][a-z\s]{1,40})/)
-      || normalized.match(/(?:إلى|الى|في)\s+([^\s،,]{2,40})/)
-    if (toMatch?.[1]) {
-      const raw = capitalizeDestination(toMatch[1].replace(/[?.!].*$/, '').trim())
-      if (raw && !isStopWord(raw)) {
-        patch.destination = raw
-        patch.destinations = [raw]
-      }
-    }
+  const destinations = matchDestinations(lower, normalized, origin)
+  if (destinations.length > 0) {
+    patch.destination = destinations[0]
+    patch.destinations = destinations
   }
 
   const duration = matchDuration(lower, normalized)
@@ -347,24 +335,107 @@ function matchRegenerateDay(lower: string, original: string): number | null {
   return null
 }
 
-function matchDestination(lower: string): string | null {
+function aliasForToken(token: string): string | null {
+  const lower = token.trim().toLowerCase()
+  if (!lower) return null
   for (const entry of DESTINATION_ALIASES) {
-    if (entry.keys.some((key) => lower.includes(key))) return entry.value
+    if (entry.keys.some((key) => lower === key || lower.includes(key))) return entry.value
   }
   return null
+}
+
+/** Strip English/Arabic "from …" clauses so origin cities cannot steal the destination. */
+function stripOriginClauses(lower: string, original: string): { lower: string; original: string } {
+  return {
+    lower: lower
+      .replace(/\b(?:from|depart(?:ing)?\s+from)\s+[a-z][a-z\s]{0,30}?(?=\s*(?:,|\.|$|for\b|with\b|under\b|next\b|to\b|in\b|budget\b|\d))/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim(),
+    original: original
+      .replace(/(?:من\s+مطار|مغادرة\s+من|السفر\s+من|من)\s+[^\s،,]{2,40}/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  }
+}
+
+function matchDestinations(
+  lower: string,
+  original: string,
+  origin: string | null,
+): string[] {
+  const stripped = stripOriginClauses(lower, original)
+  const found: string[] = []
+  const push = (value: string | null | undefined) => {
+    if (!value) return
+    if (origin && value === origin && found.length === 0) return
+    if (!found.includes(value)) found.push(value)
+  }
+
+  // Alias scan first on destination-only text (origin clauses removed).
+  for (const entry of DESTINATION_ALIASES) {
+    if (entry.keys.some((key) => stripped.lower.includes(key) || stripped.original.includes(key))) {
+      push(entry.value)
+    }
+  }
+
+  // Multi-city: "Paris and Rome" / "باريس وروما"
+  const multiEn = stripped.lower.match(
+    /\b([a-z][a-z]+)\s+and\s+([a-z][a-z]+)\b/,
+  )
+  if (multiEn) {
+    push(aliasForToken(multiEn[1]!))
+    push(aliasForToken(multiEn[2]!))
+  }
+  const multiAr = stripped.original.match(
+    /([^\s،,]{2,40})\s+و\s*([^\s،,]{2,40})/,
+  )
+  if (multiAr) {
+    push(aliasForToken(multiAr[1]!))
+    push(aliasForToken(multiAr[2]!))
+  }
+
+  // Cue-based free text — ignore verbs after "to" ("to spend", "to visit").
+  if (found.length === 0) {
+    const enCue = stripped.lower.match(
+      /\b(?:to|in)\s+(?!spend|visit|travel|plan|go|have|be|get|make|see|book|want)([a-z][a-z]*(?:\s+[a-z]+){0,2}?)(?=\s*(?:,|\.|$|for\b|with\b|under\b|next\b|from\b|and\b|budget\b|\d|couple|family|solo))/,
+    )
+    const arCue = stripped.original.match(/(?:إلى|الى)\s+([^\s،,]{2,40})/)
+    if (enCue?.[1]) {
+      const raw = capitalizeDestination(enCue[1].trim())
+      if (raw && !isStopWord(raw)) push(aliasForToken(enCue[1]) || raw)
+    }
+    if (arCue?.[1]) {
+      const raw = capitalizeDestination(arCue[1].trim())
+      if (raw && !isStopWord(raw)) push(aliasForToken(arCue[1]) || raw)
+    }
+  }
+
+  // Bounded free-text fallback (prevents "Barcelona for a couple under…").
+  if (found.length === 0) {
+    const loose = stripped.lower.match(
+      /\bin\s+([a-z][a-z]*(?:\s+[a-z]+){0,1}?)(?=\s*(?:,|\.|$|for\b|with\b|under\b|next\b|from\b|budget\b|\d))/,
+    )
+      || stripped.original.match(/(?:إلى|الى)\s+([^\s،,]{2,40})/)
+    if (loose?.[1]) {
+      const raw = capitalizeDestination(loose[1].replace(/[?.!].*$/, '').trim())
+      if (raw && !isStopWord(raw) && raw !== origin) push(raw)
+    }
+  }
+
+  return found.filter((value) => !isStopWord(value)).slice(0, 4)
 }
 
 function matchOrigin(lower: string, original: string): string | null {
   const ar = original.match(
     /(?:من\s+مطار|مغادرة\s+من|السفر\s+من|من)\s+([^\s،,]{2,40})/,
   )
-  const en = lower.match(/\b(?:from|depart(?:ing)?\s+from)\s+([a-z][a-z\s]{1,40})/)
+  const en = lower.match(
+    /\b(?:from|depart(?:ing)?\s+from)\s+([a-z][a-z]*(?:\s+[a-z]+){0,2}?)(?=\s*(?:,|\.|$|for\b|with\b|under\b|next\b|to\b|in\b|budget\b|\d))/,
+  )
   const raw = (ar?.[1] || en?.[1] || '').replace(/[?.!].*$/, '').trim()
   if (!raw) return null
-  const alias = matchDestination(raw.toLowerCase())
-    || matchDestination(lower.includes(raw.toLowerCase()) ? lower : raw.toLowerCase())
+  const alias = aliasForToken(raw)
   if (alias) return alias
-  // Re-scan aliases against the origin token itself (Arabic city names).
   for (const entry of DESTINATION_ALIASES) {
     if (entry.keys.some((key) => raw.includes(key) || raw.toLowerCase().includes(key.toLowerCase()))) {
       return entry.value
@@ -475,6 +546,18 @@ function matchBudget(lower: string, original: string): { amount: number; currenc
 function matchTravelers(lower: string, original: string): { count: number; type: TravelerType } | null {
   const en = lower.match(/(\d+)\s*(?:people|persons|travelers|adults|guests)/)
   const ar = original.match(/(\d+)\s*(?:أشخاص|اشخاص|أفراد|افراد|مسافر)/)
+  const kids = lower.match(/(\d+)\s*(?:kids?|children)/)
+    || original.match(/(\d+)\s*(?:أطفال|اطفال|طفل)/)
+  if (kids?.[1]) {
+    const childCount = Number(kids[1])
+    if (Number.isFinite(childCount) && childCount > 0) {
+      // Assume two adults + stated children for family party size.
+      return { count: childCount + 2, type: 'family' }
+    }
+  }
+  if (/\bone person\b|\ba person\b|شخص واحد|فرد واحد/.test(lower) || /شخص\s*واحد|فرد\s*واحد/.test(original)) {
+    return { count: 1, type: 'solo' }
+  }
   const count = Number(en?.[1] || ar?.[1] || 0)
   if (!count) return null
   let type: TravelerType = 'friends'
@@ -570,7 +653,10 @@ function matchDates(
   return { start: null, end: null }
 }
 
-/** Resolve soft month hints like "next April" into a planning start date (YYYY-MM-01). */
+/**
+ * Resolve soft month hints like "next April" into a planning start date.
+ * Uses mid-month (15) as an anchor — month-only intake is not a hard booking date.
+ */
 function matchMonthHint(lower: string, original: string): string | null {
   const months: Array<{ keys: string[]; month: number }> = [
     { keys: ['january', 'يناير'], month: 1 },
@@ -599,7 +685,7 @@ function matchMonthHint(lower: string, original: string): string | null {
         }
       }
       const mm = String(entry.month).padStart(2, '0')
-      return `${year}-${mm}-01`
+      return `${year}-${mm}-15`
     }
   }
   return null
@@ -643,10 +729,15 @@ function matchWeatherPreference(lower: string, original: string): string | null 
 
 function matchBudgetStyle(lower: string, original: string): BudgetStyle | null {
   if (/\bluxury\b|فاخر|فاخرة|luxury style/.test(lower) || /فاخر/.test(original)) return 'luxury'
-  if (/\bbudget\b|economy|رخيص|اقتصادي|منخفض التكلفة/.test(lower) || /اقتصادي|رخيص/.test(original)) {
+  if (
+    /\bcheap\b|\bbudget\b|economy|رخيص|اقتصادي|منخفض التكلفة|رخيصة/.test(lower)
+    || /اقتصادي|رخيص/.test(original)
+  ) {
     // Avoid treating "budget $3000" alone as budget-style when "mid-range" also present
     if (/\bmid[- ]?range\b|متوسط/.test(lower) || /متوسط/.test(original)) return 'midrange'
-    if (/\bbudget style\b|\bbudget trip\b|\bon a budget\b|رحلة اقتصادية/.test(lower)) return 'budget'
+    if (/\bcheap\b|\bbudget style\b|\bbudget trip\b|\bon a budget\b|رحلة اقتصادية/.test(lower)) {
+      return 'budget'
+    }
     if (/\bluxury\b/.test(lower)) return 'luxury'
     if (/\bbudget\b/.test(lower) && !/(?:under|below|max|budget)\s*\$?\s*\d/.test(lower)) return 'budget'
   }
@@ -698,7 +789,15 @@ function capitalizeDestination(value: string): string {
 }
 
 function isStopWord(value: string): boolean {
-  return ['A', 'The', 'My', 'Our', 'Trip', 'Plan', 'Weekend', 'Day', 'Days', 'Honeymoon', 'Business'].includes(value)
+  const normalized = value.trim()
+  if (!normalized) return true
+  if (/\b(For|With|Under|Couple|Family|Solo|Budget|Days?)\b/i.test(normalized) && normalized.split(/\s+/).length > 2) {
+    return true
+  }
+  return [
+    'A', 'The', 'My', 'Our', 'Trip', 'Plan', 'Weekend', 'Day', 'Days',
+    'Honeymoon', 'Business', 'For', 'With', 'Under', 'Couple', 'Family',
+  ].includes(normalized)
 }
 
 function uniqueInterests(values: string[]): string[] {

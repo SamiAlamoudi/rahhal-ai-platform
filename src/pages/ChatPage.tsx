@@ -6,6 +6,7 @@ import VoiceComposer from '../components/chat/VoiceComposer'
 import LiveNotificationsBanner from '../components/chat/experience/LiveNotificationsBanner'
 import VirtualizedMessageList from '../components/chat/experience/VirtualizedMessageList'
 import { travelAgentService } from '../lib/agent/travelAgentService'
+import { detectAgentLocale } from '../lib/agent/locale'
 import type { TripPlan } from '../lib/agent/types'
 import { chatEngine } from '../lib/chat/chatEngine'
 import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
@@ -106,6 +107,11 @@ export default function ChatPage() {
     () => chatEngine.searchConversations(conversations, query),
     [conversations, query],
   )
+
+  const chatLocale = useMemo(() => {
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user')
+    return detectAgentLocale(lastUser?.content ?? '', 'ar')
+  }, [messages])
 
   const isStreaming = messages.some((m) => m.status === 'streaming') || sending
   const voiceBusy =
@@ -873,11 +879,7 @@ export default function ChatPage() {
               <h1 className="truncate text-base font-bold text-slate-900 dark:text-slate-100">وكيل سفر رحّال</h1>
               <p className="text-[10px] text-slate-400">
                 {online
-                  ? chatgptOn
-                    ? 'ChatGPT-style conversation · streaming · voice · memory'
-                    : experienceEnabled
-                      ? 'تجربة محادثة الإنتاج · بطاقات وحجز داخل الدردشة'
-                      : 'تخطيط رحلات منظم · نص وصوت على نفس المحرك'
+                  ? 'محادثة طبيعية · تخطيط · حجز · دفع داخل نفس الجلسة'
                   : 'غير متصل — وضع القراءة فقط مؤقتاً'}
               </p>
             </div>
@@ -1060,7 +1062,7 @@ export default function ChatPage() {
                       message={message}
                       isStreaming={message.status === 'streaming'}
                       busy={isStreaming || voiceBusy || bookingBusy}
-                      locale="ar"
+                      locale={chatLocale}
                       bookingState={
                         experienceEnabled && message.id === latestStructuredMessage?.id
                           ? bookingState

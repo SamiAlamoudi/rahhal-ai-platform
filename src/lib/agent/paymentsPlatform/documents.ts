@@ -4,6 +4,14 @@
 
 import type { DocumentKind, DocumentRecord, UnifiedTicket } from './types'
 
+function formatMoneyLabel(amount: number, currency: string): string {
+  const rounded = Math.round(amount * 100) / 100
+  const text = Number.isInteger(rounded)
+    ? String(rounded)
+    : rounded.toFixed(2)
+  return `${text} ${currency}`
+}
+
 export class DocumentCenter {
   private readonly docs = new Map<string, DocumentRecord>()
 
@@ -71,7 +79,7 @@ export class DocumentCenter {
     created.push(this.store({
       paymentSessionId: input.paymentSessionId,
       kind: 'invoice',
-      label: `Invoice ${input.invoiceAmount} ${input.currency}`,
+      label: `Invoice ${formatMoneyLabel(input.invoiceAmount, input.currency)}`,
       meta: { amount: input.invoiceAmount, currency: input.currency },
       now: input.now,
     }))
@@ -84,7 +92,7 @@ export class DocumentCenter {
     created.push(this.store({
       paymentSessionId: input.paymentSessionId,
       kind: 'confirmation_pdf',
-      label: 'Booking confirmation PDF',
+      label: 'Booking confirmation',
       now: input.now,
     }))
     return created
@@ -100,7 +108,7 @@ export class DocumentCenter {
     return this.store({
       paymentSessionId: input.paymentSessionId,
       kind: 'refund',
-      label: `Refund ${input.amount} ${input.currency}`,
+      label: `Refund ${formatMoneyLabel(input.amount, input.currency)}`,
       meta: { refundId: input.refundId },
       now: input.now,
     })

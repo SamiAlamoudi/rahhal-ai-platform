@@ -74,7 +74,7 @@ describe('extractFromUserText', () => {
     const result = extractFromUserText('I want to spend 5 days in Japan next April.')
     expect(result.patch.destination).toBe('Japan')
     expect(result.patch.durationDays).toBe(5)
-    expect(result.patch.startDate).toMatch(/-04-01$/)
+    expect(result.patch.startDate).toMatch(/-04-15$/)
   })
 
   it('parses ISO, slash, dash, and relative dates', () => {
@@ -108,6 +108,58 @@ describe('extractFromUserText', () => {
     expect(result.patch.durationDays).toBe(14)
     expect(result.patch.travelerType).toBe('couple')
     expect(result.patch.travelers).toBe(2)
-    expect(result.patch.startDate).toMatch(/-08-01$/)
+    expect(result.patch.startDate).toMatch(/-08-15$/)
+  })
+
+  it('QA: destination is not stolen by origin city', () => {
+    const business = extractFromUserText(
+      'Business trip to London for 3 days next month, from Jeddah',
+    )
+    expect(business.patch.destination).toBe('London')
+    expect(business.patch.origin).toBe('Jeddah')
+    expect(business.patch.durationDays).toBe(3)
+
+    const arabic = extractFromUserText(
+      'أريد رحلة عائلية إلى إسطنبول لمدة 6 أيام بميزانية 10000 ريال من جدة',
+    )
+    expect(arabic.patch.destination).toBe('Istanbul')
+    expect(arabic.patch.origin).toBe('Jeddah')
+    expect(arabic.patch.durationDays).toBe(6)
+  })
+
+  it('QA: barcelona, family kids, cheap solo, multi-city', () => {
+    const barcelona = extractFromUserText(
+      'Plan a weekend in Barcelona for a couple under 5000 EUR',
+    )
+    expect(barcelona.patch.destination).toBe('Barcelona')
+    expect(barcelona.patch.durationDays).toBe(2)
+    expect(barcelona.patch.travelers).toBe(2)
+
+    const family = extractFromUserText(
+      'Family trip to Dubai with 2 kids, 6 days, budget 15000 SAR',
+    )
+    expect(family.patch.destination).toBe('Dubai')
+    expect(family.patch.travelers).toBe(4)
+    expect(family.patch.travelerType).toBe('family')
+
+    const budget = extractFromUserText(
+      'Cheap trip to Cairo for one person, 4 days, under 3000 SAR',
+    )
+    expect(budget.patch.destination).toBe('Cairo')
+    expect(budget.patch.travelers).toBe(1)
+    expect(budget.patch.budgetStyle).toBe('budget')
+
+    const multi = extractFromUserText(
+      'I want to visit Paris and Rome in one trip for 10 days',
+    )
+    expect(multi.patch.destination).toBe('Paris')
+    expect(multi.patch.destinations).toEqual(expect.arrayContaining(['Paris', 'Rome']))
+
+    const tokyo = extractFromUserText(
+      'I want a solo trip to Tokyo for 5 days in October, budget 8000 SAR from Riyadh',
+    )
+    expect(tokyo.patch.destination).toBe('Tokyo')
+    expect(tokyo.patch.origin).toBe('Riyadh')
+    expect(tokyo.patch.travelers).toBe(1)
   })
 })

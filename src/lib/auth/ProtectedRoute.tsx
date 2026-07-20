@@ -58,7 +58,7 @@ export function PublicOnlyRoute({ children }: ProtectedRouteProps) {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/chat" replace />
   }
 
   return <>{children}</>
