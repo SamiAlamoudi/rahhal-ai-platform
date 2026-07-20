@@ -66,6 +66,24 @@ export function buildConciergeRecommendations(
 
 function buildFramingCandidates(input: ConciergeRecommendationInput) {
   const { requirements, softSignals, locale } = input
+
+  // Sprint 45 — when open-ended discovery filled destination suggestions, frame those.
+  if (
+    requirements.destinationFlexible
+    && !requirements.destination
+    && requirements.destinations.length > 0
+  ) {
+    return requirements.destinations.slice(0, 3).map((name, index) => ({
+      id: `dest-${index}-${name.toLowerCase().replace(/\s+/g, '-')}`,
+      kind: 'itinerary' as const,
+      title: locale === 'ar' ? `وجهة مقترحة: ${name}` : `Suggested destination: ${name}`,
+      baseScore: 0.9 - index * 0.08,
+      comfort: 0.75,
+      price: requirements.budgetAmount ?? null,
+      rating: 0.8,
+    }))
+  }
+
   const dest = requirements.destination || requirements.destinations[0] || ''
   const label = dest || (locale === 'ar' ? 'الرحلة' : 'Trip')
   const comfortBias = softSignals.pace === 'relaxed'

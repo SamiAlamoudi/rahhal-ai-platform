@@ -74,6 +74,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     enabled: true,
   },
   {
+    id: 'ai.travel_reasoning',
+    name: 'Autonomous Travel Reasoning Engine',
+    description:
+      'Sprint 45 open-ended destination discovery, climate/budget/visa reasoning, preference memory bridge, and explainable recommendations on the production agent path.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.concierge', 'ai.recommendation_engine'],
+    notes: 'Product alias: travel_reasoning',
+  },
+  {
     id: 'ui.flight_results_experience',
     name: 'Flight Results Experience',
     description:

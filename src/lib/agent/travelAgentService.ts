@@ -91,6 +91,17 @@ import {
   searchOptionsToBookingSelectedItems,
 } from '../bookingFlow'
 import type { SearchAggregationTurnResult } from '../brain/search'
+import {
+  applyReasoningToRequirements,
+  formatReasoningReply,
+  isTravelReasoningEnabled,
+  learnPreferencesFromRequirements,
+  matchDestinationSelection,
+  runTravelReasoning,
+  seedRequirementsFromPreferences,
+  toReasoningSnapshot,
+  type TravelReasoningResult,
+} from './reasoning'
 
 const BOOKING_HISTORY_INTENTS = new Set<AgentIntent>([
   'show_trips',
@@ -182,6 +193,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `brain.trip_orchestrator` (OFF). Requires brain.search.
    */
   brainTripOrchestratorEnabled?: boolean
+  /**
+   * Sprint 45 — Autonomous Travel Reasoning Engine.
+   * Default: FeatureRegistry `ai.travel_reasoning` (ON).
+   */
+  travelReasoningEnabled?: boolean
   /**
    * Sprint 25 — Production Booking Flow orchestration.
    * Default: FeatureRegistry `ui.booking_flow` (OFF).
@@ -324,6 +340,9 @@ export function createTravelAgentService(
       brainTripOrchestratorEnabled: options.brainTripOrchestratorEnabled,
     })
 
+  const isReasoningEnabled = (): boolean =>
+    isTravelReasoningEnabled({ enabled: options.travelReasoningEnabled })
+
   const isFlowEnabled = (): boolean =>
     isBookingFlowEnabled({
       bookingFlowEnabled: options.bookingFlowEnabled,
@@ -385,6 +404,7 @@ export function createTravelAgentService(
       const userText = lastUser?.content ?? ''
       const prior = rebuildMemoryFromMessages(input.messages.slice(0, -1))
       const extracted = extractFromUserText(userText, prior.locale)
+      const preferenceUserId = getBookingHistoryUserId() || input.conversationId
 
       let memory: AgentMemory = {
         ...prior,
@@ -392,8 +412,83 @@ export function createTravelAgentService(
         lastIntent: extracted.intent,
         requirements: mergeRequirements(prior.requirements, extracted.patch),
       }
+
+      // Sprint 45 — seed empty slots from long-term preference memory (never overwrite).
+      if (isReasoningEnabled()) {
+        memory = {
+          ...memory,
+          requirements: seedRequirementsFromPreferences(memory.requirements, {
+            userId: preferenceUserId,
+          }),
+        }
+
+        // Confirm a previously proposed destination ("first one" / named pick).
+        const priorMeta = [...input.messages]
+          .reverse()
+          .map((m) => m.providerMeta)
+          .find((meta) => meta && typeof meta === 'object' && 'reasoning' in meta && meta.reasoning)
+        const priorReasoning = priorMeta && typeof priorMeta === 'object'
+          ? (priorMeta as { reasoning?: AgentProviderMeta['reasoning'] }).reasoning
+          : undefined
+        if (priorReasoning?.candidateIds?.length && !extracted.patch.destination) {
+          const catalogNames = priorReasoning.candidateIds.map((id) => {
+            const hit = memory.requirements.destinations.find((d) =>
+              d.toLowerCase().includes(id) || id.includes(d.toLowerCase()),
+            )
+            return {
+              id,
+              name: hit ?? id.charAt(0).toUpperCase() + id.slice(1),
+              nameAr: hit ?? id,
+            }
+          })
+          const selected = matchDestinationSelection(userText, catalogNames)
+          if (selected) {
+            memory = {
+              ...memory,
+              requirements: mergeRequirements(memory.requirements, {
+                destination: selected,
+                destinations: [selected],
+                destinationFlexible: false,
+              }),
+              lastIntent: 'plan',
+            }
+          }
+        }
+      }
+
       memory.missingFields = missingRequirementFields(memory.requirements)
       memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
+
+      let reasoningResult: TravelReasoningResult | null = null
+      let reasoningMeta: AgentProviderMeta['reasoning'] | undefined
+
+      // Sprint 45 — autonomous destination reasoning for open-ended asks.
+      if (
+        isReasoningEnabled()
+        && userText.trim()
+        && !memory.tripPlan
+        && !memory.requirements.destination
+        && (
+          extracted.intent === 'discover'
+          || memory.requirements.destinationFlexible === true
+        )
+      ) {
+        reasoningResult = runTravelReasoning({
+          locale: memory.locale,
+          requirements: memory.requirements,
+          userText,
+        })
+        memory = {
+          ...memory,
+          requirements: applyReasoningToRequirements(memory.requirements, reasoningResult),
+        }
+        memory.missingFields = missingRequirementFields(memory.requirements)
+        memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
+        reasoningMeta = toReasoningSnapshot(reasoningResult)
+        learnPreferencesFromRequirements(memory.requirements, { userId: preferenceUserId })
+      } else if (isReasoningEnabled() && hasPlanningPatch(extracted.patch as Record<string, unknown>)) {
+        learnPreferencesFromRequirements(memory.requirements, { userId: preferenceUserId })
+      }
 
       // Sprint 20–27 — every user message through Brain when flags are on.
       let brainMeta: BrainMetaSnapshot | undefined
@@ -540,6 +635,44 @@ export function createTravelAgentService(
       const attachBrain = <T extends AgentProviderMeta>(meta: T): T =>
         withBrainMeta(meta, brainMeta)
 
+      const attachReasoning = <T extends AgentProviderMeta>(meta: T): T => {
+        if (!reasoningMeta) return meta
+        return { ...meta, reasoning: reasoningMeta }
+      }
+
+      const attachTurnMeta = <T extends AgentProviderMeta>(meta: T): T =>
+        attachReasoning(attachBrain(meta))
+
+      // Sprint 45 — open-ended reasoning owns the consultant reply when proposing destinations.
+      if (
+        reasoningResult
+        && reasoningMeta
+        && memory.requirements.destinationFlexible
+        && !memory.requirements.destination
+        && reasoningResult.primary
+      ) {
+        memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
+        const reply = formatReasoningReply({
+          result: reasoningResult,
+          requirements: memory.requirements,
+        })
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          toolResults: [],
+        }
+        return {
+          reply,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta: attachTurnMeta(meta),
+          toolBatch: null,
+        }
+      }
+
       // Sprint 22 — clarification from TripPlanningEngine (shared with voice via runIntegratedBrainTurn).
       if (
         (tripPlanningOn || executionOn || searchOn || orchestratorOn)
@@ -559,7 +692,7 @@ export function createTravelAgentService(
           reply: brainMeta.clarificationQuestion,
           memory,
           tripPlan: memory.tripPlan,
-          meta: attachBrain(meta),
+          meta: attachTurnMeta(meta),
           toolBatch: null,
         }
       }
@@ -584,7 +717,7 @@ export function createTravelAgentService(
           reply: brainMeta.contextualReply,
           memory,
           tripPlan: memory.tripPlan,
-          meta: attachBrain(meta),
+          meta: attachTurnMeta(meta),
           toolBatch: null,
         }
       }
@@ -613,7 +746,7 @@ export function createTravelAgentService(
           reply,
           memory,
           tripPlan: memory.tripPlan,
-          meta: attachBrain(meta),
+          meta: attachTurnMeta(meta),
           toolBatch: null,
         }
       }
@@ -649,7 +782,7 @@ export function createTravelAgentService(
           reply,
           memory,
           tripPlan: memory.tripPlan,
-          meta: attachBrain(meta),
+          meta: attachTurnMeta(meta),
           toolBatch: null,
         }
       }
@@ -683,7 +816,7 @@ export function createTravelAgentService(
           reply,
           memory,
           tripPlan: memory.tripPlan,
-          meta: attachBrain(meta),
+          meta: attachTurnMeta(meta),
           toolBatch: null,
         }
       }
@@ -711,7 +844,7 @@ export function createTravelAgentService(
           reply,
           memory,
           tripPlan: memory.tripPlan,
-          meta: attachBrain(meta),
+          meta: attachTurnMeta(meta),
           toolBatch: null,
         }
       }
@@ -749,7 +882,7 @@ export function createTravelAgentService(
             reply: conciergeResult.reply,
             memory,
             tripPlan: memory.tripPlan,
-            meta: attachBrain(meta),
+            meta: attachTurnMeta(meta),
             toolBatch: null,
           }
         }
@@ -874,7 +1007,7 @@ export function createTravelAgentService(
         reply,
         memory,
         tripPlan: memory.tripPlan,
-        meta: attachBrain(meta),
+        meta: attachTurnMeta(meta),
         toolBatch,
       }
     },

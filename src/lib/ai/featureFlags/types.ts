@@ -14,6 +14,7 @@ export type FeatureId =
   | 'ai.recommendation_engine'
   | 'ai.analytics'
   | 'ai.concierge'
+  | 'ai.travel_reasoning'
   | 'ui.flight_results_experience'
   | 'ui.passenger_booking_flow'
   | 'ui.my_trips'

@@ -27,7 +27,7 @@ const SOFT_ASK_FIELDS: Array<keyof TripRequirements> = [
   'packageScope',
 ]
 
-const EXECUTE_INTENTS = new Set(['plan', 'answer', 'regenerate', 'edit', 'regenerate_day'])
+const EXECUTE_INTENTS = new Set(['plan', 'discover', 'answer', 'regenerate', 'edit', 'regenerate_day'])
 
 export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDecision {
   const previous = ctx.previous ?? emptyConciergeState()
@@ -39,7 +39,7 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
     softSignals,
   })
 
-  const hardMissing = hardMissingCount(ctx.missingFields)
+  const hardMissing = hardMissingCount(ctx.missingFields, ctx.requirements)
   const intakeComplete = ctx.missingFields.length === 0
   const hasPlan = Boolean(ctx.memory.tripPlan)
   const heardSummary = buildHeardSummary(ctx, softSignals.mustHaves)
@@ -48,6 +48,36 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
   let askFields: Array<keyof TripRequirements> = []
   let shouldExecuteAgent = false
   let rationale: string
+
+  // Sprint 45 — open-ended discovery: propose reasoned options instead of asking "where?".
+  if (
+    ctx.requirements.destinationFlexible
+    && !ctx.requirements.destination
+    && (ctx.intent === 'discover' || ctx.requirements.weatherPreference)
+  ) {
+    action = previous.turnCount === 0 ? 'greet' : 'propose_options'
+    askFields = pickAskFields(
+      ctx.missingFields.filter((field) => field !== 'destination'),
+      2,
+    )
+    rationale = 'Open-ended discovery — propose destinations; ask only remaining hard slots.'
+    const nextPhase = 'advising'
+    const state = advanceConciergeState({
+      previous,
+      phase: nextPhase,
+      softSignals,
+      lastAction: action,
+      heardSummary,
+    })
+    return {
+      action,
+      phase: nextPhase,
+      state,
+      askFields,
+      shouldExecuteAgent: false,
+      rationale,
+    }
+  }
 
   if (phase === 'greeting' && previous.turnCount === 0 && !intakeComplete) {
     action = 'greet'

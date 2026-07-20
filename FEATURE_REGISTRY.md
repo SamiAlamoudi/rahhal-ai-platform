@@ -26,6 +26,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ai.recommendation_engine` | experimental | yes | Engine interfaces |
 | `ai.analytics` | experimental | yes | Privacy-gated anonymous metrics |
 | `ai.concierge` | experimental | yes | Provider-agnostic consultant dialogue above the agent |
+| `ai.travel_reasoning` | beta | yes | Sprint 45 open-ended destination reasoning + preference bridge (alias: travel_reasoning) |
 | `ui.flight_results_experience` | beta | yes | Sprint 11 flight cards, sort/filter, details, select→session |
 | `ui.passenger_booking_flow` | beta | yes | Sprint 12 passengers, validation, summary, session persist (depends on flight results) |
 | `ui.my_trips` | beta | yes | Sprint 13 My Trips (alias: myTrips); depends on passenger booking flow |
