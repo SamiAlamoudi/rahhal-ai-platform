@@ -35,6 +35,14 @@ import { mergeToolResultsIntoPlan } from './tools/mergeToolResults'
 import { selectToolsForTurn } from './tools/selectTools'
 import { createDefaultAgentToolRegistry } from './tools/stubs'
 import type { AgentToolRegistry, AgentToolResult, ToolExecutionBatch } from './tools/types'
+import {
+  goalFromMeta,
+  isAutonomousAgentEnabled,
+  runAutonomousTurn,
+  upsertTravelGoal,
+  type AutonomousAgentSnapshot,
+  type AutonomousProgressEvent,
+} from './autonomous'
 import type {
   AgentIntent,
   AgentMemory,
@@ -143,6 +151,11 @@ export interface TravelAgentTurnInput {
   conversationId: string
   messages: ChatMessage[]
   signal?: AbortSignal
+  /**
+   * Sprint 54 — optional progress sink for autonomous execution streaming.
+   * Additive; Conversation Brain still authors the final reply.
+   */
+  onProgress?: (event: AutonomousProgressEvent) => void
 }
 
 export interface TravelAgentTurnResult {
@@ -216,6 +229,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.rahhal_brain` (ON).
    */
   rahhalBrainEnabled?: boolean
+  /**
+   * Sprint 54 — Autonomous Travel Agent (goal engine, tool planner, recovery).
+   * Default: FeatureRegistry `ai.autonomous_agent` (ON).
+   */
+  autonomousAgentEnabled?: boolean
   /**
    * Phase 2 — AI Travel Executive intelligence.
    * Default: FeatureRegistry `ai.travel_executive` (ON).
@@ -367,6 +385,58 @@ function toMetaRahhalBrain(
   }
 }
 
+function toMetaAutonomous(
+  snapshot: AutonomousAgentSnapshot,
+): NonNullable<AgentProviderMeta['autonomous']> {
+  return {
+    state: snapshot.state,
+    progressPhase: snapshot.progressPhase,
+    goal: snapshot.goal
+      ? {
+        id: snapshot.goal.id,
+        objective: snapshot.goal.objective,
+        description: snapshot.goal.description,
+        status: snapshot.goal.status,
+        blockingFields: snapshot.goal.blockingFields,
+      }
+      : null,
+    planTaskCount: snapshot.plan?.tasks.length ?? 0,
+    completedTaskIds: snapshot.completedTaskIds,
+    pendingTaskIds: snapshot.pendingTaskIds,
+    lastProviderId: snapshot.lastProviderId,
+    totalRetries: snapshot.totalRetries,
+    durationMs: snapshot.durationMs,
+    outcome: snapshot.outcome,
+    recoveredFromFailures: snapshot.recoveredFromFailures,
+  }
+}
+
+function priorAutonomousFromMessages(messages: ChatMessage[]): AutonomousAgentSnapshot | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i]
+    if (msg?.role !== 'assistant') continue
+    const meta = msg.providerMeta as unknown as AgentProviderMeta | undefined
+    if (!meta || meta.kind !== 'travel_agent') continue
+    const goal = goalFromMeta(meta)
+    if (!meta.autonomous && !goal) continue
+    return {
+      state: (meta.autonomous?.state as AutonomousAgentSnapshot['state']) || 'IDLE',
+      progressPhase: (meta.autonomous?.progressPhase as AutonomousAgentSnapshot['progressPhase']) || 'Thinking',
+      goal,
+      plan: null,
+      completedTaskIds: meta.autonomous?.completedTaskIds ?? [],
+      pendingTaskIds: meta.autonomous?.pendingTaskIds ?? [],
+      lastProviderId: meta.autonomous?.lastProviderId ?? null,
+      totalRetries: meta.autonomous?.totalRetries ?? 0,
+      durationMs: meta.autonomous?.durationMs ?? 0,
+      outcome: (meta.autonomous?.outcome as AutonomousAgentSnapshot['outcome']) || 'ok',
+      logs: [],
+      recoveredFromFailures: meta.autonomous?.recoveredFromFailures ?? false,
+    }
+  }
+  return null
+}
+
 function toToolSummaries(results: AgentToolResult[]): AgentToolRunSummary[] {
   return results.map((result) => ({
     tool: result.tool,
@@ -483,6 +553,9 @@ export function createTravelAgentService(
   const isBrainCoreEnabled = (): boolean =>
     isRahhalBrainEnabled({ enabled: options.rahhalBrainEnabled })
 
+  const isAutonomousEnabled = (): boolean =>
+    isAutonomousAgentEnabled({ enabled: options.autonomousAgentEnabled })
+
   const isFlowEnabled = (): boolean =>
     isBookingFlowEnabled({
       bookingFlowEnabled: options.bookingFlowEnabled,
@@ -498,10 +571,50 @@ export function createTravelAgentService(
   const runToolsForPlan = async (input: {
     memory: AgentMemory
     conversationId: string
+    userText?: string
     signal?: AbortSignal
     seed?: string
     basePlan?: TripPlan
-  }): Promise<{ plan: TripPlan; batch: ToolExecutionBatch }> => {
+    priorAutonomous?: AutonomousAgentSnapshot | null
+    onProgress?: (event: AutonomousProgressEvent) => void
+  }): Promise<{
+    plan: TripPlan
+    batch: ToolExecutionBatch
+    autonomous?: AutonomousAgentSnapshot
+  }> => {
+    if (isAutonomousEnabled()) {
+      const autonomous = await runAutonomousTurn({
+        conversationId: input.conversationId,
+        userText: input.userText ?? '',
+        memory: input.memory,
+        registry: tools,
+        priorSnapshot: input.priorAutonomous ?? null,
+        signal: input.signal,
+        seed: input.seed,
+        basePlan: input.basePlan,
+        onProgress: input.onProgress,
+      })
+      if (autonomous.planBuilt && autonomous.tripPlan) {
+        return {
+          plan: autonomous.tripPlan,
+          batch: autonomous.batch,
+          autonomous: autonomous.snapshot,
+        }
+      }
+      // Clarification / blocked — fall through to a lightweight base plan without tools.
+      const base = input.basePlan ?? buildTripPlan({
+        requirements: input.memory.requirements,
+        conversationId: input.conversationId,
+        locale: input.memory.locale,
+        seed: input.seed,
+      })
+      return {
+        plan: base,
+        batch: autonomous.batch,
+        autonomous: autonomous.snapshot,
+      }
+    }
+
     const selected = selectToolsForTurn({
       requirements: input.memory.requirements,
       intent: input.memory.lastIntent,
@@ -560,6 +673,10 @@ export function createTravelAgentService(
       let travelExecutiveSnapshot: RahhalBrainTurnResult['executive']
       let executivePlatformSnapshot: RahhalBrainTurnResult['executivePlatform']
       let liveIntelligenceSnapshot: RahhalBrainTurnResult['liveIntelligence']
+      let autonomousSnapshot: AutonomousAgentSnapshot | null = isAutonomousEnabled()
+        ? priorAutonomousFromMessages(input.messages.slice(0, -1))
+        : null
+      const priorAutonomous = autonomousSnapshot
 
       if (isBrainCoreEnabled()) {
         const brainTurn = runRahhalBrainTurn(
@@ -931,9 +1048,12 @@ export function createTravelAgentService(
       }
 
       const attachTurnMeta = <T extends AgentProviderMeta>(meta: T, reply?: string): T => {
+        const withAutonomous = autonomousSnapshot
+          ? { ...meta, autonomous: toMetaAutonomous(autonomousSnapshot) }
+          : meta
         const enriched = attachExecutivePlatform(
           attachTravelExecutive(
-            attachRahhalBrain(attachClarification(attachReasoning(attachBrain(meta)))),
+            attachRahhalBrain(attachClarification(attachReasoning(attachBrain(withAutonomous)))),
           ),
         )
         const spokenText = enriched.spokenText?.trim()
@@ -1330,10 +1450,14 @@ export function createTravelAgentService(
         const ran = await runToolsForPlan({
           memory,
           conversationId: input.conversationId,
+          userText,
           signal: input.signal,
           basePlan: refreshedDay,
+          priorAutonomous,
+          onProgress: input.onProgress,
         })
         toolBatch = ran.batch
+        if (ran.autonomous) autonomousSnapshot = ran.autonomous
         memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, ran.plan)
         objective = 'present_plan'
       } else if (extracted.intent === 'edit' && !hasPlanningPatch(extracted.patch) && memory.tripPlan) {
@@ -1363,12 +1487,16 @@ export function createTravelAgentService(
         const ran = await runToolsForPlan({
           memory,
           conversationId: input.conversationId,
+          userText,
           signal: input.signal,
           seed,
           basePlan,
+          priorAutonomous,
+          onProgress: input.onProgress,
         })
         let plan = ran.plan
         toolBatch = ran.batch
+        if (ran.autonomous) autonomousSnapshot = ran.autonomous
         if (llmResult.draft?.notes?.length) {
           plan = { ...plan, notes: [...plan.notes, ...llmResult.draft.notes] }
         }
@@ -1383,6 +1511,36 @@ export function createTravelAgentService(
         objective = 'present_plan'
       } else {
         objective = 'collect_missing'
+      }
+
+      // Sprint 54 — keep the travel goal alive across clarification turns.
+      if (isAutonomousEnabled()) {
+        const goal = upsertTravelGoal({
+          conversationId: input.conversationId,
+          userText,
+          memory,
+          priorGoal: autonomousSnapshot?.goal ?? priorAutonomous?.goal ?? null,
+        })
+        if (!autonomousSnapshot || autonomousSnapshot.outcome === 'blocked' || !autonomousSnapshot.plan) {
+          autonomousSnapshot = {
+            state: 'COMPLETE',
+            progressPhase: objective === 'collect_missing' ? 'Completed' : (autonomousSnapshot?.progressPhase ?? 'Thinking'),
+            goal,
+            plan: autonomousSnapshot?.plan ?? null,
+            completedTaskIds: autonomousSnapshot?.completedTaskIds ?? priorAutonomous?.completedTaskIds ?? [],
+            pendingTaskIds: autonomousSnapshot?.pendingTaskIds ?? priorAutonomous?.pendingTaskIds ?? [],
+            lastProviderId: autonomousSnapshot?.lastProviderId ?? priorAutonomous?.lastProviderId ?? null,
+            totalRetries: autonomousSnapshot?.totalRetries ?? priorAutonomous?.totalRetries ?? 0,
+            durationMs: autonomousSnapshot?.durationMs ?? 0,
+            outcome: objective === 'collect_missing' ? 'blocked' : (autonomousSnapshot?.outcome ?? 'ok'),
+            logs: autonomousSnapshot?.logs ?? priorAutonomous?.logs ?? [],
+            recoveredFromFailures: autonomousSnapshot?.recoveredFromFailures
+              ?? priorAutonomous?.recoveredFromFailures
+              ?? false,
+          }
+        } else {
+          autonomousSnapshot = { ...autonomousSnapshot, goal }
+        }
       }
 
       const facts = buildTravelFacts({

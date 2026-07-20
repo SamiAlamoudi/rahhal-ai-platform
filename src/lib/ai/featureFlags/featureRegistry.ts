@@ -144,6 +144,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: rahhal_brain. Orchestrates existing engines; does not replace execution modules.',
   },
   {
+    id: 'ai.autonomous_agent',
+    name: 'Autonomous Travel Agent',
+    description:
+      'Sprint 54 — goal-oriented multi-step execution with tool planning, retries, recovery, progress streaming, and observability. Conversation Brain still authors traveler-facing text.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.concierge'],
+    notes: 'Product alias: autonomous_agent. Additive orchestration over existing tools; no hardcoded replies.',
+  },
+  {
     id: 'ai.persistent_memory',
     name: 'Persistent Preference Memory',
     description:

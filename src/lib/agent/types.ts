@@ -323,6 +323,38 @@ export interface AgentProviderMeta {
     internalPlanSteps: number
   }
   /**
+   * Sprint 54 — Autonomous Travel Agent snapshot (goal, plan, progress, observability).
+   * Additive; never replaces Conversation Brain display/spoken text.
+   */
+  autonomous?: {
+    state: string
+    progressPhase: string
+    goal: {
+      id: string
+      objective: string
+      description: string
+      status: string
+      blockingFields: string[]
+    } | null
+    planTaskCount: number
+    completedTaskIds: string[]
+    pendingTaskIds: string[]
+    lastProviderId: string | null
+    totalRetries: number
+    durationMs: number
+    outcome: string
+    recoveredFromFailures: boolean
+  }
+  /** Latest streamed progress phase for UI badges (Thinking/Searching/…). */
+  autonomousProgress?: {
+    phase: string
+    state: string
+    message: string
+    activeTaskKind?: string
+    providerId?: string
+    retryCount?: number
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.

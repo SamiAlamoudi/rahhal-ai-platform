@@ -18,6 +18,7 @@ export type FeatureId =
   | 'ai.smart_clarification'
   | 'ai.persistent_memory'
   | 'ai.rahhal_brain'
+  | 'ai.autonomous_agent'
   | 'ai.travel_executive'
   | 'ai.executive_platform'
   | 'ai.executive_os'
