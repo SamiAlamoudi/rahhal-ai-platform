@@ -68,7 +68,14 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `brain.travel_execution_engine` | experimental | **no** | Sprint 33 booking Travel Execution Engine (alias: travel_execution_engine) — depends on `brain.conversation_ui`; distinct from Sprint 23 `brain.execution` |
 | `brain.payments_platform` | experimental | **no** | Sprint 34 Payments & Checkout Platform (alias: payments_platform) — depends on `brain.travel_execution_engine`; distinct from hosted `src/lib/payment` / deprecated `payments.live` |
 | `brain.trip_management` | experimental | **no** | Sprint 35 Post Booking & Trip Management (alias: trip_management) — depends on `brain.payments_platform`; extends existing `src/lib/trips` TripManager |
+| `brain.refund_policy_engine` | experimental | **no** | Sprint 36 Universal Cancellation & Refund Policy Engine (alias: refund_policy_engine) — depends on `brain.trip_management` |
+| `brain.travel_disruption_engine` | experimental | **no** | Sprint 37 Travel Disruption & Smart Recovery Engine (alias: travel_disruption_engine) — depends on `brain.refund_policy_engine` |
+| `brain.loyalty_platform` | experimental | **no** | Sprint 38 Universal Loyalty, Rewards & Membership Platform (alias: loyalty_platform) — depends on `brain.travel_disruption_engine` |
+| `brain.travel_documents` | experimental | **no** | Sprint 39 Universal Travel Documents & Visa Intelligence Platform (alias: travel_documents) — depends on `brain.loyalty_platform` |
+| `brain.supplier_marketplace` | experimental | **no** | Sprint 40 Universal Supplier Marketplace & Contract Platform (alias: supplier_marketplace) — depends on `brain.travel_documents` |
+| `brain.finance_platform` | experimental | **no** | Sprint 41 Universal Revenue, Finance & Settlement Platform (alias: finance_platform) — depends on `brain.supplier_marketplace` |
 | `ui.conversation_experience` | experimental | **no** | Sprint 42 Conversation Experience & Booking UX (alias: conversation_experience) — depends on `brain.conversation_ui`; presentation only over Sprint 32–35 engines |
+| `brain.ai_orchestrator` | experimental | **no** | Sprint 43 Rahhal AI Orchestrator & Tool Routing (alias: ai_orchestrator) — depends on `brain.conversation_ui`, `brain.finance_platform` |
 | `providers.hotel_foundation` | experimental | **no** | Sprint 30 Hotel Provider Foundation — sandbox Hotelbeds / Expedia Rapid / Booking Connectivity (alias: hotel_provider_foundation) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |

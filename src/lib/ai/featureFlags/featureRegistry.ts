@@ -496,15 +496,70 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: trip_management. Extends existing src/lib/trips TripManager/TripRepository; does not duplicate payment/execution/planner logic.',
   },
   {
-    id: 'ui.conversation_experience',
-    name: 'Conversation Experience & Booking UX',
+    id: 'brain.refund_policy_engine',
+    name: 'Universal Cancellation & Refund Policy Engine',
     description:
-      'Sprint 42 production conversation UX — rich travel cards, in-chat booking actions, timeline, live notifications, maps, memory chips, themes. Presentation only over Sprint 32–35 engines. Default OFF.',
+      'Sprint 36 policy engine — normalize provider cancellation rules, quote/execute refunds across flights/hotels/cars/activities with partial cancel, audit, and conversation explanations. Default OFF.',
     lifecycle: 'experimental',
     enabled: false,
-    dependsOn: ['brain.conversation_ui'],
+    dependsOn: ['brain.trip_management'],
     notes:
-      'Product alias: conversation_experience. Does not create new backend engines; integrates conversation UI, execution, payments, trips, and memory.',
+      'Product alias: refund_policy_engine. Reuses PaymentOrchestrator.refund and PostBookingService; adapters normalize provider policies without embedding supplier SDKs.',
+  },
+  {
+    id: 'brain.travel_disruption_engine',
+    name: 'Travel Disruption & Smart Recovery Engine',
+    description:
+      'Sprint 37 disruption detection and smart recovery — severity/impact, alternative search, ranked recovery plans, automatic trip updates, and conversation-triggered handling. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.refund_policy_engine'],
+    notes:
+      'Product alias: travel_disruption_engine. Extends PostBookingService / NotificationScheduler; does not rewrite planner, payments, or refund policy calculation.',
+  },
+  {
+    id: 'brain.loyalty_platform',
+    name: 'Universal Loyalty, Rewards & Membership Platform',
+    description:
+      'Sprint 38 loyalty platform — Rahhal Points wallet, membership tiers/benefits, airline & hotel loyalty adapters, and smart rewards recommendations across travel services. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.travel_disruption_engine'],
+    notes:
+      'Product alias: loyalty_platform. Additive rewards layer; does not rewrite planner, payments, refunds, or disruption recovery.',
+  },
+  {
+    id: 'brain.travel_documents',
+    name: 'Universal Travel Documents & Visa Intelligence Platform',
+    description:
+      'Sprint 39 travel-document intelligence — destination rules, passport/visa/vaccination checks, alerts, and conversation explanations across travel services. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.loyalty_platform'],
+    notes:
+      'Product alias: travel_documents. Sandbox destination rules with future government-integration hooks; does not rewrite booking/payments stacks.',
+  },
+  {
+    id: 'brain.supplier_marketplace',
+    name: 'Universal Supplier Marketplace & Contract Platform',
+    description:
+      'Sprint 40 B2B supplier marketplace — onboarding/KYC, contracts, inventory, performance scoring, AI ranking, and supplier dashboard analytics. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.travel_documents'],
+    notes:
+      'Product alias: supplier_marketplace. Additive supplier layer; does not replace existing provider adapters or booking execution.',
+  },
+  {
+    id: 'brain.finance_platform',
+    name: 'Universal Revenue, Finance & Settlement Platform',
+    description:
+      'Sprint 41 post-booking finance backbone — revenue recognition, wallets, settlements, double-entry ledger, invoices, tax/FX, and financial reports. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.supplier_marketplace'],
+    notes:
+      'Product alias: finance_platform. Not a payment gateway; additive finance layer after booking/payments.',
   },
   {
     id: 'providers.hotel_foundation',
@@ -532,6 +587,31 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'stable',
     enabled: false,
     notes: 'Defaults OFF; Phase W provider flags still authoritative at runtime.',
+  },
+  {
+    id: 'ui.conversation_experience',
+    name: 'Conversation Experience & Booking UX',
+    description:
+      'Sprint 42 production conversation UX — rich travel cards, in-chat booking actions, timeline, live notifications, maps, memory chips, themes. Presentation only over Sprint 32–35 engines. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.conversation_ui'],
+    notes:
+      'Product alias: conversation_experience. Does not create new backend engines; integrates conversation UI, execution, payments, trips, and memory.',
+  },
+  {
+    id: 'brain.ai_orchestrator',
+    name: 'Rahhal AI Orchestrator',
+    description:
+      'Sprint 43 central AI tool routing, planning, parallel execution, ranking, and conversational synthesis. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: [
+      'brain.conversation_ui',
+      'brain.finance_platform',
+    ],
+    notes:
+      'Product alias: ai_orchestrator. Routes to existing engines only — no duplicated business logic.',
   },
 ]
 
