@@ -76,7 +76,7 @@ export default function ChatPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [composerMode, setComposerMode] = useState<ComposerMode>('text')
   const [voiceStatus, setVoiceStatus] = useState<VoiceSessionStatus>('idle')
-  const [voiceMode, setVoiceMode] = useState<VoiceInputMode>('push_to_talk')
+  const [voiceMode, setVoiceMode] = useState<VoiceInputMode>('hands_free')
   const [voiceLocale, setVoiceLocale] = useState<VoiceLocale>('ar')
   const [partialTranscript, setPartialTranscript] = useState('')
   const [voiceLevel, setVoiceLevel] = useState(0)

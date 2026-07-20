@@ -220,6 +220,13 @@ export interface AgentProviderMeta {
   tripPlan: TripPlan | null
   /** MVP compatibility mirror of tripPlan. */
   itinerary: TripPlan | null
+  /**
+   * Experience Sprint 1 — short conversational text for TTS.
+   * Never the full itinerary markdown; screen content stays in the message body.
+   */
+  spokenText?: string
+  /** Voice phase: bridge speaks immediately; final replaces after the turn completes. */
+  voicePhase?: 'bridge' | 'final'
   /** Phase J: tool batch executed for this assistant turn */
   toolResults?: AgentToolRunSummary[]
   /**

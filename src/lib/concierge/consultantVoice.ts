@@ -25,10 +25,9 @@ export function buildConsultantReply(input: ConsultantVoiceInput): string {
     case 'greet':
       return joinBlocks([
         line(locale, {
-          ar: 'مرحباً — أنا مستشارك في رحّال. خلّنا نبني رحلة تناسبك، مو مجرد تعبئة نموذج.',
-          en: 'Welcome — I am your Rahhal travel consultant. We will shape a trip around you, not a form.',
+          ar: 'أهلاً بك — أنا معك كمستشار سفر في رحّال. خلّنا نبني رحلة تحس إنها لك.',
+          en: 'Welcome — I am here as your Rahhal travel advisor. Let’s shape a trip that feels like you.',
         }),
-        heardBlock(locale, heard),
         askBlock(locale, decision.askFields, requirements),
       ])
     case 'ask':
@@ -68,13 +67,13 @@ export function buildConsultantReply(input: ConsultantVoiceInput): string {
     case 'search':
       // Agent will produce the structured plan reply; Concierge only bridges.
       return line(locale, {
-        ar: 'ممتاز — سأجهّز خطتك الآن عبر محرك السفر.',
-        en: 'Excellent — I will prepare your plan through the travel engine now.',
+        ar: 'ممتاز — عندي أفكار أولية، خلّني أقارن أفضل الخيارات.',
+        en: 'Excellent — I already have a few ideas. Let me compare the best options.',
       })
     case 'refine':
       return line(locale, {
-        ar: 'فهمت التعديل — سأعدّل الخطة بناءً على طلبك.',
-        en: 'Understood — I will adjust the plan based on your request.',
+        ar: 'فهمت — خلّني أعدّل الخطة وأشوف إننا نقدر نعمل أفضل.',
+        en: 'Got it — let me reshape the plan. I think we can do even better.',
       })
     default:
       return askBlock(locale, decision.askFields, requirements)
@@ -88,26 +87,15 @@ function askBlock(
 ): string {
   if (fields.length === 0) {
     return line(locale, {
-      ar: 'هل هناك تفصيل إضافي يهمك قبل ما نكمل؟',
-      en: 'Is there anything else that matters before we continue?',
+      ar: 'في شيء معيّن يهمك قبل ما نكمّل؟',
+      en: 'Is there anything that matters most before we continue?',
     })
   }
 
-  const questions = fields.map((field) => questionFor(field, locale, requirements))
-  if (questions.length === 1) {
-    return line(locale, {
-      ar: `حتى أوجّهك صح: ${questions[0]}`,
-      en: `To steer this well: ${questions[0]}`,
-    })
-  }
-
-  return [
-    line(locale, {
-      ar: 'سؤالان سريعان عشان نضبط الاتجاه:',
-      en: 'Two quick questions so we set the right direction:',
-    }),
-    ...questions.map((q) => `• ${q}`),
-  ].join('\n')
+  // Experience Sprint 1 — never more than one follow-up; never a wizard list.
+  const field = fields[0]!
+  const question = questionFor(field, locale, requirements)
+  return question
 }
 
 function questionFor(
@@ -119,62 +107,62 @@ function questionFor(
   switch (field) {
     case 'destination':
       return line(locale, {
-        ar: 'وين تبي تسافر؟ (مدينة أو بلد)',
-        en: 'Where would you like to go? (city or country)',
+        ar: 'خبرني أكثر عن الرحلة — وين تتخيّل نفسك؟',
+        en: 'Tell me a little more about the trip you are planning.',
       })
     case 'durationDays':
       return line(locale, {
         ar: dest
-          ? `كم يوم تتخيّل لـ${dest}؟ أو عندك تواريخ؟`
-          : 'How many days are you imagining, or do you have dates?',
+          ? `متى تتخيّل ${dest} — كم يوم تقريباً، أو عندك تواريخ؟`
+          : 'متى تقريباً، وكم يوم تتخيّل للرحلة؟',
         en: dest
-          ? `How many days are you imagining for ${dest}? Or do you have dates?`
-          : 'How many days are you imagining, or do you have dates?',
+          ? `When are you imagining ${dest} — roughly how many days, or do you have dates?`
+          : 'When are you thinking, and roughly how many days?',
       })
     case 'budgetAmount':
       return line(locale, {
-        ar: 'وش الميزانية التقريبية؟ (أو قل «مرنة»)',
-        en: 'What budget range feels comfortable? (or say “flexible”)',
+        ar: 'وش الميزانية اللي ترتاح لها — أو نخليها مرنة؟',
+        en: 'What budget range feels comfortable — or shall we keep it flexible?',
       })
     case 'travelers':
       return line(locale, {
-        ar: 'كم شخص بيسافر معك؟',
-        en: 'How many people are traveling?',
+        ar: 'بتسافر لوحدك، ولا مع أحد؟',
+        en: 'Are you traveling solo, or with someone?',
       })
     case 'travelerType':
       return line(locale, {
-        ar: 'سفر فردي، زوجين، عائلة، أصدقاء، ولا عمل؟',
-        en: 'Solo, couple, family, friends, or business?',
+        ar: 'هذي رحلة زوجين، عيلة، أصدقاء، ولا عمل؟',
+        en: 'Is this more of a couple trip, family, friends, or business?',
       })
     case 'interests':
       return line(locale, {
-        ar: 'وش يهمك أكثر: طعام، ثقافة، شاطئ، طبيعة، تسوق، مغامرة…؟',
-        en: 'What matters most: food, culture, beach, nature, shopping, adventure…?',
+        ar: 'وش يهمك أكثر في الرحلة — طعام، ثقافة، هدوء، مغامرة؟',
+        en: 'What matters most on this trip — food, culture, quiet, adventure?',
       })
     case 'budgetStyle':
       return line(locale, {
-        ar: 'تميل لفاخر، متوسط، ولا اقتصادي؟',
-        en: 'Do you lean luxury, mid-range, or budget?',
+        ar: 'تميل لأجواء فاخرة، متوسطة، ولا عملية أكثر؟',
+        en: 'Do you lean luxury, mid-range, or more practical?',
       })
     case 'hotelPreference':
       return line(locale, {
-        ar: 'تفضل فندق وسط المدينة، منتجع، بوتيك، ولا أي شيء مناسب؟',
-        en: 'Prefer a central hotel, resort, boutique, or whatever fits?',
+        ar: 'تفضل إقامة في وسط المدينة، منتجع، ولا أي مكان يناسب الإيقاع؟',
+        en: 'Prefer a central stay, a resort, or wherever fits the rhythm?',
       })
     case 'weatherPreference':
       return line(locale, {
-        ar: 'تحب طقس معتدل، دافئ، بارد، ولا مرن؟',
-        en: 'Mild, warm, cool weather — or flexible?',
+        ar: 'تحب طقس معتدل، دافئ، بارد، ولا ما يفرق؟',
+        en: 'Mild, warm, or cool weather — or no strong preference?',
       })
     case 'packageScope':
       return line(locale, {
-        ar: 'تبي طيران فقط، ولا باقة كاملة (طيران + إقامة + أنشطة)؟',
-        en: 'Flights only, or a full package (flights + stay + activities)?',
+        ar: 'نركز على الطيران، ولا باقة كاملة مع الإقامة والأنشطة؟',
+        en: 'Shall I focus on flights, or a full package with stays and activities?',
       })
     default:
       return line(locale, {
-        ar: 'هل تقدر توضّح هذا التفصيل؟',
-        en: 'Could you clarify that detail?',
+        ar: 'خبرني أكثر عشان أضبط الخيارات لك.',
+        en: 'Tell me a little more so I can tune the options for you.',
       })
   }
 }
@@ -193,8 +181,8 @@ function ackBlock(
   const bits: string[] = []
   if (heard.length) {
     bits.push(line(locale, {
-      ar: `سجلت: ${heard.join(' · ')}`,
-      en: `Noted: ${heard.join(' · ')}`,
+      ar: `واضح عندي: ${heard.join(' · ')}.`,
+      en: `I have this so far: ${heard.join(' · ')}.`,
     }))
   }
   if (soft.pace) {

@@ -43,10 +43,11 @@ describe('Concierge Phase 6 — planTurn wiring', () => {
       messages: [user('I want to travel to Japan.')],
     })
     expect(turn.tripPlan).toBeNull()
-    expect(turn.reply).toMatch(/consultant|Rahhal|مستشار|رحّال/i)
-    expect(turn.reply.toLowerCase()).toMatch(/day|when|مدة|متى/)
+    expect(turn.reply).toMatch(/consultant|Rahhal|مستشار|رحّال|tell me|خبرني|when|متى|days|يوم/i)
+    expect(turn.reply.toLowerCase()).not.toMatch(/next question|سؤال التالي|please choose/)
     expect(turn.meta.concierge).toBeTruthy()
     expect(turn.meta.concierge?.turnCount).toBeGreaterThan(0)
+    expect(turn.meta.spokenText).toBeTruthy()
   })
 
   it('hands off to agent planning when intake is complete', async () => {
@@ -58,6 +59,8 @@ describe('Concierge Phase 6 — planTurn wiring', () => {
     expect(turn.tripPlan?.destinations).toContain('Japan')
     expect(turn.reply).toMatch(/Summary|الملخص|Daily itinerary|برنامج/)
     expect(turn.meta.concierge).toBeTruthy()
+    expect(turn.meta.spokenText).toBeTruthy()
+    expect(turn.meta.spokenText!.length).toBeLessThan(turn.reply.length)
   })
 
   it('can disable Concierge and fall back to classic follow-ups', async () => {
@@ -67,7 +70,8 @@ describe('Concierge Phase 6 — planTurn wiring', () => {
       messages: [user('I want to travel to Japan.')],
     })
     expect(turn.tripPlan).toBeNull()
-    expect(turn.reply).toMatch(/smart trip plan|خطة سفر ذكية|Next question|سؤال التالي/)
+    expect(turn.reply.toLowerCase()).not.toMatch(/next question|سؤال التالي|smart trip plan|خطة سفر ذكية/)
+    expect(turn.reply).toMatch(/Japan|wonderful|exciting|timing|days|dates|متى|يوم/i)
     expect(turn.meta.concierge).toBeUndefined()
   })
 

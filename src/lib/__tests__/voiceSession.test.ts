@@ -142,7 +142,7 @@ describe('voiceSession', () => {
       tts,
       sendTurn: sendTurn as never,
       requestPermission: async () => ({ state: 'granted', error: null }),
-      silenceTimeoutMs: 1500,
+      silenceTimeoutMs: 2500,
       activityMonitor: {
         start: async () => {},
         stop: () => {},
@@ -155,7 +155,7 @@ describe('voiceSession', () => {
 
     await session.startHandsFree('c1')
     controller.emitFinal('متابعة الرحلة')
-    await vi.advanceTimersByTimeAsync(1600)
+    await vi.advanceTimersByTimeAsync(2600)
     expect(sendTurn).toHaveBeenCalled()
     expect(session.getStatus()).toBe('thinking')
 
@@ -215,6 +215,45 @@ describe('voiceSession', () => {
     const permission = await session.ensureMicPermission()
     expect(permission.state).toBe('denied')
     expect(session.getStatus()).toBe('error')
+    session.dispose()
+  })
+
+  it('speaks meta.spokenText instead of full itinerary markdown', async () => {
+    const { provider: stt } = createMockSpeechToTextProvider('خطة')
+    const tts = createMockTextToSpeechProvider()
+    const sendTurn = vi.fn(async (_input, handlers) => {
+      const assistant = {
+        ...assistantMessage('## Huge plan\n\n### Daily itinerary\n- day 1\n- day 2'),
+        providerMeta: {
+          spokenText: 'I have a first cut for Japan — five days for a couple.',
+          voicePhase: 'final',
+        },
+      }
+      await handlers.onComplete?.(assistant)
+      return {
+        user: {
+          ...assistant,
+          id: 'u1',
+          role: 'user' as const,
+          modality: 'audio' as const,
+          content: 'خطة',
+        },
+        assistant,
+      }
+    })
+
+    const session = createVoiceSession({
+      stt,
+      tts,
+      sendTurn: sendTurn as never,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      locale: 'en',
+    })
+
+    await session.startPushToTalk()
+    await session.stopPushToTalkAndSend('c1')
+    expect(tts.spoken.some((t) => t.includes('first cut for Japan'))).toBe(true)
+    expect(tts.spoken.every((t) => !t.includes('Daily itinerary'))).toBe(true)
     session.dispose()
   })
 })

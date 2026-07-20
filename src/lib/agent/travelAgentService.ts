@@ -18,7 +18,9 @@ import {
   buildEditAck,
   buildFollowUpQuestion,
   buildSaveAck,
-  formatTripPlanReply,
+  buildSpokenPlanSummary,
+  composeTripPlanDisplay,
+  resolveSpokenText,
 } from './formatReply'
 import { createAgentLlmRegistry } from './llm/factory'
 import type { AgentLlmRegistry } from './llm/types'
@@ -882,12 +884,27 @@ export function createTravelAgentService(
         return { ...meta, rahhalBrain: toMetaRahhalBrain(rahhalBrainMeta) }
       }
 
-      const attachTurnMeta = <T extends AgentProviderMeta>(meta: T): T =>
-        attachExecutivePlatform(
+      const attachTurnMeta = <T extends AgentProviderMeta>(meta: T, reply?: string): T => {
+        const enriched = attachExecutivePlatform(
           attachTravelExecutive(
             attachRahhalBrain(attachClarification(attachReasoning(attachBrain(meta)))),
           ),
         )
+        const spokenText = enriched.spokenText?.trim()
+          || (reply
+            ? resolveSpokenText({
+              reply,
+              tripPlan: enriched.tripPlan,
+              locale: enriched.memory.locale,
+            })
+            : undefined)
+        if (!spokenText) return enriched
+        return {
+          ...enriched,
+          spokenText,
+          voicePhase: enriched.voicePhase ?? 'final',
+        }
+      }
 
       // Sprint 45 — open-ended reasoning owns the consultant reply when proposing destinations.
       if (
@@ -915,7 +932,7 @@ export function createTravelAgentService(
           reply,
           memory,
           tripPlan: memory.tripPlan,
-          meta: attachTurnMeta(meta),
+          meta: attachTurnMeta(meta, reply),
           toolBatch: null,
         }
       }
@@ -939,7 +956,7 @@ export function createTravelAgentService(
           reply: brainMeta.clarificationQuestion,
           memory,
           tripPlan: memory.tripPlan,
-          meta: attachTurnMeta(meta),
+          meta: attachTurnMeta(meta, brainMeta.clarificationQuestion),
           toolBatch: null,
         }
       }
@@ -964,7 +981,7 @@ export function createTravelAgentService(
           reply: brainMeta.contextualReply,
           memory,
           tripPlan: memory.tripPlan,
-          meta: attachTurnMeta(meta),
+          meta: attachTurnMeta(meta, brainMeta.contextualReply),
           toolBatch: null,
         }
       }
@@ -993,7 +1010,7 @@ export function createTravelAgentService(
           reply,
           memory,
           tripPlan: memory.tripPlan,
-          meta: attachTurnMeta(meta),
+          meta: attachTurnMeta(meta, reply),
           toolBatch: null,
         }
       }
@@ -1129,7 +1146,7 @@ export function createTravelAgentService(
             reply: conciergeResult.reply,
             memory,
             tripPlan: memory.tripPlan,
-            meta: attachTurnMeta(meta),
+            meta: attachTurnMeta(meta, conciergeResult.reply),
             toolBatch: null,
           }
         }
@@ -1190,7 +1207,7 @@ export function createTravelAgentService(
         })
         toolBatch = ran.batch
         memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, ran.plan)
-        reply = formatTripPlanReply(ran.plan, memory.locale)
+        reply = composeTripPlanDisplay(ran.plan, memory.locale)
       } else if (extracted.intent === 'edit' && !hasPlanningPatch(extracted.patch) && memory.tripPlan) {
         reply = buildEditAck(memory.locale)
         memory.phase = 'editing'
@@ -1228,17 +1245,26 @@ export function createTravelAgentService(
           plan = { ...plan, notes: [...plan.notes, ...llmResult.draft.notes] }
         }
         memory = withTripPlan({ ...memory, phase: 'planned', missingFields: [] }, plan)
-        reply = formatTripPlanReply(plan, memory.locale)
+        reply = composeTripPlanDisplay(plan, memory.locale)
       } else if (memory.missingFields.length > 0) {
         memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
         reply = buildFollowUpQuestion(memory, memory.missingFields)
       } else if (memory.tripPlan) {
         const existingPlan = memory.tripPlan
         memory = withTripPlan({ ...memory, phase: 'planned' }, existingPlan)
-        reply = formatTripPlanReply(existingPlan, memory.locale)
+        reply = composeTripPlanDisplay(existingPlan, memory.locale)
       } else {
         reply = buildFollowUpQuestion(memory, memory.missingFields)
       }
+
+      const spokenText = resolveSpokenText({
+        reply,
+        tripPlan: memory.tripPlan,
+        locale: memory.locale,
+        spokenText: memory.tripPlan
+          ? buildSpokenPlanSummary(memory.tripPlan, memory.locale)
+          : reply,
+      })
 
       const meta: AgentProviderMeta = {
         kind: 'travel_agent',
@@ -1246,6 +1272,8 @@ export function createTravelAgentService(
         memory,
         tripPlan: memory.tripPlan,
         itinerary: memory.tripPlan,
+        spokenText,
+        voicePhase: 'final',
         toolResults: toolBatch ? toToolSummaries(toolBatch.results) : [],
         ...(conciergeState ? { concierge: toMetaConcierge(conciergeState) } : {}),
       }
@@ -1254,7 +1282,7 @@ export function createTravelAgentService(
         reply,
         memory,
         tripPlan: memory.tripPlan,
-        meta: attachTurnMeta(meta),
+        meta: attachTurnMeta(meta, reply),
         toolBatch,
       }
     },
