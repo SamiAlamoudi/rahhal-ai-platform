@@ -3,8 +3,8 @@ import type { AgentLocale, AgentMemory, TripPlan } from '../types'
 
 /**
  * LLM provider abstraction for the Travel AI Agent.
- * Concrete vendors (OpenAI, Anthropic, Gemini, DeepSeek, local) plug in here.
- * No real remote APIs in foundation — only interfaces + local/stub adapters.
+ * Conversation Brain uses `converse` for all user-facing language.
+ * Travel Intelligence never authors traveler-facing prose.
  */
 export type AgentLlmProviderId =
   | 'local'
@@ -32,14 +32,35 @@ export interface AgentLlmResponse {
   providerId: AgentLlmProviderId
   status: 'ok' | 'unavailable' | 'skipped'
   draft: AgentLlmPlanDraft | null
-  /** Optional freeform assistance text when not producing a full plan. */
+  /** @deprecated Conversation Brain uses converse(); hint is unused for UI. */
   assistantHint?: string | null
+}
+
+export interface ConversationLlmMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+export interface ConversationLlmRequest {
+  systemPrompt: string
+  messages: ConversationLlmMessage[]
+  signal?: AbortSignal
+  temperature?: number
+}
+
+export interface ConversationLlmResponse {
+  providerId: AgentLlmProviderId
+  status: 'ok' | 'unavailable' | 'error'
+  text: string
+  error?: string
 }
 
 export interface AgentLlmProvider {
   readonly providerId: AgentLlmProviderId
   isAvailable(): boolean
   complete(request: AgentLlmRequest): Promise<AgentLlmResponse>
+  /** Experience Sprint 2 — generative dialogue for Conversation Brain. */
+  converse(request: ConversationLlmRequest): Promise<ConversationLlmResponse>
 }
 
 export interface AgentLlmRegistry {
