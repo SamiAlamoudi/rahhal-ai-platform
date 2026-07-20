@@ -19,6 +19,11 @@ import {
   runExecutivePlatform,
 } from '../executive/platform'
 import { isExecutiveOsEnabled } from '../executive/os/feature'
+import {
+  gatherLiveIntelligence,
+  isRealWorldIntelligenceEnabled,
+} from '../intelligence'
+import type { LiveIntelligenceSnapshot } from '../intelligence'
 import { withTripPlan } from '../../agent/types'
 import type { AgentMemory } from '../../agent/types'
 import { createDefaultRahhalBrainPorts, buildMemoryFromMessages } from './defaultPorts'
@@ -38,6 +43,7 @@ export type RahhalBrainOptions = {
   travelExecutiveEnabled?: boolean
   executivePlatformEnabled?: boolean
   executiveOsEnabled?: boolean
+  realWorldIntelligenceEnabled?: boolean
 }
 
 function flagOrOverride(flag: boolean, override?: boolean): boolean {
@@ -60,6 +66,8 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
     flagOrOverride(isExecutivePlatformEnabled(), options.executivePlatformEnabled)
   const isOsOn = () =>
     flagOrOverride(isExecutiveOsEnabled(), options.executiveOsEnabled)
+  const isLiveOn = () =>
+    flagOrOverride(isRealWorldIntelligenceEnabled(), options.realWorldIntelligenceEnabled)
 
   const runTurn = (input: RahhalBrainTurnInput): RahhalBrainTurnResult => {
     const modulesExecuted: BrainModuleId[] = []
@@ -175,6 +183,19 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
       }
     }
 
+    // Sprint 53 — Real World Intelligence Layer (live signals via RahhalBrain only).
+    let liveIntelligence: LiveIntelligenceSnapshot | undefined
+    if (isLiveOn()) {
+      liveIntelligence = gatherLiveIntelligence({
+        userText,
+        memory,
+        understanding,
+        intents,
+        enabled: true,
+      })
+      modulesExecuted.push('live_intelligence')
+    }
+
     // Step 5 — Smart Clarification
     let clarificationMeta: RahhalBrainTurnResult['clarificationMeta']
     if (plannedModules.includes('clarification')) {
@@ -281,6 +302,13 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
       }
     }
 
+    if (decision.type === 'respond' && decision.reply && liveIntelligence?.summary) {
+      decision = {
+        ...decision,
+        reply: attachLiveEvidence(decision.reply, liveIntelligence.summary, memory.locale),
+      }
+    }
+
     return {
       memory,
       extracted,
@@ -292,6 +320,7 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
       clarificationMeta,
       executive: executiveEnhancement,
       executivePlatform,
+      liveIntelligence,
       decision,
       meta: {
         understanding,
@@ -305,6 +334,12 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
   }
 
   return { runTurn }
+}
+
+function attachLiveEvidence(reply: string, summary: string, locale: 'ar' | 'en'): string {
+  if (reply.includes(summary)) return reply
+  const header = locale === 'ar' ? 'إشارات حية:' : 'Live signals:'
+  return `${reply}\n\n${header}\n${summary}`
 }
 
 export type RahhalBrainHandle = ReturnType<typeof RahhalBrain>

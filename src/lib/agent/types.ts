@@ -266,6 +266,21 @@ export interface AgentProviderMeta {
     hasPrimaryReply: boolean
   }
   /**
+   * Sprint 53 — Real World Intelligence Layer snapshot.
+   */
+  liveIntelligence?: {
+    domains: string[]
+    providerIds: string[]
+    confidence: number
+    degraded: boolean
+    latencyMs: number
+    cacheHits: number
+    cacheMisses: number
+    hasSummary: boolean
+    flightCount: number
+    hotelCount: number
+  }
+  /**
    * Sprint 52 — Executive Operating System snapshot.
    */
   executiveOs?: {

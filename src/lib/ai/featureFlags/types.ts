@@ -21,6 +21,7 @@ export type FeatureId =
   | 'ai.travel_executive'
   | 'ai.executive_platform'
   | 'ai.executive_os'
+  | 'ai.real_world_intelligence'
   | 'ui.flight_results_experience'
   | 'ui.passenger_booking_flow'
   | 'ui.my_trips'

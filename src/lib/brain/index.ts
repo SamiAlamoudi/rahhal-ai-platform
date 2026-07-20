@@ -46,6 +46,12 @@ export {
   isExecutiveOsEnabled,
   EXECUTIVE_OS_FEATURE_ID,
 } from './executive'
+export {
+  isRealWorldIntelligenceEnabled,
+  REAL_WORLD_INTELLIGENCE_FEATURE_ID,
+  gatherLiveIntelligence,
+  createDefaultLiveProviders,
+} from './intelligence'
 export type {
   ExecutiveContext,
   ExecutiveEnhancement,
@@ -55,6 +61,11 @@ export type {
   TravelGoal,
   ExecutiveStrategy,
 } from './executive'
+export type {
+  LiveIntelligenceSnapshot,
+  LiveDomain,
+  LiveProvider,
+} from './intelligence'
 
 export type {
   BrainLocale,
