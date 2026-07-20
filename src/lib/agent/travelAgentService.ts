@@ -503,7 +503,7 @@ export function createTravelAgentService(
         travelExecutiveSnapshot = brainTurn.executive
 
         if (
-          (brainTurn.decision.type === 'respond' || brainTurn.decision.type === 'clarify')
+          brainTurn.decision.type === 'respond'
           && brainTurn.decision.reply
         ) {
           const meta: AgentProviderMeta = {
@@ -528,6 +528,9 @@ export function createTravelAgentService(
             toolBatch: null,
           }
         }
+        // 'clarify' is intentionally NOT an early-return here:
+        // downstream intent routers (booking history, order, confirmation, itinerary, brain flags)
+        // must still run. The clarify reply flows through the normal attach/return paths below.
       } else {
         // Sprint 45/48 — seed empty slots from long-term preference memory (never overwrite).
         if (isPreferenceMemoryEnabled() || isReasoningEnabled()) {
