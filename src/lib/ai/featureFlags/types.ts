@@ -19,6 +19,7 @@ export type FeatureId =
   | 'ai.persistent_memory'
   | 'ai.rahhal_brain'
   | 'ai.autonomous_agent'
+  | 'ai.booking_intelligence'
   | 'ai.travel_executive'
   | 'ai.executive_platform'
   | 'ai.executive_os'

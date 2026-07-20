@@ -69,6 +69,23 @@ export type {
   AutonomousGoal,
 } from './autonomous'
 export {
+  isBookingIntelligenceEnabled,
+  BOOKING_INTELLIGENCE_FEATURE_ID,
+  runBookingIntelligence,
+  createBookingProviderRegistry,
+  createDefaultSimulatedBookingProviders,
+  rankOffersV2,
+  fuseOffers,
+  optimizeBookingCombinations,
+  assessBookingReadiness,
+} from './bookingIntelligence'
+export type {
+  BookingIntelligenceSnapshot,
+  BookingIntelligenceResult,
+  BookingProviderDomain,
+  RankedOffer,
+} from './bookingIntelligence'
+export {
   createDefaultAgentToolRegistry,
   createMockAgentToolRegistry,
   createUnavailableAgentToolRegistry,
