@@ -44,6 +44,7 @@ export function detectSecretSources(): LiveProviderSecretsSnapshot['sources'] {
   const envLocal = Boolean(
     readLiveProviderSecret('AMADEUS_CLIENT_ID') ||
       readLiveProviderSecret('DUFFEL_API_TOKEN') ||
+      readLiveProviderSecret('BOOKING_API_KEY') ||
       readLiveProviderSecret('RAPIDAPI_KEY') ||
       readLiveProviderSecret('BOOKING_RAPIDAPI_KEY'),
   )

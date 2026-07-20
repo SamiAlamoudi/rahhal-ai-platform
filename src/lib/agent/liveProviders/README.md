@@ -13,7 +13,7 @@ Autonomous Agent orchestrates.
 | `types.ts` | Common SDK contract (`searchFlights/Hotels/Activities/Cars/Transfers/Insurance`) |
 | `adapters/amadeus.ts` | Flight search, airports, offers, pricing + OAuth |
 | `adapters/duffel.ts` | Offer search/details/pricing; order/cancel stubs |
-| `adapters/booking.ts` | Hotel search + normalize (price, currency, rating, photos, location) |
+| `adapters/booking.ts` | Sprint 60 hotel search + full normalize (address, room, taxes, amenities, …) |
 | `oauth.ts` | Amadeus client-credentials, cache, refresh, 401 retry |
 | `health.ts` | Latency / uptime / quota / failures / quality → auto-disable |
 | `rateLimiter.ts` | Per-provider token bucket + queue |
@@ -41,9 +41,11 @@ Server-only (never `VITE_*` OAuth secrets):
 
 - `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET`
 - `DUFFEL_API_TOKEN`
-- `RAPIDAPI_KEY` / `BOOKING_RAPIDAPI_KEY` (Booking.com)
+- `BOOKING_API_KEY` / `RAPIDAPI_KEY` / `BOOKING_RAPIDAPI_KEY` (Booking.com)
 
 Works with local `.env`, Vercel env, and GitHub Actions secrets.
+
+Mock / simulated hotels remain the default when live hotel flags are OFF.
 
 ## Booking Intelligence
 

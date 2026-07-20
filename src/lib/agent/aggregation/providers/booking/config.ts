@@ -42,7 +42,8 @@ export function resolveBookingComProviderConfig(
   const integration = getIntegrationConfig().hotel
   const apiKey = overrides.apiKey !== undefined
     ? overrides.apiKey
-    : (readProcessEnv('RAPIDAPI_KEY')
+    : (readProcessEnv('BOOKING_API_KEY')
+      ?? readProcessEnv('RAPIDAPI_KEY')
       ?? readProcessEnv('BOOKING_RAPIDAPI_KEY')
       ?? integration.apiKey
       ?? readViteEnv('VITE_RAPIDAPI_KEY')

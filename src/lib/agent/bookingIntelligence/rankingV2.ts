@@ -31,17 +31,31 @@ function scoreOffer(
   const pastSelection = pastSelectionScore(offer, preferences)
 
   // Intentionally diversified — price is never dominant.
-  const weights = {
-    price: 0.16,
-    quality: 0.16,
-    location: 0.12,
-    rating: 0.12,
-    duration: 0.1,
-    layover: 0.08,
-    refund: 0.1,
-    preference: 0.1,
-    pastSelection: 0.06,
-  }
+  // Sprint 60: hotels emphasize distance, rating, price, and traveler profile.
+  const isHotel = offer.domain === 'hotels'
+  const weights = isHotel
+    ? {
+        price: 0.22,
+        quality: 0.1,
+        location: 0.22,
+        rating: 0.2,
+        duration: 0.02,
+        layover: 0.02,
+        refund: 0.08,
+        preference: 0.1,
+        pastSelection: 0.04,
+      }
+    : {
+        price: 0.16,
+        quality: 0.16,
+        location: 0.12,
+        rating: 0.12,
+        duration: 0.1,
+        layover: 0.08,
+        refund: 0.1,
+        preference: 0.1,
+        pastSelection: 0.06,
+      }
 
   const rankScore =
     price * weights.price

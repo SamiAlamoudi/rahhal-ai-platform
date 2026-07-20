@@ -84,10 +84,20 @@ export function hasDuffelCredentials(): boolean {
   return Boolean(readLiveProviderSecret('DUFFEL_API_TOKEN'))
 }
 
-export function hasBookingCredentials(): boolean {
-  return Boolean(
-    readLiveProviderSecret('RAPIDAPI_KEY')
-    || readLiveProviderSecret('BOOKING_RAPIDAPI_KEY')
-    || readEnv('VITE_RAPIDAPI_KEY'),
+/**
+ * Sprint 60 — Booking.com / RapidAPI hotel credentials (server preferred).
+ * Order: BOOKING_API_KEY → RAPIDAPI_KEY → BOOKING_RAPIDAPI_KEY → VITE_RAPIDAPI_KEY
+ */
+export function readBookingApiKey(): string | null {
+  return (
+    readLiveProviderSecret('BOOKING_API_KEY')
+    ?? readLiveProviderSecret('RAPIDAPI_KEY')
+    ?? readLiveProviderSecret('BOOKING_RAPIDAPI_KEY')
+    ?? readEnv('VITE_RAPIDAPI_KEY')
+    ?? readEnv('VITE_BOOKING_API_KEY')
   )
+}
+
+export function hasBookingCredentials(): boolean {
+  return Boolean(readBookingApiKey())
 }
