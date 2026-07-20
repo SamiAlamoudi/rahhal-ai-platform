@@ -198,7 +198,10 @@ describe('planTurn integration', () => {
       conversationId: 'conv-p2',
       messages: [userMessage('I need somewhere cold next month with 12000 SAR')],
     })
-    expect(result.reply).toMatch(/optimize for scenery|المناظر، الأنشطة/i)
+    // Experience Sprint 2 — executive facts feed Conversation Brain; no fixed optimize prompt copy.
+    expect(result.reply.length).toBeGreaterThan(20)
+    expect(result.reply.toLowerCase()).not.toMatch(/next question|سؤال التالي/)
+    expect(result.meta.spokenText).toBeTruthy()
     expect(result.meta.travelExecutive?.optimizationAxis).toBeNull()
     expect(result.meta.rahhalBrain?.decision).toBe('respond')
   })

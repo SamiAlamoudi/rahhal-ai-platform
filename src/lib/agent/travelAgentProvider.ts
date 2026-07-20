@@ -5,7 +5,6 @@ import {
   type TravelAgentServiceOptions,
 } from './travelAgentService'
 import type { AgentProviderMeta, TripPlan } from './types'
-import { buildThinkingBridge } from './formatReply'
 
 export interface CreateTravelAgentProviderOptions extends TravelAgentServiceOptions {
   service?: TravelAgentService
@@ -42,20 +41,7 @@ export function createTravelAgentProvider(
     providerId: 'travel-agent',
 
     async *streamReply(input: ChatCompletionRequest): AsyncIterable<ChatStreamChunk> {
-      const locale = inferLocale(input.messages)
-      const bridge = buildThinkingBridge(locale)
-
-      // Experience Sprint 1 — start the voice loop immediately (ChatGPT-Voice feel).
-      // Bridge is spoken via meta; keep display calm with a short consultant line.
-      yield {
-        type: 'delta',
-        text: `${bridge}\n\n`,
-        meta: {
-          spokenText: bridge,
-          voicePhase: 'bridge',
-        },
-      }
-
+      // Experience Sprint 2 — no scripted bridge. Conversation Brain authors the full reply.
       const result = await service.planTurn({
         conversationId: input.conversationId,
         messages: input.messages,
@@ -69,28 +55,22 @@ export function createTravelAgentProvider(
         voicePhase: 'final',
       }
 
-      // Stream the real reply after the bridge. Avoid duplicating the bridge if the
-      // final reply already opens with the same consulting line.
-      let body = result.reply
-      if (body.startsWith(bridge)) {
-        body = body.slice(bridge.length).replace(/^\s*\n+/, '')
+      // Emit spokenText on the first delta so voice can start ASAP.
+      yield {
+        type: 'delta',
+        text: '',
+        meta: {
+          spokenText: spoken,
+          voicePhase: 'final',
+        },
       }
 
-      yield* streamText(body, input.signal, meta)
+      yield* streamText(result.reply, input.signal, meta)
     },
   }
 }
 
 export const travelAgentProvider = createTravelAgentProvider()
-
-function inferLocale(messages: ChatCompletionRequest['messages']): 'ar' | 'en' {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const content = messages[i]?.content ?? ''
-    if (/[\u0600-\u06FF]/.test(content)) return 'ar'
-    if (/[A-Za-z]/.test(content)) return 'en'
-  }
-  return 'ar'
-}
 
 async function* streamText(
   text: string,

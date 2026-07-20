@@ -303,21 +303,21 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         if (
           spoken
           && spoken !== earlySpokenText
-          && phase === 'bridge'
           && !controller.signal.aborted
           && !disposed
+          && !earlySpeakPromise
         ) {
           earlySpokenText = spoken
           setStatus('speaking')
-          logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase: 'bridge' } })
+          logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase: phase ?? 'final' } })
           earlySpeakPromise = tts.speak({ locale, text: spoken, interrupt: true })
             .catch((e) => {
               if (!isBenignChatError(e) && !disposed) {
-                diagnosePipelineError('tts', 'speak_bridge', e)
+                diagnosePipelineError('tts', 'speak_early', e)
               }
             })
             .then(() => {
-              logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase: 'bridge' } })
+              logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase: phase ?? 'final' } })
             })
         }
       },

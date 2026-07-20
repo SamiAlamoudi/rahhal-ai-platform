@@ -1,14 +1,11 @@
 /**
  * Concierge turn orchestration — above the agent, never inside providers.
  *
- * Flow:
- *   decide policy → (optional) recommendation framing → consultant reply
- *   OR signal agent handoff (plan/search/refine) without naming suppliers.
+ * Experience Sprint 2: Concierge returns policy/facts only.
+ * Conversation Brain (LLM) writes every traveler-facing sentence.
  */
 
 import type { AgentIntent, AgentLocale, AgentMemory, TripRequirements } from '../agent/types'
-import { buildConsultantReply } from './consultantVoice'
-import { buildConciergeRecommendations } from './recommendationBridge'
 import {
   assertProviderAgnosticHandoff,
   resolveAgentHandoff,
@@ -30,7 +27,10 @@ export interface ConciergeServiceTurnInput {
 export interface ConciergeServiceTurnResult {
   decision: ConciergeTurnDecision
   handoff: AgentHandoffRequest
-  /** Consultant reply when Concierge owns the turn; null when agent should speak. */
+  /**
+   * Always null — Conversation Brain authors user-facing language.
+   * Kept for API compatibility with older callers/tests.
+   */
   reply: string | null
   state: ConciergeState
 }
@@ -55,38 +55,10 @@ export function createConciergeService(): ConciergeService {
       const handoff = resolveAgentHandoff(decision)
       assertProviderAgnosticHandoff(handoff)
 
-      if (handoff.shouldExecuteAgent) {
-        // Agent owns the structured plan/search reply.
-        return {
-          decision,
-          handoff,
-          reply: null,
-          state: decision.state,
-        }
-      }
-
-      let optionLines: string[] | undefined
-      if (decision.action === 'propose_options' || decision.action === 'advise') {
-        const recs = buildConciergeRecommendations({
-          locale: input.locale,
-          requirements: input.requirements,
-          softSignals: decision.state.softSignals,
-        })
-        optionLines = recs.optionLines
-      }
-
-      const reply = buildConsultantReply({
-        locale: input.locale,
-        decision,
-        requirements: input.requirements,
-        userText: input.userText,
-        optionLines,
-      })
-
       return {
         decision,
         handoff,
-        reply,
+        reply: null,
         state: decision.state,
       }
     },

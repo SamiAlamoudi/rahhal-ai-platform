@@ -1,9 +1,50 @@
 /**
- * Sprint 44 — natural conversation helpers + smart follow-ups.
- * Prefer natural wording; ask follow-ups only when they improve the turn.
+ * Sprint 44 helpers — Experience Sprint 2: openings come from Conversation Brain
+ * generative path (local/remote), not fixed consultant scripts.
  */
 
 import type { ChatGptIntent, MemorySnapshot } from './types'
+import { generateLocalConversation } from '../../agent/conversationBrain/localConversationModel'
+import type { TravelFacts } from '../../agent/conversationBrain/travelFacts'
+
+function factsFromMemory(input: {
+  intent: ChatGptIntent
+  userText: string
+  locale: 'ar' | 'en'
+  memory: MemorySnapshot
+}): TravelFacts {
+  const fromText = input.userText.match(/\b(japan|bali|paris|london|dubai|riyadh|tokyo|korea|egypt|turkey|morocco)\b/i)
+  const dest = input.memory.preferences.destinations[0]
+    ?? (fromText ? fromText[1]!.charAt(0).toUpperCase() + fromText[1]!.slice(1).toLowerCase() : null)
+  const missing: string[] = []
+  if (!dest && (input.intent === 'create_itinerary' || input.intent === 'book_flight' || input.intent === 'search_hotels')) {
+    missing.push('destination')
+  }
+  let objective: TravelFacts['objective'] = 'general'
+  if (input.intent === 'small_talk') objective = 'greet_or_continue'
+  else if (input.intent === 'travel_advice') objective = 'advise'
+  else if (missing.length) objective = 'collect_missing'
+  else if (input.intent === 'create_itinerary' || input.intent === 'book_flight' || input.intent === 'search_hotels') {
+    objective = dest ? 'greet_or_continue' : 'collect_missing'
+  }
+
+  return {
+    locale: input.locale,
+    objective,
+    known: {
+      destination: dest ?? undefined,
+      destinations: dest
+        ? Array.from(new Set([dest, ...input.memory.preferences.destinations]))
+        : input.memory.preferences.destinations,
+      budgetAmount: input.memory.preferences.budgets[0]?.amount ?? undefined,
+      budgetCurrency: input.memory.preferences.budgets[0]?.currency ?? undefined,
+      travelers: input.memory.preferences.companions
+        ? Number(input.memory.preferences.companions) || undefined
+        : undefined,
+    },
+    missingSlots: missing,
+  }
+}
 
 export function composeNaturalReply(input: {
   intent: ChatGptIntent
@@ -11,76 +52,22 @@ export function composeNaturalReply(input: {
   locale: 'ar' | 'en'
   memory: MemorySnapshot
 }): { text: string; followUp: string | null } {
-  const locale = input.locale
-  const dest = input.memory.preferences.destinations[0] ?? extractDestination(input.userText)
-
-  if (input.intent === 'small_talk') {
-    return {
-      text:
-        locale === 'ar'
-          ? 'أهلاً بك. أنا معك — خبرني عن الرحلة اللي في بالك.'
-          : 'Hi — I am right here with you. Tell me about the trip you have in mind.',
-      followUp: null,
-    }
-  }
-
-  if (input.intent === 'travel_advice') {
-    const base =
-      locale === 'ar'
-        ? dest
-          ? `${dest} اختيار جميل. خلّني أعطيك نصيحة عملية تناسب أسلوب سفرك.`
-          : 'أكيد — أحب أساعدك بنصيحة عملية وواضحة.'
-        : dest
-          ? `${dest} is a lovely pick. I can share practical advice that fits how you like to travel.`
-          : 'Absolutely — I can share practical advice in plain language.'
-    return {
-      text: base,
-      followUp: smartFollowUp({ intent: input.intent, locale, destination: dest, memory: input.memory }),
-    }
-  }
-
-  if (input.intent === 'general_chat' || input.intent === 'unknown') {
-    return {
-      text:
-        locale === 'ar'
-          ? 'فاهم عليك. خلّنا نكمّل بهدوء — خبرني أكثر.'
-          : 'Got it. Let’s take this gently — tell me a little more.',
-      followUp: smartFollowUp({
-        intent: input.intent,
-        locale,
-        destination: dest,
-        memory: input.memory,
-      }),
-    }
-  }
-
-  if (input.intent === 'create_itinerary' || input.intent === 'book_flight' || input.intent === 'search_hotels') {
-    const opener =
-      locale === 'ar'
-        ? dest
-          ? `اختيار رائع — ${dest}. عندي أفكار أولية وسأقارن أفضل الخيارات.`
-          : 'تمام. عندي أفكار أولية — خلّني أضبطها على طلبك.'
-        : dest
-          ? `Great choice — ${dest}. I already have a few ideas; let me compare the best options.`
-          : 'Sounds good. I already have a few ideas — let me shape them around what you need.'
-    return {
-      text: opener,
-      followUp: smartFollowUp({
-        intent: input.intent,
-        locale,
-        destination: dest,
-        memory: input.memory,
-      }),
-    }
-  }
-
-  return {
-    text:
-      locale === 'ar'
-        ? 'فاهم. خلّني أكمّل من حيث توقفنا.'
-        : 'Understood. I will continue from where we left off.',
-    followUp: null,
-  }
+  const facts = factsFromMemory(input)
+  const generated = generateLocalConversation({
+    facts,
+    userMessage: input.userText,
+    conversationId: input.memory.conversationId || 'chatgpt-experience',
+  })
+  const followUp = smartFollowUp({
+    intent: input.intent,
+    locale: input.locale,
+    destination: facts.known.destination ?? null,
+    memory: input.memory,
+  })
+  const text = followUp
+    ? `${generated.displayText}\n\n${followUp}`
+    : generated.displayText
+  return { text, followUp }
 }
 
 export function smartFollowUp(input: {
@@ -91,7 +78,7 @@ export function smartFollowUp(input: {
 }): string | null {
   const { locale, destination, memory } = input
 
-  // Don't re-ask what memory already knows.
+  // Never re-ask known preferences.
   if (
     memory.preferences.companions
     && memory.preferences.budgets[0]?.amount != null
@@ -100,23 +87,29 @@ export function smartFollowUp(input: {
     return null
   }
 
-  if (input.intent === 'create_itinerary' || input.intent === 'book_flight' || input.intent === 'search_hotels') {
-    if (destination && !memory.preferences.companions) {
-      return locale === 'ar'
-        ? `اختيار ممتاز.\nهل تخطط لهذه الرحلة للسياحة، للعمل، أم مع العائلة؟`
-        : `Great choice.\nAre you planning this trip for tourism, business, or family?`
-    }
-    if (!destination) {
-      return locale === 'ar'
-        ? 'إلى أين تفكر تسافر؟'
-        : 'Where are you thinking of going?'
-    }
+  if (!memory.preferences.companions && (
+    input.intent === 'create_itinerary'
+    || input.intent === 'book_flight'
+    || input.intent === 'search_hotels'
+    || input.intent === 'general_chat'
+    || input.intent === 'unknown'
+    || input.intent === 'follow_up'
+  )) {
+    return locale === 'ar'
+      ? 'هذي أقرب لسياحة، عمل، ولا عائلة؟'
+      : 'Is this more for tourism, business, or family?'
   }
 
-  if (input.intent === 'visa_question' && !memory.preferences.destinations.length) {
+  if (memory.preferences.budgets[0]?.amount == null && input.intent === 'pricing') {
     return locale === 'ar'
-      ? 'لأي وجهة تريد معرفة متطلبات التأشيرة؟'
-      : 'Which destination should I check visa requirements for?'
+      ? 'وش المدى اللي ترتاح له للميزانية؟'
+      : 'What budget range feels comfortable?'
+  }
+
+  if (!destination && (input.intent === 'create_itinerary' || input.intent === 'book_flight')) {
+    return locale === 'ar'
+      ? 'وين تحس إن الرحلة لازم تكون؟'
+      : 'Where do you picture this trip unfolding?'
   }
 
   return null
@@ -125,22 +118,10 @@ export function smartFollowUp(input: {
 export function naturalToolFailureMessage(locale: 'ar' | 'en', detail?: string): string {
   if (locale === 'ar') {
     return detail
-      ? `واجهت مشكلة بسيطة أثناء جلب المعلومات (${detail}). نقدر نكمّل المحادثة وأعيد المحاولة بطريقة أخرى.`
-      : 'واجهت مشكلة بسيطة أثناء جلب المعلومات. نقدر نكمّل المحادثة وأعيد المحاولة بطريقة أخرى.'
+      ? `صار عندي تعثر بسيط (${detail}). خلّني أعيد المحاولة أو نكمّل بطريقة ثانية.`
+      : 'صار عندي تعثر بسيط. خلّني أعيد المحاولة أو نكمّل بطريقة ثانية.'
   }
   return detail
-    ? `I hit a small snag while fetching that (${detail}). We can keep talking — I’ll try another way.`
-    : 'I hit a small snag while fetching that. We can keep talking — I’ll try another way.'
-}
-
-function extractDestination(text: string): string | null {
-  const m =
-    text.match(/(?:travel to|trip to|visit|go to|إلى|الى)\s+([A-Za-z\u0600-\u06FF][\w\s\u0600-\u06FF]{1,40})/i)
-  if (m?.[1]) return m[1].replace(/[?.!,،].*$/, '').trim()
-  const known = ['japan', 'tokyo', 'morocco', 'dubai', 'paris', 'london', 'istanbul', 'egypt', 'bali']
-  const lower = text.toLowerCase()
-  for (const name of known) {
-    if (lower.includes(name)) return name[0]!.toUpperCase() + name.slice(1)
-  }
-  return null
+    ? `I hit a small snag (${detail}). I can retry, or we can take another path.`
+    : 'I hit a small snag. I can retry, or we can take another path.'
 }

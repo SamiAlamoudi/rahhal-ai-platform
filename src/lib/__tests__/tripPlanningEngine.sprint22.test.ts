@@ -279,8 +279,12 @@ describe('Sprint 22 planTurn + voice parity', () => {
     })
     expect(result.meta.brain?.planning).toBeTruthy()
     expect(result.meta.brain?.clarificationQuestion).toBeTruthy()
-    expect(result.reply).toBe(result.meta.brain?.clarificationQuestion)
-    expect((result.reply.match(/\?/g) ?? []).length).toBe(1)
+    // Experience Sprint 2 — Conversation Brain rewrites clarification; template stays in meta.
+    expect(result.reply).not.toBe(result.meta.brain?.clarificationQuestion)
+    expect(result.reply).toMatch(/Tokyo|Japan/i)
+    expect(result.reply).toMatch(/\?/)
+    expect(result.meta.spokenText).toBeTruthy()
+    expect((result.reply.match(/\?/g) ?? []).length).toBeGreaterThanOrEqual(1)
   })
 
   it('text and voice share the same TripPlanningEngine pipeline', async () => {

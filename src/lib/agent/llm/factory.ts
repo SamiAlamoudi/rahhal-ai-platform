@@ -1,10 +1,10 @@
 import type { AgentLlmProvider, AgentLlmProviderId, AgentLlmRegistry } from './types'
 import { createLocalAgentLlmAdapter } from './localLlmAdapter'
+import { createOpenAiAgentLlmAdapter } from './openaiLlmAdapter'
 import {
   createAnthropicAgentLlmAdapter,
   createDeepSeekAgentLlmAdapter,
   createGeminiAgentLlmAdapter,
-  createOpenAiAgentLlmAdapter,
 } from './stubLlmAdapters'
 
 export function getDefaultAgentLlmProviderId(): AgentLlmProviderId {
@@ -12,6 +12,12 @@ export function getDefaultAgentLlmProviderId(): AgentLlmProviderId {
   if (raw === 'openai' || raw === 'anthropic' || raw === 'gemini' || raw === 'deepseek' || raw === 'local') {
     return raw
   }
+  // Prefer OpenAI automatically when a key is present.
+  const key = (
+    (import.meta.env.VITE_AGENT_OPENAI_API_KEY as string | undefined)
+    ?? (import.meta.env.VITE_OPENAI_API_KEY as string | undefined)
+  )?.trim()
+  if (key) return 'openai'
   return 'local'
 }
 
@@ -55,6 +61,9 @@ export function createAgentLlmRegistry(
     getActive() {
       const preferred = map.get(activeId)
       if (preferred?.isAvailable()) return preferred
+      // OpenAI preferred over local when available even if activeId was local.
+      const openai = map.get('openai')
+      if (openai?.isAvailable()) return openai
       return map.get('local') ?? createLocalAgentLlmAdapter()
     },
   }

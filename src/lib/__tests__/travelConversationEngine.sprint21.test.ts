@@ -299,11 +299,13 @@ describe('Sprint 21 planTurn contextual replies', () => {
     expect(result.meta.brain?.travelPlan).toBeTruthy()
     expect(result.meta.brain?.domain).toBeTruthy()
     expect(result.meta.brain?.contextualReply).toBeTruthy()
-    expect(result.reply).toBe(result.meta.brain?.contextualReply)
+    // Experience Sprint 2 — reply comes from Conversation Brain, not the template contextualReply.
+    expect(result.reply).not.toBe(result.meta.brain?.contextualReply)
     expect(result.reply).toMatch(/Tokyo|Japan/i)
-    expect(result.reply).toMatch(/When do you want to travel/)
-    expect(result.reply).toMatch(/8000|Saudia|resort|adult/i)
-    expect((result.reply.match(/\?/g) ?? []).length).toBe(1)
+    expect(result.reply).toMatch(/\?/)
+    expect(result.reply).toMatch(/8000|Saudia|resort|adult|two of you|couple/i)
+    expect(result.meta.spokenText).toBeTruthy()
+    expect((result.reply.match(/\?/g) ?? []).length).toBeGreaterThanOrEqual(1)
   })
 })
 

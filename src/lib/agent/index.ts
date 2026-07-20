@@ -47,6 +47,11 @@ export {
 } from './buildItinerary'
 export { formatTripPlanReply, formatItineraryReply, buildFollowUpQuestion, buildSpokenPlanSummary, composeTripPlanDisplay, buildThinkingBridge } from './formatReply'
 export {
+  runConversationBrain,
+  buildTravelFacts,
+  RAHHAL_CONVERSATION_SYSTEM_PROMPT,
+} from './conversationBrain'
+export {
   createDefaultAgentToolRegistry,
   createMockAgentToolRegistry,
   createUnavailableAgentToolRegistry,

@@ -10,20 +10,19 @@ import {
   type ConciergeService,
   type ConciergeState,
 } from '../concierge'
+import { buildConciergeRecommendations } from '../concierge/recommendationBridge'
 import { rebuildConciergeStateFromMessages } from '../concierge/meta'
 import { applyTripPlanEdits, buildTripPlan, regenerateTripDay } from './buildItinerary'
 import { applyIntelligentDecisions } from './decision'
 import { extractFromUserText } from './extractRequirements'
-import {
-  buildEditAck,
-  buildFollowUpQuestion,
-  buildSaveAck,
-  buildSpokenPlanSummary,
-  composeTripPlanDisplay,
-  resolveSpokenText,
-} from './formatReply'
 import { createAgentLlmRegistry } from './llm/factory'
 import type { AgentLlmRegistry } from './llm/types'
+import {
+  buildTravelFacts,
+  runConversationBrain,
+  type ConversationObjective,
+  type TravelFacts,
+} from './conversationBrain'
 import {
   applySmartClarification,
   mergeRequirements,
@@ -102,7 +101,6 @@ import {
 import type { SearchAggregationTurnResult } from '../brain/search'
 import {
   applyReasoningToRequirements,
-  formatReasoningReply,
   isPreferenceMemoryEnabled,
   isTravelReasoningEnabled,
   learnPreferencesFromRequirements,
@@ -379,6 +377,39 @@ function toToolSummaries(results: AgentToolResult[]): AgentToolRunSummary[] {
   }))
 }
 
+
+async function speakTravelFacts(input: {
+  llms: AgentLlmRegistry
+  conversationId: string
+  messages: ChatMessage[]
+  facts: TravelFacts
+  signal?: AbortSignal
+}): Promise<{ displayText: string; spokenText: string; providerId: string }> {
+  return runConversationBrain(input)
+}
+
+function mapConciergeObjective(action: string): ConversationObjective {
+  switch (action) {
+    case 'greet':
+      return 'greet_or_continue'
+    case 'ask':
+    case 'clarify':
+      return 'collect_missing'
+    case 'advise':
+      return 'advise'
+    case 'propose_options':
+      return 'propose_options'
+    case 'confirm':
+      return 'confirm_understanding'
+    case 'plan':
+    case 'search':
+    case 'refine':
+      return 'present_plan'
+    default:
+      return 'general'
+  }
+}
+
 export function createTravelAgentService(
   options: TravelAgentServiceOptions = {},
 ): TravelAgentService {
@@ -559,12 +590,27 @@ export function createTravelAgentService(
           brainTurn.decision.type === 'respond'
           && brainTurn.decision.reply
         ) {
+          const facts = buildTravelFacts({
+            memory,
+            objective: 'general',
+            missingSlots: memory.missingFields.map(String),
+            recommendations: [brainTurn.decision.reply],
+          })
+          const spoken = await speakTravelFacts({
+            llms,
+            conversationId: input.conversationId,
+            messages: input.messages,
+            facts,
+            signal: input.signal,
+          })
           const meta: AgentProviderMeta = {
             kind: 'travel_agent',
             version: 2,
             memory,
             tripPlan: memory.tripPlan,
             itinerary: memory.tripPlan,
+            spokenText: spoken.spokenText,
+            voicePhase: 'final',
             toolResults: [],
             reasoning: reasoningMeta,
             clarification: clarificationMeta,
@@ -583,7 +629,7 @@ export function createTravelAgentService(
               : undefined,
           }
           return {
-            reply: brainTurn.decision.reply,
+            reply: spoken.displayText,
             memory,
             tripPlan: memory.tripPlan,
             meta,
@@ -891,13 +937,7 @@ export function createTravelAgentService(
           ),
         )
         const spokenText = enriched.spokenText?.trim()
-          || (reply
-            ? resolveSpokenText({
-              reply,
-              tripPlan: enriched.tripPlan,
-              locale: enriched.memory.locale,
-            })
-            : undefined)
+          || (reply ? reply.trim().slice(0, 360) : undefined)
         if (!spokenText) return enriched
         return {
           ...enriched,
@@ -916,9 +956,36 @@ export function createTravelAgentService(
         && reasoningResult.primary
       ) {
         memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
-        const reply = formatReasoningReply({
-          result: reasoningResult,
-          requirements: memory.requirements,
+        const candidateHints = [
+          reasoningResult.primary
+            ? `${reasoningResult.primary.name}: ${reasoningResult.primary.whySelected.slice(0, 2).join('; ')}`
+            : null,
+          ...reasoningResult.alternatives.slice(0, 3).map(
+            (c) => `${c.name}: ${c.whySelected.slice(0, 1).join('')}`,
+          ),
+        ].filter(Boolean) as string[]
+        const facts = buildTravelFacts({
+          memory,
+          objective: 'propose_options',
+          missingSlots: (reasoningResult.followUpFields?.length
+            ? reasoningResult.followUpFields
+            : memory.missingFields).map(String),
+          optionHints: candidateHints,
+          recommendations: [
+            reasoningResult.summary,
+            ...reasoningResult.rationale.slice(0, 4),
+          ].filter(Boolean),
+          warnings: [
+            ...(reasoningResult.primary?.riskNotes ?? []),
+            ...(reasoningResult.primary?.advisoryNotes ?? []),
+          ],
+        })
+        const spoken = await speakTravelFacts({
+          llms,
+          conversationId: input.conversationId,
+          messages: input.messages,
+          facts,
+          signal: input.signal,
         })
         const meta: AgentProviderMeta = {
           kind: 'travel_agent',
@@ -926,13 +993,15 @@ export function createTravelAgentService(
           memory,
           tripPlan: memory.tripPlan,
           itinerary: memory.tripPlan,
+          spokenText: spoken.spokenText,
+          voicePhase: 'final',
           toolResults: [],
         }
         return {
-          reply,
+          reply: spoken.displayText,
           memory,
           tripPlan: memory.tripPlan,
-          meta: attachTurnMeta(meta, reply),
+          meta: attachTurnMeta(meta, spoken.spokenText),
           toolBatch: null,
         }
       }
@@ -952,12 +1021,27 @@ export function createTravelAgentService(
           itinerary: memory.tripPlan,
           toolResults: [],
         }
-        return {
-          reply: brainMeta.clarificationQuestion,
-          memory,
-          tripPlan: memory.tripPlan,
-          meta: attachTurnMeta(meta, brainMeta.clarificationQuestion),
-          toolBatch: null,
+        {
+          const facts = buildTravelFacts({
+            memory,
+            objective: 'collect_missing',
+            missingSlots: memory.missingFields.map(String),
+            recommendations: [brainMeta.clarificationQuestion],
+          })
+          const spoken = await speakTravelFacts({
+            llms,
+            conversationId: input.conversationId,
+            messages: input.messages,
+            facts,
+            signal: input.signal,
+          })
+          return {
+            reply: spoken.displayText,
+            memory,
+            tripPlan: memory.tripPlan,
+            meta: attachTurnMeta({ ...meta, spokenText: spoken.spokenText, voicePhase: 'final' }, spoken.spokenText),
+            toolBatch: null,
+          }
         }
       }
 
@@ -977,12 +1061,27 @@ export function createTravelAgentService(
           itinerary: memory.tripPlan,
           toolResults: [],
         }
-        return {
-          reply: brainMeta.contextualReply,
-          memory,
-          tripPlan: memory.tripPlan,
-          meta: attachTurnMeta(meta, brainMeta.contextualReply),
-          toolBatch: null,
+        {
+          const facts = buildTravelFacts({
+            memory,
+            objective: 'collect_missing',
+            missingSlots: memory.missingFields.map(String),
+            recommendations: [brainMeta.contextualReply],
+          })
+          const spoken = await speakTravelFacts({
+            llms,
+            conversationId: input.conversationId,
+            messages: input.messages,
+            facts,
+            signal: input.signal,
+          })
+          return {
+            reply: spoken.displayText,
+            memory,
+            tripPlan: memory.tripPlan,
+            meta: attachTurnMeta({ ...meta, spokenText: spoken.spokenText, voicePhase: 'final' }, spoken.spokenText),
+            toolBatch: null,
+          }
         }
       }
 
@@ -1131,22 +1230,52 @@ export function createTravelAgentService(
         })
         conciergeState = conciergeResult.state
 
-        if (!conciergeResult.handoff.shouldExecuteAgent && conciergeResult.reply) {
+        if (!conciergeResult.handoff.shouldExecuteAgent) {
+          // Experience Sprint 2 — Concierge decides policy/facts only; LLM writes the reply.
           memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
+          let optionHints: string[] | undefined
+          if (
+            conciergeResult.decision.action === 'propose_options'
+            || conciergeResult.decision.action === 'advise'
+          ) {
+            const recs = buildConciergeRecommendations({
+              locale: memory.locale,
+              requirements: memory.requirements,
+              softSignals: conciergeResult.decision.state.softSignals,
+            })
+            optionHints = recs.optionLines
+          }
+          const facts = buildTravelFacts({
+            memory,
+            objective: mapConciergeObjective(conciergeResult.decision.action),
+            missingSlots: (conciergeResult.decision.askFields ?? memory.missingFields).map(String),
+            softSignals: conciergeResult.decision.state.softSignals as unknown as Record<string, unknown>,
+            heardSummary: conciergeResult.decision.state.heardSummary,
+            optionHints,
+          })
+          const spoken = await speakTravelFacts({
+            llms,
+            conversationId: input.conversationId,
+            messages: input.messages,
+            facts,
+            signal: input.signal,
+          })
           const meta: AgentProviderMeta = {
             kind: 'travel_agent',
             version: 2,
             memory,
             tripPlan: memory.tripPlan,
             itinerary: memory.tripPlan,
+            spokenText: spoken.spokenText,
+            voicePhase: 'final',
             toolResults: [],
             concierge: toMetaConcierge(conciergeState),
           }
           return {
-            reply: conciergeResult.reply,
+            reply: spoken.displayText,
             memory,
             tripPlan: memory.tripPlan,
-            meta: attachTurnMeta(meta, conciergeResult.reply),
+            meta: attachTurnMeta(meta, spoken.spokenText),
             toolBatch: null,
           }
         }
@@ -1161,26 +1290,25 @@ export function createTravelAgentService(
         signal: input.signal,
       })
 
-      let reply = ''
       let toolBatch: ToolExecutionBatch | null = null
+      let objective: ConversationObjective = 'general'
+      let savedTitle: string | null = null
 
       if (extracted.intent === 'save') {
         if (!memory.tripPlan) {
-          reply = memory.locale === 'ar'
-            ? 'لا توجد خطة جاهزة للحفظ بعد. أكمل التفاصيل وسأبنيها أولاً.'
-            : 'There is no plan to save yet. Share the missing details and I will draft one first.'
+          objective = 'explain_unavailable'
           memory.phase = 'collecting'
         } else if (savePlanHook) {
           const saved = await savePlanHook({
             conversationId: input.conversationId,
             tripPlan: memory.tripPlan,
           })
-          reply = buildSaveAck(memory.locale, saved?.title || memory.tripPlan.title)
+          savedTitle = saved?.title || memory.tripPlan.title
+          objective = 'acknowledge_save'
           memory.phase = 'planned'
         } else {
-          reply = memory.locale === 'ar'
-            ? 'استخدم زر «حفظ الخطة» أسفل الرسالة لحفظها في الرحلات المحفوظة.'
-            : 'Use the “Save plan” button under the message to store it in Saved Trips.'
+          objective = 'acknowledge_save'
+          savedTitle = memory.tripPlan.title
           memory.phase = 'planned'
         }
       } else if (extracted.intent === 'regenerate_day' && memory.tripPlan) {
@@ -1207,9 +1335,9 @@ export function createTravelAgentService(
         })
         toolBatch = ran.batch
         memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, ran.plan)
-        reply = composeTripPlanDisplay(ran.plan, memory.locale)
+        objective = 'present_plan'
       } else if (extracted.intent === 'edit' && !hasPlanningPatch(extracted.patch) && memory.tripPlan) {
-        reply = buildEditAck(memory.locale)
+        objective = 'acknowledge_edit'
         memory.phase = 'editing'
       } else if (
         (extracted.intent === 'regenerate' || extracted.intent === 'edit' || extracted.intent === 'plan' || extracted.intent === 'answer')
@@ -1245,25 +1373,32 @@ export function createTravelAgentService(
           plan = { ...plan, notes: [...plan.notes, ...llmResult.draft.notes] }
         }
         memory = withTripPlan({ ...memory, phase: 'planned', missingFields: [] }, plan)
-        reply = composeTripPlanDisplay(plan, memory.locale)
+        objective = 'present_plan'
       } else if (memory.missingFields.length > 0) {
         memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
-        reply = buildFollowUpQuestion(memory, memory.missingFields)
+        objective = 'collect_missing'
       } else if (memory.tripPlan) {
         const existingPlan = memory.tripPlan
         memory = withTripPlan({ ...memory, phase: 'planned' }, existingPlan)
-        reply = composeTripPlanDisplay(existingPlan, memory.locale)
+        objective = 'present_plan'
       } else {
-        reply = buildFollowUpQuestion(memory, memory.missingFields)
+        objective = 'collect_missing'
       }
 
-      const spokenText = resolveSpokenText({
-        reply,
+      const facts = buildTravelFacts({
+        memory,
+        objective,
         tripPlan: memory.tripPlan,
-        locale: memory.locale,
-        spokenText: memory.tripPlan
-          ? buildSpokenPlanSummary(memory.tripPlan, memory.locale)
-          : reply,
+        missingSlots: memory.missingFields.map(String),
+        toolResults: toolBatch ? toToolSummaries(toolBatch.results) : undefined,
+        savedTitle,
+      })
+      const spoken = await speakTravelFacts({
+        llms,
+        conversationId: input.conversationId,
+        messages: input.messages,
+        facts,
+        signal: input.signal,
       })
 
       const meta: AgentProviderMeta = {
@@ -1272,17 +1407,17 @@ export function createTravelAgentService(
         memory,
         tripPlan: memory.tripPlan,
         itinerary: memory.tripPlan,
-        spokenText,
+        spokenText: spoken.spokenText,
         voicePhase: 'final',
         toolResults: toolBatch ? toToolSummaries(toolBatch.results) : [],
         ...(conciergeState ? { concierge: toMetaConcierge(conciergeState) } : {}),
       }
 
       return {
-        reply,
+        reply: spoken.displayText,
         memory,
         tripPlan: memory.tripPlan,
-        meta: attachTurnMeta(meta, reply),
+        meta: attachTurnMeta(meta, spoken.spokenText),
         toolBatch,
       }
     },
