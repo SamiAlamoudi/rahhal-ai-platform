@@ -15,3 +15,17 @@ export { createItineraryOptimizerEngine } from './itineraryOptimizer'
 export { createRiskEngine } from './riskEngine'
 export { createExecutiveResponseEngine, composeExecutiveReply } from './executiveResponse'
 export { createLearningEngine } from './learningEngine'
+export {
+  createGlobalKnowledgeEngine,
+  createDecisionOptimizerEngine,
+  createMultiObjectiveOptimizerEngine,
+  createTravelGraphEngine,
+  createPredictionEngine,
+  createSmartNegotiationEngine,
+  createGoalPlanningEngine,
+  createExecutiveStrategyEngine,
+  createExplanationEngineV2,
+  createSelfReviewEngine,
+  reviewDraft,
+  improveReplyOnce,
+} from './os'

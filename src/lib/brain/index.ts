@@ -42,12 +42,18 @@ export {
   runExecutivePlatform,
   createDefaultExecutiveEngines,
 } from './executive'
+export {
+  isExecutiveOsEnabled,
+  EXECUTIVE_OS_FEATURE_ID,
+} from './executive'
 export type {
   ExecutiveContext,
   ExecutiveEnhancement,
   OptimizationAxis,
   ExecutivePlatformResult,
   ExecutiveEngineId,
+  TravelGoal,
+  ExecutiveStrategy,
 } from './executive'
 
 export type {

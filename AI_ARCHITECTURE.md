@@ -90,6 +90,13 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag: `ai.executive_platform` (default **ON**; depends on `ai.travel_executive`, `ai.rahhal_brain`).
 - See `docs/SPRINT51_EXECUTIVE_PLATFORM.md`.
 
+## Executive Operating System (Sprint 52)
+
+- Transforms the platform into a Chief Travel Officer OS: knowledge, decision/Pareto optimizers, travel graph, prediction, negotiation, goal planning, dynamic strategy, explanation v2, self-review.
+- Package: `src/lib/brain/executive/os` + `src/lib/brain/executive/engines/os` (runs inside the Sprint 51 orchestrator — no parallel pipeline).
+- Flag: `ai.executive_os` (default **ON**; depends on `ai.executive_platform`).
+- See `docs/SPRINT52_EXECUTIVE_OS.md`.
+
 ## Smart Clarification / Never-Ask-Twice (Sprint 46)
 
 - Soft preferences (interests, weather, hotel, package, budget style, traveler type) are **inferred**, never form-asked.

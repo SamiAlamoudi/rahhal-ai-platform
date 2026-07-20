@@ -94,6 +94,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: smart_clarification',
   },
   {
+    id: 'ai.executive_os',
+    name: 'Executive Operating System (Sprint 52)',
+    description:
+      'Sprint 52 — Rahhal Executive OS: global knowledge, decision/multi-objective optimizers, travel graph, prediction, negotiation, goal planning, strategy, explanation v2, and self-review via RahhalBrain.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.executive_platform'],
+    notes: 'Product alias: executive_os',
+  },
+  {
     id: 'ai.executive_platform',
     name: 'Executive Travel Platform (Sprint 51)',
     description:

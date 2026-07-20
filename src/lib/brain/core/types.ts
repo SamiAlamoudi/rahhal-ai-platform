@@ -23,6 +23,7 @@ export type BrainModuleId =
   | 'ranking'
   | 'executive'
   | 'executive_platform'
+  | 'executive_os'
   | 'flights'
   | 'hotels'
   | 'planning'
