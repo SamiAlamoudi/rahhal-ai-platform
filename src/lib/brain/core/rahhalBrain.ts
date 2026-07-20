@@ -13,6 +13,7 @@ import {
   toReasoningSnapshot,
 } from '../../agent/reasoning'
 import { isSmartClarificationEnabled } from '../../agent/clarification'
+import { isTravelExecutiveEnabled } from '../executive/feature'
 import { withTripPlan } from '../../agent/types'
 import type { AgentMemory } from '../../agent/types'
 import { createDefaultRahhalBrainPorts, buildMemoryFromMessages } from './defaultPorts'
@@ -29,6 +30,7 @@ export type RahhalBrainOptions = {
   reasoningEnabled?: boolean
   clarificationEnabled?: boolean
   preferenceMemoryEnabled?: boolean
+  travelExecutiveEnabled?: boolean
 }
 
 function flagOrOverride(flag: boolean, override?: boolean): boolean {
@@ -44,6 +46,9 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
     flagOrOverride(isSmartClarificationEnabled(), options.clarificationEnabled)
   const isPreferenceOn = () =>
     flagOrOverride(isPreferenceMemoryEnabled(), options.preferenceMemoryEnabled)
+
+  const isExecutiveOn = () =>
+    flagOrOverride(isTravelExecutiveEnabled(), options.travelExecutiveEnabled)
 
   const runTurn = (input: RahhalBrainTurnInput): RahhalBrainTurnResult => {
     const modulesExecuted: BrainModuleId[] = []
@@ -119,6 +124,25 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
       ports.memory.learnFromRequirements(memory, input.userId)
     }
 
+    // Phase 2 — Travel Executive intelligence (context, rejections, optimizer, budget).
+    let executiveEnhancement: RahhalBrainTurnResult['executive']
+    if (isExecutiveOn()) {
+      executiveEnhancement = ports.executive.process({
+        userText,
+        memory,
+        understanding,
+        intents,
+        reasoningResult,
+        userId: input.userId,
+      })
+      if (executiveEnhancement.reasoningResult) {
+        reasoningResult = executiveEnhancement.reasoningResult
+        reasoningMeta = toReasoningSnapshot(reasoningResult)
+        memory = ports.reasoning.applyToMemory(memory, reasoningResult)
+      }
+      modulesExecuted.push('executive', 'budget')
+    }
+
     // Step 5 — Smart Clarification
     let clarificationMeta: RahhalBrainTurnResult['clarificationMeta']
     if (plannedModules.includes('clarification')) {
@@ -158,6 +182,8 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
       memory,
       reasoningResult,
       missingFields,
+      executiveContext: executiveEnhancement?.context,
+      executiveBudgetWarnings: executiveEnhancement?.budgetWarnings,
     })
 
     if (
@@ -220,6 +246,7 @@ export function RahhalBrain(options: RahhalBrainOptions = {}) {
       reasoningResult,
       reasoningMeta,
       clarificationMeta,
+      executive: executiveEnhancement,
       decision,
       meta: {
         understanding,

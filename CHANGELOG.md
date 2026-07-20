@@ -2,6 +2,17 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Phase 2: AI Travel Executive
+
+### Added
+
+- Executive intelligence layer (`src/lib/brain/executive`) orchestrated through RahhalBrain.
+- Rejected-destination memory (`rejectedDestinations` on preference profile).
+- Budget warnings and discovery optimizer (scenery / activities / cost).
+- Consultant one-liner discovery replies with optimization follow-up.
+- Feature flag `ai.travel_executive` (default ON).
+- Docs: `docs/PHASE2_TRAVEL_EXECUTIVE.md`; tests: `travelExecutive.phase2.test.ts`.
+
 ## [Unreleased] — Sprint 50: Rahhal Brain Core v1
 
 ### Added

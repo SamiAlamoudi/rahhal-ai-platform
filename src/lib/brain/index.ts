@@ -29,6 +29,20 @@ export type {
   RahhalBrainTurnInput,
   RahhalBrainTurnResult,
 } from './core'
+export {
+  isTravelExecutiveEnabled,
+  TRAVEL_EXECUTIVE_FEATURE_ID,
+  composeExecutiveDiscoveryReply,
+  detectRejectedDestinations,
+  learnRejectedDestinations,
+  detectOptimizationAxis,
+  processExecutiveIntelligence,
+} from './executive'
+export type {
+  ExecutiveContext,
+  ExecutiveEnhancement,
+  OptimizationAxis,
+} from './executive'
 
 export type {
   BrainLocale,

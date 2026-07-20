@@ -256,6 +256,16 @@ export interface AgentProviderMeta {
     rationale: string[]
   }
   /**
+   * Phase 2 — Travel Executive orchestration snapshot.
+   */
+  travelExecutive?: {
+    travelStyle: string
+    optimizationAxis: string | null
+    rejectedCount: number
+    learnedRejections: string[]
+    budgetWarnings: string[]
+  }
+  /**
    * Sprint 50 — Rahhal Brain Core orchestration snapshot (production path).
    * Present when `ai.rahhal_brain` runs the turn decision pipeline.
    */

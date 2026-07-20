@@ -6,6 +6,7 @@
 import type { ExtractionResult } from '../../agent/extractRequirements'
 import type { AgentMemory, AgentProviderMeta } from '../../agent/types'
 import type { TravelReasoningResult } from '../../agent/reasoning/types'
+import type { ExecutiveEnhancement } from '../executive/types'
 
 export type BrainModuleId =
   | 'memory'
@@ -19,6 +20,7 @@ export type BrainModuleId =
   | 'safety'
   | 'advisory'
   | 'ranking'
+  | 'executive'
   | 'flights'
   | 'hotels'
   | 'planning'
@@ -128,6 +130,7 @@ export interface RahhalBrainTurnResult {
   reasoningResult: TravelReasoningResult | null
   reasoningMeta?: AgentProviderMeta['reasoning']
   clarificationMeta?: AgentProviderMeta['clarification']
+  executive?: ExecutiveEnhancement
   decision: RahhalBrainDecision
   meta: RahhalBrainMetaSnapshot
 }
