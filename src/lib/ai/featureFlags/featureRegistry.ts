@@ -496,6 +496,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: trip_management. Extends existing src/lib/trips TripManager/TripRepository; does not duplicate payment/execution/planner logic.',
   },
   {
+    id: 'ui.conversation_experience',
+    name: 'Conversation Experience & Booking UX',
+    description:
+      'Sprint 42 production conversation UX — rich travel cards, in-chat booking actions, timeline, live notifications, maps, memory chips, themes. Presentation only over Sprint 32–35 engines. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.conversation_ui'],
+    notes:
+      'Product alias: conversation_experience. Does not create new backend engines; integrates conversation UI, execution, payments, trips, and memory.',
+  },
+  {
     id: 'providers.hotel_foundation',
     name: 'Hotel Provider Foundation',
     description:

@@ -91,3 +91,28 @@ export type {
   StreamingResponseOptions,
   CreateConversationChatProviderOptions,
 } from './conversationExperience'
+
+/** Sprint 42 — Conversation Experience & Booking UX (presentation) */
+export {
+  isConversationExperienceEnabled,
+  CONVERSATION_EXPERIENCE_FEATURE_ID,
+  extractConversationUiMeta,
+  buildTravelCards,
+  createConversationBookingBridge,
+  buildConversationTimeline,
+  buildMemoryChips,
+  buildMapPreview,
+  getConversationLiveNotificationBus,
+  resetConversationLiveNotificationBus,
+  resolveChatTheme,
+  chatThemeClassName,
+} from './conversationExperienceUi'
+export type {
+  TravelCardModel,
+  ConversationBookingAction,
+  ConversationBookingState,
+  ConversationTimelineEvent,
+  ConversationLiveEvent,
+  ConversationMemoryChip,
+  ChatThemeMode,
+} from './conversationExperienceUi'
