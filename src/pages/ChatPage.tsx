@@ -873,11 +873,7 @@ export default function ChatPage() {
               <h1 className="truncate text-base font-bold text-slate-900 dark:text-slate-100">وكيل سفر رحّال</h1>
               <p className="text-[10px] text-slate-400">
                 {online
-                  ? chatgptOn
-                    ? 'ChatGPT-style conversation · streaming · voice · memory'
-                    : experienceEnabled
-                      ? 'تجربة محادثة الإنتاج · بطاقات وحجز داخل الدردشة'
-                      : 'تخطيط رحلات منظم · نص وصوت على نفس المحرك'
+                  ? 'محادثة طبيعية · تخطيط · حجز · دفع داخل نفس الجلسة'
                   : 'غير متصل — وضع القراءة فقط مؤقتاً'}
               </p>
             </div>

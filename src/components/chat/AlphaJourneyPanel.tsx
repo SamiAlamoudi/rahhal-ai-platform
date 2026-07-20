@@ -21,6 +21,47 @@ function asAgentMeta(value: unknown): AgentProviderMeta | null {
   return meta
 }
 
+const KIND_LABELS: Record<string, string> = {
+  flight: 'تذكرة الطيران',
+  hotel_voucher: 'قسيمة الفندق',
+  activity_voucher: 'قسيمة النشاط',
+  car_rental: 'تأكيد السيارة',
+  insurance_certificate: 'شهادة التأمين',
+  invoice: 'الفاتورة',
+  receipt: 'إيصال الدفع',
+  itinerary: 'مسار الرحلة',
+  confirmation: 'تأكيد الحجز',
+  pnr: 'مرجع الحجز (PNR)',
+}
+
+/** Hide simulated provider IDs / internal tokens from traveler-facing labels. */
+function friendlyDocumentLabel(label: string, kind: string): string {
+  const kindLabel = KIND_LABELS[kind] || KIND_LABELS[label.trim().toLowerCase()]
+  const cleaned = label
+    .replace(/\bsim[-_]?book[-_]?\S*/gi, '')
+    .replace(/\bsim[-_]?\S*/gi, '')
+    .replace(/\bgrid[-_]?\S*/gi, '')
+    .replace(/\bharbor[-_]?\S*/gi, '')
+    .replace(/\bshield[-_]?\S*/gi, '')
+    .replace(/\bflights?-\d+/gi, '')
+    .replace(/\bhotels?-\d+/gi, '')
+    .replace(/\binsurance-\d+/gi, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s\-—:|]+|[\s\-—:|]+$/g, '')
+    .trim()
+  // Prefer human Arabic labels over raw kind tokens / leftover provider fragments.
+  if (kindLabel && (!cleaned || cleaned.length < 4 || /^[a-z_]+$/i.test(cleaned) || /voucher|certificate|invoice|receipt|pnr|flight|hotel/i.test(cleaned))) {
+    if (/invoice/i.test(kind) || /invoice/i.test(label)) {
+      const amount = label.match(/(\d+(?:[.,]\d+)?)\s*([A-Z]{3})/)
+      if (amount) return `${kindLabel} · ${amount[1]} ${amount[2]}`
+    }
+    return kindLabel
+  }
+  if (cleaned.length >= 3) return cleaned
+  return kindLabel || 'مستند الرحلة'
+}
+
 export default function AlphaJourneyPanel({ message, busy, onCommand }: Props) {
   const meta = asAgentMeta(message.providerMeta)
   const payments = meta?.payments
@@ -62,15 +103,20 @@ export default function AlphaJourneyPanel({ message, busy, onCommand }: Props) {
   }
 
   return (
-    <div className="mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/60">
+    <div
+      className="mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/60"
+      data-testid="alpha-journey-panel"
+    >
       <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">متابعة الرحلة</p>
       <div className="flex flex-wrap gap-2 text-[11px] text-slate-600 dark:text-slate-300">
         {intelligence && (
           <span className="rounded-full bg-white px-2 py-1 dark:bg-slate-900">
-            {bookingReady ? 'جاهز للحجز' : 'يحتاج توضيحاً'}
+            {bookingReady
+              ? 'جاهز للحجز'
+              : (intelligence.clarification?.trim() || 'يحتاج توضيحاً')}
           </span>
         )}
-        {execution && (
+        {execution && execution.confirmedCount > 0 && (
           <span className="rounded-full bg-white px-2 py-1 dark:bg-slate-900">
             حجز مؤكد: {execution.confirmedCount}
           </span>
@@ -93,6 +139,7 @@ export default function AlphaJourneyPanel({ message, busy, onCommand }: Props) {
           <button
             type="button"
             disabled={busy}
+            data-testid="alpha-confirm-booking"
             onClick={() => onCommand('أكد الحجز الآن')}
             className="rounded-full bg-primary-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-primary-700 disabled:opacity-40"
           >
@@ -103,7 +150,8 @@ export default function AlphaJourneyPanel({ message, busy, onCommand }: Props) {
           <button
             type="button"
             disabled={busy}
-            onClick={() => onCommand('ادفع الآن ببطاقة مدى')}
+            data-testid="alpha-pay-now"
+            onClick={() => onCommand('ادفع الآن')}
             className="rounded-full bg-primary-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-primary-700 disabled:opacity-40"
           >
             ادفع الآن
@@ -113,6 +161,7 @@ export default function AlphaJourneyPanel({ message, busy, onCommand }: Props) {
           <button
             type="button"
             disabled={busy}
+            data-testid="alpha-confirmation-summary"
             onClick={() => onCommand('أعرض ملخص التأكيد والمستندات')}
             className="rounded-full border border-primary-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-primary-800 hover:bg-primary-50 disabled:opacity-40 dark:border-primary-800 dark:bg-slate-900 dark:text-primary-100"
           >
@@ -125,17 +174,20 @@ export default function AlphaJourneyPanel({ message, busy, onCommand }: Props) {
         <div className="space-y-1 border-t border-slate-200 pt-2 dark:border-slate-700">
           <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">مستندات قابلة للتحميل</p>
           <ul className="space-y-1">
-            {documents.map((doc) => (
-              <li key={doc.id}>
-                <a
-                  href={doc.downloadUrl}
-                  download={`${doc.kind}-${doc.id}.txt`}
-                  className="text-[11px] font-medium text-primary-700 underline-offset-2 hover:underline dark:text-primary-300"
-                >
-                  {doc.label}
-                </a>
-              </li>
-            ))}
+            {documents.map((doc) => {
+              const label = friendlyDocumentLabel(doc.label, doc.kind)
+              return (
+                <li key={doc.id}>
+                  <a
+                    href={doc.downloadUrl}
+                    download={`${doc.kind}-${doc.id}.txt`}
+                    className="text-[11px] font-medium text-primary-700 underline-offset-2 hover:underline dark:text-primary-300"
+                  >
+                    {label}
+                  </a>
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}
