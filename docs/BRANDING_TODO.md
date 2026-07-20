@@ -16,7 +16,7 @@ Keep the current temporary project name (**رحّال / Rahhal / `rahhal-app`**)
 4. Run a single coordinated rename pass across:
    - Package name and repository metadata
    - Docs, env headers, and UI copy
-   - **Curious** (must be updated to the same final brand name in the same rename pass)
+   - **Curious** (project metadata, linked boards, and any Curious-side brand strings — must be updated to the same final brand name in the same rename pass)
 
 Until then: continue shipping features under the current temporary project name.
 The Travel AI Agent MVP must not introduce a second product name.
