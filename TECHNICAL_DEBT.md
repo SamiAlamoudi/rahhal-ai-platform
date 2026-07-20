@@ -46,7 +46,7 @@ Ranked after architecture DDD pass (`arch:circular` = 0). Behavior unchanged.
 
 ## Paid down in this pass
 
-- All madge circular dependencies (was 15 → **0**)
+- All circular dependencies (was 15 → **0**; gated by `npm run arch:circular`)
 - Leaf types for session / search / brain integration
 - Domain façades + ownership READMEs
 - Architecture documentation suite

@@ -1,6 +1,6 @@
 # Architecture Metrics
 
-Measured qualitatively against the post-DDD / zero-cycle baseline. Scores are architect judgment grounded in tooling (`madge`, Vitest, bundle output), not marketing.
+Measured qualitatively against the post-DDD / zero-cycle baseline. Scores are architect judgment grounded in tooling (`arch:circular`, Vitest, bundle output), not marketing.
 
 | Dimension | Score (/10) | Evidence |
 |-----------|-------------|----------|

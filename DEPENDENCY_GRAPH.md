@@ -3,7 +3,7 @@
 ## Enforcement
 
 ```bash
-npm run arch:circular   # madge — must report 0 cycles
+npm run arch:circular   # zero-dep cycle detector — must report 0 cycles
 ```
 
 Status after architecture DDD pass: **0 circular dependencies** under `src/`.
