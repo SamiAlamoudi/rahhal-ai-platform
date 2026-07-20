@@ -110,3 +110,4 @@ Do **not** reach into another feature’s private files.
 - [`ARCHITECTURE_METRICS.md`](ARCHITECTURE_METRICS.md)
 - [`AI_ARCHITECTURE.md`](AI_ARCHITECTURE.md)
 - [`FEATURE_REGISTRY.md`](FEATURE_REGISTRY.md)
+
