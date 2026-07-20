@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { emptyMemory, emptyRequirements, withTripPlan } from '../agent/types'
 import type { TripPlan } from '../agent/types'
 import { createConciergeService } from '../concierge/conciergeService'
+import { buildConciergeRecommendations } from '../concierge/recommendationBridge'
 import {
   assertProviderAgnosticHandoff,
   resolveAgentHandoff,
@@ -78,8 +79,9 @@ describe('Concierge Phase 5 — search/plan handoff', () => {
     })
     expect(result.handoff.shouldExecuteAgent).toBe(false)
     expect(result.handoff.mode).toBe('none')
-    expect(result.reply).toBeTruthy()
-    expect(result.reply!.toLowerCase()).toMatch(/consultant|rahhal/)
+    // Experience Sprint 2 — Concierge returns policy only; Conversation Brain authors prose.
+    expect(result.reply).toBeNull()
+    expect(result.decision.action).toMatch(/greet|ask|propose_options|advise/)
   })
 
   it('hands off plan mode to the agent after confirmation', () => {
@@ -165,7 +167,7 @@ describe('Concierge Phase 5 — search/plan handoff', () => {
     expect(result.reply).toBeNull()
   })
 
-  it('propose_options includes AB recommendation lines in Concierge reply', () => {
+  it('propose_options keeps handoff idle and AB framing available for Conversation Brain', () => {
     const service = createConciergeService()
     const memory = emptyMemory('en')
     memory.requirements = completeRequirements()
@@ -187,8 +189,15 @@ describe('Concierge Phase 5 — search/plan handoff', () => {
     })
     expect(result.handoff.mode).toBe('none')
     expect(result.decision.action).toBe('propose_options')
-    expect(result.reply).toMatch(/1\./)
-    expect(result.reply).toMatch(/Paris/i)
+    // Experience Sprint 2 — no Concierge prose; recommendation bridge still supplies option facts.
+    expect(result.reply).toBeNull()
+    const recs = buildConciergeRecommendations({
+      locale: 'en',
+      requirements: memory.requirements,
+      softSignals: result.decision.state.softSignals,
+    })
+    expect(recs.optionLines.length).toBeGreaterThan(0)
+    expect(recs.optionLines.join('\n')).toMatch(/Paris/i)
   })
 
   it('resolveAgentHandoff maps actions without provider knowledge', () => {

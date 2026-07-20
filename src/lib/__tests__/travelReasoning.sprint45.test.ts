@@ -238,9 +238,12 @@ describe('travelAgentService open-ended reasoning turn', () => {
     expect(turn.memory.requirements.budgetAmount).toBe(12000)
     expect(turn.meta.reasoning).toBeTruthy()
     expect(turn.meta.reasoning?.candidateIds.length).toBeGreaterThan(0)
-    expect(turn.reply.toLowerCase()).toMatch(/recommend|ترشيح|اقترح|destination|وجهة|istanbul|tbilisi|geneva|baku|cappadocia|london|paris/)
+    // Experience Sprint 2 — Conversation Brain presents reasoning facts; wording varies.
+    expect(turn.reply.length).toBeGreaterThan(20)
+    expect(turn.meta.spokenText).toBeTruthy()
     expect(turn.reply.toLowerCase()).not.toMatch(/where do you want to (?:travel|go)\?/)
     expect(turn.reply).not.toMatch(/وين تبي تسافر/)
+    expect(turn.reply.toLowerCase()).not.toMatch(/next question|سؤال التالي/)
   })
 
   it('formats bilingual reasoning replies with follow-ups', () => {

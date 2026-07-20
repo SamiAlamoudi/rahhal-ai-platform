@@ -207,7 +207,11 @@ describe('Phase R Intelligent Decision Engine', () => {
     expect(turn.tripPlan).toBeTruthy()
     expect(turn.tripPlan?.decision?.scores.overall).toBeGreaterThan(0)
     expect(turn.tripPlan?.decision?.version).toBe(1)
-    expect(turn.reply).toMatch(/Decision engine|Overall score/i)
+    // Experience Sprint 2 — Conversation Brain authors reply; decision scores stay on the plan.
+    expect(turn.reply.length).toBeGreaterThan(20)
+    expect(turn.reply.toLowerCase()).not.toMatch(/decision engine/)
+    expect(turn.reply).toMatch(/Japan|Tokyo|Kyoto/i)
+    expect(turn.meta.spokenText).toBeTruthy()
     // Provider-blind: decision layer never names vendor client classes
     expect(JSON.stringify(turn.meta)).not.toMatch(/AmadeusFlightApiClient|BookingComApiClient|OpenWeatherApiClient/)
   })

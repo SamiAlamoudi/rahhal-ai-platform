@@ -187,7 +187,10 @@ describe('planTurn integration', () => {
         userMessage('I want somewhere cold next month with a budget of 12000 SAR'),
       ],
     })
-    expect(result.reply).toMatch(/consultant|ترشيحاتي|My picks|I found destinations|وجدت|optimize for scenery/i)
+    // Experience Sprint 2 — LLM Conversation Brain authors the traveler-facing reply.
+    expect(result.reply.length).toBeGreaterThan(20)
+    expect(result.reply.toLowerCase()).not.toMatch(/next question|سؤال التالي|form inventory/)
+    expect(result.meta.spokenText).toBeTruthy()
     expect(result.meta.rahhalBrain?.decision).toBe('respond')
     expect(result.meta.rahhalBrain?.primaryIntent).toBe('destination_discovery')
     expect(result.meta.reasoning?.candidateIds.length).toBeGreaterThan(0)
@@ -205,8 +208,11 @@ describe('planTurn integration', () => {
         userMessage('I want somewhere cold next month with a budget of 12000 SAR'),
       ],
     })
-    expect(result.reply).toMatch(/consultant|ترشيحاتي|My picks|I found destinations|وجدت|optimize for scenery/i)
+    // Brain meta is off, but Conversation Brain still presents reasoning facts conversationally.
+    expect(result.reply.length).toBeGreaterThan(20)
+    expect(result.meta.spokenText).toBeTruthy()
     expect(result.meta.rahhalBrain).toBeUndefined()
+    expect(result.meta.reasoning?.candidateIds.length).toBeGreaterThan(0)
   })
 })
 
