@@ -1,4 +1,7 @@
-import type { HotelProvider, HotelOffer, ProviderRequest, ProviderResult, ProviderCapabilities } from '../../../utils/contracts'
+import type { HotelProvider, ProviderRequest } from '../../../utils/contracts/providers'
+import type { HotelOffer } from '../../../utils/contracts/models'
+import type { ProviderResult } from '../../../utils/contracts/result'
+import type { ProviderCapabilities } from '../../../utils/contracts/capabilities'
 import { okResult, errorResult } from '../../../utils/contracts/result'
 import { defaultCapabilities } from '../../../utils/contracts/capabilities'
 import type { ProviderMetadata } from '../../../utils/contracts/metadata'

@@ -6,7 +6,7 @@ import type {
   VisaProvider,
   WeatherProvider,
   DestinationProvider,
-} from '../index'
+} from '../providers'
 import { MockFlightProvider } from './mockFlightProvider'
 import { MockHotelProvider } from './mockHotelProvider'
 import { MockActivityProvider } from './mockActivityProvider'
@@ -36,4 +36,3 @@ export function createMockContractProviders(): MockContractProviders {
     destination: new MockDestinationProvider(),
   }
 }
-

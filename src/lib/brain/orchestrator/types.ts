@@ -126,7 +126,7 @@ export type AITripOrchestratorOptions = {
   onLog?: (entry: OrchestratorLogEntry) => void
   /** Inject pipeline runner (tests / cycle-safe overrides). */
   runPipeline?: (
-    input: import('../integration').RunIntegratedBrainTurnInput,
+    input: import('../integrationTypes').RunIntegratedBrainTurnInput,
   ) => Promise<import('../types').BrainTurnResult>
   /**
    * Sprint 28 — override Conversation Memory & Context Engine flag for this instance.

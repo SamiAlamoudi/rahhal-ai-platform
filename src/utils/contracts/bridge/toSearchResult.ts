@@ -1,4 +1,4 @@
-import type { ProviderSearchResult } from '../../searchOrchestrator'
+import type { ProviderSearchResult } from '../../providerSearchResult'
 import type { FlightOffer } from '../../contracts/models/flight'
 import type { HotelOffer } from '../../contracts/models/hotel'
 import type { ActivityOffer } from '../../contracts/models/activity'

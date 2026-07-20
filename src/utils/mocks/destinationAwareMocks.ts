@@ -13,7 +13,7 @@ import type { ActivityOffer, ActivityType } from '../contracts/models/activity'
 import type { TransferOffer } from '../contracts/models/transfer'
 import type { DestinationInsight, PointOfInterest } from '../contracts/models/destination'
 import type { Vehicle } from '../contracts/models/rentalCar'
-import type { ProviderSearchResult } from '../searchOrchestrator'
+import type { ProviderSearchResult } from '../providerSearchResult'
 import {
   flightOfferToSearchResult,
   hotelOfferToSearchResult,
