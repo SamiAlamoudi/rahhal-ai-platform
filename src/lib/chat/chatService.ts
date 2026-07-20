@@ -101,17 +101,33 @@ async function streamIntoAssistant(
       messages: history,
       signal: handlers.signal,
     })) {
-      if (chunk.type === 'delta' && chunk.text) {
-        content += chunk.text
-        latest = {
-          ...latest,
-          content,
-          status: 'streaming',
-          updatedAt: new Date().toISOString(),
+      if (chunk.type === 'delta') {
+        if (chunk.text) content += chunk.text
+        const experienceState =
+          chunk.experienceState
+          ?? (typeof chunk.meta?.experienceState === 'string' ? chunk.meta.experienceState : null)
+        if (experienceState) {
+          streamMeta = { ...streamMeta, experienceState, chatgptExperience: true }
         }
-        handlers.onDelta?.(latest)
+        if (chunk.meta) {
+          streamMeta = { ...streamMeta, ...chunk.meta }
+        }
+        // Skip empty status-only deltas for content, but still notify UI for state.
+        if (chunk.text || experienceState) {
+          latest = {
+            ...latest,
+            content,
+            status: 'streaming',
+            providerMeta: {
+              providerId: activeProvider.providerId,
+              ...streamMeta,
+            },
+            updatedAt: new Date().toISOString(),
+          }
+          handlers.onDelta?.(latest)
+        }
         // Non-blocking mid-stream persist so network lag does not stall UI deltas
-        if (content.length - lastPersistedLength >= 120) {
+        if (chunk.text && content.length - lastPersistedLength >= 120) {
           lastPersistedLength = content.length
           const snapshot = content
           void persistAssistantDelta(assistantId, snapshot, 'streaming', null, streamMeta).catch((err) => {

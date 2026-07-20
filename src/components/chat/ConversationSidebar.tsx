@@ -4,11 +4,13 @@ interface ConversationSidebarProps {
   conversations: ChatConversation[]
   activeId: string | null
   query: string
+  pinnedIds?: string[]
   onQueryChange: (value: string) => void
   onSelect: (id: string) => void
   onCreate: () => void
   onRename: (id: string) => void
   onDelete: (id: string) => void
+  onTogglePin?: (id: string) => void
   loading?: boolean
   mobileOpen?: boolean
   onCloseMobile?: () => void
@@ -18,15 +20,24 @@ export default function ConversationSidebar({
   conversations,
   activeId,
   query,
+  pinnedIds = [],
   onQueryChange,
   onSelect,
   onCreate,
   onRename,
   onDelete,
+  onTogglePin,
   loading = false,
   mobileOpen = false,
   onCloseMobile,
 }: ConversationSidebarProps) {
+  const ordered = [...conversations].sort((a, b) => {
+    const ap = pinnedIds.includes(a.id) ? 0 : 1
+    const bp = pinnedIds.includes(b.id) ? 0 : 1
+    if (ap !== bp) return ap - bp
+    return 0
+  })
+
   const panel = (
     <div className="flex h-full flex-col border-slate-100 bg-white lg:border-e">
       <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
@@ -75,8 +86,9 @@ export default function ConversationSidebar({
           </div>
         )}
         <ul className="space-y-1">
-          {conversations.map((conversation) => {
+          {ordered.map((conversation) => {
             const active = conversation.id === activeId
+            const pinned = pinnedIds.includes(conversation.id)
             return (
               <li key={conversation.id}>
                 <div
@@ -93,7 +105,7 @@ export default function ConversationSidebar({
                     className="w-full text-start"
                   >
                     <p className={`truncate text-sm font-medium ${active ? 'text-primary-800' : 'text-slate-800'}`}>
-                      {conversation.title}
+                      {pinned ? '[مثبّت] ' : ''}{conversation.title}
                     </p>
                     {conversation.lastMessagePreview ? (
                       <p className="mt-0.5 truncate text-[11px] text-slate-500">
@@ -105,6 +117,15 @@ export default function ConversationSidebar({
                     </p>
                   </button>
                   <div className="mt-1 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                    {onTogglePin && (
+                      <button
+                        type="button"
+                        onClick={() => onTogglePin(conversation.id)}
+                        className="rounded px-2 py-0.5 text-[10px] text-slate-500 hover:bg-white hover:text-slate-800"
+                      >
+                        {pinned ? 'إلغاء التثبيت' : 'تثبيت'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onRename(conversation.id)}

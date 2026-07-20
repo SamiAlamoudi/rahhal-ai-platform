@@ -64,6 +64,7 @@ export type FeatureId =
   | 'brain.finance_platform'
   | 'ui.conversation_experience'
   | 'brain.ai_orchestrator'
+  | 'ui.chatgpt_experience'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'
