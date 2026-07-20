@@ -65,6 +65,7 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Flag: `ai.travel_reasoning` (default **ON**; depends on `ai.concierge` + `ai.recommendation_engine`).
 - See `docs/SPRINT45_TRAVEL_REASONING.md`.
 - **Sprint 47:** cold destination catalog expansion (Switzerland, Austria, Norway, Canada, New Zealand, Sapporo, Iceland) — `docs/SPRINT47_COLD_DESTINATION_DISCOVERY.md`.
+- **Sprint 49:** visa + travel advisory intelligence on reasoning candidates — `docs/SPRINT49_VISA_ADVISORY.md`.
 
 ## Smart Clarification / Never-Ask-Twice (Sprint 46)
 

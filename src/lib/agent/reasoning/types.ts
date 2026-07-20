@@ -9,6 +9,14 @@ export type ClimateBand = 'cool' | 'cold' | 'mild' | 'warm' | 'hot' | 'dry' | 'r
 
 export type VisaEase = 'visa_free' | 'visa_on_arrival' | 'evisa' | 'embassy' | 'unknown'
 
+export interface VisaGuidance {
+  ease: VisaEase
+  summary: string
+  processingDays: string | null
+  documents: string[]
+  feeNote: string | null
+}
+
 export interface DestinationClimateProfile {
   /** Destination display name (EN canonical). */
   id: string
@@ -40,6 +48,10 @@ export interface DestinationCandidate {
   budgetFit: 'under' | 'fit' | 'tight' | 'over' | 'unknown'
   climateMatch: ClimateBand | null
   visa: VisaEase
+  /** Sprint 49 — consultant visa briefing */
+  visaGuidance: VisaGuidance | null
+  /** Sprint 49 — safety / logistics advisories */
+  advisoryNotes: string[]
   bestTimingNote: string | null
   riskNotes: string[]
 }
