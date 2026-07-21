@@ -2,7 +2,7 @@
  * Sprint 68 — Rollback system (deployment / config / provider / feature / safe mode).
  */
 
-import { evaluatePatchRelease, shouldRollback } from '../release'
+import { evaluatePatchRelease, shouldRollback } from '../release/patchRelease'
 import { collectMonitoringSnapshot } from '../observability/monitoring'
 import { evaluateAlertRules, DEFAULT_ALERT_RULES } from '../alerting'
 import { planRecovery } from '../production/recovery'
