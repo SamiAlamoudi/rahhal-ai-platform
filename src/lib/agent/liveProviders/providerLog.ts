@@ -1,6 +1,6 @@
 /**
- * Structured provider request logging — Sprint 59 / 60.
- * Logs request id, duration, status, and provider name only.
+ * Structured provider request logging — Sprint 59 / 60 / 61.
+ * Logs request id, duration, status, provider name, and optional booking refs.
  * Never logs secrets, tokens, or credential material.
  */
 
@@ -22,6 +22,8 @@ export type ProviderLogEntry = {
   operation: string
   durationMs: number
   status: ProviderLogStatus | string
+  bookingId?: string | null
+  providerReference?: string | null
   httpStatus?: number | null
   detail?: string | null
 }
@@ -51,6 +53,8 @@ let sink: ProviderLogSink = (entry) => {
     operation: entry.operation,
     durationMs: entry.durationMs,
     status: entry.status,
+    bookingId: entry.bookingId ?? undefined,
+    providerReference: entry.providerReference ?? undefined,
     httpStatus: entry.httpStatus ?? undefined,
     detail: entry.detail ?? undefined,
   })
@@ -67,6 +71,8 @@ export function setProviderLogSink(next: ProviderLogSink | null): void {
         operation: entry.operation,
         durationMs: entry.durationMs,
         status: entry.status,
+        bookingId: entry.bookingId ?? undefined,
+        providerReference: entry.providerReference ?? undefined,
         httpStatus: entry.httpStatus ?? undefined,
         detail: entry.detail ?? undefined,
       })

@@ -1,5 +1,5 @@
 /**
- * Booking.com Live Provider SDK adapter — Sprint 56 + Sprint 60.
+ * Booking.com Live Provider SDK adapter — Sprint 56 + Sprint 60 + Sprint 61.
  *
  * Hotel search via RapidAPI Booking.com Connectivity-style endpoints.
  * Normalizes supplier payloads into Rahhal's LiveHotelOffer model.
@@ -10,6 +10,9 @@
  * - Full hotel normalization (address, room, cancel, taxes, amenities, …)
  * - Graceful errors: empty / invalid destination / timeout / rate limit / unavailable
  * - Structured provider logging (never secrets)
+ *
+ * Sprint 61:
+ * - createOrder / retrieveOrder / cancelOrder (hotel reservations)
  */
 
 import {
@@ -30,9 +33,20 @@ import type {
   LiveHotelOffer,
   LiveHotelSearchInput,
   LiveMoney,
+  LiveOrderContext,
+  LiveOrderResult,
   LiveProviderCapabilities,
   LiveProviderSdk,
 } from '../types'
+
+function parseBoolEnv(key: string, fallback: boolean): boolean {
+  const value = readLiveProviderSecret(key)
+  if (value == null) return fallback
+  const v = value.trim().toLowerCase()
+  if (['1', 'true', 'yes', 'on'].includes(v)) return true
+  if (['0', 'false', 'no', 'off'].includes(v)) return false
+  return fallback
+}
 
 export type BookingAdapterOptions = {
   apiKey?: string
@@ -42,6 +56,8 @@ export type BookingAdapterOptions = {
   available?: boolean
   timeoutMs?: number
   now?: () => number
+  /** When true, attempt HTTP hotel order endpoint (if configured). */
+  orderLive?: boolean
 }
 
 export type BookingProviderErrorCode =
@@ -423,6 +439,9 @@ export function createBookingLiveProvider(options: BookingAdapterOptions = {}): 
   const timeoutMs = options.timeoutMs ?? 8_000
   const now = options.now ?? (() => Date.now())
   const hotelCache = new Map<string, LiveHotelOffer>()
+  const orderStore = new Map<string, LiveOrderResult>()
+  const bookedOffers = new Set<string>()
+  const orderLive = options.orderLive ?? parseBoolEnv('BOOKING_ORDER_LIVE', false)
   let forcedAvailable = options.available
 
   async function authorizedGet(url: string, signal?: AbortSignal): Promise<Response> {
@@ -588,11 +607,183 @@ export function createBookingLiveProvider(options: BookingAdapterOptions = {}): 
       const cached = hotelCache.get(offerId)
       return cached?.total ?? cached?.nightly ?? null
     },
+    async createOrder(offerId: string, signal?: AbortSignal, context?: LiveOrderContext): Promise<LiveOrderResult> {
+      const requestId = createProviderRequestId('bkg')
+      const started = now()
+      try {
+        if (bookedOffers.has(offerId)) {
+          return {
+            ok: false,
+            error: 'duplicate_booking',
+            errorCode: 'duplicate',
+            retryable: false,
+            domain: 'hotels',
+          }
+        }
+        const offer = hotelCache.get(offerId)
+        if (!offer && !offerId) {
+          return {
+            ok: false,
+            error: 'offer_not_found',
+            errorCode: 'validation',
+            retryable: false,
+            domain: 'hotels',
+          }
+        }
+        const travelers = context?.travelers?.length
+          ? context.travelers
+          : [{ firstName: 'Guest', lastName: 'One' }]
+        const guestNames = travelers.map((t) => `${t.firstName} ${t.lastName}`.trim())
+        const checkIn = context?.checkIn ?? null
+        const checkOut = context?.checkOut ?? null
+        const roomType = context?.roomType ?? offer?.area ?? 'Standard Room'
+        const currency = (offer?.currency || offer?.total?.currency || offer?.nightly.currency || 'USD').toUpperCase()
+        const amount = offer?.total?.amount ?? offer?.nightly.amount ?? 0
+
+        if (orderLive) {
+          const orderUrl = `${baseUrl}/hotels/book`
+          try {
+            const response = await fetchImpl(orderUrl, {
+              method: 'POST',
+              signal,
+              headers: {
+                'Content-Type': 'application/json',
+                'X-RapidAPI-Key': apiKey,
+                'X-RapidAPI-Host': host,
+              },
+              body: JSON.stringify({
+                hotel_id: offerId,
+                checkin: checkIn,
+                checkout: checkOut,
+                guests: guestNames,
+              }),
+            })
+            if (response.status === 429) {
+              return {
+                ok: false,
+                error: 'booking_rate_limit',
+                errorCode: 'retryable',
+                retryable: true,
+                domain: 'hotels',
+              }
+            }
+            if (!response.ok) {
+              return {
+                ok: false,
+                error: `booking_order_${response.status}`,
+                errorCode: response.status >= 500 ? 'unavailable' : 'validation',
+                retryable: response.status >= 500,
+                domain: 'hotels',
+              }
+            }
+            const body = (await response.json()) as {
+              confirmation?: string
+              reservation_id?: string
+            }
+            const orderId = body.reservation_id || `bkg-rsv-${offerId}`
+            const confirmation = body.confirmation || orderId
+            const result: LiveOrderResult = {
+              ok: true,
+              orderId,
+              domain: 'hotels',
+              providerBookingId: orderId,
+              hotelConfirmation: confirmation,
+              guestNames,
+              roomType,
+              checkIn,
+              checkOut,
+              travelerList: travelers,
+              status: 'confirmed',
+              price: { amount, currency },
+              currency,
+              createdAt: new Date(now()).toISOString(),
+              raw: body,
+            }
+            orderStore.set(orderId, result)
+            bookedOffers.add(offerId)
+            logProviderRequest({
+              requestId,
+              provider: 'booking',
+              operation: 'createOrder',
+              durationMs: now() - started,
+              status: 'confirmed',
+              providerReference: orderId,
+            })
+            return result
+          } catch (err) {
+            const message = err instanceof Error ? err.message : 'booking_order_failed'
+            const timeout = /abort|timeout/i.test(message)
+            return {
+              ok: false,
+              error: message,
+              errorCode: timeout ? 'timeout' : 'unavailable',
+              retryable: true,
+              domain: 'hotels',
+            }
+          }
+        }
+
+        const confirmation = `HTL-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+        const orderId = `bkg-rsv-${offerId}-${confirmation}`
+        const result: LiveOrderResult = {
+          ok: true,
+          orderId,
+          domain: 'hotels',
+          providerBookingId: orderId,
+          hotelConfirmation: confirmation,
+          guestNames,
+          roomType,
+          checkIn,
+          checkOut,
+          travelerList: travelers,
+          status: 'confirmed',
+          price: { amount, currency },
+          currency,
+          createdAt: new Date(now()).toISOString(),
+          raw: { mode: 'provider_simulated', offerId },
+        }
+        orderStore.set(orderId, result)
+        bookedOffers.add(offerId)
+        logProviderRequest({
+          requestId,
+          provider: 'booking',
+          operation: 'createOrder',
+          durationMs: now() - started,
+          status: 'confirmed',
+          providerReference: orderId,
+        })
+        return result
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'booking_order_failed'
+        const timeout = /abort|timeout/i.test(message)
+        return {
+          ok: false,
+          error: message,
+          errorCode: timeout ? 'timeout' : 'unavailable',
+          retryable: true,
+          domain: 'hotels',
+        }
+      }
+    },
+    async retrieveOrder(orderId: string): Promise<LiveOrderResult | null> {
+      const cached = orderStore.get(orderId)
+      if (!cached) return { ok: false, error: 'not_found', errorCode: 'not_found', orderId }
+      return { ...cached }
+    },
+    async cancelOrder(orderId: string) {
+      const cached = orderStore.get(orderId)
+      if (!cached) return { ok: false, error: 'unknown_order', errorCode: 'not_found' as const }
+      orderStore.set(orderId, { ...cached, status: 'cancelled', ok: true })
+      return { ok: true }
+    },
   }
 
   return Object.assign(sdk, {
     setAvailable(value: boolean) {
       forcedAvailable = value
+    },
+    seedHotelOffer(offer: LiveHotelOffer) {
+      hotelCache.set(offer.id, offer)
     },
   })
 }

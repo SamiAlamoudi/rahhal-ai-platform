@@ -168,8 +168,64 @@ export interface LiveProviderSdk {
   /** Optional flight-offer pricing / details hooks (Amadeus / Duffel). */
   getOfferDetails?(offerId: string, signal?: AbortSignal): Promise<LiveFlightOffer | LiveHotelOffer | null>
   priceOffer?(offerId: string, signal?: AbortSignal): Promise<LiveMoney | null>
-  createOrder?(offerId: string, signal?: AbortSignal): Promise<{ ok: boolean; orderId?: string; error?: string }>
-  cancelOrder?(orderId: string, signal?: AbortSignal): Promise<{ ok: boolean; error?: string }>
+  /** Sprint 61 — create / retrieve / cancel provider orders. */
+  createOrder?(
+    offerId: string,
+    signal?: AbortSignal,
+    context?: LiveOrderContext,
+  ): Promise<LiveOrderResult>
+  retrieveOrder?(orderId: string, signal?: AbortSignal): Promise<LiveOrderResult | null>
+  cancelOrder?(orderId: string, signal?: AbortSignal): Promise<{ ok: boolean; error?: string; errorCode?: LiveOrderErrorCode }>
+}
+
+/** Sprint 61 — provider order context & normalized result. */
+export type LiveOrderErrorCode =
+  | 'timeout'
+  | 'unavailable'
+  | 'duplicate'
+  | 'validation'
+  | 'retryable'
+  | 'not_found'
+  | 'unknown'
+
+export type LiveOrderStatus = 'pending' | 'confirmed' | 'cancelled' | 'failed'
+
+export type LiveOrderTraveler = {
+  firstName: string
+  lastName: string
+  email?: string | null
+  phone?: string | null
+}
+
+export type LiveOrderContext = {
+  travelers?: LiveOrderTraveler[]
+  conversationId?: string | null
+  checkIn?: string | null
+  checkOut?: string | null
+  roomType?: string | null
+}
+
+export type LiveOrderResult = {
+  ok: boolean
+  orderId?: string
+  error?: string
+  errorCode?: LiveOrderErrorCode
+  retryable?: boolean
+  domain?: 'flights' | 'hotels'
+  providerBookingId?: string | null
+  pnr?: string | null
+  ticketNumbers?: string[]
+  hotelConfirmation?: string | null
+  guestNames?: string[]
+  roomType?: string | null
+  checkIn?: string | null
+  checkOut?: string | null
+  travelerList?: LiveOrderTraveler[]
+  status?: LiveOrderStatus
+  price?: LiveMoney
+  currency?: string
+  createdAt?: string
+  raw?: unknown
 }
 
 export interface LiveProviderHealth {

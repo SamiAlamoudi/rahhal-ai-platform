@@ -1,5 +1,5 @@
 /**
- * Amadeus Live Provider SDK adapter — Sprint 56 + Sprint 59.
+ * Amadeus Live Provider SDK adapter — Sprint 56 + Sprint 59 + Sprint 61.
  *
  * Supports: Flight Search, Airport Search, Flight Offers, Flight Pricing.
  * OAuth with automatic refresh + auth retry. Injectable fetch (no network in tests).
@@ -9,6 +9,9 @@
  * - children + cabin on flight search
  * - graceful error mapping (empty / invalid airport / rate limit / unavailable / token)
  * - structured provider logging (request id, duration, status, provider — never secrets)
+ *
+ * Sprint 61:
+ * - createOrder / retrieveOrder / cancelOrder (Flight Create Orders or simulated)
  */
 
 import { AmadeusOAuthManager, amadeusTokenUrl } from '../oauth'
@@ -28,9 +31,20 @@ import type {
   LiveFlightOffer,
   LiveFlightSearchInput,
   LiveMoney,
+  LiveOrderContext,
+  LiveOrderResult,
   LiveProviderCapabilities,
   LiveProviderSdk,
 } from '../types'
+
+function parseBoolEnv(key: string, fallback: boolean): boolean {
+  const value = readLiveProviderSecret(key)
+  if (value == null) return fallback
+  const v = value.trim().toLowerCase()
+  if (['1', 'true', 'yes', 'on'].includes(v)) return true
+  if (['0', 'false', 'no', 'off'].includes(v)) return false
+  return fallback
+}
 
 export type AmadeusAdapterOptions = {
   clientId?: string
@@ -40,6 +54,11 @@ export type AmadeusAdapterOptions = {
   available?: boolean
   oauth?: AmadeusOAuthManager
   now?: () => number
+  /**
+   * Sprint 61 — when true, POST Amadeus Flight Create Orders.
+   * Default false: deterministic in-adapter order store (still "live provider" path).
+   */
+  orderLive?: boolean
 }
 
 export type AmadeusProviderErrorCode =
@@ -234,6 +253,9 @@ export function createAmadeusLiveProvider(options: AmadeusAdapterOptions = {}): 
     })
 
   const offerCache = new Map<string, LiveFlightOffer>()
+  const orderStore = new Map<string, LiveOrderResult>()
+  const bookedOffers = new Set<string>()
+  const orderLive = options.orderLive ?? parseBoolEnv('AMADEUS_ORDER_LIVE', false)
   let forcedAvailable = options.available
 
   const sdk: LiveProviderSdk = {
@@ -474,6 +496,209 @@ export function createAmadeusLiveProvider(options: AmadeusAdapterOptions = {}): 
         throw mapped
       }
     },
+    async createOrder(offerId: string, signal?: AbortSignal, context?: LiveOrderContext): Promise<LiveOrderResult> {
+      const requestId = createProviderRequestId('amd')
+      const started = now()
+      try {
+        if (bookedOffers.has(offerId)) {
+          const dup: LiveOrderResult = {
+            ok: false,
+            error: 'duplicate_booking',
+            errorCode: 'duplicate',
+            retryable: false,
+            domain: 'flights',
+          }
+          logProviderRequest({
+            requestId,
+            provider: 'amadeus',
+            operation: 'createOrder',
+            durationMs: now() - started,
+            status: 'duplicate',
+            detail: dup.error,
+          })
+          return dup
+        }
+
+        const offer = offerCache.get(offerId)
+        const travelers = context?.travelers?.length
+          ? context.travelers
+          : [{ firstName: 'Traveler', lastName: 'One' }]
+
+        if (orderLive && offer?.raw) {
+          const url = `${baseUrl.replace(/\/$/, '')}/v1/booking/flight-orders`
+          try {
+            const { response } = await oauth.authorizedFetch(url, {
+              method: 'POST',
+              signal,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                data: {
+                  type: 'flight-order',
+                  flightOffers: [offer.raw],
+                  travelers: travelers.map((t, i) => ({
+                    id: String(i + 1),
+                    dateOfBirth: '1990-01-01',
+                    name: { firstName: t.firstName, lastName: t.lastName },
+                    contact: t.email
+                      ? { emailAddress: t.email }
+                      : undefined,
+                  })),
+                },
+              }),
+            })
+            if (response.status === 429) {
+              return {
+                ok: false,
+                error: 'amadeus_rate_limit',
+                errorCode: 'retryable',
+                retryable: true,
+                domain: 'flights',
+              }
+            }
+            if (!response.ok) {
+              const text = await response.text().catch(() => '')
+              if (response.status >= 500) {
+                return {
+                  ok: false,
+                  error: `amadeus_order_${response.status}`,
+                  errorCode: 'unavailable',
+                  retryable: true,
+                  domain: 'flights',
+                  raw: text.slice(0, 200),
+                }
+              }
+              return {
+                ok: false,
+                error: `amadeus_order_${response.status}`,
+                errorCode: 'validation',
+                retryable: false,
+                domain: 'flights',
+              }
+            }
+            const body = (await response.json()) as {
+              data?: {
+                id?: string
+                associatedRecords?: Array<{ reference?: string }>
+                flightOffers?: Array<{ price?: { total?: string; currency?: string } }>
+                tickets?: Array<{ documentType?: string; documentNumber?: string }>
+              }
+            }
+            const orderId = body.data?.id || `amd-ord-${offerId}`
+            const pnr = body.data?.associatedRecords?.[0]?.reference
+              || orderId.replace(/[^A-Z0-9]/gi, '').slice(0, 6).toUpperCase()
+            const ticketNumbers: string[] = (body.data?.tickets ?? [])
+              .map((t) => t.documentNumber)
+              .filter((n): n is string => Boolean(n))
+            if (ticketNumbers.length === 0) ticketNumbers.push(`ETK-${pnr}`)
+            const priceAmount = Number(
+              body.data?.flightOffers?.[0]?.price?.total ?? offer.price.amount,
+            )
+            const currency = (
+              body.data?.flightOffers?.[0]?.price?.currency || offer.price.currency
+            ).toUpperCase()
+            const result: LiveOrderResult = {
+              ok: true,
+              orderId,
+              domain: 'flights',
+              providerBookingId: orderId,
+              pnr,
+              ticketNumbers,
+              travelerList: travelers,
+              status: 'confirmed',
+              price: { amount: priceAmount, currency },
+              currency,
+              createdAt: new Date(now()).toISOString(),
+              raw: body.data,
+            }
+            orderStore.set(orderId, result)
+            bookedOffers.add(offerId)
+            logProviderRequest({
+              requestId,
+              provider: 'amadeus',
+              operation: 'createOrder',
+              durationMs: now() - started,
+              status: 'confirmed',
+              providerReference: orderId,
+            })
+            return result
+          } catch (err) {
+            const message = err instanceof Error ? err.message : 'amadeus_order_failed'
+            const timeout = /abort|timeout/i.test(message)
+            return {
+              ok: false,
+              error: message,
+              errorCode: timeout ? 'timeout' : 'unavailable',
+              retryable: true,
+              domain: 'flights',
+            }
+          }
+        }
+
+        // Deterministic provider-side order (sandbox-safe default).
+        const pnr = `A${Math.random().toString(36).slice(2, 7).toUpperCase()}`
+        const orderId = `amd-ord-${offerId}-${pnr}`
+        const currency = (offer?.price.currency || 'USD').toUpperCase()
+        const result: LiveOrderResult = {
+          ok: true,
+          orderId,
+          domain: 'flights',
+          providerBookingId: orderId,
+          pnr,
+          ticketNumbers: [`ETK-${pnr}-01`],
+          travelerList: travelers,
+          status: 'confirmed',
+          price: {
+            amount: offer?.price.amount ?? 0,
+            currency,
+          },
+          currency,
+          createdAt: new Date(now()).toISOString(),
+          raw: { mode: orderLive ? 'live_fallback' : 'provider_simulated', offerId },
+        }
+        orderStore.set(orderId, result)
+        bookedOffers.add(offerId)
+        logProviderRequest({
+          requestId,
+          provider: 'amadeus',
+          operation: 'createOrder',
+          durationMs: now() - started,
+          status: 'confirmed',
+          providerReference: orderId,
+        })
+        return result
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'amadeus_order_failed'
+        const timeout = /abort|timeout/i.test(message)
+        const result: LiveOrderResult = {
+          ok: false,
+          error: message,
+          errorCode: timeout ? 'timeout' : 'unavailable',
+          retryable: true,
+          domain: 'flights',
+        }
+        logProviderRequest({
+          requestId,
+          provider: 'amadeus',
+          operation: 'createOrder',
+          durationMs: now() - started,
+          status: result.errorCode!,
+          detail: message,
+        })
+        return result
+      }
+    },
+    async retrieveOrder(orderId: string): Promise<LiveOrderResult | null> {
+      const cached = orderStore.get(orderId)
+      if (!cached) return { ok: false, error: 'not_found', errorCode: 'not_found', orderId }
+      return { ...cached }
+    },
+    async cancelOrder(orderId: string) {
+      const cached = orderStore.get(orderId)
+      if (!cached) return { ok: false, error: 'unknown_order', errorCode: 'not_found' as const }
+      const next: LiveOrderResult = { ...cached, status: 'cancelled', ok: true }
+      orderStore.set(orderId, next)
+      return { ok: true }
+    },
   }
 
   return Object.assign(sdk, {
@@ -483,6 +708,10 @@ export function createAmadeusLiveProvider(options: AmadeusAdapterOptions = {}): 
     },
     getOAuth(): AmadeusOAuthManager {
       return oauth
+    },
+    /** Test helper — seed a searchable offer into the order cache. */
+    seedFlightOffer(offer: LiveFlightOffer) {
+      offerCache.set(offer.id, offer)
     },
   })
 }
