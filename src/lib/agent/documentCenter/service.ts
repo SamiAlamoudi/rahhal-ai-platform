@@ -196,7 +196,12 @@ export class DocumentService {
       contentBody: updates?.contentBody ?? prev.contentBody,
       expiresAt: updates?.expiresAt !== undefined ? updates.expiresAt : prev.expiresAt,
       providerReference: updates?.providerReference ?? prev.providerReference,
-      metadata: { ...prev.metadata, ...(updates?.metadata ?? {}), source: updates?.metadata?.source ?? prev.metadata.source },
+      metadata: (() => {
+        const merged = { ...prev.metadata }
+        if (updates?.metadata) Object.assign(merged, updates.metadata)
+        merged.source = updates?.metadata?.source ?? prev.metadata.source
+        return merged
+      })(),
       versionOf: prev.documentId,
       now: now ?? updates?.now,
       actorId: updates?.actorId,
