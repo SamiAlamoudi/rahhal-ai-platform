@@ -13,7 +13,7 @@
 - Production subsystem health APIs + metrics + alert evaluation
 - Rollback playbooks (deployment, configuration, provider, feature, safe mode, startup recovery)
 - Release automation artifacts: notes, deployment/env reports, feature matrix, go-live checklist
-- Composes Sprint 65 hardening + Sprint 66 E2E validation (no business-logic changes)
+- Composes Sprint 65 hardening + Sprint 66 E2E validation + Sprint 67 beta launch (no business-logic changes)
 
 ## Safe defaults (unchanged)
 

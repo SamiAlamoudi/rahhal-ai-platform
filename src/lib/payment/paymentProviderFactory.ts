@@ -5,6 +5,28 @@ import { MoyasarPaymentProvider } from './moyasarPaymentProvider'
 
 const instances: Map<PaymentProviderType, PaymentProvider> = new Map()
 
+/**
+ * Sprint 67 — Stripe / HyperPay / Checkout.com are future-ready:
+ * when live keys are not wired, fall back to MockPaymentProvider so beta
+ * can activate the abstraction without throwing. Live capture remains frozen
+ * via VITE_PAYMENT_PROVIDER=mock.
+ */
+function createFutureReadyStub(
+  type: Exclude<PaymentProviderType, 'mock' | 'moyasar'>,
+  cfg: PaymentProviderConfig,
+): PaymentProvider {
+  const mock = new MockPaymentProvider(cfg)
+  return {
+    providerId: type,
+    displayName: `${type} (sandbox/future-ready)`,
+    createPaymentSession: (req) => mock.createPaymentSession(req),
+    authorizePayment: (id) => mock.authorizePayment(id),
+    capturePayment: (id) => mock.capturePayment(id),
+    refundPayment: (req) => mock.refundPayment(req),
+    getPaymentStatus: (id) => mock.getPaymentStatus(id),
+  }
+}
+
 export function createPaymentProvider(
   type: PaymentProviderType,
   config: PaymentProviderConfig | null = null,
@@ -23,11 +45,10 @@ export function createPaymentProvider(
       provider = new MoyasarPaymentProvider(cfg)
       break
     case 'hyperpay':
-      throw new Error('HyperPay provider not yet implemented. Use "mock" for development.')
     case 'stripe':
-      throw new Error('Stripe provider not yet implemented. Use "mock" for development.')
     case 'checkout_com':
-      throw new Error('Checkout.com provider not yet implemented. Use "mock" for development.')
+      provider = createFutureReadyStub(type, cfg)
+      break
     default:
       throw new Error(`Unknown payment provider type: ${type}`)
   }

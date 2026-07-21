@@ -120,10 +120,14 @@ describe('PaymentProviderFactory', () => {
     expect(provider.providerId).toBe('moyasar')
   })
 
-  it('throws for unimplemented providers', () => {
-    expect(() => createPaymentProvider('hyperpay')).toThrow('HyperPay')
-    expect(() => createPaymentProvider('stripe')).toThrow('Stripe')
-    expect(() => createPaymentProvider('checkout_com')).toThrow('Checkout.com')
+  it('creates future-ready sandbox stubs for stripe/hyperpay/checkout_com (Sprint 67)', () => {
+    const stripe = createPaymentProvider('stripe')
+    expect(stripe.providerId).toBe('stripe')
+    expect(stripe.displayName.toLowerCase()).toContain('sandbox')
+    const hyperpay = createPaymentProvider('hyperpay')
+    expect(hyperpay.providerId).toBe('hyperpay')
+    const checkout = createPaymentProvider('checkout_com')
+    expect(checkout.providerId).toBe('checkout_com')
   })
 
   it('returns mock as default provider type', () => {
