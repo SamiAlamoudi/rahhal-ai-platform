@@ -128,6 +128,21 @@ export type {
   TripDocumentBundle,
 } from './tripManagement'
 export {
+  isDocumentCenterV2Enabled,
+  DOCUMENT_CENTER_V2_FEATURE_ID,
+  getDefaultDocumentService,
+  resetDefaultDocumentService,
+  DocumentService,
+  publishDocumentsAfterBookingExecution,
+} from './documentCenter'
+export type {
+  EnterpriseDocument,
+  EnterpriseDocumentType,
+  DocumentSearchQuery,
+  DocumentSortMode,
+  ZipPackageResult,
+} from './documentCenter'
+export {
   isPaymentsEnabled,
   isTicketingEnabled,
   isRefundsEnabled,

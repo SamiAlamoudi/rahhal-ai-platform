@@ -14,7 +14,7 @@ import {
   hotelFromBooking,
   travelersFromBookings,
 } from './fromBooking'
-import { ensureTripDocuments, getTripDocuments, resetTripDocumentTicketCache } from './documents'
+import { ensureTripDocuments, getTripDocuments, getTripDocumentsV2, refreshTripDocuments, resetTripDocumentTicketCache, syncTripDocuments } from './documents'
 import { aggregateTripStatus } from './lifecycle'
 import { filterTrips, searchTrips, sortTrips } from './search'
 import { getDefaultTripStore, resetDefaultTripStore, type TripStore } from './store'
@@ -34,6 +34,7 @@ import type {
   TripTimelineEventType,
 } from './types'
 import type { LiveProviderSdk } from '../liveProviders/types'
+import { resetDefaultDocumentService } from '../documentCenter'
 
 function newTripId(now: () => number): string {
   return `trip_${now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -365,6 +366,33 @@ export class TripManagementService {
     return getTripDocuments(trip)
   }
 
+  /** Sprint 63 — enterprise documents for trip (empty when flag OFF). */
+  getTripDocuments(tripId: string) {
+    if (!this.store.get(tripId)) return null
+    return getTripDocumentsV2(tripId)
+  }
+
+  /** Sprint 63 — sync documents from booking snapshots into Enterprise Document Center. */
+  syncTripDocuments(
+    tripId: string,
+    bookings?: UnifiedBooking[],
+    now?: () => number,
+  ) {
+    if (!this.store.get(tripId)) return null
+    return syncTripDocuments({ tripId, bookings, now })
+  }
+
+  /** Sprint 63 — refresh documents via provider retrieve + re-publish. */
+  async refreshTripDocuments(input: {
+    tripId: string
+    bookings?: UnifiedBooking[]
+    sdks?: Record<string, LiveProviderSdk>
+    now?: () => number
+  }) {
+    if (!this.store.get(input.tripId)) return null
+    return refreshTripDocuments(input)
+  }
+
   appendEvent(
     tripId: string,
     type: TripTimelineEventType,
@@ -454,6 +482,7 @@ export function resetDefaultTripManagementService(): void {
   resetDefaultTripStore()
   resetTimelineSeq()
   resetTripDocumentTicketCache()
+  resetDefaultDocumentService()
   defaultService = null
 }
 
@@ -498,5 +527,30 @@ export function mergeTripProviderUpdates(
   return getDefaultTripManagementService().mergeProviderUpdates(tripId, updates, now)
 }
 
+/** Sprint 63 facades */
+export function getTripDocumentsForTrip(tripId: string) {
+  return getDefaultTripManagementService().getTripDocuments(tripId)
+}
+
+export function syncTripDocumentsForTrip(
+  tripId: string,
+  bookings?: UnifiedBooking[],
+  now?: () => number,
+) {
+  return getDefaultTripManagementService().syncTripDocuments(tripId, bookings, now)
+}
+
+export async function refreshTripDocumentsForTrip(input: {
+  tripId: string
+  bookings?: UnifiedBooking[]
+  sdks?: Record<string, LiveProviderSdk>
+  now?: () => number
+}) {
+  return getDefaultTripManagementService().refreshTripDocuments(input)
+}
+
 // Re-export pure merge for tests
 export { mergeProviderUpdates }
+
+// Re-export Sprint 63 document helpers under required names
+export { syncTripDocuments, refreshTripDocuments, getTripDocumentsV2 as getEnterpriseTripDocuments }
