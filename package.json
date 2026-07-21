@@ -23,6 +23,7 @@
     "ga:verify": "vitest run src/lib/__tests__/gaRelease.sprint70.test.ts",
     "runtime:verify": "vitest run src/lib/__tests__/providerRuntime.sprint71.test.ts",
     "flights:verify": "vitest run src/lib/__tests__/flightSearch.sprint72.test.ts",
+    "hotels:verify": "vitest run src/lib/__tests__/hotelSearch.sprint73.test.ts",
     "beta:ops": "vitest run src/lib/__tests__/betaOperations.sprint69.test.ts src/lib/__tests__/betaLaunch.sprint67.test.ts",
     "deploy:verify": "vitest run src/lib/__tests__/deploymentLaunch.sprint68.test.ts",
     "production:verify": "vitest run src/lib/__tests__/deploymentLaunch.sprint68.test.ts src/lib/__tests__/productionHardening.sprint65.test.ts src/lib/__tests__/e2eProductionValidation.sprint66.test.ts",
