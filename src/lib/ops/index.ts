@@ -252,3 +252,28 @@ export {
   type ValidationFlowId,
   type ComponentHealth,
 } from './validation'
+
+/** Sprint 67 — Beta Launch Environment & Live Provider Activation */
+export {
+  generateBetaReadinessReport,
+  runBetaLaunchValidation,
+  runBetaSmokeTests,
+  runBetaConfigDiagnostics,
+  runBetaSecurityValidation,
+  buildBetaProviderMatrix,
+  configureBetaLiveProviders,
+  buildBetaPaymentMatrix,
+  createBetaPaymentRegistry,
+  createProductionNotificationLayer,
+  enableBetaObservability,
+  getBetaEnvironmentProfile,
+  resolveBetaEnvironment,
+  auditBetaSecrets,
+  BETA_LAUNCH_VERSION,
+  type BetaReadinessReport,
+  type BetaEnvironment,
+  type BetaProviderSlot,
+  type BetaPaymentSlot,
+  type BetaNotificationSlot,
+  type BetaSmokeResult,
+} from './beta'
