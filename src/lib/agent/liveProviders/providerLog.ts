@@ -1,5 +1,5 @@
 /**
- * Structured provider request logging — Sprint 59.
+ * Structured provider request logging — Sprint 59 / 60.
  * Logs request id, duration, status, and provider name only.
  * Never logs secrets, tokens, or credential material.
  */
@@ -10,7 +10,9 @@ export type ProviderLogStatus =
   | 'error'
   | 'rate_limit'
   | 'invalid_airport'
+  | 'invalid_destination'
   | 'unavailable'
+  | 'timeout'
   | 'expired_token'
   | 'auth_retry'
 
@@ -28,7 +30,7 @@ export type ProviderLogSink = (entry: ProviderLogEntry) => void
 
 const SECRET_PATTERNS: RegExp[] = [
   /bearer\s+\S+/gi,
-  /(?:api[_-]?key|api[_-]?secret|client[_-]?secret|client[_-]?id|access[_-]?token)\s*[:=]\s*\S+/gi,
+  /(?:api[_-]?key|api[_-]?secret|client[_-]?secret|client[_-]?id|access[_-]?token|x-rapidapi-key)\s*[:=]\s*\S+/gi,
   /authorization\s*[:=]\s*\S+/gi,
 ]
 

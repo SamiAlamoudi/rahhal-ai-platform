@@ -46,6 +46,7 @@ export function detectSecretSources(): LiveProviderSecretsSnapshot['sources'] {
     readLiveProviderSecret('AMADEUS_API_KEY') ||
       readLiveProviderSecret('AMADEUS_CLIENT_ID') ||
       readLiveProviderSecret('DUFFEL_API_TOKEN') ||
+      readLiveProviderSecret('BOOKING_API_KEY') ||
       readLiveProviderSecret('RAPIDAPI_KEY') ||
       readLiveProviderSecret('BOOKING_RAPIDAPI_KEY'),
   )
