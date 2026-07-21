@@ -8,12 +8,15 @@ import { getCorrelationId } from './logging/correlation'
 import { installGlobalErrorHandlers } from './errors/globalHandlers'
 import { getGracefulShutdown } from './reliability/gracefulShutdown'
 import { installLongTaskDetector } from './performance/performanceToolkit'
+import { installProductionHardening } from './production/install'
 
 export interface StartupOptions {
   target?: DeployTarget
   /** When true (default for staging/production), throw on invalid env. */
   failFast?: boolean
   installHandlers?: boolean
+  /** Sprint 65 — install provider log bridge (default true). */
+  installHardening?: boolean
 }
 
 export interface StartupResult {
@@ -47,6 +50,10 @@ export function runStartup(options: StartupOptions = {}): StartupResult {
   if (options.installHandlers !== false) {
     disposers.push(installGlobalErrorHandlers())
     disposers.push(installLongTaskDetector())
+  }
+  if (options.installHardening !== false) {
+    const hardening = installProductionHardening()
+    disposers.push(hardening.dispose)
   }
 
   const shutdown = getGracefulShutdown()

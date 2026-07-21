@@ -1,6 +1,6 @@
-# Production Readiness (Phase X)
+# Production Readiness (Phase X → Sprint 65)
 
-Rahhal is prepared for a **controlled staging release**. Live payments remain frozen (`VITE_PAYMENT_PROVIDER=mock`). Live travel providers stay **off** unless explicitly enabled via feature flags after Edge secrets are configured.
+Rahhal is prepared for a **controlled Production V1 release** (Sprint 65 hardening). Live payments remain frozen (`VITE_PAYMENT_PROVIDER=mock`). Live travel providers stay **off** unless explicitly enabled via feature flags after Edge secrets are configured.
 
 ## Scope
 
@@ -12,6 +12,7 @@ Rahhal is prepared for a **controlled staging release**. Live payments remain fr
 | Security policy | headers (`public/_headers`, Vite middleware), CORS helpers, rate limits, env validation |
 | Reliability | idempotency, retry/timeout budgets, graceful shutdown, DLQ, consistency checks |
 | Performance | budgets, dedupe, TTL cache, slow-call / long-task logging |
+| **Sprint 65 production gates** | `src/lib/ops/production/*` — security/flag/config audits, integrity, recovery, timers, provider log bridge, go-live report |
 | CI gates | `.github/workflows/ci.yml` |
 
 ## Safe defaults
@@ -22,13 +23,18 @@ Rahhal is prepared for a **controlled staging release**. Live payments remain fr
 4. Aggregation uses `priority_fallback` → mock on live failure
 5. No provider secrets in `VITE_*` (validated at startup / readiness)
 
-## Staging gate
+## Go-live
 
-Follow `docs/STAGING_CHECKLIST.md` and `docs/RELEASE_CHECKLIST.md`. Incident playbooks live in `docs/INCIDENT_RESPONSE.md`. Security baseline in `docs/SECURITY.md`. Env catalog in `docs/ENVIRONMENT_VARIABLES.md`.
+```ts
+import { generateProductionReadinessReport } from '@/lib/ops'
+const report = generateProductionReadinessReport({ target: 'production' })
+```
 
-## Explicit non-goals (this phase)
+Follow `docs/PRODUCTION_CHECKLIST_V1.md`, `docs/STAGING_CHECKLIST.md`, and `docs/RELEASE_CHECKLIST.md`. Incident playbooks: `docs/INCIDENT_RESPONSE.md`. Sprint 65 summary: `docs/SPRINT65_PRODUCTION_HARDENING.md`.
+
+## Explicit non-goals
 
 - No new user-facing product features
 - No UI redesign / rebrand
 - No enabling live Moyasar / card capture
-- No changes to ProviderAdapter contracts beyond ops wrapping already introduced in Phase W
+- No provider or Booking Execution rewrites
