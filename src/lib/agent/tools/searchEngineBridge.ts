@@ -130,7 +130,7 @@ export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchReq
   const budget = req.budgetAmount
   const style = (req.budgetStyle ?? '').toLowerCase()
   if (typeof budget === 'number' && budget > 0 && style === 'budget') {
-    request.filters = { ...(request.filters ?? {}), maxPrice: Math.round(budget * 0.45) }
+    request.filters = { maxPrice: Math.round(budget * 0.45) }
   }
 
   return request
