@@ -127,7 +127,11 @@ function upsertPreference(
 }
 
 export class AdaptiveLearningEngine {
-  constructor(private readonly store: PreferenceStore = getPreferenceStore()) {}
+  private readonly store: PreferenceStore
+
+  constructor(store: PreferenceStore = getPreferenceStore()) {
+    this.store = store
+  }
 
   learn(input: {
     userId: string
@@ -188,9 +192,17 @@ export class AdaptiveLearningEngine {
     // Persist intermediate history so analyzer sees new events
     this.store.save(profile)
     profile = getOrCreateProfile(input.userId, this.store)
-    inferred.push(...analyzeRepeatedBehavior(profile))
 
-    for (const signal of inferred) {
+    const fromTurn = [...inferred]
+    const fromRepeated = analyzeRepeatedBehavior(profile)
+    inferred.push(...fromRepeated)
+
+    // Last write wins per preference key — turn feedback overrides repeated patterns.
+    const byKey = new Map<string, InferredPreferenceSignal>()
+    for (const signal of fromRepeated) byKey.set(preferenceKey(signal), signal)
+    for (const signal of fromTurn) byKey.set(preferenceKey(signal), signal)
+
+    for (const signal of byKey.values()) {
       const result = upsertPreference(profile, signal, events)
       profile = result.profile
       if (result.updated) preferencesUpdated += 1

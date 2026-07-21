@@ -27,7 +27,6 @@ export function improveRecommendations(input: {
   }
 
   const biases = derivePreferenceWeightBiases(profile)
-  const adjustmentReasons: DecisionReason[] = []
 
   const improved = candidates.map((candidate) => {
     let delta = 0

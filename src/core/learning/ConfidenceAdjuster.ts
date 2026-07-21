@@ -5,7 +5,7 @@
 import { CONFIDENCE_LEVELS } from '../profile/TravelerProfile'
 
 function nearestLevel(value: number): number {
-  let best = CONFIDENCE_LEVELS[0]!
+  let best: number = CONFIDENCE_LEVELS[0]!
   let bestDist = Math.abs(value - best)
   for (const level of CONFIDENCE_LEVELS) {
     const dist = Math.abs(value - level)

@@ -58,7 +58,8 @@ export function inferPreferencesFromText(text: string | null | undefined): Infer
     signals.push({ kind: 'luxury_vs_value', value: 'luxury', polarity: avoid ? 'avoid' : 'prefer', source })
     signals.push({ kind: 'hotel_budget_style', value: 'luxury', polarity: avoid ? 'avoid' : 'prefer', source })
   }
-  if (/\bvalue\b|\bbudget\b|\bcheap\b|أرخص/.test(lower) && !/\bluxury\b/.test(lower)) {
+  // Value/budget may co-occur with “avoid luxury” — still record the value preference.
+  if (/\bvalue\b|\bbudget\b|\bcheap\b|أرخص/.test(lower) && (!/\bluxury\b/.test(lower) || avoid)) {
     signals.push({ kind: 'luxury_vs_value', value: 'value', polarity: 'prefer', source })
     signals.push({ kind: 'hotel_budget_style', value: 'value', polarity: 'prefer', source })
   }
