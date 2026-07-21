@@ -1,10 +1,16 @@
 /**
  * Sprint 79 — DecisionEngine: collect → dedupe → score → rank → recommend.
+ * Sprint 80 — optional learned TravelerProfile adjusts ranking (additive).
  */
 
 import { createSearchPlans, type StrategyContext } from '../searchPlanner/createSearchPlans'
 import { rankCandidates, pickRecommendationBundle } from '../searchRanking/rankCandidates'
 import { emitDecisionEvent } from '../observability/events'
+import {
+  formatLearningExplanation,
+  improveRecommendations,
+} from '../learning/RecommendationImprover'
+import type { TravelerProfile } from '../profile/TravelerProfile'
 import type {
   DecisionEngineResult,
   DecisionEvent,
@@ -26,6 +32,11 @@ export interface DecisionEngineInput {
   /** Optional pre-normalized facts (tests / advanced callers). */
   flights?: FlightCandidateFacts[]
   hotels?: HotelCandidateFacts[]
+  /**
+   * Sprint 80 — local learned preferences. When present and learningEnabled,
+   * candidates are adjusted before final ranking (additive; omit for S79 behavior).
+   */
+  learnedProfile?: TravelerProfile | null
 }
 
 export class DecisionEngine {
@@ -72,24 +83,41 @@ export class DecisionEngine {
     })
 
     const { unique, duplicateCount } = dedupeCandidates(executed.candidates)
-    const { ranked } = rankCandidates(unique)
+
+    let pool = unique
+    if (input.learnedProfile?.learningEnabled) {
+      const improved = improveRecommendations({
+        candidates: pool,
+        profile: input.learnedProfile,
+      })
+      pool = improved.candidates
+    }
+
+    const { ranked } = rankCandidates(pool)
     const picks = pickRecommendationBundle(ranked)
     const selected = picks.bestOverall
 
     let explanation = 'No recommendation available.'
     let confidence = 0
     if (selected) {
-      const reasons = buildDecisionReasons(selected, ranked)
+      const baseReasons = buildDecisionReasons(selected, ranked)
+      const learnedReasons = selected.reasons.filter((r) => r.code.startsWith('learned_'))
+      const reasons = [...baseReasons, ...learnedReasons].slice(0, 8)
       selected.reasons = reasons
       confidence = Math.round(
         ((selected.score?.confidence ?? 70) + (selected.score?.overall ?? 0)) / 2,
       )
-      explanation = formatExplanation(selected, reasons, confidence)
+      explanation = formatExplanation(selected, baseReasons, confidence)
+      const learningBlock = formatLearningExplanation(learnedReasons)
+      if (learningBlock) {
+        explanation = `${explanation}\n\n${learningBlock}`
+      }
       emitDecisionEvent('candidate.selected', {
         candidateId: selected.id,
         score: selected.score?.overall ?? null,
         confidence,
         labels: selected.labels,
+        learningAdjusted: learnedReasons.length > 0,
       }, events)
     }
 

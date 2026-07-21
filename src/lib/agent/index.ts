@@ -165,6 +165,19 @@ export type {
   AutonomousDecisionMeta,
 } from './autonomousDecision'
 export {
+  isAdaptiveLearningEnabled,
+  ADAPTIVE_LEARNING_FEATURE_ID,
+  runAdaptiveLearningTurn,
+  getLearnedProfile,
+  resetAdaptiveLearningProfile,
+  setAdaptiveLearningEnabled,
+  SPRINT80_ADAPTIVE_LEARNING_VERSION,
+} from './adaptiveLearning'
+export type {
+  AdaptiveLearningMeta,
+  AdaptiveLearningResult,
+} from './adaptiveLearning'
+export {
   isBookingExecutionEnabled,
   isTransactionManagerEnabled,
   isBookingResumeEnabled,

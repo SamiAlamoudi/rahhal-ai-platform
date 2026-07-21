@@ -453,6 +453,19 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 80 — Adaptive Learning snapshot (local preference adaptation).
+   * Additive structured facts only — Conversation Brain authors traveler-facing text.
+   */
+  adaptiveLearning?: {
+    learningEnabled: boolean
+    preferenceCount: number
+    preferencesUpdated: number
+    inferredCount: number
+    eventsProcessed: number
+    topPreferences: Array<{ kind: string; value: string; confidence: number }>
+    durationMs: number
+  }
+  /**
    * Sprint 57 — Booking Execution Engine snapshot (lifecycle, confirmations, resume).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */

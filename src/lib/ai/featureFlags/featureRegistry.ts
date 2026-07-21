@@ -219,6 +219,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: autonomous_decision. Core modules under src/core; does not replace Flight/Hotel engines or RahhalBrain.',
   },
   {
+    id: 'ai.adaptive_learning',
+    name: 'Adaptive Learning & Personalization Engine',
+    description:
+      'Sprint 80 — online preference adaptation from conversation, feedback, and booking behavior; confidence ladder; Decision Engine ranking adjustments; local-only profile with reset/disable. Not ML training.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.autonomous_decision'],
+    notes:
+      'Product alias: adaptive_learning. Local PreferenceStore only; no external training or data leakage. Additive to Decision Engine.',
+  },
+  {
     id: 'ai.live_providers',
     name: 'Live Travel Provider Layer',
     description:
