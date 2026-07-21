@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 87: Rahhal AI Constitution
+
+### Added
+
+- Governing principles doc: `docs/RAHHAL_AI_CONSTITUTION.md`.
+- Core governance (`src/core/constitution`) — principles, policy modules, `PrincipleValidator`, behavior snapshots, events.
+- Feature flag `ai.constitution` (default ON); verify: `npm run constitution:verify`.
+
+### Notes
+
+- Not a new travel engine. Additive governance only — no engine public API changes, no RahhalBrain redesign.
+
 ## [Unreleased] — Sprint 83: AI Dynamic Travel Packages
 
 ### Added
