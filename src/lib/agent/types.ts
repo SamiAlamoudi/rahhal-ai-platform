@@ -419,6 +419,24 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 78 — AI Travel Strategy Planner snapshot (purpose, constraints, search plan).
+   * Additive structured facts only — Conversation Brain authors traveler-facing text.
+   */
+  travelPlanner?: {
+    travelPurpose: string
+    tripType: string
+    travelerType: string
+    travelStrategy: string
+    confidenceScore: number
+    searchImmediately: boolean
+    shouldAskQuestion: boolean
+    recommendedSearchOrder: string[]
+    missingInformation: string[]
+    combinedQuestion: string | null
+    riskFlags: string[]
+    durationMs: number
+  }
+  /**
    * Sprint 57 — Booking Execution Engine snapshot (lifecycle, confirmations, resume).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */

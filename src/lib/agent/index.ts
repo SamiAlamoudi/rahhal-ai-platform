@@ -137,6 +137,21 @@ export type {
   JourneyScoreBreakdown,
 } from './tripOptimizer'
 export {
+  isTravelPlannerEnabled,
+  TRAVEL_PLANNER_FEATURE_ID,
+  runTravelPlanner,
+  detectPlannerIntent,
+  detectConstraints,
+  planRequiredQuestions,
+  SPRINT78_TRAVEL_PLANNER_VERSION,
+} from './travelPlanner'
+export type {
+  TravelPlannerResult,
+  TravelPlannerDiagnostics,
+  TravelPurpose,
+  SearchPlan,
+} from './travelPlanner'
+export {
   isBookingExecutionEnabled,
   isTransactionManagerEnabled,
   isBookingResumeEnabled,
