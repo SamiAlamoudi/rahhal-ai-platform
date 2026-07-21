@@ -191,7 +191,7 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - State machine: idle → listening → thinking → speaking, plus paused / interrupted / disconnected / error.
 - `VoiceProvider` + `VoiceTransport` + `VoiceAudio` abstractions; **MockVoiceProvider** only; OpenAI/Azure/ElevenLabs stubs.
 - Interruptible priority queue + conversation timeline (speech, thinking, latency, errors, reconnects).
-- Hooks: `useVoiceConversation`, `useVoiceState`, `useVoiceEvents`; UI primitives under `src/components/voice`.
+- Library-only foundation; React hook/UI wrappers removed in Sprint 73.5 cleanup (consume `src/lib/voiceConversation` directly).
 - Flags (default **OFF**): `ui.voice_conversation`, `voice.realtime`, `voice.provider`, `voice.mock`.
 - Does **not** connect realtime APIs, accept API keys, generate audio, or invent dialogue.
 - Existing Home mic (`useSpeechRecognition`) and Chat STT/TTS remain the production voice input path.
@@ -203,7 +203,7 @@ src/lib/settings/           privacy_analytics / privacy_personalization gates
 - Pipeline: intent → extract entities → update memory → missing slots → travel/response plan.
 - Slot-filled `ConversationMemory` (destination, budget, dates, travelers, cabin, airlines, hotels, activities, visa, language, currency).
 - Never-ask-twice missing-field detection; structured `BrainResponsePlan` (summary/goal/action/uiHints/search/booking/recs).
-- Hooks: `useConversationBrain`, `useConversationMemory`, `useTravelContext`; debug UI under `src/components/brain`.
+- Library-only foundation; React hook/debug UI wrappers removed in Sprint 73.5 cleanup (consume `src/lib/brain` directly).
 - Flags (default **OFF**): `brain.enabled`, `brain.memory`, `brain.intent`, `brain.planner`, `brain.debug`.
 - Existing agent/concierge (`src/lib/agent`, `src/lib/concierge`) unchanged and remain production SoT until brain is wired.
 - See `docs/SPRINT19_AI_BRAIN.md`.

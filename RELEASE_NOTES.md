@@ -1,58 +1,20 @@
-# Release Notes — Rahhal AI Platform v1.0.1
+# Release Notes — historical v1.0.1 patch (pointer)
 
-**Status:** Patch release candidate (tooling / CI)  
-**Date:** 2026-07-16  
-**Previous stable:** `v1.0.0`  
-**Payment mode:** `VITE_PAYMENT_PROVIDER=mock` (unchanged — live payments disabled)  
-**Live travel providers:** OFF by default (unchanged)
+**Canonical V1 release notes:** [`docs/RELEASE_NOTES_V1.md`](docs/RELEASE_NOTES_V1.md)
 
-## Summary
+This file originally documented the **v1.0.1** tooling patch (`providers:check` CI gate). That content remains historically accurate for the patch itself, but is **not** the current main-branch release narrative.
 
-Rahhal **v1.0.1** is a minimal patch release that restores the `providers:check` npm command and CI quality gate after it was missing from the published `v1.0.0` tree. The functional application surface is unchanged from `v1.0.0`.
+| Field | Value |
+| --- | --- |
+| Current product | Rahhal **1.0.0** GA (+ Sprints 71–73.5 on main) |
+| Package | `1.1.0-rc.1` |
+| Payments | `VITE_PAYMENT_PROVIDER=mock` (unchanged) |
+| Live travel providers | OFF by default (unchanged) |
 
-## What changed
+### Original v1.0.1 patch summary
 
-- Restores `npm run providers:check` (config/readiness validation only; no network by default).
-- Runs **Providers check** explicitly in GitHub Actions after unit tests and before build.
-- Tightens provider environment validation exit criteria (`validateEnvironment.ok` required).
-- Adds failure-path coverage for:
-  - non-mock payment provider
-  - forbidden client-side secret env keys
+- Restored `npm run providers:check` and CI quality gate
+- No application feature changes in that patch
+- Live providers remained disabled by default; payments mock-only
 
-## What did not change
-
-- No new application features
-- No UI redesign or project rename
-- No public API or database contract changes
-- Live travel providers remain **disabled by default**
-- Payment behavior remains **mock-only**
-- No secrets added, exposed, rotated, or modified
-
-## How to validate
-
-```bash
-npm ci
-npm run typecheck
-npm run lint
-npm run test:run
-npm run providers:check
-npm run build
-npm run test:smoke   # existing staging smoke suite (optional for this patch)
-```
-
-See `V1_0_1_TEST_REPORT.md` for executed results.
-
-## Deploy notes
-
-- Safe to deploy over `v1.0.0` with no migration required.
-- Keep staging/production env templates derived from `.env.*.example` with:
-  - `VITE_PAYMENT_PROVIDER=mock`
-  - `VITE_LIVE_PROVIDERS_ENABLED=false`
-
-## Approval gate
-
-Do **not** tag or publish `v1.0.1` until:
-
-1. This PR’s CI Quality gates are green (including Providers check)
-2. Explicit human approval is granted for merge
-3. Explicit human approval is granted for tagging/publishing
+For GA + Provider Runtime + Flight/Hotel Search + cleanup, use `docs/RELEASE_NOTES_V1.md`.

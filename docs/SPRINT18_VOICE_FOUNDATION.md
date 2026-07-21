@@ -13,13 +13,7 @@ Transforms Rahhal from “voice input” (Home mic / Chat STT) into a **conversa
 ## Architecture
 
 ```
-UI (gated, default OFF)
-  VoiceOrb / Indicators / Status / Wave / Timer / Badge
-        │
-        ▼
-Hooks: useVoiceConversation / useVoiceState / useVoiceEvents
-        │
-        ▼
+Library (production SoT)
 VoiceSession  ──owns──► StateMachine + VoiceQueue + Timeline
         │
         ▼
@@ -59,19 +53,9 @@ Existing Home mic (`src/hooks/useSpeechRecognition.ts`) and Chat `src/lib/chat/v
 | `session.ts` | `createVoiceSession` controller |
 | `providers/*` | `VoiceProvider` / `VoiceTransport` / `VoiceAudio` + stubs + mock |
 
-## Hooks
+## Hooks / UI
 
-| Hook | Role |
-|------|------|
-| `useVoiceConversation` | Owns one `VoiceSession` + stable snapshot |
-| `useVoiceState` | Derived flags from a shared session |
-| `useVoiceEvents` | Event log + timeline subscription |
-
-## UI (`src/components/voice`)
-
-`VoiceOrb`, `SpeakingIndicator`, `ThinkingIndicator`, `ListeningIndicator`, `ConversationStatus`, `VoiceConnectionBadge`, `ConversationTimer`, `ConversationWave`
-
-Presentational only — not mounted on production routes while flags are off.
+Sprint 18 shipped optional React hooks and presentational voice chrome. Those wrappers were **removed in Sprint 73.5** (unused / never mounted). Use `src/lib/voiceConversation` directly.
 
 ## Feature flags (default **OFF**)
 

@@ -67,17 +67,9 @@ Owned by `ConversationOrchestrator` with `ContextManager` as the single context 
 
 `summary` / `assistantGoal` are machine-readable tokens (e.g. `need_slot:destination`, `ready:search_flights`) — not LLM prose.
 
-## Hooks
+## Hooks / UI
 
-| Hook | Role |
-|------|------|
-| `useConversationBrain` | Owns orchestrator + `runTurn` |
-| `useConversationMemory` | Derived memory view |
-| `useTravelContext` | Derived context / intent / goals |
-
-## UI (`src/components/brain`)
-
-`ConversationDebugPanel`, `MemoryViewer`, `IntentViewer`, `PlannerViewer` — presentational; not mounted on production routes while flags are off.
+Sprint 19 shipped optional React hooks and brain debug viewers. Those wrappers were **removed in Sprint 73.5** (unused / never mounted). Use `src/lib/brain` directly.
 
 ## Feature flags (default **OFF**)
 

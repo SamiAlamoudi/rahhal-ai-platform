@@ -2,6 +2,57 @@
 
 All notable changes to Rahhal are documented in this file.
 
+Canonical V1 GA changelog: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).
+
+## [Unreleased] — Sprint 73.5: Main Branch Production Cleanup
+
+### Removed
+
+- Unused Sprint 18/19 React hooks and presentational UI (`src/components/brain`, `src/components/voice`, six orphan hooks).
+- Unused `integrations/providers` barrels (`index`, `googleMaps/index`, `openWeather/index`).
+
+### Docs
+
+- Synchronized `docs/CHANGELOG_V1.md`, `RELEASE_NOTES_V1.md`, `SYSTEM_STATUS.md`, `API_STATUS.md`, `ROADMAP_POST_V1.md`, root release-note pointers, `docs/MAIN_BRANCH_AUDIT.md`.
+
+### Notes
+
+- No engine, RahhalBrain, Provider Runtime, or business-logic changes.
+
+## [Unreleased] — Sprint 73: Hotel Search Engine
+
+### Added
+
+- Hotel Search Engine (`src/lib/agent/hotelSearchEngine`) on Provider Runtime (Booking.com → mock; Hotelbeds future stub).
+- Docs: `docs/SPRINT73_HOTEL_SEARCH_ENGINE.md`; tests: `hotelSearch.sprint73.test.ts`.
+
+## [Unreleased] — Sprint 72: Flight Search Engine
+
+### Added
+
+- Flight Search Engine (`src/lib/agent/flightSearchEngine`) on Provider Runtime (Amadeus/Duffel → mock).
+- Docs: `docs/SPRINT72_FLIGHT_SEARCH_ENGINE.md`; tests: `flightSearch.sprint72.test.ts`.
+
+## [Unreleased] — Sprint 71: Provider Runtime
+
+### Added
+
+- Unified Provider Runtime (`src/lib/agent/providerRuntime`) over live provider SDKs with registry, failover, retry, circuit breaker.
+- Docs: `docs/SPRINT71_PROVIDER_RUNTIME.md`; tests: `providerRuntime.sprint71.test.ts`.
+
+## [Unreleased] — Sprint 70: General Availability (GA)
+
+### Added
+
+- GA release manager (`src/lib/ops/release`), version manifest 1.0.0, docs pack.
+- See `docs/CHANGELOG_V1.md` / `docs/SPRINT70_GA_RELEASE.md`.
+
+## [Unreleased] — Sprints 65–69: Production ops stack
+
+### Added
+
+- Production hardening, E2E validation, beta launch, deployment automation, beta operations/monitoring (`src/lib/ops/*`).
+
 ## [Unreleased] — Sprint 53: Real World Intelligence Layer
 
 ### Added
