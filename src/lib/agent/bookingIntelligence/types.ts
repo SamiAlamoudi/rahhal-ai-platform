@@ -31,6 +31,8 @@ export interface BookingSearchQuery {
   travelers?: number
   adults?: number
   children?: number
+  /** Cabin class hint for flight search (economy / business / first / …). */
+  cabin?: string | null
   budgetAmount?: number | null
   budgetCurrency?: string | null
   locale?: 'ar' | 'en'

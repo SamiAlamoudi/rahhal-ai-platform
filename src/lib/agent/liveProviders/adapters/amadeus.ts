@@ -1,12 +1,27 @@
 /**
- * Amadeus Live Provider SDK adapter — Sprint 56.
+ * Amadeus Live Provider SDK adapter — Sprint 56 + Sprint 59.
  *
  * Supports: Flight Search, Airport Search, Flight Offers, Flight Pricing.
  * OAuth with automatic refresh + auth retry. Injectable fetch (no network in tests).
+ *
+ * Sprint 59:
+ * - Credentials from AMADEUS_API_KEY / AMADEUS_API_SECRET (CLIENT_* aliases)
+ * - children + cabin on flight search
+ * - graceful error mapping (empty / invalid airport / rate limit / unavailable / token)
+ * - structured provider logging (request id, duration, status, provider — never secrets)
  */
 
 import { AmadeusOAuthManager, amadeusTokenUrl } from '../oauth'
-import { readLiveProviderSecret } from '../feature'
+import {
+  readAmadeusApiKey,
+  readAmadeusApiSecret,
+  readLiveProviderSecret,
+} from '../feature'
+import {
+  createProviderRequestId,
+  logProviderRequest,
+  type ProviderLogStatus,
+} from '../providerLog'
 import type {
   LiveAirportResult,
   LiveFetch,
@@ -24,6 +39,34 @@ export type AmadeusAdapterOptions = {
   fetchImpl?: LiveFetch
   available?: boolean
   oauth?: AmadeusOAuthManager
+  now?: () => number
+}
+
+export type AmadeusProviderErrorCode =
+  | 'invalid_airport'
+  | 'rate_limit'
+  | 'provider_unavailable'
+  | 'expired_token'
+  | 'oauth_failed'
+  | 'empty_search'
+  | 'upstream_error'
+
+export class AmadeusProviderError extends Error {
+  readonly code: AmadeusProviderErrorCode
+  readonly httpStatus: number | null
+  readonly retryable: boolean
+
+  constructor(
+    code: AmadeusProviderErrorCode,
+    message: string,
+    options?: { httpStatus?: number | null; retryable?: boolean; cause?: unknown },
+  ) {
+    super(message, options?.cause !== undefined ? { cause: options.cause } : undefined)
+    this.name = 'AmadeusProviderError'
+    this.code = code
+    this.httpStatus = options?.httpStatus ?? null
+    this.retryable = options?.retryable ?? false
+  }
 }
 
 type AmadeusOfferRaw = {
@@ -55,7 +98,28 @@ const CAPABILITIES: LiveProviderCapabilities = {
   airports: true,
 }
 
-function parseDurationMinutes(iso: string | undefined): number | null {
+const AMADEUS_CABIN_MAP: Record<string, string> = {
+  economy: 'ECONOMY',
+  eco: 'ECONOMY',
+  y: 'ECONOMY',
+  premium_economy: 'PREMIUM_ECONOMY',
+  premiumeconomy: 'PREMIUM_ECONOMY',
+  premium: 'PREMIUM_ECONOMY',
+  w: 'PREMIUM_ECONOMY',
+  business: 'BUSINESS',
+  j: 'BUSINESS',
+  first: 'FIRST',
+  f: 'FIRST',
+}
+
+/** Map Rahhal cabin hints to Amadeus travelClass values. */
+export function mapCabinToAmadeusTravelClass(cabin: string | null | undefined): string | null {
+  if (!cabin) return null
+  const key = cabin.trim().toLowerCase().replace(/[\s-]+/g, '_')
+  return AMADEUS_CABIN_MAP[key] ?? (key.length > 0 ? key.toUpperCase() : null)
+}
+
+export function parseDurationMinutes(iso: string | undefined): number | null {
   if (!iso) return null
   const match = /^PT(?:(\d+)H)?(?:(\d+)M)?$/i.exec(iso)
   if (!match) return null
@@ -64,7 +128,11 @@ function parseDurationMinutes(iso: string | undefined): number | null {
   return hours * 60 + mins
 }
 
-function normalizeFlightOffer(raw: AmadeusOfferRaw, index: number): LiveFlightOffer {
+/** Normalize a raw Amadeus flight-offer into Rahhal's LiveFlightOffer model. */
+export function normalizeAmadeusLiveFlightOffer(
+  raw: AmadeusOfferRaw,
+  index: number,
+): LiveFlightOffer {
   const segments = raw.itineraries?.[0]?.segments ?? []
   const first = segments[0]
   const last = segments[segments.length - 1]
@@ -90,14 +158,71 @@ function normalizeFlightOffer(raw: AmadeusOfferRaw, index: number): LiveFlightOf
   }
 }
 
+function logStatusForError(code: AmadeusProviderErrorCode): ProviderLogStatus {
+  switch (code) {
+    case 'invalid_airport':
+      return 'invalid_airport'
+    case 'rate_limit':
+      return 'rate_limit'
+    case 'provider_unavailable':
+      return 'unavailable'
+    case 'expired_token':
+    case 'oauth_failed':
+      return 'expired_token'
+    case 'empty_search':
+      return 'empty'
+    default:
+      return 'error'
+  }
+}
+
+function classifyHttpError(status: number, bodyText: string): AmadeusProviderError {
+  const lower = bodyText.toLowerCase()
+  if (status === 429) {
+    return new AmadeusProviderError('rate_limit', 'Amadeus rate limit exceeded', {
+      httpStatus: 429,
+      retryable: true,
+    })
+  }
+  if (status === 401) {
+    return new AmadeusProviderError('expired_token', 'Amadeus token rejected after retry', {
+      httpStatus: 401,
+      retryable: true,
+    })
+  }
+  if (
+    status === 400
+    && (/invalid.*location|unknown.*location|airport|iata|originlocation|destinationlocation/.test(
+      lower,
+    )
+      || /code.*invalid|invalid.*code/.test(lower))
+  ) {
+    return new AmadeusProviderError('invalid_airport', 'Invalid airport or city code', {
+      httpStatus: 400,
+      retryable: false,
+    })
+  }
+  if (status >= 500 || status === 503 || status === 502) {
+    return new AmadeusProviderError('provider_unavailable', `Amadeus unavailable (${status})`, {
+      httpStatus: status,
+      retryable: true,
+    })
+  }
+  return new AmadeusProviderError('upstream_error', `Amadeus flight search failed (${status})`, {
+    httpStatus: status,
+    retryable: status >= 500,
+  })
+}
+
 export function createAmadeusLiveProvider(options: AmadeusAdapterOptions = {}): LiveProviderSdk {
-  const clientId = options.clientId ?? readLiveProviderSecret('AMADEUS_CLIENT_ID') ?? ''
-  const clientSecret = options.clientSecret ?? readLiveProviderSecret('AMADEUS_CLIENT_SECRET') ?? ''
+  const clientId = options.clientId ?? readAmadeusApiKey() ?? ''
+  const clientSecret = options.clientSecret ?? readAmadeusApiSecret() ?? ''
   const baseUrl =
     options.baseUrl ??
     readLiveProviderSecret('AMADEUS_BASE_URL') ??
     'https://test.api.amadeus.com'
   const fetchImpl = options.fetchImpl ?? fetch.bind(globalThis)
+  const now = options.now ?? (() => Date.now())
   const oauth =
     options.oauth ??
     new AmadeusOAuthManager({
@@ -105,6 +230,7 @@ export function createAmadeusLiveProvider(options: AmadeusAdapterOptions = {}): 
       clientSecret,
       tokenUrl: amadeusTokenUrl(baseUrl),
       fetchImpl,
+      now,
     })
 
   const offerCache = new Map<string, LiveFlightOffer>()
@@ -119,55 +245,156 @@ export function createAmadeusLiveProvider(options: AmadeusAdapterOptions = {}): 
       return Boolean(clientId && clientSecret)
     },
     async searchFlights(input: LiveFlightSearchInput) {
-      const params = new URLSearchParams({
-        originLocationCode: input.origin.toUpperCase(),
-        destinationLocationCode: input.destination.toUpperCase(),
-        departureDate: input.departureDate,
-        adults: String(input.adults ?? 1),
-        currencyCode: (input.currency || 'USD').toUpperCase(),
-        max: '20',
-      })
-      if (input.returnDate) params.set('returnDate', input.returnDate)
+      const requestId = createProviderRequestId('amd')
+      const started = now()
+      const adults = Math.max(1, Math.floor(input.adults ?? 1))
+      const children = Math.max(0, Math.floor(input.children ?? 0))
+      const travelClass = mapCabinToAmadeusTravelClass(input.cabin)
 
-      const url = `${baseUrl.replace(/\/$/, '')}/v2/shopping/flight-offers?${params}`
-      const { response } = await oauth.authorizedFetch(url, {
-        method: 'GET',
-        signal: input.signal,
-      })
-      if (!response.ok) {
-        throw new Error(`amadeus_flight_search_${response.status}`)
+      try {
+        const params = new URLSearchParams({
+          originLocationCode: input.origin.toUpperCase(),
+          destinationLocationCode: input.destination.toUpperCase(),
+          departureDate: input.departureDate,
+          adults: String(adults),
+          currencyCode: (input.currency || 'USD').toUpperCase(),
+          max: '20',
+        })
+        if (input.returnDate) params.set('returnDate', input.returnDate)
+        if (children > 0) params.set('children', String(children))
+        if (travelClass) params.set('travelClass', travelClass)
+
+        const url = `${baseUrl.replace(/\/$/, '')}/v2/shopping/flight-offers?${params}`
+        let response: Response
+        let authRetried = false
+        try {
+          const authorized = await oauth.authorizedFetch(url, {
+            method: 'GET',
+            signal: input.signal,
+          })
+          response = authorized.response
+          authRetried = authorized.authRetried
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'amadeus_oauth_failed'
+          const code: AmadeusProviderErrorCode =
+            /oauth|token|401|auth/i.test(message) ? 'oauth_failed' : 'provider_unavailable'
+          throw new AmadeusProviderError(code, message, {
+            retryable: true,
+            cause: err,
+          })
+        }
+
+        if (!response.ok) {
+          const bodyText = await response.text().catch(() => '')
+          throw classifyHttpError(response.status, bodyText)
+        }
+
+        const body = (await response.json()) as { data?: AmadeusOfferRaw[] }
+        const offers = (body.data ?? []).map(normalizeAmadeusLiveFlightOffer)
+        for (const offer of offers) offerCache.set(offer.id, offer)
+
+        logProviderRequest({
+          requestId,
+          provider: 'amadeus',
+          operation: 'searchFlights',
+          durationMs: now() - started,
+          status: offers.length === 0 ? 'empty' : 'ok',
+          httpStatus: response.status,
+          detail: authRetried
+            ? `offers=${offers.length};auth_retried=1`
+            : `offers=${offers.length}`,
+        })
+        return offers
+      } catch (err) {
+        const mapped =
+          err instanceof AmadeusProviderError
+            ? err
+            : new AmadeusProviderError(
+                'provider_unavailable',
+                err instanceof Error ? err.message : 'Amadeus search failed',
+                { retryable: true, cause: err },
+              )
+        logProviderRequest({
+          requestId,
+          provider: 'amadeus',
+          operation: 'searchFlights',
+          durationMs: now() - started,
+          status: logStatusForError(mapped.code),
+          httpStatus: mapped.httpStatus,
+          detail: mapped.message,
+        })
+        // Graceful: empty / invalid airport → empty list (conversation continues).
+        if (mapped.code === 'empty_search' || mapped.code === 'invalid_airport') {
+          return []
+        }
+        // Rate limit / unavailable / token — rethrow typed error for failover;
+        // callers (wrap + withProviderFailover) catch so the conversation never crashes.
+        throw mapped
       }
-      const body = (await response.json()) as { data?: AmadeusOfferRaw[] }
-      const offers = (body.data ?? []).map(normalizeFlightOffer)
-      for (const offer of offers) offerCache.set(offer.id, offer)
-      return offers
     },
     async searchAirports(query: string, signal?: AbortSignal) {
-      const params = new URLSearchParams({
-        keyword: query,
-        subType: 'AIRPORT,CITY',
-        'page[limit]': '10',
-      })
-      const url = `${baseUrl.replace(/\/$/, '')}/v1/reference-data/locations?${params}`
-      const { response } = await oauth.authorizedFetch(url, { method: 'GET', signal })
-      if (!response.ok) throw new Error(`amadeus_airport_search_${response.status}`)
-      const body = (await response.json()) as {
-        data?: Array<{
-          iataCode?: string
-          name?: string
-          address?: { cityName?: string; countryCode?: string }
-        }>
+      const requestId = createProviderRequestId('amd')
+      const started = now()
+      try {
+        const params = new URLSearchParams({
+          keyword: query,
+          subType: 'AIRPORT,CITY',
+          'page[limit]': '10',
+        })
+        const url = `${baseUrl.replace(/\/$/, '')}/v1/reference-data/locations?${params}`
+        const { response } = await oauth.authorizedFetch(url, { method: 'GET', signal })
+        if (!response.ok) {
+          const bodyText = await response.text().catch(() => '')
+          throw classifyHttpError(response.status, bodyText)
+        }
+        const body = (await response.json()) as {
+          data?: Array<{
+            iataCode?: string
+            name?: string
+            address?: { cityName?: string; countryCode?: string }
+          }>
+        }
+        const rows = (body.data ?? [])
+          .filter((row) => row.iataCode)
+          .map(
+            (row): LiveAirportResult => ({
+              iata: String(row.iataCode).toUpperCase(),
+              name: row.name || String(row.iataCode),
+              city: row.address?.cityName ?? null,
+              country: row.address?.countryCode ?? null,
+            }),
+          )
+        logProviderRequest({
+          requestId,
+          provider: 'amadeus',
+          operation: 'searchAirports',
+          durationMs: now() - started,
+          status: rows.length === 0 ? 'empty' : 'ok',
+          httpStatus: response.status,
+          detail: `results=${rows.length}`,
+        })
+        return rows
+      } catch (err) {
+        const mapped =
+          err instanceof AmadeusProviderError
+            ? err
+            : new AmadeusProviderError(
+                'provider_unavailable',
+                err instanceof Error ? err.message : 'Amadeus airport search failed',
+                { retryable: true, cause: err },
+              )
+        logProviderRequest({
+          requestId,
+          provider: 'amadeus',
+          operation: 'searchAirports',
+          durationMs: now() - started,
+          status: logStatusForError(mapped.code),
+          httpStatus: mapped.httpStatus,
+          detail: mapped.message,
+        })
+        if (mapped.code === 'invalid_airport') return []
+        throw mapped
       }
-      return (body.data ?? [])
-        .filter((row) => row.iataCode)
-        .map(
-          (row): LiveAirportResult => ({
-            iata: String(row.iataCode).toUpperCase(),
-            name: row.name || String(row.iataCode),
-            city: row.address?.cityName ?? null,
-            country: row.address?.countryCode ?? null,
-          }),
-        )
     },
     async getOfferDetails(offerId: string) {
       return offerCache.get(offerId) ?? null
@@ -175,31 +402,77 @@ export function createAmadeusLiveProvider(options: AmadeusAdapterOptions = {}): 
     async priceOffer(offerId: string, signal?: AbortSignal): Promise<LiveMoney | null> {
       const cached = offerCache.get(offerId)
       if (!cached?.raw) return cached?.price ?? null
+      const requestId = createProviderRequestId('amd')
+      const started = now()
       const url = `${baseUrl.replace(/\/$/, '')}/v1/shopping/flight-offers/pricing`
-      const { response } = await oauth.authorizedFetch(url, {
-        method: 'POST',
-        signal,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          data: {
-            type: 'flight-offers-pricing',
-            flightOffers: [cached.raw],
-          },
-        }),
-      })
-      if (!response.ok) throw new Error(`amadeus_pricing_${response.status}`)
-      const body = (await response.json()) as {
-        data?: { flightOffers?: AmadeusOfferRaw[] }
+      try {
+        const { response } = await oauth.authorizedFetch(url, {
+          method: 'POST',
+          signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            data: {
+              type: 'flight-offers-pricing',
+              flightOffers: [cached.raw],
+            },
+          }),
+        })
+        if (!response.ok) {
+          const bodyText = await response.text().catch(() => '')
+          throw classifyHttpError(response.status, bodyText)
+        }
+        const body = (await response.json()) as {
+          data?: { flightOffers?: AmadeusOfferRaw[] }
+        }
+        const priced = body.data?.flightOffers?.[0]
+        if (!priced) {
+          logProviderRequest({
+            requestId,
+            provider: 'amadeus',
+            operation: 'priceOffer',
+            durationMs: now() - started,
+            status: 'ok',
+            httpStatus: response.status,
+            detail: 'cached_price',
+          })
+          return cached.price
+        }
+        const money: LiveMoney = {
+          amount: Number(priced.price?.total ?? cached.price.amount),
+          currency: (priced.price?.currency || cached.price.currency).toUpperCase(),
+        }
+        cached.price = money
+        offerCache.set(offerId, cached)
+        logProviderRequest({
+          requestId,
+          provider: 'amadeus',
+          operation: 'priceOffer',
+          durationMs: now() - started,
+          status: 'ok',
+          httpStatus: response.status,
+          detail: `amount=${money.amount}`,
+        })
+        return money
+      } catch (err) {
+        const mapped =
+          err instanceof AmadeusProviderError
+            ? err
+            : new AmadeusProviderError(
+                'provider_unavailable',
+                err instanceof Error ? err.message : 'Amadeus pricing failed',
+                { retryable: true, cause: err },
+              )
+        logProviderRequest({
+          requestId,
+          provider: 'amadeus',
+          operation: 'priceOffer',
+          durationMs: now() - started,
+          status: logStatusForError(mapped.code),
+          httpStatus: mapped.httpStatus,
+          detail: mapped.message,
+        })
+        throw mapped
       }
-      const priced = body.data?.flightOffers?.[0]
-      if (!priced) return cached.price
-      const money: LiveMoney = {
-        amount: Number(priced.price?.total ?? cached.price.amount),
-        currency: (priced.price?.currency || cached.price.currency).toUpperCase(),
-      }
-      cached.price = money
-      offerCache.set(offerId, cached)
-      return money
     },
   }
 
