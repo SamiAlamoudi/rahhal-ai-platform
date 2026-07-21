@@ -225,6 +225,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: trip_management. Does not rewrite Booking Execution or providers.',
   },
   {
+    id: 'ai.document_center_v2',
+    name: 'Enterprise Document Center',
+    description:
+      'Sprint 63 — enterprise document store (e-tickets, vouchers, invoices, itinerary, passport metadata), versioning, sharing, ZIP, audit. OFF by default.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.trip_management'],
+    notes:
+      'Product alias: document_center_v2. Coexists with Sprint 58 payments DocumentCenter; no breaking changes when OFF.',
+  },
+  {
     id: 'ai.transaction_manager',
     name: 'Booking Transaction Manager',
     description:

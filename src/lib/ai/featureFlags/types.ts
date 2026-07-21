@@ -26,6 +26,7 @@ export type FeatureId =
   | 'provider.booking'
   | 'ai.booking_execution'
   | 'ai.trip_management'
+  | 'ai.document_center_v2'
   | 'ai.transaction_manager'
   | 'ai.booking_resume'
   | 'ai.payments'

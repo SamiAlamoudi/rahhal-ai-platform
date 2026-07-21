@@ -1,11 +1,13 @@
 /**
  * Sprint 61 — booking documents via existing DocumentCenter / ticketing.
- * No second document system.
+ * No second document system for the legacy path.
+ * Sprint 63 — when ai.document_center_v2 is ON, also publish to Enterprise Document Center.
  */
 
 import { DocumentCenter } from '../paymentsPlatform/documents'
 import { issueTicketsFromBookings } from '../paymentsPlatform/ticketing'
 import type { DocumentRecord, UnifiedTicket } from '../paymentsPlatform/types'
+import { publishDocumentsAfterBookingExecution } from '../documentCenter'
 import type { UnifiedBooking } from './types'
 
 export type BookingDocumentBundle = {
@@ -35,6 +37,8 @@ export function generateBookingDocuments(input: {
   travelerName?: string
   now?: () => number
   documents?: DocumentCenter
+  /** Optional trip id for Enterprise Document Center linkage (Sprint 63). */
+  tripId?: string | null
 }): BookingDocumentBundle {
   const center = input.documents ?? getBookingDocumentCenter()
   const paymentSessionId = `exec_${input.sessionId}`
@@ -66,6 +70,14 @@ export function generateBookingDocuments(input: {
     now: input.now,
   })
   documents.push(summary)
+
+  // Sprint 63 — auto-publish into Enterprise Document Center when flag enabled (no-op when OFF).
+  publishDocumentsAfterBookingExecution({
+    sessionId: input.sessionId,
+    bookings: input.bookings,
+    tripId: input.tripId ?? null,
+    now: input.now,
+  })
 
   return {
     tickets,
