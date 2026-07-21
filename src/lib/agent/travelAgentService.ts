@@ -70,6 +70,11 @@ import {
   type TravelPlannerResult,
 } from './travelPlanner'
 import {
+  enrichWithAutonomousDecision,
+  isAutonomousDecisionEnabled,
+  type AutonomousDecisionResult,
+} from './autonomousDecision'
+import {
   enrichWithBookingExecution,
   findLatestConfirmedBookingExecution,
   isBookingExecutionEnabled,
@@ -300,6 +305,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.travel_planner` (ON).
    */
   travelPlannerEnabled?: boolean
+  /**
+   * Sprint 79 — Autonomous Search & Decision Engine (multi-plan compare & recommend).
+   * Default: FeatureRegistry `ai.autonomous_decision` (ON).
+   */
+  autonomousDecisionEnabled?: boolean
   /**
    * Sprint 57 — Booking Execution Engine (lifecycle, transactions, resume).
    * Default: FeatureRegistry `ai.booking_execution` (ON). Runs only on explicit confirm/book cues.
@@ -587,6 +597,24 @@ function toMetaTravelPlanner(
   }
 }
 
+function toMetaAutonomousDecision(
+  result: AutonomousDecisionResult,
+): NonNullable<AgentProviderMeta['autonomousDecision']> {
+  const best = result.recommendations.bestOverall
+  return {
+    bestOverallId: best?.id ?? null,
+    bestOverallScore: best?.score?.overall ?? null,
+    confidence: result.recommendations.confidence,
+    planCount: result.plans.length,
+    candidateCount: result.candidates.length,
+    duplicateCount: result.duplicateCount,
+    fallbackUsed: result.fallbackUsed,
+    labels: best?.labels ?? [],
+    explanation: result.recommendations.explanation || null,
+    durationMs: result.durationMs,
+  }
+}
+
 function offersFromToolBatch(batch: ToolExecutionBatch | undefined): {
   flightOffers: Array<Record<string, unknown>>
   hotelStays: Array<Record<string, unknown>>
@@ -810,6 +838,9 @@ export function createTravelAgentService(
   const isTravelPlannerOn = (): boolean =>
     isTravelPlannerEnabled({ enabled: options.travelPlannerEnabled })
 
+  const isAutonomousDecisionOn = (): boolean =>
+    isAutonomousDecisionEnabled({ enabled: options.autonomousDecisionEnabled })
+
   const isBookingExecEnabled = (): boolean =>
     isBookingExecutionEnabled({ enabled: options.bookingExecutionEnabled })
 
@@ -848,6 +879,7 @@ export function createTravelAgentService(
     travelerPersonalization?: TravelerPersonalizationResult
     tripOptimizer?: TripOptimizerResult
     travelPlanner?: TravelPlannerResult
+    autonomousDecision?: AutonomousDecisionResult
     bookingExecution?: BookingExecutionResult
     payments?: PaymentsPlatformResult
   }> => {
@@ -869,6 +901,7 @@ export function createTravelAgentService(
       budgetIntelligence?: BudgetIntelligenceResult
       travelerPersonalization?: TravelerPersonalizationResult
       tripOptimizer?: TripOptimizerResult
+      autonomousDecision?: AutonomousDecisionResult
       bookingExecution?: BookingExecutionResult
       payments?: PaymentsPlatformResult
     }> => {
@@ -876,6 +909,7 @@ export function createTravelAgentService(
       let budgetIntelligence: BudgetIntelligenceResult | undefined
       let travelerPersonalization: TravelerPersonalizationResult | undefined
       let tripOptimizer: TripOptimizerResult | undefined
+      let autonomousDecision: AutonomousDecisionResult | undefined
       const { flightOffers, hotelStays } = offersFromToolBatch(batch)
 
       if (isBudgetIntelEnabled()) {
@@ -922,8 +956,27 @@ export function createTravelAgentService(
         tripOptimizer = optimized.tripOptimizer ?? undefined
       }
 
+      if (isAutonomousDecisionOn()) {
+        const decided = await enrichWithAutonomousDecision({
+          memory,
+          tripPlan: nextPlan,
+          enabled: options.autonomousDecisionEnabled,
+          flightOffers: flightOffers.length ? flightOffers : undefined,
+          hotelStays: hotelStays.length ? hotelStays : undefined,
+          travelPlanner,
+        })
+        nextPlan = decided.tripPlan
+        autonomousDecision = decided.autonomousDecision ?? undefined
+      }
+
       if (!isBookingIntelEnabled()) {
-        return { plan: nextPlan, budgetIntelligence, travelerPersonalization, tripOptimizer }
+        return {
+          plan: nextPlan,
+          budgetIntelligence,
+          travelerPersonalization,
+          tripOptimizer,
+          autonomousDecision,
+        }
       }
       const enriched = await enrichWithBookingIntelligence({
         memory,
@@ -982,6 +1035,7 @@ export function createTravelAgentService(
         budgetIntelligence,
         travelerPersonalization,
         tripOptimizer,
+        autonomousDecision,
         bookingExecution,
         payments,
       }
@@ -1009,6 +1063,8 @@ export function createTravelAgentService(
           budgetIntelligence: intel.budgetIntelligence,
           travelerPersonalization: intel.travelerPersonalization,
           tripOptimizer: intel.tripOptimizer,
+          travelPlanner: travelPlanner ?? undefined,
+          autonomousDecision: intel.autonomousDecision,
           bookingExecution: intel.bookingExecution,
           payments: intel.payments,
         }
@@ -1043,6 +1099,8 @@ export function createTravelAgentService(
           budgetIntelligence: intel.budgetIntelligence,
           travelerPersonalization: intel.travelerPersonalization,
           tripOptimizer: intel.tripOptimizer,
+          travelPlanner: travelPlanner ?? undefined,
+          autonomousDecision: intel.autonomousDecision,
           bookingExecution: intel.bookingExecution,
           payments: intel.payments,
         }
@@ -1104,6 +1162,7 @@ export function createTravelAgentService(
       travelerPersonalization: intel.travelerPersonalization,
       tripOptimizer: intel.tripOptimizer,
       travelPlanner: travelPlanner ?? undefined,
+      autonomousDecision: intel.autonomousDecision,
       bookingExecution: intel.bookingExecution,
       payments: intel.payments,
     }
@@ -1166,6 +1225,7 @@ export function createTravelAgentService(
       let travelerPersonalizationResult: TravelerPersonalizationResult | null = null
       let tripOptimizerResult: TripOptimizerResult | null = null
       let travelPlannerResult: TravelPlannerResult | null = null
+      let autonomousDecisionResult: AutonomousDecisionResult | null = null
       let bookingExecutionResult: BookingExecutionResult | null = null
       let paymentsResult: PaymentsPlatformResult | null = null
 
@@ -1578,9 +1638,15 @@ export function createTravelAgentService(
         const withPlanner = travelPlannerResult
           ? { ...withOptimizer, travelPlanner: toMetaTravelPlanner(travelPlannerResult) }
           : withOptimizer
-        const withExecution = bookingExecutionResult
-          ? { ...withPlanner, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+        const withDecision = autonomousDecisionResult
+          ? {
+            ...withPlanner,
+            autonomousDecision: toMetaAutonomousDecision(autonomousDecisionResult),
+          }
           : withPlanner
+        const withExecution = bookingExecutionResult
+          ? { ...withDecision, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+          : withDecision
         const withPayments = paymentsResult
           ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
           : withExecution
@@ -2012,6 +2078,7 @@ export function createTravelAgentService(
           }
         }
         if (ran.tripOptimizer) tripOptimizerResult = ran.tripOptimizer
+        if (ran.autonomousDecision) autonomousDecisionResult = ran.autonomousDecision
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
         if (ran.payments) paymentsResult = ran.payments
         memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, ran.plan)
@@ -2076,6 +2143,7 @@ export function createTravelAgentService(
           }
         }
         if (ran.tripOptimizer) tripOptimizerResult = ran.tripOptimizer
+        if (ran.autonomousDecision) autonomousDecisionResult = ran.autonomousDecision
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
         if (ran.payments) paymentsResult = ran.payments
         if (llmResult.draft?.notes?.length) {
@@ -2135,6 +2203,9 @@ export function createTravelAgentService(
           ...(travelPlannerResult?.recommendationFacts ?? []),
           ...(budgetIntelligenceResult?.recommendationFacts ?? []),
           ...(tripOptimizerResult?.recommendationFacts ?? []),
+          ...(autonomousDecisionResult?.recommendations.explanation
+            ? [autonomousDecisionResult.recommendations.explanation]
+            : []),
           ...(bookingIntelligenceResult?.recommendationFacts ?? []),
           ...(bookingExecutionResult?.executionFacts ?? []),
           ...(paymentsResult?.paymentFacts ?? []),

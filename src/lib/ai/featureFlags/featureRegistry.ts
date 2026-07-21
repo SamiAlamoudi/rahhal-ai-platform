@@ -208,6 +208,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: travel_planner. Runs before Flight/Hotel search; does not redesign RahhalBrain or replace engines.',
   },
   {
+    id: 'ai.autonomous_decision',
+    name: 'Autonomous Search & Decision Engine',
+    description:
+      'Sprint 79 — multi-plan search generation, parallel plan execution, candidate scoring/ranking, explainable recommendation bundle (best overall/budget/fastest/comfort/family). Additive post-search decision layer.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.travel_planner'],
+    notes:
+      'Product alias: autonomous_decision. Core modules under src/core; does not replace Flight/Hotel engines or RahhalBrain.',
+  },
+  {
     id: 'ai.live_providers',
     name: 'Live Travel Provider Layer',
     description:

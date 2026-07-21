@@ -152,6 +152,19 @@ export type {
   SearchPlan,
 } from './travelPlanner'
 export {
+  isAutonomousDecisionEnabled,
+  AUTONOMOUS_DECISION_FEATURE_ID,
+  enrichWithAutonomousDecision,
+  runDecisionEngine,
+  createDecisionEngine,
+  createSearchPlans,
+  SPRINT79_DECISION_ENGINE_VERSION,
+} from './autonomousDecision'
+export type {
+  AutonomousDecisionResult,
+  AutonomousDecisionMeta,
+} from './autonomousDecision'
+export {
   isBookingExecutionEnabled,
   isTransactionManagerEnabled,
   isBookingResumeEnabled,
