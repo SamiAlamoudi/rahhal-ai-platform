@@ -10,6 +10,9 @@
 - [x] Payments mock mode required
 - [x] Notifications abstraction verified
 - [x] Provider abstraction verified
+- [x] Provider Runtime present (Sprint 71)
+- [x] Flight Search Engine present (Sprint 72)
+- [x] Hotel Search Engine present (Sprint 73)
 - [x] Observability enabled
 - [x] Deployment automation verified
 - [x] Recovery / rollback armed
@@ -26,5 +29,6 @@
 - [x] Production modules present
 - [x] GA documentation published
 - [x] Version manifest 1.0.0
+- [x] Production cleanup / main audit (Sprint 73.5)
 
 Library: `buildGAChecklist()` / `buildGAReadinessReport()`.
