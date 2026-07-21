@@ -186,6 +186,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: traveler_personalization. Mock storage only; no DB. Does not redesign RahhalBrain or search engines.',
   },
   {
+    id: 'ai.trip_optimizer',
+    name: 'Complete Trip Optimizer',
+    description:
+      'Sprint 77 — Journey Score optimization across flight+hotel packages (comfort, convenience, travel time, family, business, luxury, budget) with recommendation labels and tradeoff diagnostics. Additive enrichment.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.autonomous_agent'],
+    notes:
+      'Product alias: trip_optimizer. Does not replace search engines or Budget/Personalization layers; Conversation Brain narrates facts only.',
+  },
+  {
     id: 'ai.live_providers',
     name: 'Live Travel Provider Layer',
     description:

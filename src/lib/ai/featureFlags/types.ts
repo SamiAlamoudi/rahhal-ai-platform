@@ -22,6 +22,7 @@ export type FeatureId =
   | 'ai.booking_intelligence'
   | 'ai.budget_intelligence'
   | 'ai.traveler_personalization'
+  | 'ai.trip_optimizer'
   | 'ai.live_providers'
   | 'provider.amadeus'
   | 'provider.duffel'

@@ -404,6 +404,21 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 77 — Complete Trip Optimizer snapshot (Journey Score, recommendations, tradeoffs).
+   * Additive structured facts only — Conversation Brain authors traveler-facing text.
+   */
+  tripOptimizer?: {
+    journeyScore: number | null
+    priority: string
+    itineraryCount: number
+    budgetEffect: number
+    personalizationEffect: number
+    tradeoffCount: number
+    bestOverallId: string | null
+    recommendationLabels: string[]
+    durationMs: number
+  }
+  /**
    * Sprint 57 — Booking Execution Engine snapshot (lifecycle, confirmations, resume).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */
