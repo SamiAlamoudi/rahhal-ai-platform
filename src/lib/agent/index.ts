@@ -292,3 +292,21 @@ export {
   type UnifiedFlight,
   type FlightSortMode,
 } from './flightSearchEngine'
+
+/** Sprint 73 — Hotel Search Engine */
+export {
+  createHotelSearchEngine,
+  getDefaultHotelSearchEngine,
+  resetDefaultHotelSearchEngine,
+  rankHotels,
+  dedupeHotels,
+  applyHotelFilters,
+  sortHotels,
+  normalizeHotelOffer,
+  SPRINT73_HOTEL_SEARCH_VERSION,
+  type HotelSearchEngine,
+  type HotelSearchRequest,
+  type HotelSearchPage,
+  type UnifiedHotel,
+  type HotelSortMode,
+} from './hotelSearchEngine'
