@@ -106,6 +106,23 @@ export type {
   RankedBudgetCandidate,
 } from './budgetIntelligence'
 export {
+  isTravelerPersonalizationEnabled,
+  TRAVELER_PERSONALIZATION_FEATURE_ID,
+  parsePreferenceUtterance,
+  emptyTravelerProfile,
+  learnListPreference,
+  runTravelerPersonalization,
+  enrichWithTravelerPersonalization,
+  resetTravelerProfileStore,
+  SPRINT76_TRAVELER_PERSONALIZATION_VERSION,
+} from './travelerPersonalization'
+export type {
+  TravelerPersonalizationResult,
+  TravelerPersonalizationDiagnostics,
+  TravelerProfile,
+  LearningEvent,
+} from './travelerPersonalization'
+export {
   isBookingExecutionEnabled,
   isTransactionManagerEnabled,
   isBookingResumeEnabled,

@@ -391,6 +391,19 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 76 — Traveler Personalization snapshot (profile, confidence, ranking deltas).
+   * Additive structured facts only — Conversation Brain authors traveler-facing text.
+   */
+  travelerPersonalization?: {
+    travelerProfileUsed: boolean
+    matchedPreferences: string[]
+    confidenceScores: Record<string, number>
+    rankingAdjustmentCount: number
+    learningEventCount: number
+    missingProfile: boolean
+    durationMs: number
+  }
+  /**
    * Sprint 57 — Booking Execution Engine snapshot (lifecycle, confirmations, resume).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */

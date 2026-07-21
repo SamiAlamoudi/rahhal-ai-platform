@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 76: Traveler Personalization Intelligence
+
+### Added
+
+- Traveler Personalization Intelligence (`src/lib/agent/travelerPersonalization`) — preference parse, gradual confidence learning, mock profile store, preference-weighted ranking, diagnostics.
+- Feature flag `ai.traveler_personalization` (default ON).
+- Docs: `docs/SPRINT76_TRAVELER_PERSONALIZATION.md`; verify: `npm run personalization:verify`.
+
+### Notes
+
+- Additive enrichment only — does not redesign RahhalBrain or replace search engines; no DB integration yet.
+
 ## [Unreleased] — Sprint 75: Budget Intelligence
 
 ### Added
