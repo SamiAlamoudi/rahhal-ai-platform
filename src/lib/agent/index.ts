@@ -104,6 +104,30 @@ export type {
   BookingLifecycleStatus,
 } from './bookingExecution'
 export {
+  isTripManagementEnabled,
+  TRIP_MANAGEMENT_FEATURE_ID,
+  createTripFromBookings,
+  createTripFromExecution,
+  getTrip,
+  getTrips,
+  getTripStatus,
+  refreshTrip,
+  mergeTripProviderUpdates,
+  mergeProviderUpdates,
+  getDefaultTripManagementService,
+  resetDefaultTripManagementService,
+  TripManagementService,
+} from './tripManagement'
+export type {
+  ManagedTrip,
+  TripLifecycleStatus,
+  TripTimelineEvent,
+  TripSearchQuery,
+  TripSortMode,
+  TripFilterMode,
+  TripDocumentBundle,
+} from './tripManagement'
+export {
   isPaymentsEnabled,
   isTicketingEnabled,
   isRefundsEnabled,
