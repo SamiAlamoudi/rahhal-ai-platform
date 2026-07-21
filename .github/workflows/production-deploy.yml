@@ -1,0 +1,53 @@
+name: Production Deployment Readiness
+
+on:
+  push:
+    branches: [main, 'cursor/**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  production-readiness:
+    name: Production deployment gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Secret / env hygiene scan
+        run: bash scripts/secret-hygiene-scan.sh
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit / integration tests
+        run: npm run test:run
+
+      - name: Deployment verification (Sprint 68)
+        run: npm run deploy:verify
+
+      - name: Production preflight suite
+        run: npm run production:verify
+
+      - name: Release build
+        run: npm run build
+
+      - name: Providers check
+        run: npm run providers:check
+
+      - name: Dependency audit
+        run: npm run audit
