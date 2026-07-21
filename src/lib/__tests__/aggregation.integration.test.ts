@@ -23,7 +23,7 @@ function user(content: string): ChatMessage {
 }
 
 describe('aggregation + travel agent integration', () => {
-  it('keeps TripPlan API while tools aggregate multiple mock providers', async () => {
+  it('keeps TripPlan API while flights/hotels use production search engines', async () => {
     const service = createTravelAgentService({
       tools: createMockAgentToolRegistry(),
     })
@@ -41,22 +41,25 @@ describe('aggregation + travel agent integration', () => {
 
     const flightTool = turn.toolBatch?.results.find((r) => r.tool === 'flights')
     expect(flightTool?.status).toBe('ok')
+    expect(flightTool?.meta?.providerId).toBe('flight-search-engine')
     const flightData = flightTool?.data as {
       offers?: unknown[]
-      aggregation?: { providersSucceeded?: number; providersQueried?: number }
+      searchEngine?: string
+      diagnostics?: { providersUsed?: string[] }
     }
-    // Flights/hotels use priority_fallback (live provider → mocks).
-    expect(flightData.aggregation?.providersQueried).toBeGreaterThanOrEqual(1)
-    expect(flightData.aggregation?.providersSucceeded).toBeGreaterThanOrEqual(1)
+    expect(flightData.searchEngine).toBe('flightSearchEngine')
+    expect(flightData.diagnostics?.providersUsed?.length).toBeGreaterThanOrEqual(1)
     expect((flightData.offers ?? []).length).toBeGreaterThan(0)
 
     const hotelTool = turn.toolBatch?.results.find((r) => r.tool === 'hotels')
+    expect(hotelTool?.meta?.providerId).toBe('hotel-search-engine')
     const hotelData = hotelTool?.data as {
       stays?: unknown[]
-      aggregation?: { providersSucceeded?: number; providersQueried?: number }
+      searchEngine?: string
+      diagnostics?: { providersUsed?: string[] }
     }
-    expect(hotelData.aggregation?.providersQueried).toBeGreaterThanOrEqual(1)
-    expect(hotelData.aggregation?.providersSucceeded).toBeGreaterThanOrEqual(1)
+    expect(hotelData.searchEngine).toBe('hotelSearchEngine')
+    expect(hotelData.diagnostics?.providersUsed?.length).toBeGreaterThanOrEqual(1)
     expect((hotelData.stays ?? []).length).toBeGreaterThan(0)
   })
 })

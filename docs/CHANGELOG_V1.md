@@ -18,4 +18,4 @@
 ### Notes
 - Additive modules only — no RahhalBrain / Conversation Engine rewrites
 - Package version `1.1.0-rc.1`; product GA version `1.0.0`
-- Primary `/chat` traveler path uses Aggregation + Booking Intelligence; S72/S73 engines are library-verified and await product wiring
+- Primary `/chat` traveler path uses Flight/Hotel Search Engines via Sprint 74 tool bridge (Aggregation retained for non-flight/hotel domains)

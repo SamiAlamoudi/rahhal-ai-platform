@@ -29,7 +29,10 @@ describe('tool executor', () => {
     })
     expect(batch.selected).toEqual(['weather', 'flights'])
     expect(batch.okCount).toBe(2)
-    expect(batch.results.every((r) => r.meta?.providerId.startsWith('aggregate-'))).toBe(true)
+    const weather = batch.results.find((r) => r.tool === 'weather')
+    const flights = batch.results.find((r) => r.tool === 'flights')
+    expect(weather?.meta?.providerId).toBe('aggregate-weather')
+    expect(flights?.meta?.providerId).toBe('flight-search-engine')
     expect(batch.results.every((r) => typeof r.meta?.timeoutMs === 'number')).toBe(true)
   })
 

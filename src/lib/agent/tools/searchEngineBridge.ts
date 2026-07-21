@@ -1,0 +1,311 @@
+/**
+ * Sprint 74 — Conversation → production search engines bridge.
+ *
+ * Maps agent tool context ↔ Flight/Hotel Search Engine requests/results
+ * without changing Provider Runtime, RahhalBrain, or engine internals.
+ */
+
+import type { FlightSearchEngine, FlightSearchPage, FlightSearchRequest, UnifiedFlight } from '../flightSearchEngine'
+import type { HotelSearchEngine, HotelSearchPage, HotelSearchRequest, UnifiedHotel } from '../hotelSearchEngine'
+import type { TripRequirements } from '../types'
+import type { AgentToolContext } from './types'
+
+/** Shared city → IATA helper (same mapping used by aggregation mocks). */
+export function resolveAirportCode(place: string): string {
+  const key = place.trim().toLowerCase()
+  if (!key) return 'XXX'
+  if (/^[a-z]{3}$/i.test(place.trim())) return place.trim().toUpperCase()
+  if (key.includes('japan') || key.includes('tokyo')) return 'HND'
+  if (key.includes('osaka')) return 'KIX'
+  if (key.includes('london')) return 'LHR'
+  if (key.includes('bali')) return 'DPS'
+  if (key.includes('rome')) return 'FCO'
+  if (key.includes('paris')) return 'CDG'
+  if (key.includes('dubai')) return 'DXB'
+  if (key.includes('riyadh')) return 'RUH'
+  if (key.includes('morocco') || key.includes('marrakech')) return 'RAK'
+  if (key.includes('casablanca')) return 'CMN'
+  if (key.includes('istanbul') || key.includes('turkey')) return 'IST'
+  if (key.includes('cairo') || key.includes('egypt')) return 'CAI'
+  if (key.includes('maldives')) return 'MLE'
+  if (key.includes('jeddah')) return 'JED'
+  if (key.includes('new york') || key.includes('nyc')) return 'JFK'
+  if (key.includes('singapore')) return 'SIN'
+  return place.trim().slice(0, 3).toUpperCase() || 'XXX'
+}
+
+function defaultDepartureDate(): string {
+  const d = new Date()
+  d.setUTCDate(d.getUTCDate() + 30)
+  return d.toISOString().slice(0, 10)
+}
+
+function addDays(isoDate: string, days: number): string {
+  const d = new Date(`${isoDate}T00:00:00.000Z`)
+  if (Number.isNaN(d.getTime())) return defaultDepartureDate()
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+function travelersFrom(ctx: AgentToolContext): number {
+  const fromInput = Number(ctx.input?.travelers)
+  if (Number.isFinite(fromInput) && fromInput > 0) return Math.floor(fromInput)
+  const req = ctx.requirements.travelers
+  if (typeof req === 'number' && req > 0) return req
+  if (ctx.requirements.travelerType === 'solo' || ctx.requirements.travelerType === 'business') return 1
+  if (ctx.requirements.travelerType === 'couple') return 2
+  if (ctx.requirements.travelerType === 'family') return 4
+  return 2
+}
+
+function currencyFrom(ctx: AgentToolContext): string {
+  return String(
+    ctx.input?.currency
+    ?? ctx.requirements.budgetCurrency
+    ?? 'SAR',
+  )
+}
+
+function nightsFrom(ctx: AgentToolContext): number {
+  const nights = Number(ctx.input?.nights)
+  if (Number.isFinite(nights) && nights > 0) return Math.floor(nights)
+  const duration = ctx.requirements.durationDays ?? 3
+  return Math.max(1, duration - 1)
+}
+
+function inferTripType(req: TripRequirements): FlightSearchRequest['tripType'] {
+  if (req.destinations.length > 1) return 'multi_city'
+  if (req.endDate) return 'round_trip'
+  return 'one_way'
+}
+
+function cabinFrom(req: TripRequirements): FlightSearchRequest['cabin'] {
+  const purpose = (req.tripPurpose ?? '').toLowerCase()
+  const style = (req.budgetStyle ?? '').toLowerCase()
+  if (req.travelerType === 'business' || purpose.includes('business')) return 'business'
+  if (style === 'luxury' || purpose.includes('honeymoon')) return 'premium_economy'
+  return 'economy'
+}
+
+export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchRequest {
+  const req = ctx.requirements
+  const originRaw = String(ctx.input?.origin ?? req.origin ?? 'Riyadh')
+  const destinationRaw = String(ctx.input?.destination ?? req.destination ?? req.destinations[0] ?? '')
+  const departureDate = String(ctx.input?.startDate ?? req.startDate ?? defaultDepartureDate())
+  const returnDate = (ctx.input?.endDate ?? req.endDate)
+    ? String(ctx.input?.endDate ?? req.endDate)
+    : null
+  const tripType = inferTripType(req)
+  const adults = travelersFrom(ctx)
+  const currency = currencyFrom(ctx)
+
+  const request: FlightSearchRequest = {
+    tripType,
+    origin: resolveAirportCode(originRaw),
+    destination: resolveAirportCode(destinationRaw),
+    departureDate,
+    returnDate: tripType === 'one_way' ? null : returnDate,
+    adults,
+    currency,
+    cabin: cabinFrom(req),
+    sort: 'recommendation',
+    pageSize: 20,
+    signal: ctx.signal,
+    parallel: true,
+  }
+
+  if (tripType === 'multi_city' && req.destinations.length > 1) {
+    const hubs = [originRaw, ...req.destinations]
+    const legs = []
+    for (let i = 0; i < hubs.length - 1; i += 1) {
+      legs.push({
+        origin: resolveAirportCode(hubs[i]),
+        destination: resolveAirportCode(hubs[i + 1]),
+        departureDate: addDays(departureDate, i * 3),
+      })
+    }
+    request.legs = legs
+  }
+
+  const budget = req.budgetAmount
+  const style = (req.budgetStyle ?? '').toLowerCase()
+  if (typeof budget === 'number' && budget > 0 && style === 'budget') {
+    request.filters = { maxPrice: Math.round(budget * 0.45) }
+  }
+
+  return request
+}
+
+export function buildHotelSearchRequest(ctx: AgentToolContext): HotelSearchRequest {
+  const req = ctx.requirements
+  const city = String(ctx.input?.destination ?? req.destination ?? req.destinations[0] ?? '')
+  const checkIn = String(ctx.input?.checkIn ?? req.startDate ?? defaultDepartureDate())
+  const nights = nightsFrom(ctx)
+  const checkOut = req.endDate
+    ? String(req.endDate)
+    : addDays(checkIn, nights)
+  const adults = travelersFrom(ctx)
+  const currency = currencyFrom(ctx)
+  const style = (req.budgetStyle ?? '').toLowerCase()
+
+  const request: HotelSearchRequest = {
+    city,
+    destination: city,
+    checkIn,
+    checkOut,
+    adults,
+    rooms: req.travelerType === 'family' ? Math.max(1, Math.ceil(adults / 2)) : 1,
+    currency,
+    sort: 'recommended',
+    pageSize: 20,
+    signal: ctx.signal,
+    parallel: true,
+  }
+
+  if (style === 'luxury') {
+    request.filters = { minStars: 4, minRating: 4 }
+  } else if (style === 'budget' && typeof req.budgetAmount === 'number' && req.budgetAmount > 0) {
+    request.filters = {
+      maxPrice: Math.max(80, Math.round((req.budgetAmount * 0.35) / nights)),
+    }
+  }
+
+  return request
+}
+
+export function unifiedFlightToOffer(flight: UnifiedFlight, travelers: number): Record<string, unknown> {
+  return {
+    id: flight.id,
+    airline: flight.airline,
+    flightNumber: flight.flightNumber,
+    from: flight.origin,
+    to: flight.destination,
+    cabin: flight.cabin,
+    stops: flight.stops,
+    durationHours: Math.round((flight.duration / 60) * 10) / 10,
+    durationMinutes: flight.duration,
+    price: flight.price,
+    currency: flight.currency,
+    travelers,
+    refundable: flight.refundable,
+    baggage: flight.baggage,
+    bookingToken: flight.bookingToken,
+    provider: flight.provider,
+    score: flight.score,
+    departureTime: flight.departureTime,
+    arrivalTime: flight.arrivalTime,
+    fareFamily: flight.fareFamily,
+  }
+}
+
+export function unifiedHotelToStay(hotel: UnifiedHotel, nights: number): Record<string, unknown> {
+  return {
+    name: hotel.hotelName,
+    area: hotel.city || 'Center',
+    category: hotel.stars >= 4 ? 'boutique' : 'hotel',
+    nightly: hotel.pricePerNight,
+    nights,
+    total: hotel.totalPrice || hotel.pricePerNight * nights,
+    currency: hotel.currency,
+    score: hotel.score ?? hotel.rating,
+    rating: hotel.rating,
+    hotelStars: hotel.stars,
+    hotelId: hotel.hotelId,
+    provider: hotel.provider,
+    refundable: hotel.refundable,
+    breakfastIncluded: hotel.breakfastIncluded,
+    bookingToken: hotel.bookingToken,
+    amenities: hotel.amenities,
+  }
+}
+
+export function flightPageToToolData(
+  page: FlightSearchPage,
+  travelers: number,
+): Record<string, unknown> {
+  const offers = page.flights.map((f) => unifiedFlightToOffer(f, travelers))
+  const byPrice = [...page.flights].sort((a, b) => a.price - b.price)
+  const byDuration = [...page.flights].sort((a, b) => a.duration - b.duration)
+  const recommended = page.flights[0]
+
+  return {
+    offers,
+    currency: offers[0]?.currency ?? 'SAR',
+    searchEngine: 'flightSearchEngine',
+    engineVersion: 'sprint72',
+    diagnostics: page.diagnostics,
+    highlights: {
+      best: recommended
+        ? `${recommended.airline} ${recommended.origin}→${recommended.destination} · ${recommended.price} ${recommended.currency}`
+        : null,
+      cheapest: byPrice[0]
+        ? `${byPrice[0].airline} · ${byPrice[0].price} ${byPrice[0].currency}`
+        : null,
+      fastest: byDuration[0]
+        ? `${byDuration[0].airline} · ${Math.round(byDuration[0].duration / 60)}h`
+        : null,
+    },
+  }
+}
+
+export function hotelPageToToolData(
+  page: HotelSearchPage,
+  nights: number,
+): Record<string, unknown> {
+  const stays = page.hotels.map((h) => unifiedHotelToStay(h, nights))
+  const byPrice = [...page.hotels].sort((a, b) => a.pricePerNight - b.pricePerNight)
+  const byRating = [...page.hotels].sort((a, b) => b.rating - a.rating)
+  const recommended = page.hotels[0]
+
+  return {
+    stays,
+    searchEngine: 'hotelSearchEngine',
+    engineVersion: 'sprint73',
+    diagnostics: page.diagnostics,
+    highlights: {
+      best: recommended
+        ? `${recommended.hotelName} · ${recommended.pricePerNight} ${recommended.currency}/night`
+        : null,
+      cheapest: byPrice[0]
+        ? `${byPrice[0].hotelName} · ${byPrice[0].pricePerNight} ${byPrice[0].currency}/night`
+        : null,
+      highestRated: byRating[0]
+        ? `${byRating[0].hotelName} · ★${byRating[0].rating}`
+        : null,
+    },
+  }
+}
+
+export async function runFlightSearchTool(
+  engine: FlightSearchEngine,
+  ctx: AgentToolContext,
+): Promise<{ data: Record<string, unknown>; empty: boolean; gracefulMessage?: string }> {
+  const request = buildFlightSearchRequest(ctx)
+  const tripType = request.tripType ?? 'round_trip'
+  const page =
+    tripType === 'one_way'
+      ? await engine.searchOneWay(request)
+      : tripType === 'multi_city'
+        ? await engine.searchMultiCity(request)
+        : await engine.searchRoundTrip(request)
+  const travelers = travelersFrom(ctx)
+  return {
+    data: flightPageToToolData(page, travelers),
+    empty: page.flights.length === 0,
+    gracefulMessage: page.diagnostics.gracefulMessage,
+  }
+}
+
+export async function runHotelSearchTool(
+  engine: HotelSearchEngine,
+  ctx: AgentToolContext,
+): Promise<{ data: Record<string, unknown>; empty: boolean; gracefulMessage?: string }> {
+  const request = buildHotelSearchRequest(ctx)
+  const page = await engine.searchHotels(request)
+  const nights = nightsFrom(ctx)
+  return {
+    data: hotelPageToToolData(page, nights),
+    empty: page.hotels.length === 0,
+    gracefulMessage: page.diagnostics.gracefulMessage,
+  }
+}

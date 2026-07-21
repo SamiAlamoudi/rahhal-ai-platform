@@ -19,7 +19,8 @@ describe('agent tool registry', () => {
     expect(flights?.isAvailable()).toBe(true)
     expect(flights?.inputSchema.properties.destination).toBeTruthy()
     expect(flights?.outputSchema.properties.offers).toBeTruthy()
-    expect(flights?.providerId).toBe('aggregate-flights')
+    expect(flights?.providerId).toBe('flight-search-engine')
+    expect(registry.get('hotels')?.providerId).toBe('hotel-search-engine')
 
     const results = await registry.runAvailable({
       requirements: {
