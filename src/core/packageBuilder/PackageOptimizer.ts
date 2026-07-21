@@ -77,10 +77,8 @@ export async function optimizePackagesParallel(
   packages: PackageCandidate[],
   options?: { keepTop?: number; minScore?: number; events?: PackageEvent[] },
 ): Promise<{ packages: PackageCandidate[]; duplicateCount: number }> {
-  // Parallel no-op shards to keep API async-friendly without blocking callers.
-  const [deduped] = await Promise.all([
-    Promise.resolve(dedupePackages(packages)),
-  ])
+  // Async entrypoint for parallel pipeline composition with generate/score stages.
+  const deduped = await Promise.resolve(dedupePackages(packages))
   const pruned = pruneWeakPackages(deduped.unique, options)
   return { packages: pruned, duplicateCount: deduped.duplicateCount }
 }
