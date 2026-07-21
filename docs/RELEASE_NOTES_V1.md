@@ -27,7 +27,7 @@
 ## Traveler path (current)
 
 Production `/chat` uses Conversation Agent → Aggregation tools → Booking Intelligence → Booking Execution → mock Payments.  
-Sprint 72/73 search engines are **library-ready** (verified via `flights:verify` / `hotels:verify`) and are **not yet** the default chat search path.
+Sprint 72/73 search engines are the default chat search path via Sprint 74 (`flight-search-engine` / `hotel-search-engine` tools → Provider Runtime).
 
 ## Canonical docs
 
