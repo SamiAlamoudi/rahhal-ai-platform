@@ -164,6 +164,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: booking_intelligence. Post-tool enrichment; Conversation Brain narrates facts only.',
   },
   {
+    id: 'ai.budget_intelligence',
+    name: 'Budget Intelligence',
+    description:
+      'Sprint 75 — conversation budget extraction, currency/range detection, category allocation, Budget Score ranking across flights/hotels/packages, and diagnostics. Additive post-tool enrichment.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.autonomous_agent'],
+    notes:
+      'Product alias: budget_intelligence. Does not replace search engines; Conversation Brain narrates facts only.',
+  },
+  {
     id: 'ai.live_providers',
     name: 'Live Travel Provider Layer',
     description:

@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 75: Budget Intelligence
+
+### Added
+
+- Budget Intelligence module (`src/lib/agent/budgetIntelligence`) — parse, allocate, Budget Score ranking, diagnostics.
+- Feature flag `ai.budget_intelligence` (default ON).
+- Docs: `docs/SPRINT75_BUDGET_INTELLIGENCE.md`; verify: `npm run budget:verify`.
+
+### Notes
+
+- Additive enrichment only — does not replace Flight/Hotel Search Engines or RahhalBrain.
+
 ## [Unreleased] — Sprint 74: Conversation → Real Search Integration
 
 ### Changed

@@ -7,6 +7,7 @@
 
 import type { FlightSearchEngine, FlightSearchPage, FlightSearchRequest, UnifiedFlight } from '../flightSearchEngine'
 import type { HotelSearchEngine, HotelSearchPage, HotelSearchRequest, UnifiedHotel } from '../hotelSearchEngine'
+import { allocateBudget, hotelNightlyCap } from '../budgetIntelligence'
 import type { TripRequirements } from '../types'
 import type { AgentToolContext } from './types'
 
@@ -129,7 +130,19 @@ export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchReq
 
   const budget = req.budgetAmount
   const style = (req.budgetStyle ?? '').toLowerCase()
-  if (typeof budget === 'number' && budget > 0 && style === 'budget') {
+  const allocation = typeof budget === 'number' && budget > 0
+    ? allocateBudget({
+      total: budget,
+      currency: currencyFrom(ctx),
+      style: req.budgetStyle,
+      nights: Math.max(1, (req.durationDays ?? 3) - 1),
+      flightsOnly: req.packageScope === 'flights_only',
+    })
+    : null
+
+  if (allocation) {
+    request.filters = { maxPrice: allocation.flights }
+  } else if (typeof budget === 'number' && budget > 0 && style === 'budget') {
     request.filters = { maxPrice: Math.round(budget * 0.45) }
   }
 
@@ -147,6 +160,17 @@ export function buildHotelSearchRequest(ctx: AgentToolContext): HotelSearchReque
   const adults = travelersFrom(ctx)
   const currency = currencyFrom(ctx)
   const style = (req.budgetStyle ?? '').toLowerCase()
+  const budget = req.budgetAmount
+  const allocation = typeof budget === 'number' && budget > 0
+    ? allocateBudget({
+      total: budget,
+      currency,
+      style: req.budgetStyle,
+      nights,
+      hotelsOnly: false,
+      flightsOnly: req.packageScope === 'flights_only',
+    })
+    : null
 
   const request: HotelSearchRequest = {
     city,
@@ -164,9 +188,11 @@ export function buildHotelSearchRequest(ctx: AgentToolContext): HotelSearchReque
 
   if (style === 'luxury') {
     request.filters = { minStars: 4, minRating: 4 }
-  } else if (style === 'budget' && typeof req.budgetAmount === 'number' && req.budgetAmount > 0) {
+  } else if (allocation) {
+    request.filters = { maxPrice: hotelNightlyCap(allocation, nights) }
+  } else if (style === 'budget' && typeof budget === 'number' && budget > 0) {
     request.filters = {
-      maxPrice: Math.max(80, Math.round((req.budgetAmount * 0.35) / nights)),
+      maxPrice: Math.max(80, Math.round((budget * 0.35) / nights)),
     }
   }
 
