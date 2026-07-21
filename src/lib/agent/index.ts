@@ -171,6 +171,14 @@ export { selectToolsForTurn } from './tools/selectTools'
 export { mergeToolResultsIntoPlan } from './tools/mergeToolResults'
 export { buildToolInput } from './tools/buildToolInput'
 export {
+  resolveAirportCode,
+  buildFlightSearchRequest,
+  buildHotelSearchRequest,
+  runFlightSearchTool,
+  runHotelSearchTool,
+} from './tools/searchEngineBridge'
+export { createMockFlightSearchTool, createMockHotelSearchTool } from './tools/mockTools'
+export {
   applyIntelligentDecisions,
   detectTripConflicts,
   scoreFlightCandidate,

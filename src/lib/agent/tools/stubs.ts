@@ -47,8 +47,8 @@ export function createUnavailableAgentToolRegistry() {
 }
 
 /**
- * Default tool registry: tools call the multi-provider Aggregation Engine
- * (mock Amadeus/Duffel/Booking/… adapters). Real vendor HTTP comes later.
+ * Default tool registry: flights/hotels use production Search Engines (Sprint 72/73)
+ * via Provider Runtime (Sprint 71). Other domains still use Aggregation Engine mocks.
  */
 export function createMockAgentToolRegistry() {
   const engine = createDefaultAggregationEngine()

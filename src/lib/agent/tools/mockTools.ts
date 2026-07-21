@@ -4,7 +4,16 @@ import {
   type AggregatableDomain,
   type AggregationEngine,
 } from '../aggregation'
+import {
+  getDefaultFlightSearchEngine,
+  type FlightSearchEngine,
+} from '../flightSearchEngine'
+import {
+  getDefaultHotelSearchEngine,
+  type HotelSearchEngine,
+} from '../hotelSearchEngine'
 import type { AgentTool, AgentToolContext, AgentToolResult, ToolJsonSchema } from './types'
+import { runFlightSearchTool, runHotelSearchTool } from './searchEngineBridge'
 
 const destinationSchemaProps = {
   destination: { type: 'string', description: 'Primary destination city or country' },
@@ -86,17 +95,18 @@ function createAggregatedTool(input: {
   return tool
 }
 
+/**
+ * Sprint 74 — flights tool uses Flight Search Engine (Sprint 72) via Provider Runtime.
+ * AggregationEngine arg kept for call-site compatibility; unused for flights.
+ */
 export function createMockFlightSearchTool(
-  engine: AggregationEngine = createDefaultAggregationEngine(),
+  _aggregationEngine?: AggregationEngine,
+  flightEngine: FlightSearchEngine = getDefaultFlightSearchEngine(),
 ): AgentTool {
-  return createAggregatedTool({
+  const tool: AgentTool = {
     name: 'flights',
-    domain: 'flights',
-    providerId: 'aggregate-flights',
-    timeoutMs: 5000,
-    // Real Amadeus (when available) then mock flights automatically.
-    selectionStrategy: 'priority_fallback',
-    engine,
+    providerId: 'flight-search-engine',
+    defaultTimeoutMs: 8000,
     inputSchema: schema('FlightSearchInput', {
       ...destinationSchemaProps,
       origin: { type: 'string' },
@@ -105,48 +115,146 @@ export function createMockFlightSearchTool(
       travelers: { type: 'number' },
     }, ['origin', 'destination', 'travelers']),
     outputSchema: schema('FlightSearchOutput', {
-      offers: { type: 'array', description: 'Aggregated flight offers' },
+      offers: { type: 'array', description: 'Flight Search Engine offers' },
       currency: { type: 'string' },
+      highlights: { type: 'object' },
     }, ['offers']),
-    summarize: (ctx, data, conf) => {
-      const offers = Array.isArray(data.offers) ? data.offers : []
-      const top = offers[0] as { airline?: string; price?: number; currency?: string } | undefined
-      if (!top) return ctx.locale === 'ar' ? 'لا عروض طيران' : 'No flight offers'
-      return ctx.locale === 'ar'
-        ? `طيران مجمّع (${Math.round(conf * 100)}%): ${top.airline} ${top.price} ${top.currency}`
-        : `Aggregated flights (${Math.round(conf * 100)}%): ${top.airline} ${top.price} ${top.currency}`
+    isAvailable: () => true,
+    async execute(ctx) {
+      const started = Date.now()
+      try {
+        const { data, empty, gracefulMessage } = await runFlightSearchTool(flightEngine, ctx)
+        const offers = Array.isArray(data.offers) ? data.offers : []
+        const top = offers[0] as { airline?: string; price?: number; currency?: string } | undefined
+        const highlights = data.highlights as {
+          best?: string | null
+          cheapest?: string | null
+          fastest?: string | null
+        } | undefined
+
+        if (empty) {
+          return {
+            tool: 'flights',
+            status: 'error',
+            summary: gracefulMessage
+              ?? (ctx.locale === 'ar' ? 'لا عروض طيران متاحة حالياً' : 'No flight offers available right now'),
+            data: { ...data, searchEngine: 'flightSearchEngine' },
+            error: gracefulMessage ? 'provider_unavailable' : 'no_results',
+            meta: baseMeta(tool, started),
+          }
+        }
+
+        const highlightLine = [
+          highlights?.best ? `Best: ${highlights.best}` : null,
+          highlights?.cheapest ? `Cheapest: ${highlights.cheapest}` : null,
+          highlights?.fastest ? `Fastest: ${highlights.fastest}` : null,
+        ].filter(Boolean).join(' · ')
+
+        const summary = ctx.locale === 'ar'
+          ? `محرك الطيران: ${top?.airline ?? ''} ${top?.price ?? ''} ${top?.currency ?? ''} (${offers.length})`
+          : `Flight engine: ${top?.airline ?? ''} ${top?.price ?? ''} ${top?.currency ?? ''} (${offers.length} offers)${highlightLine ? ` · ${highlightLine}` : ''}`
+
+        return {
+          tool: 'flights',
+          status: 'ok',
+          summary,
+          data,
+          error: null,
+          meta: baseMeta(tool, started),
+        }
+      } catch (err) {
+        return {
+          tool: 'flights',
+          status: 'error',
+          summary: ctx.locale === 'ar'
+            ? 'تعذّر البحث عن الطيران — سنحاول لاحقاً'
+            : 'Flight search failed — please try again shortly',
+          data: { searchEngine: 'flightSearchEngine' },
+          error: err instanceof Error ? err.message : 'flight_search_failed',
+          meta: baseMeta(tool, started),
+        }
+      }
     },
-  })
+  }
+  return tool
 }
 
+/**
+ * Sprint 74 — hotels tool uses Hotel Search Engine (Sprint 73) via Provider Runtime.
+ * AggregationEngine arg kept for call-site compatibility; unused for hotels.
+ */
 export function createMockHotelSearchTool(
-  engine: AggregationEngine = createDefaultAggregationEngine(),
+  _aggregationEngine?: AggregationEngine,
+  hotelEngine: HotelSearchEngine = getDefaultHotelSearchEngine(),
 ): AgentTool {
-  return createAggregatedTool({
+  const tool: AgentTool = {
     name: 'hotels',
-    domain: 'hotels',
-    providerId: 'aggregate-hotels',
-    timeoutMs: 5000,
-    // Real Booking.com (when available) then mock hotels automatically.
-    selectionStrategy: 'priority_fallback',
-    engine,
+    providerId: 'hotel-search-engine',
+    defaultTimeoutMs: 8000,
     inputSchema: schema('HotelSearchInput', {
       ...destinationSchemaProps,
       nights: { type: 'number' },
       travelers: { type: 'number' },
       currency: { type: 'string' },
+      checkIn: { type: 'string' },
     }, ['destination', 'nights']),
     outputSchema: schema('HotelSearchOutput', {
       stays: { type: 'array' },
+      highlights: { type: 'object' },
     }, ['stays']),
-    summarize: (ctx, data, conf) => {
-      const stays = Array.isArray(data.stays) ? data.stays : []
-      const destination = String(ctx.input?.destination ?? ctx.requirements.destination ?? '')
-      return ctx.locale === 'ar'
-        ? `${stays.length} إقامات مجمّعة في ${destination} (${Math.round(conf * 100)}%)`
-        : `${stays.length} aggregated stays in ${destination} (${Math.round(conf * 100)}%)`
+    isAvailable: () => true,
+    async execute(ctx) {
+      const started = Date.now()
+      try {
+        const { data, empty, gracefulMessage } = await runHotelSearchTool(hotelEngine, ctx)
+        const stays = Array.isArray(data.stays) ? data.stays : []
+        const destination = String(ctx.input?.destination ?? ctx.requirements.destination ?? '')
+        const highlights = data.highlights as {
+          best?: string | null
+          cheapest?: string | null
+        } | undefined
+
+        if (empty) {
+          return {
+            tool: 'hotels',
+            status: 'error',
+            summary: gracefulMessage
+              ?? (ctx.locale === 'ar'
+                ? `لا إقامات متاحة في ${destination}`
+                : `No hotel stays available in ${destination}`),
+            data: { ...data, searchEngine: 'hotelSearchEngine' },
+            error: gracefulMessage ? 'provider_unavailable' : 'no_results',
+            meta: baseMeta(tool, started),
+          }
+        }
+
+        const summary = ctx.locale === 'ar'
+          ? `${stays.length} إقامات عبر محرك الفنادق في ${destination}`
+          : `${stays.length} stays via hotel engine in ${destination}${highlights?.best ? ` · Best: ${highlights.best}` : ''}${highlights?.cheapest ? ` · Cheapest: ${highlights.cheapest}` : ''}`
+
+        return {
+          tool: 'hotels',
+          status: 'ok',
+          summary,
+          data,
+          error: null,
+          meta: baseMeta(tool, started),
+        }
+      } catch (err) {
+        return {
+          tool: 'hotels',
+          status: 'error',
+          summary: ctx.locale === 'ar'
+            ? 'تعذّر البحث عن الفنادق — سنحاول لاحقاً'
+            : 'Hotel search failed — please try again shortly',
+          data: { searchEngine: 'hotelSearchEngine' },
+          error: err instanceof Error ? err.message : 'hotel_search_failed',
+          meta: baseMeta(tool, started),
+        }
+      }
     },
-  })
+  }
+  return tool
 }
 
 export function createMockWeatherTool(

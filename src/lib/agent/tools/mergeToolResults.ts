@@ -80,8 +80,8 @@ export function mergeToolResultsIntoPlan(
   if (ok.length > 0) {
     next.notes.push(
       next.locale === 'ar'
-        ? `تم دمج ${ok.length} نتائج أدوات تجريبية في الخطة.`
-        : `Merged ${ok.length} mock tool results into this plan.`,
+        ? `تم دمج ${ok.length} نتائج أدوات في الخطة.`
+        : `Merged ${ok.length} tool results into this plan.`,
     )
   }
 
@@ -99,7 +99,7 @@ function mergeFlights(plan: TripPlan, result: AgentToolResult): TripPlan {
     mode: 'flight',
     from: String(offer.from ?? 'Origin'),
     to: String(offer.to ?? plan.destinations[0] ?? 'Destination'),
-    notes: `${String(offer.airline ?? 'Airline')} · ${offer.stops ?? 0} stops · mock`,
+    notes: `${String(offer.airline ?? 'Airline')} · ${offer.stops ?? 0} stops · search engine`,
     estimatedCost: typeof offer.price === 'number' ? offer.price : null,
     currency: typeof offer.currency === 'string' ? offer.currency : plan.estimatedBudget.currency,
   }
@@ -151,7 +151,7 @@ function mergeHotels(plan: TripPlan, result: AgentToolResult): TripPlan {
     name: stay.name,
     area: stay.area,
     category: stay.category,
-    fit: 'From hotel search tool (mock)',
+    fit: 'From hotel search engine',
     estimatedNightly: stay.nightly,
     currency: stay.currency,
   }))
