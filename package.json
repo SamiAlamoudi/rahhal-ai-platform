@@ -18,6 +18,7 @@
     "amadeus:check": "node scripts/amadeus-check.mjs",
     "amadeus:live-search": "node scripts/amadeus-live-search.mjs",
     "preview:verify": "vitest run src/lib/__tests__/previewEnvCheck.cli.test.ts",
+    "beta:verify": "vitest run src/lib/__tests__/betaLaunch.sprint67.test.ts",
     "audit": "npm audit --audit-level=high",
     "ci": "npm run typecheck && npm run lint && npm run test:run && npm run providers:check && npm run preview:verify && npm run build && npm run audit",
     "preview": "vite preview",
