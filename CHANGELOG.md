@@ -2,6 +2,18 @@
 
 All notable changes to Rahhal are documented in this file.
 
+## [Unreleased] — Sprint 74: Conversation → Real Search Integration
+
+### Changed
+
+- Traveler conversation `flights` / `hotels` tools now call Flight Search Engine (Sprint 72) and Hotel Search Engine (Sprint 73) via Provider Runtime (Sprint 71).
+- Bridge: `src/lib/agent/tools/searchEngineBridge.ts` (city→IATA, trip-type shaping, best/cheapest/fastest highlights).
+- Docs: `docs/SPRINT74_CONVERSATION_INTEGRATION.md`; verify: `npm run conversation:verify`.
+
+### Notes
+
+- Integration only — no new engines; no RahhalBrain / Provider Runtime redesign.
+
 ## [Unreleased] — Sprint 53: Real World Intelligence Layer
 
 ### Added
