@@ -123,6 +123,20 @@ export type {
   LearningEvent,
 } from './travelerPersonalization'
 export {
+  isTripOptimizerEnabled,
+  TRIP_OPTIMIZER_FEATURE_ID,
+  parseOptimizerIntent,
+  runTripOptimizer,
+  enrichWithTripOptimizer,
+  SPRINT77_TRIP_OPTIMIZER_VERSION,
+} from './tripOptimizer'
+export type {
+  TripOptimizerResult,
+  TripOptimizerDiagnostics,
+  OptimizedItinerary,
+  JourneyScoreBreakdown,
+} from './tripOptimizer'
+export {
   isBookingExecutionEnabled,
   isTransactionManagerEnabled,
   isBookingResumeEnabled,

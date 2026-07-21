@@ -60,6 +60,11 @@ import {
   type TravelerPersonalizationResult,
 } from './travelerPersonalization'
 import {
+  enrichWithTripOptimizer,
+  isTripOptimizerEnabled,
+  type TripOptimizerResult,
+} from './tripOptimizer'
+import {
   enrichWithBookingExecution,
   findLatestConfirmedBookingExecution,
   isBookingExecutionEnabled,
@@ -280,6 +285,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.traveler_personalization` (ON).
    */
   travelerPersonalizationEnabled?: boolean
+  /**
+   * Sprint 77 — Complete Trip Optimizer (Journey Score across flight+hotel packages).
+   * Default: FeatureRegistry `ai.trip_optimizer` (ON).
+   */
+  tripOptimizerEnabled?: boolean
   /**
    * Sprint 57 — Booking Execution Engine (lifecycle, transactions, resume).
    * Default: FeatureRegistry `ai.booking_execution` (ON). Runs only on explicit confirm/book cues.
@@ -524,6 +534,30 @@ function toMetaTravelerPersonalization(
   }
 }
 
+function toMetaTripOptimizer(
+  result: TripOptimizerResult,
+): NonNullable<AgentProviderMeta['tripOptimizer']> {
+  const labels = [
+    result.recommendations.bestOverall ? 'best_overall' : null,
+    result.recommendations.bestValue ? 'best_value' : null,
+    result.recommendations.fastest ? 'fastest' : null,
+    result.recommendations.luxury ? 'luxury' : null,
+    result.recommendations.business ? 'business' : null,
+    result.recommendations.family ? 'family' : null,
+  ].filter(Boolean) as string[]
+  return {
+    journeyScore: result.diagnostics.journeyScore,
+    priority: result.diagnostics.priority,
+    itineraryCount: result.diagnostics.itineraryCount,
+    budgetEffect: result.diagnostics.budgetEffect,
+    personalizationEffect: result.diagnostics.personalizationEffect,
+    tradeoffCount: result.diagnostics.tradeoffs.length,
+    bestOverallId: result.recommendations.bestOverall?.id ?? null,
+    recommendationLabels: labels,
+    durationMs: result.durationMs,
+  }
+}
+
 function offersFromToolBatch(batch: ToolExecutionBatch | undefined): {
   flightOffers: Array<Record<string, unknown>>
   hotelStays: Array<Record<string, unknown>>
@@ -741,6 +775,9 @@ export function createTravelAgentService(
   const isTravelerPersonalizationOn = (): boolean =>
     isTravelerPersonalizationEnabled({ enabled: options.travelerPersonalizationEnabled })
 
+  const isTripOptimizerOn = (): boolean =>
+    isTripOptimizerEnabled({ enabled: options.tripOptimizerEnabled })
+
   const isBookingExecEnabled = (): boolean =>
     isBookingExecutionEnabled({ enabled: options.bookingExecutionEnabled })
 
@@ -775,6 +812,7 @@ export function createTravelAgentService(
     bookingIntelligence?: BookingIntelligenceResult
     budgetIntelligence?: BudgetIntelligenceResult
     travelerPersonalization?: TravelerPersonalizationResult
+    tripOptimizer?: TripOptimizerResult
     bookingExecution?: BookingExecutionResult
     payments?: PaymentsPlatformResult
   }> => {
@@ -787,12 +825,14 @@ export function createTravelAgentService(
       bookingIntelligence?: BookingIntelligenceResult
       budgetIntelligence?: BudgetIntelligenceResult
       travelerPersonalization?: TravelerPersonalizationResult
+      tripOptimizer?: TripOptimizerResult
       bookingExecution?: BookingExecutionResult
       payments?: PaymentsPlatformResult
     }> => {
       let nextPlan = plan
       let budgetIntelligence: BudgetIntelligenceResult | undefined
       let travelerPersonalization: TravelerPersonalizationResult | undefined
+      let tripOptimizer: TripOptimizerResult | undefined
       const { flightOffers, hotelStays } = offersFromToolBatch(batch)
 
       if (isBudgetIntelEnabled()) {
@@ -824,8 +864,23 @@ export function createTravelAgentService(
         travelerPersonalization = personalized.travelerPersonalization ?? undefined
       }
 
+      if (isTripOptimizerOn()) {
+        const optimized = await enrichWithTripOptimizer({
+          memory,
+          tripPlan: nextPlan,
+          userText: input.userText,
+          enabled: options.tripOptimizerEnabled,
+          flightOffers: flightOffers.length ? flightOffers : undefined,
+          hotelStays: hotelStays.length ? hotelStays : undefined,
+          budgetIntelligence,
+          travelerPersonalization,
+        })
+        nextPlan = optimized.tripPlan
+        tripOptimizer = optimized.tripOptimizer ?? undefined
+      }
+
       if (!isBookingIntelEnabled()) {
-        return { plan: nextPlan, budgetIntelligence, travelerPersonalization }
+        return { plan: nextPlan, budgetIntelligence, travelerPersonalization, tripOptimizer }
       }
       const enriched = await enrichWithBookingIntelligence({
         memory,
@@ -883,6 +938,7 @@ export function createTravelAgentService(
         bookingIntelligence: enriched.bookingIntelligence ?? undefined,
         budgetIntelligence,
         travelerPersonalization,
+        tripOptimizer,
         bookingExecution,
         payments,
       }
@@ -909,6 +965,7 @@ export function createTravelAgentService(
           bookingIntelligence: intel.bookingIntelligence,
           budgetIntelligence: intel.budgetIntelligence,
           travelerPersonalization: intel.travelerPersonalization,
+          tripOptimizer: intel.tripOptimizer,
           bookingExecution: intel.bookingExecution,
           payments: intel.payments,
         }
@@ -942,6 +999,7 @@ export function createTravelAgentService(
           bookingIntelligence: intel.bookingIntelligence,
           budgetIntelligence: intel.budgetIntelligence,
           travelerPersonalization: intel.travelerPersonalization,
+          tripOptimizer: intel.tripOptimizer,
           bookingExecution: intel.bookingExecution,
           payments: intel.payments,
         }
@@ -1000,6 +1058,7 @@ export function createTravelAgentService(
       bookingIntelligence: intel.bookingIntelligence,
       budgetIntelligence: intel.budgetIntelligence,
       travelerPersonalization: intel.travelerPersonalization,
+      tripOptimizer: intel.tripOptimizer,
       bookingExecution: intel.bookingExecution,
       payments: intel.payments,
     }
@@ -1060,6 +1119,7 @@ export function createTravelAgentService(
       let bookingIntelligenceResult: BookingIntelligenceResult | null = null
       let budgetIntelligenceResult: BudgetIntelligenceResult | null = null
       let travelerPersonalizationResult: TravelerPersonalizationResult | null = null
+      let tripOptimizerResult: TripOptimizerResult | null = null
       let bookingExecutionResult: BookingExecutionResult | null = null
       let paymentsResult: PaymentsPlatformResult | null = null
 
@@ -1457,9 +1517,12 @@ export function createTravelAgentService(
             travelerPersonalization: toMetaTravelerPersonalization(travelerPersonalizationResult),
           }
           : withBudget
-        const withExecution = bookingExecutionResult
-          ? { ...withPersonalization, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+        const withOptimizer = tripOptimizerResult
+          ? { ...withPersonalization, tripOptimizer: toMetaTripOptimizer(tripOptimizerResult) }
           : withPersonalization
+        const withExecution = bookingExecutionResult
+          ? { ...withOptimizer, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+          : withOptimizer
         const withPayments = paymentsResult
           ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
           : withExecution
@@ -1888,6 +1951,7 @@ export function createTravelAgentService(
             },
           }
         }
+        if (ran.tripOptimizer) tripOptimizerResult = ran.tripOptimizer
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
         if (ran.payments) paymentsResult = ran.payments
         memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, ran.plan)
@@ -1949,6 +2013,7 @@ export function createTravelAgentService(
             },
           }
         }
+        if (ran.tripOptimizer) tripOptimizerResult = ran.tripOptimizer
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
         if (ran.payments) paymentsResult = ran.payments
         if (llmResult.draft?.notes?.length) {
@@ -2006,6 +2071,7 @@ export function createTravelAgentService(
         savedTitle,
         recommendations: [
           ...(budgetIntelligenceResult?.recommendationFacts ?? []),
+          ...(tripOptimizerResult?.recommendationFacts ?? []),
           ...(bookingIntelligenceResult?.recommendationFacts ?? []),
           ...(bookingExecutionResult?.executionFacts ?? []),
           ...(paymentsResult?.paymentFacts ?? []),

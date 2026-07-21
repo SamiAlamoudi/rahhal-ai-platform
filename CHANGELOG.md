@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 77: Complete Trip Optimizer
+
+### Added
+
+- Trip Optimizer (`src/lib/agent/tripOptimizer`) — Journey Score across flight+hotel packages, dimension scores, recommendation labels, tradeoff diagnostics.
+- Feature flag `ai.trip_optimizer` (default ON).
+- Docs: `docs/SPRINT77_TRIP_OPTIMIZER.md`; verify: `npm run optimizer:verify`.
+
+### Notes
+
+- Additive enrichment only — does not redesign RahhalBrain or replace search / budget / personalization engines.
+
 ## [Unreleased] — Sprint 76: Traveler Personalization Intelligence
 
 ### Added
