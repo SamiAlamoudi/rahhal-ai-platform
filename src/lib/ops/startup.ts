@@ -9,6 +9,7 @@ import { installGlobalErrorHandlers } from './errors/globalHandlers'
 import { getGracefulShutdown } from './reliability/gracefulShutdown'
 import { installLongTaskDetector } from './performance/performanceToolkit'
 import { installProductionHardening } from './production/install'
+import { installDeploymentAutomation } from './deployment/install'
 
 export interface StartupOptions {
   target?: DeployTarget
@@ -17,6 +18,8 @@ export interface StartupOptions {
   installHandlers?: boolean
   /** Sprint 65 — install provider log bridge (default true). */
   installHardening?: boolean
+  /** Sprint 68 — install deployment automation banner (default true). */
+  installDeployment?: boolean
 }
 
 export interface StartupResult {
@@ -54,6 +57,10 @@ export function runStartup(options: StartupOptions = {}): StartupResult {
   if (options.installHardening !== false) {
     const hardening = installProductionHardening()
     disposers.push(hardening.dispose)
+  }
+  if (options.installDeployment !== false) {
+    const deployment = installDeploymentAutomation()
+    disposers.push(deployment.dispose)
   }
 
   const shutdown = getGracefulShutdown()

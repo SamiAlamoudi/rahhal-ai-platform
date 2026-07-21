@@ -1,16 +1,19 @@
-# Release Notes — Rahhal Production V1 (RC)
+# Release Notes — Rahhal Production V1
 
+**Release:** `1.0.0`  
 **Release candidate:** `1.0.0-rc`  
 **Package version:** `1.1.0-rc.1`  
-**Codename:** Production Hardening & Go Live (Sprint 65)
+**Codename:** Production Deployment & Launch Automation (Sprint 68)
 
 ## Highlights
 
-- Production readiness gates: security audit, feature-flag audit, config audit, dependency checks, data integrity validators
-- Provider log bridge into structured logging + ops metrics (correlation IDs)
-- Domain latency timers (conversation, trip, booking, document, provider, search, ranking, timeline)
-- Recovery playbooks composed from existing retry budgets, circuit fallback, DLQ, booking resume
-- Operational documentation suite for V1 deploy/run/recover
+- Deployment profiles: development / staging / beta / production
+- CI/CD automation: lint, typecheck, test, release build, smoke, rollback trigger
+- Secrets validation for Amadeus, Booking.com, Duffel, Stripe, HyperPay, Apple Pay, notifications
+- Production subsystem health APIs + metrics + alert evaluation
+- Rollback playbooks (deployment, configuration, provider, feature, safe mode, startup recovery)
+- Release automation artifacts: notes, deployment/env reports, feature matrix, go-live checklist
+- Composes Sprint 65 hardening + Sprint 66 E2E validation (no business-logic changes)
 
 ## Safe defaults (unchanged)
 
@@ -20,28 +23,31 @@
 
 ## Upgrade / migration
 
-None. Additive ops module only. Existing Phase X/AA APIs preserved.
+None. Additive `src/lib/ops/deployment/` module only. Existing Phase X/AA and Sprint 65/66 APIs preserved.
 
 ## Deployment notes
 
-See `docs/DEPLOYMENT_GUIDE_V1.md` and `docs/PRODUCTION_CHECKLIST_V1.md`.
+See `docs/SPRINT68_PRODUCTION_DEPLOYMENT.md`, `docs/LAUNCH_AUTOMATION_V1.md`, and `docs/PRODUCTION_CHECKLIST_V1.md`.
 
 ## GitHub Release body (copy)
 
 ```
-## Rahhal Production V1 RC (Sprint 65)
+## Rahhal Production V1 (Sprint 68)
 
-Production hardening only — security audit, observability bridges, recovery plans, go-live checklist, and operational docs.
+Production deployment & launch automation — profiles, CI/CD gates, secrets validation,
+health/metrics/alerts, rollback, release artifacts. No product feature changes.
 
 ### Validation
 - lint / typecheck / test:run / build
+- npm run deploy:verify
+- npm run production:verify
 
 ### Defaults
 - Payments: mock
 - Live providers: off
 
 ### Docs
-- docs/SPRINT65_PRODUCTION_HARDENING.md
+- docs/SPRINT68_PRODUCTION_DEPLOYMENT.md
+- docs/LAUNCH_AUTOMATION_V1.md
 - docs/RELEASE_NOTES_V1.md
-- docs/PRODUCTION_CHECKLIST_V1.md
 ```
