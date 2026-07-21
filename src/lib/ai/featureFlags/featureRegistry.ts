@@ -230,6 +230,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: adaptive_learning. Local PreferenceStore only; no external training or data leakage. Additive to Decision Engine.',
   },
   {
+    id: 'ai.price_intelligence',
+    name: 'AI Price Intelligence & Booking Timing',
+    description:
+      'Sprint 81 — booking timing reasoning (BOOK_NOW / WAIT / WATCH_PRICE / …) from offer pools, historical observations, demand, seasonality, and availability. Not a live pricing feed.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.adaptive_learning'],
+    notes:
+      'Product alias: price_intelligence. Additive post-decision layer; RahhalBrain unchanged.',
+  },
+  {
     id: 'ai.live_providers',
     name: 'Live Travel Provider Layer',
     description:

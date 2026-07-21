@@ -178,6 +178,15 @@ export type {
   AdaptiveLearningResult,
 } from './adaptiveLearning'
 export {
+  isPriceIntelligenceEnabled,
+  PRICE_INTELLIGENCE_FEATURE_ID,
+  enrichWithPriceIntelligence,
+  buildPriceIntelligenceInput,
+  runBookingTiming,
+  SPRINT81_PRICE_INTELLIGENCE_VERSION,
+} from './priceIntelligence'
+export type { BookingTimingResult } from './priceIntelligence'
+export {
   isBookingExecutionEnabled,
   isTransactionManagerEnabled,
   isBookingResumeEnabled,

@@ -466,6 +466,22 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 81 — Price Intelligence & Booking Timing snapshot.
+   * Additive structured facts only — Conversation Brain authors traveler-facing text.
+   */
+  priceIntelligence?: {
+    action: string
+    confidence: number
+    explanation: string | null
+    opportunities: string[]
+    signalsUsed: string[]
+    currentPrice: number | null
+    averagePrice: number | null
+    trend: string | null
+    daysToDeparture: number | null
+    durationMs: number
+  }
+  /**
    * Sprint 57 — Booking Execution Engine snapshot (lifecycle, confirmations, resume).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */
