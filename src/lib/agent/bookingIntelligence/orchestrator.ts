@@ -196,9 +196,16 @@ function resolveDomains(
 }
 
 function hasMinimumSearchContext(requirements: AgentMemory['requirements']): boolean {
-  return Boolean(
+  // Sprint 60: search hotels (and packages) once destination + timing are known.
+  const hasDestination = Boolean(
     requirements.destination
     || requirements.destinations[0]
     || requirements.destinationFlexible,
   )
+  const hasDates = Boolean(
+    requirements.startDate
+    || (requirements.startDate && requirements.endDate)
+    || requirements.durationDays != null,
+  )
+  return hasDestination && hasDates
 }

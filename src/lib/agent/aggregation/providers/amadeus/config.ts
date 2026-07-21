@@ -59,8 +59,14 @@ export function resolveAmadeusProviderConfig(
   overrides: Partial<AmadeusProviderConfig> = {},
 ): AmadeusProviderConfig {
   const integration = getIntegrationConfig().flight
-  const clientId = overrides.clientId ?? readProcessEnv('AMADEUS_CLIENT_ID')
-  const clientSecret = overrides.clientSecret ?? readProcessEnv('AMADEUS_CLIENT_SECRET')
+  const clientId =
+    overrides.clientId
+    ?? readProcessEnv('AMADEUS_API_KEY')
+    ?? readProcessEnv('AMADEUS_CLIENT_ID')
+  const clientSecret =
+    overrides.clientSecret
+    ?? readProcessEnv('AMADEUS_API_SECRET')
+    ?? readProcessEnv('AMADEUS_CLIENT_SECRET')
 
   const envSwitch = String(
     overrides.environment

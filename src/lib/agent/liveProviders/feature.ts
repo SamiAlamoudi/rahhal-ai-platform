@@ -76,18 +76,46 @@ export function readLiveProviderSecret(key: string): string | null {
   return readEnv(key)
 }
 
+/**
+ * Sprint 59 prefers AMADEUS_API_KEY / AMADEUS_API_SECRET.
+ * AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET remain supported aliases.
+ */
+export function readAmadeusApiKey(): string | null {
+  return (
+    readLiveProviderSecret('AMADEUS_API_KEY')
+    ?? readLiveProviderSecret('AMADEUS_CLIENT_ID')
+  )
+}
+
+export function readAmadeusApiSecret(): string | null {
+  return (
+    readLiveProviderSecret('AMADEUS_API_SECRET')
+    ?? readLiveProviderSecret('AMADEUS_CLIENT_SECRET')
+  )
+}
+
 export function hasAmadeusCredentials(): boolean {
-  return Boolean(readLiveProviderSecret('AMADEUS_CLIENT_ID') && readLiveProviderSecret('AMADEUS_CLIENT_SECRET'))
+  return Boolean(readAmadeusApiKey() && readAmadeusApiSecret())
 }
 
 export function hasDuffelCredentials(): boolean {
   return Boolean(readLiveProviderSecret('DUFFEL_API_TOKEN'))
 }
 
-export function hasBookingCredentials(): boolean {
-  return Boolean(
-    readLiveProviderSecret('RAPIDAPI_KEY')
-    || readLiveProviderSecret('BOOKING_RAPIDAPI_KEY')
-    || readEnv('VITE_RAPIDAPI_KEY'),
+/**
+ * Sprint 60 — Booking.com / RapidAPI hotel credentials (server preferred).
+ * Order: BOOKING_API_KEY → RAPIDAPI_KEY → BOOKING_RAPIDAPI_KEY → VITE_RAPIDAPI_KEY
+ */
+export function readBookingApiKey(): string | null {
+  return (
+    readLiveProviderSecret('BOOKING_API_KEY')
+    ?? readLiveProviderSecret('RAPIDAPI_KEY')
+    ?? readLiveProviderSecret('BOOKING_RAPIDAPI_KEY')
+    ?? readEnv('VITE_RAPIDAPI_KEY')
+    ?? readEnv('VITE_BOOKING_API_KEY')
   )
+}
+
+export function hasBookingCredentials(): boolean {
+  return Boolean(readBookingApiKey())
 }

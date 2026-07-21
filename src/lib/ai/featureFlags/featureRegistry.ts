@@ -181,7 +181,8 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'experimental',
     enabled: false,
     dependsOn: ['ai.live_providers'],
-    notes: 'Requires AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET (server-only).',
+    notes:
+      'Requires AMADEUS_API_KEY / AMADEUS_API_SECRET (server-only; CLIENT_ID/SECRET aliases OK).',
   },
   {
     id: 'provider.duffel',
@@ -195,11 +196,12 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
   {
     id: 'provider.booking',
     name: 'Booking.com live adapter',
-    description: 'Sprint 56 — Booking.com hotel search with normalized hotel/price/rating/photos/location.',
+    description:
+      'Sprint 60 — Booking.com hotel search with full normalize (address, room, taxes, amenities, geo).',
     lifecycle: 'experimental',
     enabled: false,
     dependsOn: ['ai.live_providers'],
-    notes: 'Requires RAPIDAPI_KEY or BOOKING_RAPIDAPI_KEY (prefer server-only).',
+    notes: 'Requires BOOKING_API_KEY or RAPIDAPI_KEY / BOOKING_RAPIDAPI_KEY (server-only preferred).',
   },
   {
     id: 'ai.booking_execution',

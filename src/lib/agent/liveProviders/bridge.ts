@@ -42,26 +42,64 @@ function flightToBooking(offer: LiveFlightOffer): BookingOffer {
   }
 }
 
+function hotelGuestRatingToFive(rating: number | null | undefined): number | null {
+  if (rating == null || !Number.isFinite(rating)) return null
+  // Booking.com guest scores are typically 0–10; BookingOffer ranking expects ~0–5.
+  return rating > 5 ? Math.round((rating / 2) * 10) / 10 : rating
+}
+
+function hotelLocationScore(offer: LiveHotelOffer): number {
+  if (offer.distanceFromCenterKm != null && Number.isFinite(offer.distanceFromCenterKm)) {
+    const km = offer.distanceFromCenterKm
+    if (km <= 0.5) return 0.98
+    if (km <= 1.5) return 0.9
+    if (km <= 3) return 0.75
+    if (km <= 6) return 0.55
+    return 0.35
+  }
+  if (offer.latitude != null && offer.longitude != null) return 0.7
+  return offer.area || offer.address ? 0.6 : 0.45
+}
+
 function hotelToBooking(offer: LiveHotelOffer): BookingOffer {
+  const currency = offer.currency || offer.total.currency || offer.nightly.currency
+  const totalPrice = offer.total.amount > 0 ? offer.total : offer.nightly
+  const walkingDistanceMeters =
+    offer.distanceFromCenterKm != null && Number.isFinite(offer.distanceFromCenterKm)
+      ? Math.round(offer.distanceFromCenterKm * 1000)
+      : null
+  const guestRating = hotelGuestRatingToFive(offer.rating)
   return {
     id: offer.id,
     domain: 'hotels',
     providerId: offer.providerId,
     title: offer.name,
-    subtitle: offer.area ?? undefined,
-    price: money(offer.nightly.amount, offer.nightly.currency),
-    rating: offer.rating,
-    qualityScore: offer.rating != null ? Math.min(1, offer.rating / 10) : 0.7,
-    locationScore: offer.area ? 0.8 : 0.5,
+    subtitle: offer.address || offer.area || undefined,
+    price: money(totalPrice.amount, currency),
+    rating: guestRating,
+    qualityScore: guestRating != null ? Math.min(1, guestRating / 5) : 0.7,
+    locationScore: hotelLocationScore(offer),
+    walkingDistanceMeters,
     stars: offer.stars,
     refundable: offer.refundable,
     refundPolicy: offer.refundable === true ? 'flexible' : offer.refundable === false ? 'strict' : 'unknown',
     hotelChain: null,
+    mealIncluded: offer.amenities.some((a) => /breakfast|إفطار/i.test(a)) || null,
     raw: {
       ...(typeof offer.raw === 'object' && offer.raw ? offer.raw : {}),
+      provider: offer.providerId,
+      address: offer.address,
+      roomType: offer.roomType,
+      cancellationPolicy: offer.cancellationPolicy,
+      nightly: offer.nightly,
+      total: offer.total,
+      taxes: offer.taxes,
+      currency: offer.currency,
       photos: offer.photos,
+      amenities: offer.amenities,
       latitude: offer.latitude,
       longitude: offer.longitude,
+      distanceFromCenterKm: offer.distanceFromCenterKm,
     },
   }
 }
@@ -179,6 +217,8 @@ export function bridgeLiveProviderToBooking(sdk: LiveProviderSdk): BookingProvid
             departureDate: query.startDate,
             returnDate: query.endDate,
             adults: query.adults ?? query.travelers ?? 1,
+            children: query.children ?? 0,
+            cabin: query.cabin ?? null,
             currency: query.budgetCurrency ?? undefined,
             signal: query.signal,
           })
@@ -200,6 +240,7 @@ export function bridgeLiveProviderToBooking(sdk: LiveProviderSdk): BookingProvid
             checkIn: query.startDate,
             checkOut: query.endDate,
             adults: query.adults ?? query.travelers ?? 2,
+            children: query.children ?? 0,
             currency: query.budgetCurrency ?? undefined,
             signal: query.signal,
           })

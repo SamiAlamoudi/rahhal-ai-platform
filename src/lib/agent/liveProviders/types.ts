@@ -39,14 +39,28 @@ export interface LiveFlightOffer {
 export interface LiveHotelOffer {
   id: string
   providerId: LiveProviderId
+  /** Hotel display name */
   name: string
+  /** Full street / property address when available */
+  address: string | null
+  /** Neighborhood / city area label (legacy + ranking) */
   area: string | null
-  stars: number | null
-  rating: number | null
-  nightly: LiveMoney
-  photos: string[]
   latitude: number | null
   longitude: number | null
+  /** Star rating (typically 1–5) */
+  stars: number | null
+  /** Guest review score (Booking.com often 0–10) */
+  rating: number | null
+  roomType: string | null
+  cancellationPolicy: string | null
+  nightly: LiveMoney
+  total: LiveMoney
+  taxes: LiveMoney
+  currency: string
+  photos: string[]
+  amenities: string[]
+  /** Distance from city center in kilometers when provided by the supplier. */
+  distanceFromCenterKm: number | null
   refundable: boolean | null
   raw?: unknown
 }
@@ -101,6 +115,9 @@ export interface LiveFlightSearchInput {
   departureDate: string
   returnDate?: string | null
   adults?: number
+  children?: number
+  /** Economy / premium_economy / business / first (case-insensitive). */
+  cabin?: string | null
   currency?: string
   signal?: AbortSignal
 }
@@ -110,6 +127,8 @@ export interface LiveHotelSearchInput {
   checkIn: string
   checkOut?: string | null
   adults?: number
+  children?: number
+  rooms?: number
   currency?: string
   signal?: AbortSignal
 }

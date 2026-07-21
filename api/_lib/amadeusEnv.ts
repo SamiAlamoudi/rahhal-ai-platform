@@ -32,8 +32,16 @@ export function readAmadeusCredentials(env: Record<string, string | undefined> =
   host: string
   hasCredentials: boolean
 } {
-  const clientId = (env.AMADEUS_CLIENT_ID || '').trim() || null
-  const clientSecret = (env.AMADEUS_CLIENT_SECRET || '').trim() || null
+  // Sprint 59: AMADEUS_API_KEY / AMADEUS_API_SECRET preferred;
+  // AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET remain supported aliases.
+  const clientId =
+    (env.AMADEUS_API_KEY || '').trim()
+    || (env.AMADEUS_CLIENT_ID || '').trim()
+    || null
+  const clientSecret =
+    (env.AMADEUS_API_SECRET || '').trim()
+    || (env.AMADEUS_CLIENT_SECRET || '').trim()
+    || null
   const host = normalizeAmadeusHost(env.AMADEUS_BASE_URL)
   return {
     clientId,
@@ -48,7 +56,8 @@ export function missingCredentialsResponse(): ProvidersHealthResponse {
     amadeus: 'missing_credentials',
     fallback: true,
     checkedAt: new Date().toISOString(),
-    detail: 'AMADEUS_CLIENT_ID and/or AMADEUS_CLIENT_SECRET are not set on the server',
+    detail:
+      'AMADEUS_API_KEY/AMADEUS_API_SECRET (or AMADEUS_CLIENT_ID/AMADEUS_CLIENT_SECRET) are not set on the server',
   }
 }
 

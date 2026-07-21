@@ -99,6 +99,8 @@ export function wrapLiveProvider(options: WrapLiveProviderOptions): LiveProvider
         input.departureDate,
         input.returnDate,
         input.adults,
+        input.children,
+        input.cabin,
         input.currency,
       ])
       const result = await timed(
@@ -122,6 +124,8 @@ export function wrapLiveProvider(options: WrapLiveProviderOptions): LiveProvider
         input.checkIn,
         input.checkOut,
         input.adults,
+        input.children,
+        input.rooms,
         input.currency,
       ])
       const result = await timed(

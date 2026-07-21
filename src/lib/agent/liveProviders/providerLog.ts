@@ -1,13 +1,27 @@
 /**
- * Structured provider logging — never logs secrets.
+ * Structured provider request logging — Sprint 59 / 60 / 61.
+ * Logs request id, duration, status, provider name, and optional booking refs.
+ * Never logs secrets, tokens, or credential material.
  */
+
+export type ProviderLogStatus =
+  | 'ok'
+  | 'empty'
+  | 'error'
+  | 'rate_limit'
+  | 'invalid_airport'
+  | 'invalid_destination'
+  | 'unavailable'
+  | 'timeout'
+  | 'expired_token'
+  | 'auth_retry'
 
 export type ProviderLogEntry = {
   requestId: string
   provider: string
   operation: string
   durationMs: number
-  status: string
+  status: ProviderLogStatus | string
   bookingId?: string | null
   providerReference?: string | null
   httpStatus?: number | null
@@ -25,7 +39,9 @@ const SECRET_PATTERNS: RegExp[] = [
 function sanitizeDetail(detail: string | null | undefined): string | null {
   if (!detail) return null
   let out = detail
-  for (const pattern of SECRET_PATTERNS) out = out.replace(pattern, '[redacted]')
+  for (const pattern of SECRET_PATTERNS) {
+    out = out.replace(pattern, '[redacted]')
+  }
   return out.slice(0, 200)
 }
 
@@ -45,11 +61,27 @@ let sink: ProviderLogSink = (entry) => {
 }
 
 export function setProviderLogSink(next: ProviderLogSink | null): void {
-  sink = next ?? sink
+  sink =
+    next ??
+    ((entry) => {
+      // eslint-disable-next-line no-console
+      console.info('[provider]', {
+        requestId: entry.requestId,
+        provider: entry.provider,
+        operation: entry.operation,
+        durationMs: entry.durationMs,
+        status: entry.status,
+        bookingId: entry.bookingId ?? undefined,
+        providerReference: entry.providerReference ?? undefined,
+        httpStatus: entry.httpStatus ?? undefined,
+        detail: entry.detail ?? undefined,
+      })
+    })
 }
 
 export function createProviderRequestId(prefix = 'prv'): string {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+  const rand = Math.random().toString(36).slice(2, 10)
+  return `${prefix}_${Date.now().toString(36)}_${rand}`
 }
 
 export function logProviderRequest(entry: ProviderLogEntry): void {
