@@ -1,9 +1,10 @@
 # Release Notes — Rahhal 1.0.0 General Availability
 
 **Release:** `1.0.0`  
-**Release type:** GA  
+**Release type:** GA (+ post-GA library engines through Sprint 73)  
 **Package version:** `1.1.0-rc.1`  
-**Sprint:** 70 — General Availability
+**Main tip:** Sprint 73 — Hotel Search Engine  
+**QA:** Sprint QA-0 product audit (`docs/QA0_PRODUCT_AUDIT.md`)
 
 ## Highlights
 
@@ -13,6 +14,9 @@
 - Production deployment & launch automation (Sprint 68)
 - Real beta operations & production monitoring (Sprint 69)
 - GA release manager & version manifest (Sprint 70)
+- Provider Runtime framework (Sprint 71)
+- Flight Search Engine (Sprint 72)
+- Hotel Search Engine (Sprint 73)
 
 ## Safe defaults
 
@@ -20,13 +24,15 @@
 - Live providers OFF
 - No architecture or business-engine rewrites in GA packaging
 
-## Docs
+## Traveler path (current)
 
-- `docs/SPRINT70_GA_RELEASE.md`
-- `docs/CHANGELOG_V1.md`
-- `docs/VERSION_1_0_0.md`
-- `docs/GA_CHECKLIST.md`
-- `docs/SYSTEM_STATUS.md`
-- `docs/API_STATUS.md`
-- `docs/KNOWN_LIMITATIONS.md`
-- `docs/ROADMAP_POST_V1.md`
+Production `/chat` uses Conversation Agent → Aggregation tools → Booking Intelligence → Booking Execution → mock Payments.  
+Sprint 72/73 search engines are **library-ready** (verified via `flights:verify` / `hotels:verify`) and are **not yet** the default chat search path.
+
+## Canonical docs
+
+- `docs/CHANGELOG_V1.md`, `docs/SYSTEM_STATUS.md`, `docs/API_STATUS.md`
+- `docs/SPRINT71_PROVIDER_RUNTIME.md` … `docs/SPRINT73_HOTEL_SEARCH_ENGINE.md`
+- `docs/QA0_PRODUCT_AUDIT.md`
+
+Root `RELEASE_NOTES.md` / `RELEASE_NOTES_v1.md` are historical pointers only.
