@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 80: Adaptive Learning & Personalization Engine
+
+### Added
+
+- Core profile + learning stack (`src/core/profile`, `src/core/learning`) — online preference adaptation, confidence ladder, local PreferenceStore, Decision Engine ranking adjustments, explainability.
+- Agent bridge `src/lib/agent/adaptiveLearning` + flag `ai.adaptive_learning` (default ON).
+- Docs: `docs/SPRINT80_ADAPTIVE_LEARNING.md`; verify: `npm run learning:verify`.
+
+### Notes
+
+- Not ML training. Local-only learning with reset/disable. Additive to Decision Engine; RahhalBrain unchanged.
+
 ## [Unreleased] — Sprint 79: Autonomous Search & Decision Engine
 
 ### Added

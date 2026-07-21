@@ -1,8 +1,13 @@
 /**
  * Additive post-tool enrichment — Autonomous Search & Decision Engine (Sprint 79).
+ * Sprint 80 — optional learned TravelerProfile for ranking adjustments.
  */
 
-import { runDecisionEngine, type StrategyContext } from '../../../core'
+import {
+  runDecisionEngine,
+  type StrategyContext,
+  type TravelerProfile,
+} from '../../../core'
 import type { AgentMemory, TripPlan } from '../types'
 import type { TravelPlannerResult } from '../travelPlanner/types'
 import { isAutonomousDecisionEnabled } from './feature'
@@ -34,6 +39,8 @@ export async function enrichWithAutonomousDecision(input: {
   flightOffers?: Array<Record<string, unknown>>
   hotelStays?: Array<Record<string, unknown>>
   travelPlanner?: TravelPlannerResult | null
+  /** Sprint 80 — local learned preferences for Decision Engine. */
+  learnedProfile?: TravelerProfile | null
 }): Promise<{
   tripPlan: TripPlan
   autonomousDecision: AutonomousDecisionResult | null
@@ -47,6 +54,7 @@ export async function enrichWithAutonomousDecision(input: {
     hotelStays: input.hotelStays,
     strategy: strategyFromPlanner(input.travelPlanner, input.memory),
     budgetCap: input.memory.requirements.budgetAmount,
+    learnedProfile: input.learnedProfile ?? null,
   })
 
   const best = result.recommendations.bestOverall

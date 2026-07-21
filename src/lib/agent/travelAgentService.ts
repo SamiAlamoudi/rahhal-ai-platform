@@ -75,6 +75,12 @@ import {
   type AutonomousDecisionResult,
 } from './autonomousDecision'
 import {
+  getLearnedProfile,
+  isAdaptiveLearningEnabled,
+  runAdaptiveLearningTurn,
+  type AdaptiveLearningResult,
+} from './adaptiveLearning'
+import {
   enrichWithBookingExecution,
   findLatestConfirmedBookingExecution,
   isBookingExecutionEnabled,
@@ -310,6 +316,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.autonomous_decision` (ON).
    */
   autonomousDecisionEnabled?: boolean
+  /**
+   * Sprint 80 — Adaptive Learning & Personalization Engine (local preference adaptation).
+   * Default: FeatureRegistry `ai.adaptive_learning` (ON).
+   */
+  adaptiveLearningEnabled?: boolean
   /**
    * Sprint 57 — Booking Execution Engine (lifecycle, transactions, resume).
    * Default: FeatureRegistry `ai.booking_execution` (ON). Runs only on explicit confirm/book cues.
@@ -615,6 +626,24 @@ function toMetaAutonomousDecision(
   }
 }
 
+function toMetaAdaptiveLearning(
+  result: AdaptiveLearningResult,
+): NonNullable<AgentProviderMeta['adaptiveLearning']> {
+  const top = [...result.profile.preferences]
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 5)
+    .map((p) => ({ kind: p.kind, value: p.value, confidence: p.confidence }))
+  return {
+    learningEnabled: result.profile.learningEnabled,
+    preferenceCount: result.profile.preferences.length,
+    preferencesUpdated: result.session.preferencesUpdated,
+    inferredCount: result.inferred.length,
+    eventsProcessed: result.session.eventsProcessed,
+    topPreferences: top,
+    durationMs: result.durationMs,
+  }
+}
+
 function offersFromToolBatch(batch: ToolExecutionBatch | undefined): {
   flightOffers: Array<Record<string, unknown>>
   hotelStays: Array<Record<string, unknown>>
@@ -841,6 +870,9 @@ export function createTravelAgentService(
   const isAutonomousDecisionOn = (): boolean =>
     isAutonomousDecisionEnabled({ enabled: options.autonomousDecisionEnabled })
 
+  const isAdaptiveLearningOn = (): boolean =>
+    isAdaptiveLearningEnabled({ enabled: options.adaptiveLearningEnabled })
+
   const isBookingExecEnabled = (): boolean =>
     isBookingExecutionEnabled({ enabled: options.bookingExecutionEnabled })
 
@@ -957,6 +989,9 @@ export function createTravelAgentService(
       }
 
       if (isAutonomousDecisionOn()) {
+        const learnedProfile = isAdaptiveLearningOn()
+          ? getLearnedProfile(input.conversationId)
+          : null
         const decided = await enrichWithAutonomousDecision({
           memory,
           tripPlan: nextPlan,
@@ -964,6 +999,7 @@ export function createTravelAgentService(
           flightOffers: flightOffers.length ? flightOffers : undefined,
           hotelStays: hotelStays.length ? hotelStays : undefined,
           travelPlanner,
+          learnedProfile,
         })
         nextPlan = decided.tripPlan
         autonomousDecision = decided.autonomousDecision ?? undefined
@@ -1226,6 +1262,7 @@ export function createTravelAgentService(
       let tripOptimizerResult: TripOptimizerResult | null = null
       let travelPlannerResult: TravelPlannerResult | null = null
       let autonomousDecisionResult: AutonomousDecisionResult | null = null
+      let adaptiveLearningResult: AdaptiveLearningResult | null = null
       let bookingExecutionResult: BookingExecutionResult | null = null
       let paymentsResult: PaymentsPlatformResult | null = null
 
@@ -1244,6 +1281,15 @@ export function createTravelAgentService(
           userId: input.conversationId,
           userText,
           memory,
+        })
+      }
+
+      // Sprint 80 — adaptive learning (local preference adaptation) before Decision Engine.
+      if (isAdaptiveLearningOn()) {
+        adaptiveLearningResult = runAdaptiveLearningTurn({
+          userId: input.conversationId,
+          userText,
+          enabled: options.adaptiveLearningEnabled,
         })
       }
 
@@ -1644,9 +1690,15 @@ export function createTravelAgentService(
             autonomousDecision: toMetaAutonomousDecision(autonomousDecisionResult),
           }
           : withPlanner
-        const withExecution = bookingExecutionResult
-          ? { ...withDecision, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+        const withLearning = adaptiveLearningResult
+          ? {
+            ...withDecision,
+            adaptiveLearning: toMetaAdaptiveLearning(adaptiveLearningResult),
+          }
           : withDecision
+        const withExecution = bookingExecutionResult
+          ? { ...withLearning, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+          : withLearning
         const withPayments = paymentsResult
           ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
           : withExecution

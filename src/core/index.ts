@@ -1,5 +1,6 @@
 /**
  * Sprint 79 — Autonomous Search & Decision Engine (core barrel).
+ * Sprint 80 — Adaptive Learning & Profile (additive exports).
  */
 
 export type {
@@ -37,3 +38,6 @@ export {
   onDecisionEvent,
   resetDecisionEventListeners,
 } from './observability/events'
+
+export * from './profile'
+export * from './learning'
