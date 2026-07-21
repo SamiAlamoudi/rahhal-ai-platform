@@ -1,5 +1,5 @@
 /**
- * Structured provider request logging — Sprint 59/60.
+ * Structured provider request logging — Sprint 59 / 60.
  * Logs request id, duration, status, and provider name only.
  * Never logs secrets, tokens, or credential material.
  */

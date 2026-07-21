@@ -99,6 +99,8 @@ export function wrapLiveProvider(options: WrapLiveProviderOptions): LiveProvider
         input.departureDate,
         input.returnDate,
         input.adults,
+        input.children,
+        input.cabin,
         input.currency,
       ])
       const result = await timed(

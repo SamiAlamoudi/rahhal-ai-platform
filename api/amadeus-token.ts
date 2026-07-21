@@ -1,12 +1,13 @@
 /**
  * Vercel Edge Function — Amadeus OAuth token proxy.
  *
- * Reads AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET from Vercel project env
- * (never VITE_*). SPA calls this same-origin endpoint for short-lived tokens.
+ * Reads AMADEUS_API_KEY / AMADEUS_API_SECRET (or CLIENT_ID/SECRET aliases)
+ * from Vercel project env (never VITE_*). SPA calls this same-origin endpoint
+ * for short-lived tokens.
  *
  * Deploy:
- *   vercel env add AMADEUS_CLIENT_ID
- *   vercel env add AMADEUS_CLIENT_SECRET
+ *   vercel env add AMADEUS_API_KEY
+ *   vercel env add AMADEUS_API_SECRET
  *   vercel env add AMADEUS_BASE_URL
  */
 

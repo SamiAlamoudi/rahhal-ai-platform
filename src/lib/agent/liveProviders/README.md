@@ -11,7 +11,7 @@ Autonomous Agent orchestrates.
 | Piece | Role |
 | --- | --- |
 | `types.ts` | Common SDK contract (`searchFlights/Hotels/Activities/Cars/Transfers/Insurance`) |
-| `adapters/amadeus.ts` | Flight search, airports, offers, pricing + OAuth |
+| `adapters/amadeus.ts` | Sprint 59 flight search, airports, offers, pricing + OAuth |
 | `adapters/duffel.ts` | Offer search/details/pricing; order/cancel stubs |
 | `adapters/booking.ts` | Sprint 60 hotel search + full normalize (address, room, taxes, amenities, …) |
 | `oauth.ts` | Amadeus client-credentials, cache, refresh, 401 retry |
@@ -39,13 +39,16 @@ Also gated by env: `VITE_LIVE_PROVIDERS_ENABLED` / `PROVIDER_*_LIVE` (see `.env.
 
 Server-only (never `VITE_*` OAuth secrets):
 
-- `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET`
+- `AMADEUS_API_KEY` / `AMADEUS_API_SECRET` (preferred; Sprint 59)
+- `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET` (aliases)
 - `DUFFEL_API_TOKEN`
 - `BOOKING_API_KEY` / `RAPIDAPI_KEY` / `BOOKING_RAPIDAPI_KEY` (Booking.com)
 
 Works with local `.env`, Vercel env, and GitHub Actions secrets.
 
-Mock / simulated hotels remain the default when live hotel flags are OFF.
+Mock / simulated providers remain the default when live flags are OFF
+(`VITE_FLIGHT_PROVIDER=mock`, `ai.live_providers` / `provider.amadeus` /
+`provider.booking` disabled).
 
 ## Booking Intelligence
 
@@ -55,3 +58,5 @@ appends live bridges when the live layer is enabled. No Conversation Brain chang
 ## Tests
 
 `src/lib/__tests__/liveProviders.sprint56.test.ts` — injectable `fetch`, no network.
+`src/lib/__tests__/amadeus.sprint59.test.ts` — Amadeus OAuth / search / mapping.
+`src/lib/__tests__/booking.sprint60.test.ts` — Booking.com hotel normalize / errors.

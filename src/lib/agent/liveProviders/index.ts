@@ -1,5 +1,5 @@
 /**
- * Sprint 56 / 60 — Live Travel Provider Layer
+ * Sprint 56 / 59 / 60 — Live Travel Provider Layer
  *
  * Provider-agnostic SDK + Amadeus / Duffel / Booking.com adapters,
  * health monitor, rate limiter, smart cache, selection, secrets, metrics.
@@ -22,7 +22,13 @@ export * from './wrap'
 export * from './bridge'
 export * from './registry'
 export * from './providerLog'
-export { createAmadeusLiveProvider } from './adapters/amadeus'
+export {
+  createAmadeusLiveProvider,
+  AmadeusProviderError,
+  mapCabinToAmadeusTravelClass,
+  normalizeAmadeusLiveFlightOffer,
+  parseDurationMinutes,
+} from './adapters/amadeus'
 export { createDuffelLiveProvider } from './adapters/duffel'
 export {
   createBookingLiveProvider,

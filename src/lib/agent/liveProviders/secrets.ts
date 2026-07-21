@@ -4,8 +4,9 @@
  * Supports `.env`, Vercel, and GitHub Actions env injection.
  * Never expose API keys in client-facing payloads or logs.
  *
- * Amadeus OAuth client secrets MUST remain server-only
- * (`AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET`) — never `VITE_*`.
+ * Amadeus OAuth secrets MUST remain server-only
+ * (`AMADEUS_API_KEY` / `AMADEUS_API_SECRET`, or aliases
+ * `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET`) — never `VITE_*`.
  * Duffel tokens follow the same rule (`DUFFEL_API_TOKEN`).
  */
 
@@ -42,7 +43,8 @@ export function detectSecretSources(): LiveProviderSecretsSnapshot['sources'] {
   const vercel = Boolean(readProcessEnv('VERCEL') || readProcessEnv('VERCEL_ENV'))
   const githubActions = Boolean(readProcessEnv('GITHUB_ACTIONS'))
   const envLocal = Boolean(
-    readLiveProviderSecret('AMADEUS_CLIENT_ID') ||
+    readLiveProviderSecret('AMADEUS_API_KEY') ||
+      readLiveProviderSecret('AMADEUS_CLIENT_ID') ||
       readLiveProviderSecret('DUFFEL_API_TOKEN') ||
       readLiveProviderSecret('BOOKING_API_KEY') ||
       readLiveProviderSecret('RAPIDAPI_KEY') ||

@@ -185,6 +185,8 @@ export function bridgeLiveProviderToBooking(sdk: LiveProviderSdk): BookingProvid
             departureDate: query.startDate,
             returnDate: query.endDate,
             adults: query.adults ?? query.travelers ?? 1,
+            children: query.children ?? 0,
+            cabin: query.cabin ?? null,
             currency: query.budgetCurrency ?? undefined,
             signal: query.signal,
           })
