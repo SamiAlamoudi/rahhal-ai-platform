@@ -2,6 +2,32 @@
 
 All notable changes to Rahhal are documented in this file.
 
+Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
+Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
+
+## [Unreleased] — Sprint 73: Hotel Search Engine
+
+### Added
+- Hotel Search Engine (`src/lib/agent/hotelSearchEngine`) on Provider Runtime.
+- Docs: `docs/SPRINT73_HOTEL_SEARCH_ENGINE.md`; verify: `npm run hotels:verify`.
+
+## [Unreleased] — Sprint 72: Flight Search Engine
+
+### Added
+- Flight Search Engine (`src/lib/agent/flightSearchEngine`) on Provider Runtime.
+- Docs: `docs/SPRINT72_FLIGHT_SEARCH_ENGINE.md`; verify: `npm run flights:verify`.
+
+## [Unreleased] — Sprint 71: Provider Runtime
+
+### Added
+- Provider Runtime (`src/lib/agent/providerRuntime`).
+- Docs: `docs/SPRINT71_PROVIDER_RUNTIME.md`; verify: `npm run runtime:verify`.
+
+## [Unreleased] — Sprints 65–70: Production ops + GA
+
+### Added
+- Ops stack under `src/lib/ops/*` and GA release manager. See `docs/CHANGELOG_V1.md`.
+
 ## [Unreleased] — Sprint 53: Real World Intelligence Layer
 
 ### Added
