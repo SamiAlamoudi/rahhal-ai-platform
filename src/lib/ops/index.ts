@@ -196,3 +196,23 @@ export {
   type ProvidersCheckOptions,
   type ProvidersCheckResult,
 } from './providersCheck'
+
+/** Sprint 66 — End-to-End Production Validation */
+export {
+  runProductionValidation,
+  buildSystemReadinessReport,
+  buildHealthDashboard,
+  runFlow1ConversationSearch,
+  runFlow2BookingTripDocuments,
+  runFlow3SyncRefresh,
+  runFlow4Cancellation,
+  runFlow5MultiBooking,
+  runFlow6ProviderFailure,
+  runFlow7FeatureFlags,
+  SPRINT66_VALIDATION_VERSION,
+  type SystemReadinessReport,
+  type ProductionHealthDashboard,
+  type ValidationFlowResult,
+  type ValidationFlowId,
+  type ComponentHealth,
+} from './validation'
