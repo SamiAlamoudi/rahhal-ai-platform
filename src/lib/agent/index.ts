@@ -274,3 +274,21 @@ export {
   type ProviderRuntimeId,
   type ProviderRuntimeHealth,
 } from './providerRuntime'
+
+/** Sprint 72 — Flight Search Engine */
+export {
+  createFlightSearchEngine,
+  getDefaultFlightSearchEngine,
+  resetDefaultFlightSearchEngine,
+  rankFlights,
+  dedupeFlights,
+  applyFlightFilters,
+  sortFlights,
+  normalizeFlightOffer,
+  SPRINT72_FLIGHT_SEARCH_VERSION,
+  type FlightSearchEngine,
+  type FlightSearchRequest,
+  type FlightSearchPage,
+  type UnifiedFlight,
+  type FlightSortMode,
+} from './flightSearchEngine'
