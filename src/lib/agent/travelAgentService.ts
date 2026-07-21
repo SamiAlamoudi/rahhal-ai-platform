@@ -54,6 +54,12 @@ import {
   type BudgetIntelligenceResult,
 } from './budgetIntelligence'
 import {
+  enrichWithTravelerPersonalization,
+  isTravelerPersonalizationEnabled,
+  runTravelerPersonalization,
+  type TravelerPersonalizationResult,
+} from './travelerPersonalization'
+import {
   enrichWithBookingExecution,
   findLatestConfirmedBookingExecution,
   isBookingExecutionEnabled,
@@ -269,6 +275,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.budget_intelligence` (ON).
    */
   budgetIntelligenceEnabled?: boolean
+  /**
+   * Sprint 76 — Traveler Personalization Intelligence (profile learning, ranking).
+   * Default: FeatureRegistry `ai.traveler_personalization` (ON).
+   */
+  travelerPersonalizationEnabled?: boolean
   /**
    * Sprint 57 — Booking Execution Engine (lifecycle, transactions, resume).
    * Default: FeatureRegistry `ai.booking_execution` (ON). Runs only on explicit confirm/book cues.
@@ -499,6 +510,20 @@ function toMetaBudgetIntelligence(
   }
 }
 
+function toMetaTravelerPersonalization(
+  result: TravelerPersonalizationResult,
+): NonNullable<AgentProviderMeta['travelerPersonalization']> {
+  return {
+    travelerProfileUsed: result.diagnostics.travelerProfileUsed,
+    matchedPreferences: result.diagnostics.matchedPreferences,
+    confidenceScores: result.diagnostics.confidenceScores,
+    rankingAdjustmentCount: result.diagnostics.rankingAdjustments.length,
+    learningEventCount: result.diagnostics.learningEvents.length,
+    missingProfile: result.diagnostics.missingProfile,
+    durationMs: result.durationMs,
+  }
+}
+
 function offersFromToolBatch(batch: ToolExecutionBatch | undefined): {
   flightOffers: Array<Record<string, unknown>>
   hotelStays: Array<Record<string, unknown>>
@@ -713,6 +738,9 @@ export function createTravelAgentService(
   const isBudgetIntelEnabled = (): boolean =>
     isBudgetIntelligenceEnabled({ enabled: options.budgetIntelligenceEnabled })
 
+  const isTravelerPersonalizationOn = (): boolean =>
+    isTravelerPersonalizationEnabled({ enabled: options.travelerPersonalizationEnabled })
+
   const isBookingExecEnabled = (): boolean =>
     isBookingExecutionEnabled({ enabled: options.bookingExecutionEnabled })
 
@@ -746,6 +774,7 @@ export function createTravelAgentService(
     autonomous?: AutonomousAgentSnapshot
     bookingIntelligence?: BookingIntelligenceResult
     budgetIntelligence?: BudgetIntelligenceResult
+    travelerPersonalization?: TravelerPersonalizationResult
     bookingExecution?: BookingExecutionResult
     payments?: PaymentsPlatformResult
   }> => {
@@ -757,14 +786,16 @@ export function createTravelAgentService(
       plan: TripPlan
       bookingIntelligence?: BookingIntelligenceResult
       budgetIntelligence?: BudgetIntelligenceResult
+      travelerPersonalization?: TravelerPersonalizationResult
       bookingExecution?: BookingExecutionResult
       payments?: PaymentsPlatformResult
     }> => {
       let nextPlan = plan
       let budgetIntelligence: BudgetIntelligenceResult | undefined
+      let travelerPersonalization: TravelerPersonalizationResult | undefined
+      const { flightOffers, hotelStays } = offersFromToolBatch(batch)
 
       if (isBudgetIntelEnabled()) {
-        const { flightOffers, hotelStays } = offersFromToolBatch(batch)
         const budgeted = await enrichWithBudgetIntelligence({
           memory,
           tripPlan: nextPlan,
@@ -777,8 +808,24 @@ export function createTravelAgentService(
         budgetIntelligence = budgeted.budgetIntelligence ?? undefined
       }
 
+      if (isTravelerPersonalizationOn()) {
+        const personalized = await enrichWithTravelerPersonalization({
+          userId: input.conversationId,
+          memory,
+          tripPlan: nextPlan,
+          userText: input.userText,
+          enabled: options.travelerPersonalizationEnabled,
+          flightOffers: flightOffers.length ? flightOffers : undefined,
+          hotelStays: hotelStays.length ? hotelStays : undefined,
+          // Learning already ran once per planTurn; rank-only here.
+          skipLearning: true,
+        })
+        nextPlan = personalized.tripPlan
+        travelerPersonalization = personalized.travelerPersonalization ?? undefined
+      }
+
       if (!isBookingIntelEnabled()) {
-        return { plan: nextPlan, budgetIntelligence }
+        return { plan: nextPlan, budgetIntelligence, travelerPersonalization }
       }
       const enriched = await enrichWithBookingIntelligence({
         memory,
@@ -835,6 +882,7 @@ export function createTravelAgentService(
         plan: nextPlan,
         bookingIntelligence: enriched.bookingIntelligence ?? undefined,
         budgetIntelligence,
+        travelerPersonalization,
         bookingExecution,
         payments,
       }
@@ -860,6 +908,7 @@ export function createTravelAgentService(
           autonomous: autonomous.snapshot,
           bookingIntelligence: intel.bookingIntelligence,
           budgetIntelligence: intel.budgetIntelligence,
+          travelerPersonalization: intel.travelerPersonalization,
           bookingExecution: intel.bookingExecution,
           payments: intel.payments,
         }
@@ -892,6 +941,7 @@ export function createTravelAgentService(
           autonomous: autonomous.snapshot,
           bookingIntelligence: intel.bookingIntelligence,
           budgetIntelligence: intel.budgetIntelligence,
+          travelerPersonalization: intel.travelerPersonalization,
           bookingExecution: intel.bookingExecution,
           payments: intel.payments,
         }
@@ -949,6 +999,7 @@ export function createTravelAgentService(
       batch,
       bookingIntelligence: intel.bookingIntelligence,
       budgetIntelligence: intel.budgetIntelligence,
+      travelerPersonalization: intel.travelerPersonalization,
       bookingExecution: intel.bookingExecution,
       payments: intel.payments,
     }
@@ -1008,8 +1059,18 @@ export function createTravelAgentService(
       const priorAutonomous = autonomousSnapshot
       let bookingIntelligenceResult: BookingIntelligenceResult | null = null
       let budgetIntelligenceResult: BudgetIntelligenceResult | null = null
+      let travelerPersonalizationResult: TravelerPersonalizationResult | null = null
       let bookingExecutionResult: BookingExecutionResult | null = null
       let paymentsResult: PaymentsPlatformResult | null = null
+
+      // Sprint 76 — learn preferences from conversation even when tools do not run.
+      if (isTravelerPersonalizationOn()) {
+        travelerPersonalizationResult = runTravelerPersonalization({
+          userId: input.conversationId,
+          userText,
+          memory,
+        })
+      }
 
       if (isBrainCoreEnabled()) {
         const brainTurn = runRahhalBrainTurn(
@@ -1390,9 +1451,15 @@ export function createTravelAgentService(
         const withBudget = budgetIntelligenceResult
           ? { ...withBooking, budgetIntelligence: toMetaBudgetIntelligence(budgetIntelligenceResult) }
           : withBooking
-        const withExecution = bookingExecutionResult
-          ? { ...withBudget, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+        const withPersonalization = travelerPersonalizationResult
+          ? {
+            ...withBudget,
+            travelerPersonalization: toMetaTravelerPersonalization(travelerPersonalizationResult),
+          }
           : withBudget
+        const withExecution = bookingExecutionResult
+          ? { ...withPersonalization, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+          : withPersonalization
         const withPayments = paymentsResult
           ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
           : withExecution
@@ -1809,6 +1876,18 @@ export function createTravelAgentService(
         if (ran.autonomous) autonomousSnapshot = ran.autonomous
         if (ran.bookingIntelligence) bookingIntelligenceResult = ran.bookingIntelligence
         if (ran.budgetIntelligence) budgetIntelligenceResult = ran.budgetIntelligence
+        if (ran.travelerPersonalization) {
+          const priorLearning = travelerPersonalizationResult?.diagnostics.learningEvents ?? []
+          travelerPersonalizationResult = {
+            ...ran.travelerPersonalization,
+            diagnostics: {
+              ...ran.travelerPersonalization.diagnostics,
+              learningEvents: priorLearning.length > 0
+                ? priorLearning
+                : ran.travelerPersonalization.diagnostics.learningEvents,
+            },
+          }
+        }
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
         if (ran.payments) paymentsResult = ran.payments
         memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, ran.plan)
@@ -1858,6 +1937,18 @@ export function createTravelAgentService(
         if (ran.autonomous) autonomousSnapshot = ran.autonomous
         if (ran.bookingIntelligence) bookingIntelligenceResult = ran.bookingIntelligence
         if (ran.budgetIntelligence) budgetIntelligenceResult = ran.budgetIntelligence
+        if (ran.travelerPersonalization) {
+          const priorLearning = travelerPersonalizationResult?.diagnostics.learningEvents ?? []
+          travelerPersonalizationResult = {
+            ...ran.travelerPersonalization,
+            diagnostics: {
+              ...ran.travelerPersonalization.diagnostics,
+              learningEvents: priorLearning.length > 0
+                ? priorLearning
+                : ran.travelerPersonalization.diagnostics.learningEvents,
+            },
+          }
+        }
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
         if (ran.payments) paymentsResult = ran.payments
         if (llmResult.draft?.notes?.length) {

@@ -175,6 +175,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: budget_intelligence. Does not replace search engines; Conversation Brain narrates facts only.',
   },
   {
+    id: 'ai.traveler_personalization',
+    name: 'Traveler Personalization Intelligence',
+    description:
+      'Sprint 76 — conversation preference learning (airlines, hotels, cabin, seat, trip style), gradual confidence, preference-weighted ranking, mock profile storage, and diagnostics. Additive enrichment.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.autonomous_agent'],
+    notes:
+      'Product alias: traveler_personalization. Mock storage only; no DB. Does not redesign RahhalBrain or search engines.',
+  },
+  {
     id: 'ai.live_providers',
     name: 'Live Travel Provider Layer',
     description:
