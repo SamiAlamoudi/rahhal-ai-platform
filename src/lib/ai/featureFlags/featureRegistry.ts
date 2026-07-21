@@ -215,6 +215,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: booking_execution. Executes via BookingProvider/Live bridges; AMADEUS_ORDER_LIVE / BOOKING_ORDER_LIVE gate HTTP order APIs.',
   },
   {
+    id: 'ai.trip_management',
+    name: 'Unified Trip Management',
+    description:
+      'Sprint 62 — unified trips across providers: lifecycle, timeline, sync via retrieve, Document Center, search/filter/sort. Consumer of Booking Execution.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.booking_execution'],
+    notes: 'Product alias: trip_management. Does not rewrite Booking Execution or providers.',
+  },
+  {
     id: 'ai.transaction_manager',
     name: 'Booking Transaction Manager',
     description:

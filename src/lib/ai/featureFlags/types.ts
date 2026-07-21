@@ -25,6 +25,7 @@ export type FeatureId =
   | 'provider.duffel'
   | 'provider.booking'
   | 'ai.booking_execution'
+  | 'ai.trip_management'
   | 'ai.transaction_manager'
   | 'ai.booking_resume'
   | 'ai.payments'
