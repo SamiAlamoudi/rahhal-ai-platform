@@ -195,6 +195,14 @@ export {
 } from './packageBuilder'
 export type { PackageBuilderResult } from './packageBuilder'
 export {
+  isItineraryRefinementEnabled,
+  ITINERARY_REFINEMENT_FEATURE_ID,
+  enrichWithItineraryRefinement,
+  runItineraryRefinement,
+  SPRINT84_ITINERARY_REFINEMENT_VERSION,
+} from './itineraryRefinement'
+export type { RefinementResult } from './itineraryRefinement'
+export {
   isBookingExecutionEnabled,
   isTransactionManagerEnabled,
   isBookingResumeEnabled,

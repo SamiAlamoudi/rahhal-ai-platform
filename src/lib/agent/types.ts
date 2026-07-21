@@ -498,6 +498,21 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 84 — Itinerary Refinement snapshot (incremental package updates).
+   * Additive structured facts only — Conversation Brain authors traveler-facing text.
+   */
+  itineraryRefinement?: {
+    changesApplied: string[]
+    impactedCount: number
+    reusedCount: number
+    conflictCount: number
+    alternativeCount: number
+    confidence: number
+    incremental: boolean
+    summary: string | null
+    durationMs: number
+  }
+  /**
    * Sprint 57 — Booking Execution Engine snapshot (lifecycle, confirmations, resume).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */

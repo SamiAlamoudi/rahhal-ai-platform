@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 84: Autonomous Itinerary Refinement Engine
+
+### Added
+
+- Core refinement stack (`src/core/itineraryRefinement`) — incremental constraint resolution, schedule/transfer optimization, conflict detection, alternatives A/B/C, explainability.
+- Agent bridge `src/lib/agent/itineraryRefinement` + flag `ai.itinerary_refinement` (default ON).
+- Feeds Adaptive Learning; Decision Engine consumes refined offer pools (no DE contract change).
+- Docs: `docs/SPRINT84_ITINERARY_REFINEMENT.md`; verify: `npm run refine:verify`.
+
+### Notes
+
+- Sits between Package Builder and Decision Engine. No full rebuild; RahhalBrain unchanged.
+
 ## [Unreleased] — Sprint 83: AI Dynamic Travel Packages
 
 ### Added
