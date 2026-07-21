@@ -49,6 +49,11 @@ import {
   type BookingIntelligenceResult,
 } from './bookingIntelligence'
 import {
+  enrichWithBudgetIntelligence,
+  isBudgetIntelligenceEnabled,
+  type BudgetIntelligenceResult,
+} from './budgetIntelligence'
+import {
   enrichWithBookingExecution,
   findLatestConfirmedBookingExecution,
   isBookingExecutionEnabled,
@@ -260,6 +265,11 @@ export interface TravelAgentServiceOptions {
    */
   bookingIntelligenceEnabled?: boolean
   /**
+   * Sprint 75 — Budget Intelligence (allocation, Budget Score, diagnostics).
+   * Default: FeatureRegistry `ai.budget_intelligence` (ON).
+   */
+  budgetIntelligenceEnabled?: boolean
+  /**
    * Sprint 57 — Booking Execution Engine (lifecycle, transactions, resume).
    * Default: FeatureRegistry `ai.booking_execution` (ON). Runs only on explicit confirm/book cues.
    */
@@ -470,6 +480,48 @@ function toMetaBookingIntelligence(
   }
 }
 
+function toMetaBudgetIntelligence(
+  result: BudgetIntelligenceResult,
+): NonNullable<AgentProviderMeta['budgetIntelligence']> {
+  return {
+    budgetDetected: result.diagnostics.budgetDetected,
+    currency: result.diagnostics.currency,
+    amount: result.diagnostics.amount,
+    remainingBudget: result.diagnostics.remainingBudget,
+    budgetScore: result.diagnostics.budgetScore,
+    intent: result.diagnostics.intent,
+    overflow: result.diagnostics.overflow,
+    underflow: result.diagnostics.underflow,
+    missingBudget: result.diagnostics.missingBudget,
+    allocatedFlights: result.allocation?.flights ?? null,
+    allocatedHotels: result.allocation?.hotels ?? null,
+    durationMs: result.durationMs,
+  }
+}
+
+function offersFromToolBatch(batch: ToolExecutionBatch | undefined): {
+  flightOffers: Array<Record<string, unknown>>
+  hotelStays: Array<Record<string, unknown>>
+} {
+  const flightOffers: Array<Record<string, unknown>> = []
+  const hotelStays: Array<Record<string, unknown>> = []
+  for (const result of batch?.results ?? []) {
+    if (result.status !== 'ok' || !result.data) continue
+    const data = result.data as Record<string, unknown>
+    if (result.tool === 'flights' && Array.isArray(data.offers)) {
+      for (const offer of data.offers) {
+        if (offer && typeof offer === 'object') flightOffers.push(offer as Record<string, unknown>)
+      }
+    }
+    if (result.tool === 'hotels' && Array.isArray(data.stays)) {
+      for (const stay of data.stays) {
+        if (stay && typeof stay === 'object') hotelStays.push(stay as Record<string, unknown>)
+      }
+    }
+  }
+  return { flightOffers, hotelStays }
+}
+
 function toMetaBookingExecution(
   result: BookingExecutionResult,
 ): NonNullable<AgentProviderMeta['bookingExecution']> {
@@ -658,6 +710,9 @@ export function createTravelAgentService(
   const isBookingIntelEnabled = (): boolean =>
     isBookingIntelligenceEnabled({ enabled: options.bookingIntelligenceEnabled })
 
+  const isBudgetIntelEnabled = (): boolean =>
+    isBudgetIntelligenceEnabled({ enabled: options.budgetIntelligenceEnabled })
+
   const isBookingExecEnabled = (): boolean =>
     isBookingExecutionEnabled({ enabled: options.bookingExecutionEnabled })
 
@@ -690,27 +745,49 @@ export function createTravelAgentService(
     batch: ToolExecutionBatch
     autonomous?: AutonomousAgentSnapshot
     bookingIntelligence?: BookingIntelligenceResult
+    budgetIntelligence?: BudgetIntelligenceResult
     bookingExecution?: BookingExecutionResult
     payments?: PaymentsPlatformResult
   }> => {
     const applyBookingIntel = async (
       plan: TripPlan,
       memory: AgentMemory,
+      batch?: ToolExecutionBatch,
     ): Promise<{
       plan: TripPlan
       bookingIntelligence?: BookingIntelligenceResult
+      budgetIntelligence?: BudgetIntelligenceResult
       bookingExecution?: BookingExecutionResult
       payments?: PaymentsPlatformResult
     }> => {
-      if (!isBookingIntelEnabled()) return { plan }
+      let nextPlan = plan
+      let budgetIntelligence: BudgetIntelligenceResult | undefined
+
+      if (isBudgetIntelEnabled()) {
+        const { flightOffers, hotelStays } = offersFromToolBatch(batch)
+        const budgeted = await enrichWithBudgetIntelligence({
+          memory,
+          tripPlan: nextPlan,
+          userText: input.userText,
+          enabled: options.budgetIntelligenceEnabled,
+          flightOffers: flightOffers.length ? flightOffers : undefined,
+          hotelStays: hotelStays.length ? hotelStays : undefined,
+        })
+        nextPlan = budgeted.tripPlan
+        budgetIntelligence = budgeted.budgetIntelligence ?? undefined
+      }
+
+      if (!isBookingIntelEnabled()) {
+        return { plan: nextPlan, budgetIntelligence }
+      }
       const enriched = await enrichWithBookingIntelligence({
         memory,
-        tripPlan: plan,
+        tripPlan: nextPlan,
         userId: input.conversationId,
         enabled: options.bookingIntelligenceEnabled,
         signal: input.signal,
       })
-      let nextPlan = enriched.tripPlan
+      nextPlan = enriched.tripPlan
       let bookingExecution: BookingExecutionResult | undefined
       let payments: PaymentsPlatformResult | undefined
       if (isBookingExecEnabled() && enriched.bookingIntelligence) {
@@ -757,6 +834,7 @@ export function createTravelAgentService(
       return {
         plan: nextPlan,
         bookingIntelligence: enriched.bookingIntelligence ?? undefined,
+        budgetIntelligence,
         bookingExecution,
         payments,
       }
@@ -775,12 +853,13 @@ export function createTravelAgentService(
         onProgress: input.onProgress,
       })
       if (autonomous.planBuilt && autonomous.tripPlan) {
-        const intel = await applyBookingIntel(autonomous.tripPlan, input.memory)
+        const intel = await applyBookingIntel(autonomous.tripPlan, input.memory, autonomous.batch)
         return {
           plan: intel.plan,
           batch: autonomous.batch,
           autonomous: autonomous.snapshot,
           bookingIntelligence: intel.bookingIntelligence,
+          budgetIntelligence: intel.budgetIntelligence,
           bookingExecution: intel.bookingExecution,
           payments: intel.payments,
         }
@@ -806,12 +885,13 @@ export function createTravelAgentService(
             locale: input.memory.locale,
             seed: input.seed,
           })
-        const intel = await applyBookingIntel(plan, input.memory)
+        const intel = await applyBookingIntel(plan, input.memory, autonomous.batch)
         return {
           plan: intel.plan,
           batch: autonomous.batch,
           autonomous: autonomous.snapshot,
           bookingIntelligence: intel.bookingIntelligence,
+          budgetIntelligence: intel.budgetIntelligence,
           bookingExecution: intel.bookingExecution,
           payments: intel.payments,
         }
@@ -863,11 +943,12 @@ export function createTravelAgentService(
     })
     const merged = mergeToolResultsIntoPlan(base, batch.results)
     const decided = applyIntelligentDecisions(merged, batch.results, input.memory.requirements)
-    const intel = await applyBookingIntel(decided, input.memory)
+    const intel = await applyBookingIntel(decided, input.memory, batch)
     return {
       plan: intel.plan,
       batch,
       bookingIntelligence: intel.bookingIntelligence,
+      budgetIntelligence: intel.budgetIntelligence,
       bookingExecution: intel.bookingExecution,
       payments: intel.payments,
     }
@@ -926,6 +1007,7 @@ export function createTravelAgentService(
         : null
       const priorAutonomous = autonomousSnapshot
       let bookingIntelligenceResult: BookingIntelligenceResult | null = null
+      let budgetIntelligenceResult: BudgetIntelligenceResult | null = null
       let bookingExecutionResult: BookingExecutionResult | null = null
       let paymentsResult: PaymentsPlatformResult | null = null
 
@@ -1305,9 +1387,12 @@ export function createTravelAgentService(
         const withBooking = bookingIntelligenceResult
           ? { ...withAutonomous, bookingIntelligence: toMetaBookingIntelligence(bookingIntelligenceResult) }
           : withAutonomous
-        const withExecution = bookingExecutionResult
-          ? { ...withBooking, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+        const withBudget = budgetIntelligenceResult
+          ? { ...withBooking, budgetIntelligence: toMetaBudgetIntelligence(budgetIntelligenceResult) }
           : withBooking
+        const withExecution = bookingExecutionResult
+          ? { ...withBudget, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+          : withBudget
         const withPayments = paymentsResult
           ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
           : withExecution
@@ -1723,6 +1808,7 @@ export function createTravelAgentService(
         toolBatch = ran.batch
         if (ran.autonomous) autonomousSnapshot = ran.autonomous
         if (ran.bookingIntelligence) bookingIntelligenceResult = ran.bookingIntelligence
+        if (ran.budgetIntelligence) budgetIntelligenceResult = ran.budgetIntelligence
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
         if (ran.payments) paymentsResult = ran.payments
         memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, ran.plan)
@@ -1771,6 +1857,7 @@ export function createTravelAgentService(
         toolBatch = ran.batch
         if (ran.autonomous) autonomousSnapshot = ran.autonomous
         if (ran.bookingIntelligence) bookingIntelligenceResult = ran.bookingIntelligence
+        if (ran.budgetIntelligence) budgetIntelligenceResult = ran.budgetIntelligence
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
         if (ran.payments) paymentsResult = ran.payments
         if (llmResult.draft?.notes?.length) {
@@ -1827,12 +1914,15 @@ export function createTravelAgentService(
         toolResults: toolBatch ? toToolSummaries(toolBatch.results) : undefined,
         savedTitle,
         recommendations: [
+          ...(budgetIntelligenceResult?.recommendationFacts ?? []),
           ...(bookingIntelligenceResult?.recommendationFacts ?? []),
           ...(bookingExecutionResult?.executionFacts ?? []),
           ...(paymentsResult?.paymentFacts ?? []),
         ],
         warnings: bookingIntelligenceResult && !bookingIntelligenceResult.readiness.bookingReady
           ? [bookingIntelligenceResult.readiness.clarification].filter(Boolean) as string[]
+          : budgetIntelligenceResult?.diagnostics.overflow
+            ? ['Selected options exceed your stated budget — ask for cheaper alternatives if needed.']
           : bookingExecutionResult && bookingExecutionResult.snapshot.failedCount > 0
             ? [`Booking execution failures: ${bookingExecutionResult.snapshot.failedCount}`]
             : paymentsResult && paymentsResult.snapshot.status === 'failed'

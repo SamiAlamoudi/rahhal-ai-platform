@@ -86,6 +86,26 @@ export type {
   RankedOffer,
 } from './bookingIntelligence'
 export {
+  isBudgetIntelligenceEnabled,
+  BUDGET_INTELLIGENCE_FEATURE_ID,
+  parseBudgetUtterance,
+  allocateBudget,
+  computeBudgetScore,
+  rankFlightsByBudget,
+  rankHotelsByBudget,
+  rankPackagesByBudget,
+  runBudgetIntelligence,
+  enrichWithBudgetIntelligence,
+  SPRINT75_BUDGET_INTELLIGENCE_VERSION,
+} from './budgetIntelligence'
+export type {
+  BudgetIntelligenceResult,
+  BudgetDiagnostics,
+  BudgetAllocation,
+  BudgetIntent,
+  RankedBudgetCandidate,
+} from './budgetIntelligence'
+export {
   isBookingExecutionEnabled,
   isTransactionManagerEnabled,
   isBookingResumeEnabled,

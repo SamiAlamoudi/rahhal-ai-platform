@@ -20,6 +20,7 @@ export type FeatureId =
   | 'ai.rahhal_brain'
   | 'ai.autonomous_agent'
   | 'ai.booking_intelligence'
+  | 'ai.budget_intelligence'
   | 'ai.live_providers'
   | 'provider.amadeus'
   | 'provider.duffel'

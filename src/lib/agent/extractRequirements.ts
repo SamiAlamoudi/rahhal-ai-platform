@@ -528,10 +528,11 @@ function matchDuration(lower: string, original: string): number | null {
 }
 
 function matchBudget(lower: string, original: string): { amount: number; currency: string } | null {
-  const underEn = lower.match(/(?:under|below|max(?:imum)?|budget)\s*\$?\s*(\d+(?:[.,]\d+)?)/)
-  const underAr = original.match(/(?:أقل من|اقل من|تحت|ميزانية|بميزانية)\s*\$?\s*(\d+(?:[.,]\d+)?)/)
+  const underEn = lower.match(/(?:under|below|max(?:imum)?|less than|budget(?:\s+is)?|my budget is|keep(?:\s+\w+)?\s+under)\s*(?:of\s*)?(?:sar|usd|aed|eur|\$)?\s*\$?\s*(\d+(?:[.,]\d+)?)/)
+  const underAr = original.match(/(?:أقل من|اقل من|تحت|ميزانية|بميزانية)\s*(?:ريال|دولار|درهم)?\s*\$?\s*(\d+(?:[.,]\d+)?)/)
+  const sarFirst = lower.match(/\b(?:sar|usd|aed|eur)\s*(\d+(?:[.,]\d+)?)/)
   const plainMoney = lower.match(/\$\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:usd|sar|eur|aed|\$)/)
-  const raw = underEn?.[1] || underAr?.[1] || plainMoney?.[1] || plainMoney?.[2]
+  const raw = underEn?.[1] || underAr?.[1] || sarFirst?.[1] || plainMoney?.[1] || plainMoney?.[2]
   if (!raw) return null
   const amount = Number(raw.replace(/,/g, ''))
   if (!Number.isFinite(amount) || amount <= 0) return null
@@ -729,13 +730,17 @@ function matchWeatherPreference(lower: string, original: string): string | null 
 
 function matchBudgetStyle(lower: string, original: string): BudgetStyle | null {
   if (/\bluxury\b|فاخر|فاخرة|luxury style/.test(lower) || /فاخر/.test(original)) return 'luxury'
+  if (/\bbest value\b|أفضل قيمة|افضل قيمة|value for money|premium\b|بريميوم/.test(lower)) {
+    if (/\bluxury\b|فاخر/.test(lower)) return 'luxury'
+    return 'midrange'
+  }
   if (
-    /\bcheap\b|\bbudget\b|economy|رخيص|اقتصادي|منخفض التكلفة|رخيصة/.test(lower)
+    /\bcheap\b|\bbudget\b|economy|cheapest|رخيص|اقتصادي|منخفض التكلفة|رخيصة/.test(lower)
     || /اقتصادي|رخيص/.test(original)
   ) {
     // Avoid treating "budget $3000" alone as budget-style when "mid-range" also present
     if (/\bmid[- ]?range\b|متوسط/.test(lower) || /متوسط/.test(original)) return 'midrange'
-    if (/\bcheap\b|\bbudget style\b|\bbudget trip\b|\bon a budget\b|رحلة اقتصادية/.test(lower)) {
+    if (/\bcheap\b|\bcheapest\b|\bbudget style\b|\bbudget trip\b|\bon a budget\b|رحلة اقتصادية/.test(lower)) {
       return 'budget'
     }
     if (/\bluxury\b/.test(lower)) return 'luxury'

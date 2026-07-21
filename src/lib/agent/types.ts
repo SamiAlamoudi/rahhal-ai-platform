@@ -373,6 +373,24 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 75 — Budget Intelligence snapshot (allocation, Budget Score, diagnostics).
+   * Additive structured facts only — Conversation Brain authors traveler-facing text.
+   */
+  budgetIntelligence?: {
+    budgetDetected: boolean
+    currency: string | null
+    amount: number | null
+    remainingBudget: number | null
+    budgetScore: number | null
+    intent: string
+    overflow: boolean
+    underflow: boolean
+    missingBudget: boolean
+    allocatedFlights: number | null
+    allocatedHotels: number | null
+    durationMs: number
+  }
+  /**
    * Sprint 57 — Booking Execution Engine snapshot (lifecycle, confirmations, resume).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */
