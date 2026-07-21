@@ -257,3 +257,20 @@ export type {
   ProviderSelectionStrategy,
 } from './aggregation'
 export * as providerAdapters from './providers'
+
+/** Sprint 71 — Live Provider Integration Framework (Provider Runtime) */
+export {
+  createProviderRuntimeRegistry,
+  getDefaultProviderRuntimeRegistry,
+  resetDefaultProviderRuntimeRegistry,
+  createProviderRetryPolicy,
+  validateProviderSecrets,
+  validateAllProviderSecrets,
+  searchWithFailover,
+  SPRINT71_PROVIDER_RUNTIME_VERSION,
+  GRACEFUL_PROVIDER_MESSAGE,
+  type ProviderRuntimeRegistry,
+  type ProviderRuntimeAdapter,
+  type ProviderRuntimeId,
+  type ProviderRuntimeHealth,
+} from './providerRuntime'
