@@ -1,53 +1,32 @@
-# Release Notes — Rahhal Production V1
+# Release Notes — Rahhal 1.0.0 General Availability
 
 **Release:** `1.0.0`  
-**Release candidate:** `1.0.0-rc`  
+**Release type:** GA  
 **Package version:** `1.1.0-rc.1`  
-**Codename:** Production Deployment & Launch Automation (Sprint 68)
+**Sprint:** 70 — General Availability
 
 ## Highlights
 
-- Deployment profiles: development / staging / beta / production
-- CI/CD automation: lint, typecheck, test, release build, smoke, rollback trigger
-- Secrets validation for Amadeus, Booking.com, Duffel, Stripe, HyperPay, Apple Pay, notifications
-- Production subsystem health APIs + metrics + alert evaluation
-- Rollback playbooks (deployment, configuration, provider, feature, safe mode, startup recovery)
-- Release automation artifacts: notes, deployment/env reports, feature matrix, go-live checklist
-- Composes Sprint 65 hardening + Sprint 66 E2E validation + Sprint 67 beta launch (no business-logic changes)
+- Production hardening (Sprint 65)
+- End-to-end production validation (Sprint 66)
+- Beta launch environment & live provider activation (Sprint 67)
+- Production deployment & launch automation (Sprint 68)
+- Real beta operations & production monitoring (Sprint 69)
+- GA release manager & version manifest (Sprint 70)
 
-## Safe defaults (unchanged)
+## Safe defaults
 
 - Mock payments
 - Live providers OFF
-- No architecture rewrites; no product feature removals
+- No architecture or business-engine rewrites in GA packaging
 
-## Upgrade / migration
+## Docs
 
-None. Additive `src/lib/ops/deployment/` module only. Existing Phase X/AA and Sprint 65/66 APIs preserved.
-
-## Deployment notes
-
-See `docs/SPRINT68_PRODUCTION_DEPLOYMENT.md`, `docs/LAUNCH_AUTOMATION_V1.md`, and `docs/PRODUCTION_CHECKLIST_V1.md`.
-
-## GitHub Release body (copy)
-
-```
-## Rahhal Production V1 (Sprint 68)
-
-Production deployment & launch automation — profiles, CI/CD gates, secrets validation,
-health/metrics/alerts, rollback, release artifacts. No product feature changes.
-
-### Validation
-- lint / typecheck / test:run / build
-- npm run deploy:verify
-- npm run production:verify
-
-### Defaults
-- Payments: mock
-- Live providers: off
-
-### Docs
-- docs/SPRINT68_PRODUCTION_DEPLOYMENT.md
-- docs/LAUNCH_AUTOMATION_V1.md
-- docs/RELEASE_NOTES_V1.md
-```
+- `docs/SPRINT70_GA_RELEASE.md`
+- `docs/CHANGELOG_V1.md`
+- `docs/VERSION_1_0_0.md`
+- `docs/GA_CHECKLIST.md`
+- `docs/SYSTEM_STATUS.md`
+- `docs/API_STATUS.md`
+- `docs/KNOWN_LIMITATIONS.md`
+- `docs/ROADMAP_POST_V1.md`
