@@ -437,6 +437,22 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 79 — Autonomous Search & Decision Engine snapshot.
+   * Additive structured facts only — Conversation Brain authors traveler-facing text.
+   */
+  autonomousDecision?: {
+    bestOverallId: string | null
+    bestOverallScore: number | null
+    confidence: number
+    planCount: number
+    candidateCount: number
+    duplicateCount: number
+    fallbackUsed: boolean
+    labels: string[]
+    explanation: string | null
+    durationMs: number
+  }
+  /**
    * Sprint 57 — Booking Execution Engine snapshot (lifecycle, confirmations, resume).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */

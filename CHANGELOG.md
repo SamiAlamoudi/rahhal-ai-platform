@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 79: Autonomous Search & Decision Engine
+
+### Added
+
+- Core decision stack (`src/core/searchPlanner`, `searchScoring`, `searchRanking`, `decisionEngine`) — multi-plan generation, parallel execution, scoring, ranking, explainable recommendations.
+- Agent bridge `src/lib/agent/autonomousDecision` + flag `ai.autonomous_decision` (default ON).
+- Docs: `docs/SPRINT79_AUTONOMOUS_DECISION.md`; verify: `npm run decision:verify`.
+
+### Notes
+
+- Additive only — does not redesign RahhalBrain or replace Flight/Hotel engines.
+
 ## [Unreleased] — Sprint 78: AI Travel Strategy Planner
 
 ### Added
