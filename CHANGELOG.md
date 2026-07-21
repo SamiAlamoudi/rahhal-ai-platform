@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 78: AI Travel Strategy Planner
+
+### Added
+
+- Travel Strategy Planner (`src/lib/agent/travelPlanner`) — pre-search purpose/constraints/questions/search-plan/priority weights.
+- Feature flag `ai.travel_planner` (default ON); additive tool reorder/skip via `selectToolsForTurn`.
+- Docs: `docs/SPRINT78_TRAVEL_PLANNER.md`; verify: `npm run planner:verify`.
+
+### Notes
+
+- Runs before Flight/Hotel search; does not redesign RahhalBrain or replace engines.
+
 ## [Unreleased] — Sprint 77: Complete Trip Optimizer
 
 ### Added

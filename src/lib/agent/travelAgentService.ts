@@ -65,6 +65,11 @@ import {
   type TripOptimizerResult,
 } from './tripOptimizer'
 import {
+  isTravelPlannerEnabled,
+  runTravelPlanner,
+  type TravelPlannerResult,
+} from './travelPlanner'
+import {
   enrichWithBookingExecution,
   findLatestConfirmedBookingExecution,
   isBookingExecutionEnabled,
@@ -290,6 +295,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.trip_optimizer` (ON).
    */
   tripOptimizerEnabled?: boolean
+  /**
+   * Sprint 78 — AI Travel Strategy Planner (pre-search strategy, questions, tool order).
+   * Default: FeatureRegistry `ai.travel_planner` (ON).
+   */
+  travelPlannerEnabled?: boolean
   /**
    * Sprint 57 — Booking Execution Engine (lifecycle, transactions, resume).
    * Default: FeatureRegistry `ai.booking_execution` (ON). Runs only on explicit confirm/book cues.
@@ -558,6 +568,25 @@ function toMetaTripOptimizer(
   }
 }
 
+function toMetaTravelPlanner(
+  result: TravelPlannerResult,
+): NonNullable<AgentProviderMeta['travelPlanner']> {
+  return {
+    travelPurpose: result.travelPurpose,
+    tripType: result.tripType,
+    travelerType: result.travelerType,
+    travelStrategy: result.travelStrategy.summary,
+    confidenceScore: result.confidenceScore,
+    searchImmediately: result.decisions.searchImmediately,
+    shouldAskQuestion: result.decisions.shouldAskQuestion,
+    recommendedSearchOrder: result.recommendedSearchOrder,
+    missingInformation: result.missingInformation,
+    combinedQuestion: result.combinedQuestion,
+    riskFlags: result.riskFlags,
+    durationMs: result.durationMs,
+  }
+}
+
 function offersFromToolBatch(batch: ToolExecutionBatch | undefined): {
   flightOffers: Array<Record<string, unknown>>
   hotelStays: Array<Record<string, unknown>>
@@ -778,6 +807,9 @@ export function createTravelAgentService(
   const isTripOptimizerOn = (): boolean =>
     isTripOptimizerEnabled({ enabled: options.tripOptimizerEnabled })
 
+  const isTravelPlannerOn = (): boolean =>
+    isTravelPlannerEnabled({ enabled: options.travelPlannerEnabled })
+
   const isBookingExecEnabled = (): boolean =>
     isBookingExecutionEnabled({ enabled: options.bookingExecutionEnabled })
 
@@ -805,6 +837,8 @@ export function createTravelAgentService(
     basePlan?: TripPlan
     priorAutonomous?: AutonomousAgentSnapshot | null
     onProgress?: (event: AutonomousProgressEvent) => void
+    /** Sprint 78 — precomputed travel strategy (runs before engines). */
+    travelPlanner?: TravelPlannerResult | null
   }): Promise<{
     plan: TripPlan
     batch: ToolExecutionBatch
@@ -813,9 +847,18 @@ export function createTravelAgentService(
     budgetIntelligence?: BudgetIntelligenceResult
     travelerPersonalization?: TravelerPersonalizationResult
     tripOptimizer?: TripOptimizerResult
+    travelPlanner?: TravelPlannerResult
     bookingExecution?: BookingExecutionResult
     payments?: PaymentsPlatformResult
   }> => {
+    const travelPlanner = input.travelPlanner
+      ?? (isTravelPlannerOn()
+        ? runTravelPlanner({
+          userText: input.userText,
+          memory: input.memory,
+          locale: input.memory.locale,
+        })
+        : null)
     const applyBookingIntel = async (
       plan: TripPlan,
       memory: AgentMemory,
@@ -1022,6 +1065,7 @@ export function createTravelAgentService(
       requirements: input.memory.requirements,
       intent: input.memory.lastIntent,
       missingFields: input.memory.missingFields,
+      searchPlan: travelPlanner?.searchPlan,
     })
 
     const batch = selected.length > 0
@@ -1059,6 +1103,7 @@ export function createTravelAgentService(
       budgetIntelligence: intel.budgetIntelligence,
       travelerPersonalization: intel.travelerPersonalization,
       tripOptimizer: intel.tripOptimizer,
+      travelPlanner: travelPlanner ?? undefined,
       bookingExecution: intel.bookingExecution,
       payments: intel.payments,
     }
@@ -1120,8 +1165,18 @@ export function createTravelAgentService(
       let budgetIntelligenceResult: BudgetIntelligenceResult | null = null
       let travelerPersonalizationResult: TravelerPersonalizationResult | null = null
       let tripOptimizerResult: TripOptimizerResult | null = null
+      let travelPlannerResult: TravelPlannerResult | null = null
       let bookingExecutionResult: BookingExecutionResult | null = null
       let paymentsResult: PaymentsPlatformResult | null = null
+
+      // Sprint 78 — Travel Strategy Planner runs before any search engines.
+      if (isTravelPlannerOn()) {
+        travelPlannerResult = runTravelPlanner({
+          userText,
+          memory,
+          locale: memory.locale,
+        })
+      }
 
       // Sprint 76 — learn preferences from conversation even when tools do not run.
       if (isTravelerPersonalizationOn()) {
@@ -1520,9 +1575,12 @@ export function createTravelAgentService(
         const withOptimizer = tripOptimizerResult
           ? { ...withPersonalization, tripOptimizer: toMetaTripOptimizer(tripOptimizerResult) }
           : withPersonalization
-        const withExecution = bookingExecutionResult
-          ? { ...withOptimizer, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+        const withPlanner = travelPlannerResult
+          ? { ...withOptimizer, travelPlanner: toMetaTravelPlanner(travelPlannerResult) }
           : withOptimizer
+        const withExecution = bookingExecutionResult
+          ? { ...withPlanner, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+          : withPlanner
         const withPayments = paymentsResult
           ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
           : withExecution
@@ -1934,11 +1992,13 @@ export function createTravelAgentService(
           basePlan: refreshedDay,
           priorAutonomous,
           onProgress: input.onProgress,
+          travelPlanner: travelPlannerResult,
         })
         toolBatch = ran.batch
         if (ran.autonomous) autonomousSnapshot = ran.autonomous
         if (ran.bookingIntelligence) bookingIntelligenceResult = ran.bookingIntelligence
         if (ran.budgetIntelligence) budgetIntelligenceResult = ran.budgetIntelligence
+        if (ran.travelPlanner) travelPlannerResult = ran.travelPlanner
         if (ran.travelerPersonalization) {
           const priorLearning = travelerPersonalizationResult?.diagnostics.learningEvents ?? []
           travelerPersonalizationResult = {
@@ -1995,12 +2055,14 @@ export function createTravelAgentService(
           basePlan,
           priorAutonomous,
           onProgress: input.onProgress,
+          travelPlanner: travelPlannerResult,
         })
         let plan = ran.plan
         toolBatch = ran.batch
         if (ran.autonomous) autonomousSnapshot = ran.autonomous
         if (ran.bookingIntelligence) bookingIntelligenceResult = ran.bookingIntelligence
         if (ran.budgetIntelligence) budgetIntelligenceResult = ran.budgetIntelligence
+        if (ran.travelPlanner) travelPlannerResult = ran.travelPlanner
         if (ran.travelerPersonalization) {
           const priorLearning = travelerPersonalizationResult?.diagnostics.learningEvents ?? []
           travelerPersonalizationResult = {
@@ -2070,6 +2132,7 @@ export function createTravelAgentService(
         toolResults: toolBatch ? toToolSummaries(toolBatch.results) : undefined,
         savedTitle,
         recommendations: [
+          ...(travelPlannerResult?.recommendationFacts ?? []),
           ...(budgetIntelligenceResult?.recommendationFacts ?? []),
           ...(tripOptimizerResult?.recommendationFacts ?? []),
           ...(bookingIntelligenceResult?.recommendationFacts ?? []),

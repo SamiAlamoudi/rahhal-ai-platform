@@ -197,6 +197,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: trip_optimizer. Does not replace search engines or Budget/Personalization layers; Conversation Brain narrates facts only.',
   },
   {
+    id: 'ai.travel_planner',
+    name: 'AI Travel Strategy Planner',
+    description:
+      'Sprint 78 — pre-search travel strategy: purpose, constraints, missing info, combined clarifying questions, search order, priority weights, and risk flags. Additive reasoning before engines.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.autonomous_agent'],
+    notes:
+      'Product alias: travel_planner. Runs before Flight/Hotel search; does not redesign RahhalBrain or replace engines.',
+  },
+  {
     id: 'ai.live_providers',
     name: 'Live Travel Provider Layer',
     description:

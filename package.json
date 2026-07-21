@@ -28,6 +28,7 @@
     "budget:verify": "vitest run src/lib/__tests__/budgetIntelligence.sprint75.test.ts",
     "personalization:verify": "vitest run src/lib/__tests__/travelerPersonalization.sprint76.test.ts",
     "optimizer:verify": "vitest run src/lib/__tests__/tripOptimizer.sprint77.test.ts",
+    "planner:verify": "vitest run src/lib/__tests__/travelPlanner.sprint78.test.ts",
     "beta:ops": "vitest run src/lib/__tests__/betaOperations.sprint69.test.ts src/lib/__tests__/betaLaunch.sprint67.test.ts",
     "deploy:verify": "vitest run src/lib/__tests__/deploymentLaunch.sprint68.test.ts",
     "production:verify": "vitest run src/lib/__tests__/deploymentLaunch.sprint68.test.ts src/lib/__tests__/productionHardening.sprint65.test.ts src/lib/__tests__/e2eProductionValidation.sprint66.test.ts",
