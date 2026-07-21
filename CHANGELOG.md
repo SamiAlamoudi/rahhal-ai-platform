@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 81: AI Price Intelligence & Booking Timing
+
+### Added
+
+- Core booking-timing stack (`src/core/priceIntelligence`) — PriceAnalyzer, BookingTimingEngine, trends, confidence, opportunities, explainable timing actions.
+- Agent bridge `src/lib/agent/priceIntelligence` + flag `ai.price_intelligence` (default ON).
+- Docs: `docs/SPRINT81_PRICE_INTELLIGENCE.md`; verify: `npm run price:verify`.
+
+### Notes
+
+- Not a live pricing feed. Additive after Decision Engine / Adaptive Learning; RahhalBrain unchanged.
+
 ## [Unreleased] — Sprint 80: Adaptive Learning & Personalization Engine
 
 ### Added

@@ -81,6 +81,11 @@ import {
   type AdaptiveLearningResult,
 } from './adaptiveLearning'
 import {
+  enrichWithPriceIntelligence,
+  isPriceIntelligenceEnabled,
+  type BookingTimingResult,
+} from './priceIntelligence'
+import {
   enrichWithBookingExecution,
   findLatestConfirmedBookingExecution,
   isBookingExecutionEnabled,
@@ -321,6 +326,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.adaptive_learning` (ON).
    */
   adaptiveLearningEnabled?: boolean
+  /**
+   * Sprint 81 — AI Price Intelligence & Booking Timing.
+   * Default: FeatureRegistry `ai.price_intelligence` (ON).
+   */
+  priceIntelligenceEnabled?: boolean
   /**
    * Sprint 57 — Booking Execution Engine (lifecycle, transactions, resume).
    * Default: FeatureRegistry `ai.booking_execution` (ON). Runs only on explicit confirm/book cues.
@@ -644,6 +654,24 @@ function toMetaAdaptiveLearning(
   }
 }
 
+function toMetaPriceIntelligence(
+  result: BookingTimingResult,
+): NonNullable<AgentProviderMeta['priceIntelligence']> {
+  const rec = result.recommendation
+  return {
+    action: rec.action,
+    confidence: rec.confidence,
+    explanation: rec.explanation || null,
+    opportunities: rec.opportunities,
+    signalsUsed: rec.signalsUsed,
+    currentPrice: rec.analysis.currentPrice,
+    averagePrice: rec.analysis.averageObservedPrice,
+    trend: rec.analysis.trend,
+    daysToDeparture: rec.analysis.daysToDeparture,
+    durationMs: result.durationMs,
+  }
+}
+
 function offersFromToolBatch(batch: ToolExecutionBatch | undefined): {
   flightOffers: Array<Record<string, unknown>>
   hotelStays: Array<Record<string, unknown>>
@@ -873,6 +901,9 @@ export function createTravelAgentService(
   const isAdaptiveLearningOn = (): boolean =>
     isAdaptiveLearningEnabled({ enabled: options.adaptiveLearningEnabled })
 
+  const isPriceIntelligenceOn = (): boolean =>
+    isPriceIntelligenceEnabled({ enabled: options.priceIntelligenceEnabled })
+
   const isBookingExecEnabled = (): boolean =>
     isBookingExecutionEnabled({ enabled: options.bookingExecutionEnabled })
 
@@ -912,6 +943,7 @@ export function createTravelAgentService(
     tripOptimizer?: TripOptimizerResult
     travelPlanner?: TravelPlannerResult
     autonomousDecision?: AutonomousDecisionResult
+    priceIntelligence?: BookingTimingResult
     bookingExecution?: BookingExecutionResult
     payments?: PaymentsPlatformResult
   }> => {
@@ -934,6 +966,7 @@ export function createTravelAgentService(
       travelerPersonalization?: TravelerPersonalizationResult
       tripOptimizer?: TripOptimizerResult
       autonomousDecision?: AutonomousDecisionResult
+      priceIntelligence?: BookingTimingResult
       bookingExecution?: BookingExecutionResult
       payments?: PaymentsPlatformResult
     }> => {
@@ -942,6 +975,7 @@ export function createTravelAgentService(
       let travelerPersonalization: TravelerPersonalizationResult | undefined
       let tripOptimizer: TripOptimizerResult | undefined
       let autonomousDecision: AutonomousDecisionResult | undefined
+      let priceIntelligence: BookingTimingResult | undefined
       const { flightOffers, hotelStays } = offersFromToolBatch(batch)
 
       if (isBudgetIntelEnabled()) {
@@ -1005,6 +1039,21 @@ export function createTravelAgentService(
         autonomousDecision = decided.autonomousDecision ?? undefined
       }
 
+      // Sprint 81 — booking timing after Decision Engine + Adaptive Learning profile use.
+      if (isPriceIntelligenceOn()) {
+        const best = autonomousDecision?.recommendations.bestOverall
+        const timed = enrichWithPriceIntelligence({
+          memory,
+          tripPlan: nextPlan,
+          enabled: options.priceIntelligenceEnabled,
+          flightOffers: flightOffers.length ? flightOffers : undefined,
+          hotelStays: hotelStays.length ? hotelStays : undefined,
+          decisionBestTotal: best?.totalPrice ?? null,
+        })
+        nextPlan = timed.tripPlan
+        priceIntelligence = timed.priceIntelligence ?? undefined
+      }
+
       if (!isBookingIntelEnabled()) {
         return {
           plan: nextPlan,
@@ -1012,6 +1061,7 @@ export function createTravelAgentService(
           travelerPersonalization,
           tripOptimizer,
           autonomousDecision,
+          priceIntelligence,
         }
       }
       const enriched = await enrichWithBookingIntelligence({
@@ -1072,6 +1122,7 @@ export function createTravelAgentService(
         travelerPersonalization,
         tripOptimizer,
         autonomousDecision,
+        priceIntelligence,
         bookingExecution,
         payments,
       }
@@ -1101,6 +1152,7 @@ export function createTravelAgentService(
           tripOptimizer: intel.tripOptimizer,
           travelPlanner: travelPlanner ?? undefined,
           autonomousDecision: intel.autonomousDecision,
+          priceIntelligence: intel.priceIntelligence,
           bookingExecution: intel.bookingExecution,
           payments: intel.payments,
         }
@@ -1137,6 +1189,7 @@ export function createTravelAgentService(
           tripOptimizer: intel.tripOptimizer,
           travelPlanner: travelPlanner ?? undefined,
           autonomousDecision: intel.autonomousDecision,
+          priceIntelligence: intel.priceIntelligence,
           bookingExecution: intel.bookingExecution,
           payments: intel.payments,
         }
@@ -1199,6 +1252,7 @@ export function createTravelAgentService(
       tripOptimizer: intel.tripOptimizer,
       travelPlanner: travelPlanner ?? undefined,
       autonomousDecision: intel.autonomousDecision,
+      priceIntelligence: intel.priceIntelligence,
       bookingExecution: intel.bookingExecution,
       payments: intel.payments,
     }
@@ -1263,6 +1317,7 @@ export function createTravelAgentService(
       let travelPlannerResult: TravelPlannerResult | null = null
       let autonomousDecisionResult: AutonomousDecisionResult | null = null
       let adaptiveLearningResult: AdaptiveLearningResult | null = null
+      let priceIntelligenceResult: BookingTimingResult | null = null
       let bookingExecutionResult: BookingExecutionResult | null = null
       let paymentsResult: PaymentsPlatformResult | null = null
 
@@ -1696,9 +1751,15 @@ export function createTravelAgentService(
             adaptiveLearning: toMetaAdaptiveLearning(adaptiveLearningResult),
           }
           : withDecision
-        const withExecution = bookingExecutionResult
-          ? { ...withLearning, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+        const withPrice = priceIntelligenceResult
+          ? {
+            ...withLearning,
+            priceIntelligence: toMetaPriceIntelligence(priceIntelligenceResult),
+          }
           : withLearning
+        const withExecution = bookingExecutionResult
+          ? { ...withPrice, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+          : withPrice
         const withPayments = paymentsResult
           ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
           : withExecution
@@ -2131,6 +2192,7 @@ export function createTravelAgentService(
         }
         if (ran.tripOptimizer) tripOptimizerResult = ran.tripOptimizer
         if (ran.autonomousDecision) autonomousDecisionResult = ran.autonomousDecision
+        if (ran.priceIntelligence) priceIntelligenceResult = ran.priceIntelligence
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
         if (ran.payments) paymentsResult = ran.payments
         memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, ran.plan)
@@ -2196,6 +2258,7 @@ export function createTravelAgentService(
         }
         if (ran.tripOptimizer) tripOptimizerResult = ran.tripOptimizer
         if (ran.autonomousDecision) autonomousDecisionResult = ran.autonomousDecision
+        if (ran.priceIntelligence) priceIntelligenceResult = ran.priceIntelligence
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
         if (ran.payments) paymentsResult = ran.payments
         if (llmResult.draft?.notes?.length) {
