@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 83: AI Dynamic Travel Packages
+
+### Added
+
+- Core package stack (`src/core/packageBuilder`) — build, compatibility, score, optimize, rank, confidence, explainability.
+- Agent bridge `src/lib/agent/packageBuilder` + flag `ai.dynamic_packages` (default ON).
+- Decision Engine consumes package preference via prioritized offer pools (no public contract change).
+- Docs: `docs/SPRINT83_DYNAMIC_PACKAGES.md`; verify: `npm run package:verify`.
+
+### Notes
+
+- Additive only — RahhalBrain unchanged; Adaptive Learning may re-rank; Price Intelligence enriches scores without duplicated pricing logic.
+
 ## [Unreleased] — Sprint 81: AI Price Intelligence & Booking Timing
 
 ### Added

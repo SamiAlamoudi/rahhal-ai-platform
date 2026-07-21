@@ -482,6 +482,22 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 83 — AI Dynamic Travel Packages snapshot.
+   * Additive structured facts only — Conversation Brain authors traveler-facing text.
+   */
+  dynamicPackages?: {
+    selectedId: string | null
+    selectedTitle: string | null
+    selectedScore: number | null
+    confidence: number
+    packageCount: number
+    duplicateCount: number
+    filteredCount: number
+    labels: string[]
+    explanation: string | null
+    durationMs: number
+  }
+  /**
    * Sprint 57 — Booking Execution Engine snapshot (lifecycle, confirmations, resume).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */

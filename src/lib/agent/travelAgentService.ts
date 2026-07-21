@@ -86,6 +86,11 @@ import {
   type BookingTimingResult,
 } from './priceIntelligence'
 import {
+  enrichWithDynamicPackages,
+  isDynamicPackagesEnabled,
+  type PackageBuilderResult,
+} from './packageBuilder'
+import {
   enrichWithBookingExecution,
   findLatestConfirmedBookingExecution,
   isBookingExecutionEnabled,
@@ -331,6 +336,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.price_intelligence` (ON).
    */
   priceIntelligenceEnabled?: boolean
+  /**
+   * Sprint 83 — AI Dynamic Travel Packages.
+   * Default: FeatureRegistry `ai.dynamic_packages` (ON).
+   */
+  dynamicPackagesEnabled?: boolean
   /**
    * Sprint 57 — Booking Execution Engine (lifecycle, transactions, resume).
    * Default: FeatureRegistry `ai.booking_execution` (ON). Runs only on explicit confirm/book cues.
@@ -672,6 +682,24 @@ function toMetaPriceIntelligence(
   }
 }
 
+function toMetaDynamicPackages(
+  result: PackageBuilderResult,
+): NonNullable<AgentProviderMeta['dynamicPackages']> {
+  const best = result.selected ?? result.ranked[0] ?? null
+  return {
+    selectedId: best?.id ?? null,
+    selectedTitle: best?.title ?? null,
+    selectedScore: best?.score ?? null,
+    confidence: best?.confidence ?? 0,
+    packageCount: result.packages.length,
+    duplicateCount: result.duplicateCount,
+    filteredCount: result.filteredCount,
+    labels: best?.labels ?? [],
+    explanation: best?.explanation ?? null,
+    durationMs: result.durationMs,
+  }
+}
+
 function offersFromToolBatch(batch: ToolExecutionBatch | undefined): {
   flightOffers: Array<Record<string, unknown>>
   hotelStays: Array<Record<string, unknown>>
@@ -904,6 +932,9 @@ export function createTravelAgentService(
   const isPriceIntelligenceOn = (): boolean =>
     isPriceIntelligenceEnabled({ enabled: options.priceIntelligenceEnabled })
 
+  const isDynamicPackagesOn = (): boolean =>
+    isDynamicPackagesEnabled({ enabled: options.dynamicPackagesEnabled })
+
   const isBookingExecEnabled = (): boolean =>
     isBookingExecutionEnabled({ enabled: options.bookingExecutionEnabled })
 
@@ -944,6 +975,7 @@ export function createTravelAgentService(
     travelPlanner?: TravelPlannerResult
     autonomousDecision?: AutonomousDecisionResult
     priceIntelligence?: BookingTimingResult
+    dynamicPackages?: PackageBuilderResult
     bookingExecution?: BookingExecutionResult
     payments?: PaymentsPlatformResult
   }> => {
@@ -967,6 +999,7 @@ export function createTravelAgentService(
       tripOptimizer?: TripOptimizerResult
       autonomousDecision?: AutonomousDecisionResult
       priceIntelligence?: BookingTimingResult
+      dynamicPackages?: PackageBuilderResult
       bookingExecution?: BookingExecutionResult
       payments?: PaymentsPlatformResult
     }> => {
@@ -976,7 +1009,8 @@ export function createTravelAgentService(
       let tripOptimizer: TripOptimizerResult | undefined
       let autonomousDecision: AutonomousDecisionResult | undefined
       let priceIntelligence: BookingTimingResult | undefined
-      const { flightOffers, hotelStays } = offersFromToolBatch(batch)
+      let dynamicPackages: PackageBuilderResult | undefined
+      let { flightOffers, hotelStays } = offersFromToolBatch(batch)
 
       if (isBudgetIntelEnabled()) {
         const budgeted = await enrichWithBudgetIntelligence({
@@ -1022,6 +1056,25 @@ export function createTravelAgentService(
         tripOptimizer = optimized.tripOptimizer ?? undefined
       }
 
+      // Sprint 83 — Package Builder before Decision Engine; reorders offers for DE consumption.
+      if (isDynamicPackagesOn()) {
+        const learnedProfile = isAdaptiveLearningOn()
+          ? getLearnedProfile(input.conversationId)
+          : null
+        const packaged = await enrichWithDynamicPackages({
+          memory,
+          tripPlan: nextPlan,
+          enabled: options.dynamicPackagesEnabled,
+          flightOffers: flightOffers.length ? flightOffers : undefined,
+          hotelStays: hotelStays.length ? hotelStays : undefined,
+          learnedProfile,
+        })
+        nextPlan = packaged.tripPlan
+        dynamicPackages = packaged.dynamicPackages ?? undefined
+        flightOffers = packaged.flightOffers
+        hotelStays = packaged.hotelStays
+      }
+
       if (isAutonomousDecisionOn()) {
         const learnedProfile = isAdaptiveLearningOn()
           ? getLearnedProfile(input.conversationId)
@@ -1048,7 +1101,9 @@ export function createTravelAgentService(
           enabled: options.priceIntelligenceEnabled,
           flightOffers: flightOffers.length ? flightOffers : undefined,
           hotelStays: hotelStays.length ? hotelStays : undefined,
-          decisionBestTotal: best?.totalPrice ?? null,
+          decisionBestTotal: best?.totalPrice
+            ?? dynamicPackages?.selected?.totalPrice
+            ?? null,
         })
         nextPlan = timed.tripPlan
         priceIntelligence = timed.priceIntelligence ?? undefined
@@ -1062,6 +1117,7 @@ export function createTravelAgentService(
           tripOptimizer,
           autonomousDecision,
           priceIntelligence,
+          dynamicPackages,
         }
       }
       const enriched = await enrichWithBookingIntelligence({
@@ -1123,6 +1179,7 @@ export function createTravelAgentService(
         tripOptimizer,
         autonomousDecision,
         priceIntelligence,
+        dynamicPackages,
         bookingExecution,
         payments,
       }
@@ -1153,6 +1210,7 @@ export function createTravelAgentService(
           travelPlanner: travelPlanner ?? undefined,
           autonomousDecision: intel.autonomousDecision,
           priceIntelligence: intel.priceIntelligence,
+          dynamicPackages: intel.dynamicPackages,
           bookingExecution: intel.bookingExecution,
           payments: intel.payments,
         }
@@ -1190,6 +1248,7 @@ export function createTravelAgentService(
           travelPlanner: travelPlanner ?? undefined,
           autonomousDecision: intel.autonomousDecision,
           priceIntelligence: intel.priceIntelligence,
+          dynamicPackages: intel.dynamicPackages,
           bookingExecution: intel.bookingExecution,
           payments: intel.payments,
         }
@@ -1253,6 +1312,7 @@ export function createTravelAgentService(
       travelPlanner: travelPlanner ?? undefined,
       autonomousDecision: intel.autonomousDecision,
       priceIntelligence: intel.priceIntelligence,
+      dynamicPackages: intel.dynamicPackages,
       bookingExecution: intel.bookingExecution,
       payments: intel.payments,
     }
@@ -1318,6 +1378,7 @@ export function createTravelAgentService(
       let autonomousDecisionResult: AutonomousDecisionResult | null = null
       let adaptiveLearningResult: AdaptiveLearningResult | null = null
       let priceIntelligenceResult: BookingTimingResult | null = null
+      let dynamicPackagesResult: PackageBuilderResult | null = null
       let bookingExecutionResult: BookingExecutionResult | null = null
       let paymentsResult: PaymentsPlatformResult | null = null
 
@@ -1757,9 +1818,15 @@ export function createTravelAgentService(
             priceIntelligence: toMetaPriceIntelligence(priceIntelligenceResult),
           }
           : withLearning
-        const withExecution = bookingExecutionResult
-          ? { ...withPrice, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+        const withPackages = dynamicPackagesResult
+          ? {
+            ...withPrice,
+            dynamicPackages: toMetaDynamicPackages(dynamicPackagesResult),
+          }
           : withPrice
+        const withExecution = bookingExecutionResult
+          ? { ...withPackages, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+          : withPackages
         const withPayments = paymentsResult
           ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
           : withExecution
@@ -2193,6 +2260,7 @@ export function createTravelAgentService(
         if (ran.tripOptimizer) tripOptimizerResult = ran.tripOptimizer
         if (ran.autonomousDecision) autonomousDecisionResult = ran.autonomousDecision
         if (ran.priceIntelligence) priceIntelligenceResult = ran.priceIntelligence
+        if (ran.dynamicPackages) dynamicPackagesResult = ran.dynamicPackages
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
         if (ran.payments) paymentsResult = ran.payments
         memory = withTripPlan({ ...memory, phase: 'editing', missingFields: [] }, ran.plan)
@@ -2259,6 +2327,7 @@ export function createTravelAgentService(
         if (ran.tripOptimizer) tripOptimizerResult = ran.tripOptimizer
         if (ran.autonomousDecision) autonomousDecisionResult = ran.autonomousDecision
         if (ran.priceIntelligence) priceIntelligenceResult = ran.priceIntelligence
+        if (ran.dynamicPackages) dynamicPackagesResult = ran.dynamicPackages
         if (ran.bookingExecution) bookingExecutionResult = ran.bookingExecution
         if (ran.payments) paymentsResult = ran.payments
         if (llmResult.draft?.notes?.length) {

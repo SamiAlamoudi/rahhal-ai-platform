@@ -27,6 +27,7 @@ export type FeatureId =
   | 'ai.autonomous_decision'
   | 'ai.adaptive_learning'
   | 'ai.price_intelligence'
+  | 'ai.dynamic_packages'
   | 'ai.live_providers'
   | 'provider.amadeus'
   | 'provider.duffel'
