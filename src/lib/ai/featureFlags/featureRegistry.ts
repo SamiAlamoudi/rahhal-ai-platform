@@ -205,12 +205,12 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     id: 'ai.booking_execution',
     name: 'Booking Execution Engine',
     description:
-      'Sprint 57 — booking lifecycle, multi-domain orchestrator, transaction manager, reservations, sessions, unified booking model, notifications, and audit. Default ON.',
+      'Sprint 57/61 — booking lifecycle, multi-domain orchestrator, live provider orders (Amadeus/Booking.com), persistence, and DocumentCenter tickets. Default ON.',
     lifecycle: 'beta',
     enabled: true,
     dependsOn: ['ai.booking_intelligence'],
     notes:
-      'Product alias: booking_execution. Executes bookings via BookingProvider/Live bridges; Conversation Brain narrates facts only.',
+      'Product alias: booking_execution. Executes via BookingProvider/Live bridges; AMADEUS_ORDER_LIVE / BOOKING_ORDER_LIVE gate HTTP order APIs.',
   },
   {
     id: 'ai.transaction_manager',

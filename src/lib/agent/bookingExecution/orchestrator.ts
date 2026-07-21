@@ -12,13 +12,19 @@ import {
   isTransactionManagerEnabled,
 } from './feature'
 import { assertTransition, isSuccessStatus } from './lifecycle'
+import { generateBookingDocuments } from './documents'
 import { normalizeProviderBooking, withBookingStatus } from './normalize'
+import {
+  getDefaultBookingRecordStore,
+  type BookingRecordStore,
+} from './persistence'
 import { ReservationManager } from './reservationManager'
 import {
   BookingSessionStore,
   getDefaultBookingSessionStore,
 } from './sessionStore'
 import { TransactionManager } from './transactionManager'
+import { createProviderRequestId, logProviderRequest } from '../liveProviders/providerLog'
 import type {
   BookingExecutionLineItem,
   BookingExecutionResult,
@@ -46,9 +52,24 @@ function createId(prefix: string): string {
 }
 
 function defaultExecutor(): BookingExecutorFn {
-  return async ({ provider, offerId, signal }) => {
+  return async ({
+    provider,
+    offerId,
+    signal,
+    travelers,
+    conversationId,
+    checkIn,
+    checkOut,
+    roomType,
+  }) => {
     const started = Date.now()
-    const result = await provider.book(offerId, signal)
+    const result = await provider.book(offerId, signal, {
+      travelers,
+      conversationId,
+      checkIn,
+      checkOut,
+      roomType,
+    })
     return { ...result, latencyMs: Date.now() - started }
   }
 }
@@ -102,11 +123,13 @@ export function createBookingExecutionEngine(options?: {
   reservations?: ReservationManager
   audit?: BookingAuditTrail
   events?: BookingEventBus
+  records?: BookingRecordStore
 }): BookingExecutionEngine {
   const sessions = options?.sessions ?? getDefaultBookingSessionStore()
   const reservations = options?.reservations ?? new ReservationManager()
   const audit = options?.audit ?? new BookingAuditTrail()
   const events = options?.events ?? new BookingEventBus()
+  const records = options?.records ?? getDefaultBookingRecordStore()
 
   const engine: BookingExecutionEngine = {
     events,
@@ -168,6 +191,8 @@ export function createBookingExecutionEngine(options?: {
       const executor = input.executor ?? defaultExecutor()
       const canceller = input.canceller ?? defaultCanceller()
       const travelers = input.travelers?.length ? input.travelers : defaultTravelers()
+      const conversationId = input.conversationId ?? null
+      const generateDocuments = input.generateDocuments !== false
       const collectedEvents: BookingNotificationEvent[] = []
       const emit = (event: BookingNotificationEvent) => {
         collectedEvents.push(event)
@@ -299,6 +324,7 @@ export function createBookingExecutionEngine(options?: {
         if (!provider) {
           const failed = normalizeProviderBooking({
             sessionId: session.id,
+            conversationId,
             domain: item.domain,
             providerId: item.providerId,
             offerId: item.offerId,
@@ -308,6 +334,7 @@ export function createBookingExecutionEngine(options?: {
             now,
             raw: { error: 'provider_unavailable' },
           })
+          records.upsertFromUnified(failed)
           session = appendBooking(session, failed, index, false)
           sessions.save(session)
           emit(createBookingEvent('BookingFailed', session.id, failed.id, { domain: item.domain }, now))
@@ -332,6 +359,7 @@ export function createBookingExecutionEngine(options?: {
               events: emit,
               now,
               txn,
+              records,
             })
             break
           }
@@ -344,7 +372,16 @@ export function createBookingExecutionEngine(options?: {
             const merged = input.signal
               ? abortAny([input.signal, signal])
               : signal
-            return executor({ provider, offerId: item.offerId, signal: merged })
+            return executor({
+              provider,
+              offerId: item.offerId,
+              signal: merged,
+              travelers,
+              conversationId,
+              checkIn: item.domain === 'hotels' ? (item.offer?.raw as { checkIn?: string } | undefined)?.checkIn ?? null : null,
+              checkOut: item.domain === 'hotels' ? (item.offer?.raw as { checkOut?: string } | undefined)?.checkOut ?? null : null,
+              roomType: item.domain === 'hotels' ? item.offer?.seatType ?? null : null,
+            })
           },
           {
             signal: input.signal,
@@ -357,6 +394,7 @@ export function createBookingExecutionEngine(options?: {
             (!attempt.ok ? attempt.error : attempt.value.error) || 'book_failed'
           const failed = normalizeProviderBooking({
             sessionId: session.id,
+            conversationId,
             domain: item.domain,
             providerId: item.providerId,
             offerId: item.offerId,
@@ -364,7 +402,24 @@ export function createBookingExecutionEngine(options?: {
             travelers,
             pricing: item.price,
             now,
-            raw: { error, attempts: attempt.attempts },
+            order: attempt.ok ? attempt.value.order : undefined,
+            raw: {
+              error,
+              attempts: attempt.attempts,
+              errorCode: attempt.ok ? attempt.value.errorCode : undefined,
+              timedOut: !attempt.ok ? attempt.timedOut : false,
+            },
+          })
+          records.upsertFromUnified(failed)
+          logProviderRequest({
+            requestId: createProviderRequestId('bex'),
+            provider: item.providerId,
+            operation: 'book',
+            durationMs: attempt.latencyMs,
+            status: 'failed',
+            bookingId: failed.id,
+            providerReference: null,
+            detail: error,
           })
           session = appendBooking(session, failed, index, false)
           sessions.save(session)
@@ -392,6 +447,7 @@ export function createBookingExecutionEngine(options?: {
               events: emit,
               now,
               txn,
+              records,
             })
             break
           }
@@ -410,6 +466,7 @@ export function createBookingExecutionEngine(options?: {
 
         let booking = normalizeProviderBooking({
           sessionId: session.id,
+          conversationId,
           domain: item.domain,
           providerId: item.providerId,
           offerId: item.offerId,
@@ -421,6 +478,7 @@ export function createBookingExecutionEngine(options?: {
           title: item.title,
           now,
           expiresAt: reservation.expiresAt,
+          order: attempt.value.order,
           raw: attempt.value,
         })
         // Flights advance to ticketed when confirmation succeeds.
@@ -437,6 +495,17 @@ export function createBookingExecutionEngine(options?: {
               : r,
           ),
         )
+
+        records.upsertFromUnified(booking)
+        logProviderRequest({
+          requestId: createProviderRequestId('bex'),
+          provider: item.providerId,
+          operation: 'book',
+          durationMs: attempt.latencyMs,
+          status: booking.status,
+          bookingId: booking.id,
+          providerReference: booking.providerBookingId ?? booking.confirmation,
+        })
 
         session = appendBooking(session, booking, index, true)
         sessions.save(session)
@@ -479,6 +548,47 @@ export function createBookingExecutionEngine(options?: {
         updatedAt: new Date(now()).toISOString(),
       }
       if (!rolledBack && (session.status === 'confirmed' || session.status === 'ticketed')) {
+        if (generateDocuments) {
+          const bundle = generateBookingDocuments({
+            sessionId: session.id,
+            bookings: session.bookings.filter((b) => isSuccessStatus(b.status)),
+            travelerName: travelers[0]
+              ? `${travelers[0].firstName} ${travelers[0].lastName}`.trim()
+              : undefined,
+            now,
+          })
+          session = {
+            ...session,
+            bookings: session.bookings.map((booking) => {
+              if (!isSuccessStatus(booking.status)) return booking
+              const related = bundle.documents.filter(
+                (d) => !d.relatedTicketId
+                  || bundle.tickets.some(
+                    (t) => t.bookingId === booking.id && t.documentIds.includes(d.id),
+                  ),
+              )
+              const docs = [
+                ...booking.documents,
+                ...related.map((d) => ({
+                  id: d.id,
+                  type:
+                    d.kind === 'eticket'
+                      ? 'eticket' as const
+                      : d.kind === 'voucher'
+                        ? 'voucher' as const
+                        : d.kind === 'invoice'
+                          ? 'invoice' as const
+                          : 'other' as const,
+                  url: d.downloadUrl,
+                  label: d.label,
+                })),
+              ]
+              const next = { ...booking, documents: docs }
+              records.upsertFromUnified(next)
+              return next
+            }),
+          }
+        }
         emit(createBookingEvent('BookingCompleted', session.id, null, {
           bookingCount: session.bookings.length,
         }, now))
@@ -534,6 +644,7 @@ async function rollbackSuccesses(input: {
   events: (event: BookingNotificationEvent) => void
   now: () => number
   txn: TransactionManager
+  records?: BookingRecordStore
 }): Promise<boolean> {
   const result = await input.txn.rollbackAll()
   // Also cancel via canceller for any still listed
@@ -554,6 +665,7 @@ async function rollbackSuccesses(input: {
     if (!isSuccessStatus(b.status)) return b
     return withBookingStatus(b, 'cancelled', input.now)
   })
+  for (const booking of bookings) input.records?.upsertFromUnified(booking)
   const session: BookingExecutionSession = {
     ...input.session,
     bookings,

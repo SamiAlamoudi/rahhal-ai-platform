@@ -71,10 +71,69 @@ export interface BookingProvider {
   details(offerId: string, signal?: AbortSignal): Promise<BookingOffer | null>
   availability(offerId: string, signal?: AbortSignal): Promise<{ available: boolean; seatsOrRooms?: number }>
   price(offerId: string, signal?: AbortSignal): Promise<MoneyAmount | null>
-  /** Stub — real booking adapters plug in later without orchestration changes. */
-  book(offerId: string, signal?: AbortSignal): Promise<{ ok: boolean; confirmationId?: string; error?: string }>
-  /** Stub — real cancel adapters plug in later without orchestration changes. */
-  cancel(confirmationId: string, signal?: AbortSignal): Promise<{ ok: boolean; error?: string }>
+  /**
+   * Sprint 61 — provider booking. Optional `context` carries travelers / stay dates.
+   * `order` carries normalized provider payload when available.
+   */
+  book(
+    offerId: string,
+    signal?: AbortSignal,
+    context?: BookingBookContext,
+  ): Promise<BookingBookResult>
+  /** Sprint 61 — retrieve an existing provider confirmation. */
+  retrieve?(confirmationId: string, signal?: AbortSignal): Promise<BookingBookResult | null>
+  /** Cancel a provider confirmation. */
+  cancel(
+    confirmationId: string,
+    signal?: AbortSignal,
+  ): Promise<{ ok: boolean; error?: string; errorCode?: string }>
+}
+
+export type BookingBookContext = {
+  travelers?: Array<{
+    firstName: string
+    lastName: string
+    email?: string | null
+    phone?: string | null
+  }>
+  conversationId?: string | null
+  checkIn?: string | null
+  checkOut?: string | null
+  roomType?: string | null
+}
+
+/** Provider order payload returned from book/retrieve (Sprint 61). */
+export type BookingOrderPayload = {
+  ok: boolean
+  orderId?: string
+  error?: string
+  errorCode?: string
+  retryable?: boolean
+  domain?: 'flights' | 'hotels'
+  providerBookingId?: string | null
+  pnr?: string | null
+  ticketNumbers?: string[]
+  hotelConfirmation?: string | null
+  guestNames?: string[]
+  roomType?: string | null
+  checkIn?: string | null
+  checkOut?: string | null
+  travelerList?: BookingBookContext['travelers']
+  status?: 'pending' | 'confirmed' | 'cancelled' | 'failed'
+  price?: MoneyAmount
+  currency?: string
+  createdAt?: string
+  raw?: unknown
+}
+
+export type BookingBookResult = {
+  ok: boolean
+  confirmationId?: string
+  error?: string
+  errorCode?: string
+  retryable?: boolean
+  /** Provider-normalized order payload (flights / hotels). */
+  order?: BookingOrderPayload
 }
 
 export interface BookingProviderRegistry {

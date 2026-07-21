@@ -11,6 +11,7 @@ import type {
   LiveFlightOffer,
   LiveFlightSearchInput,
   LiveMoney,
+  LiveOrderContext,
   LiveProviderCapabilities,
   LiveProviderSdk,
 } from '../types'
@@ -162,17 +163,45 @@ export function createDuffelLiveProvider(options: DuffelAdapterOptions = {}): Li
       // Duffel offer amounts are already priced at offer time.
       return details.price
     },
-    async createOrder(offerId: string) {
+    async createOrder(offerId: string, _signal?: AbortSignal, context?: LiveOrderContext) {
       // Stub — stable contract for future live order creation.
       if (!offerCache.has(offerId) && !offerId) {
-        return { ok: false, error: 'offer_not_found' }
+        return { ok: false, error: 'offer_not_found', errorCode: 'validation' as const }
       }
-      return { ok: true, orderId: `duffel-order-stub-${offerId}` }
+      const travelers = context?.travelers?.length
+        ? context.travelers
+        : [{ firstName: 'Traveler', lastName: 'One' }]
+      const orderId = `duffel-order-stub-${offerId}`
+      const pnr = orderId.replace(/[^A-Z0-9]/gi, '').slice(0, 6).toUpperCase()
+      return {
+        ok: true,
+        orderId,
+        domain: 'flights' as const,
+        providerBookingId: orderId,
+        pnr,
+        ticketNumbers: [`ETK-${pnr}`],
+        travelerList: travelers,
+        status: 'confirmed' as const,
+        createdAt: new Date().toISOString(),
+      }
+    },
+    async retrieveOrder(orderId: string) {
+      if (!orderId.startsWith('duffel-order-stub-') && !orderId.startsWith('duf_')) {
+        return { ok: false, error: 'not_found', errorCode: 'not_found' as const, orderId }
+      }
+      return {
+        ok: true,
+        orderId,
+        domain: 'flights' as const,
+        providerBookingId: orderId,
+        status: 'confirmed' as const,
+        createdAt: new Date().toISOString(),
+      }
     },
     async cancelOrder(orderId: string) {
       // Stub — stable contract for future live cancellation.
       if (!orderId.startsWith('duffel-order-stub-') && !orderId.startsWith('duf_')) {
-        return { ok: false, error: 'unknown_order' }
+        return { ok: false, error: 'unknown_order', errorCode: 'not_found' as const }
       }
       return { ok: true }
     },

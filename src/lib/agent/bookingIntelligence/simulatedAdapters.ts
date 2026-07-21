@@ -86,9 +86,54 @@ function createSimulatedProvider(input: {
     async price(offerId) {
       return catalog.get(offerId)?.price ?? null
     },
-    async book(offerId) {
-      if (!catalog.has(offerId)) return { ok: false, error: 'offer_not_found' }
-      return { ok: true, confirmationId: `sim-book-${offerId}` }
+    async book(offerId, _signal, context) {
+      if (!catalog.has(offerId)) {
+        return { ok: false, error: 'offer_not_found', errorCode: 'validation' }
+      }
+      const offer = catalog.get(offerId)!
+      const confirmationId = `sim-book-${offerId}`
+      const travelers = context?.travelers?.length
+        ? context.travelers
+        : [{ firstName: 'Traveler', lastName: 'One' }]
+      const isFlight = input.domain === 'flights'
+      return {
+        ok: true,
+        confirmationId,
+        order: {
+          ok: true,
+          orderId: confirmationId,
+          domain: isFlight ? 'flights' : input.domain === 'hotels' ? 'hotels' : undefined,
+          providerBookingId: confirmationId,
+          pnr: isFlight ? confirmationId.replace(/^sim-book-/i, '').slice(0, 6).toUpperCase() : null,
+          ticketNumbers: isFlight ? [`ETK-${confirmationId.slice(-6).toUpperCase()}`] : [],
+          hotelConfirmation: input.domain === 'hotels' ? confirmationId : null,
+          guestNames: travelers.map((t) => `${t.firstName} ${t.lastName}`.trim()),
+          roomType: context?.roomType ?? (input.domain === 'hotels' ? 'Standard Room' : null),
+          checkIn: context?.checkIn ?? null,
+          checkOut: context?.checkOut ?? null,
+          travelerList: travelers,
+          status: 'confirmed',
+          price: offer.price,
+          currency: offer.price.currency,
+          createdAt: new Date().toISOString(),
+        },
+      }
+    },
+    async retrieve(confirmationId) {
+      if (!confirmationId.startsWith('sim-book-')) {
+        return { ok: false, error: 'not_found', errorCode: 'not_found', confirmationId }
+      }
+      return {
+        ok: true,
+        confirmationId,
+        order: {
+          ok: true,
+          orderId: confirmationId,
+          providerBookingId: confirmationId,
+          status: 'confirmed',
+          createdAt: new Date().toISOString(),
+        },
+      }
     },
     async cancel(confirmationId) {
       if (!confirmationId.startsWith('sim-book-')) return { ok: false, error: 'unknown_confirmation' }

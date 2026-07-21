@@ -109,17 +109,49 @@ function createCatalogBridge(input: {
       if (priced) return money(priced.amount, priced.currency)
       return catalog.get(offerId)?.price ?? null
     },
-    async book(offerId, signal) {
+    async book(offerId, signal, context) {
       if (input.sdk.createOrder) {
-        const result = await input.sdk.createOrder(offerId, signal)
+        const offer = catalog.get(offerId)
+        const result = await input.sdk.createOrder(offerId, signal, {
+          travelers: context?.travelers,
+          conversationId: context?.conversationId,
+          checkIn: context?.checkIn ?? null,
+          checkOut: context?.checkOut ?? null,
+          roomType: context?.roomType ?? null,
+        })
         return {
           ok: result.ok,
           confirmationId: result.orderId,
           error: result.error,
+          errorCode: result.errorCode,
+          retryable: result.retryable,
+          order: {
+            ...result,
+            price: result.price
+              ? money(result.price.amount, result.price.currency)
+              : offer?.price,
+          },
         }
       }
-      if (!catalog.has(offerId)) return { ok: false, error: 'offer_not_found' }
+      if (!catalog.has(offerId)) return { ok: false, error: 'offer_not_found', errorCode: 'validation' }
       return { ok: true, confirmationId: `live-book-${offerId}` }
+    },
+    async retrieve(confirmationId, signal) {
+      if (!input.sdk.retrieveOrder) return null
+      const result = await input.sdk.retrieveOrder(confirmationId, signal)
+      if (!result) return null
+      return {
+        ok: result.ok,
+        confirmationId: result.orderId ?? confirmationId,
+        error: result.error,
+        errorCode: result.errorCode,
+        order: {
+          ...result,
+          price: result.price
+            ? money(result.price.amount, result.price.currency)
+            : undefined,
+        },
+      }
     },
     async cancel(confirmationId, signal) {
       if (input.sdk.cancelOrder) {

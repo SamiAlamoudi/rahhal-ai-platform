@@ -63,11 +63,20 @@ export interface BookingDocument {
 export interface UnifiedBooking {
   id: string
   sessionId: string
+  conversationId: string | null
   domain: BookingExecutionDomain
   provider: string
   confirmation: string | null
+  /** Provider-side booking / order id */
+  providerBookingId: string | null
   pnr: string | null
+  ticketNumbers: string[]
   reservationId: string | null
+  hotelConfirmation: string | null
+  guestNames: string[]
+  roomType: string | null
+  checkIn: string | null
+  checkOut: string | null
   status: BookingLifecycleStatus
   travelerInfo: BookingTravelerInfo[]
   pricing: MoneyAmount
@@ -174,7 +183,20 @@ export type BookingExecutorFn = (input: {
   provider: BookingProvider
   offerId: string
   signal?: AbortSignal
-}) => Promise<{ ok: boolean; confirmationId?: string; error?: string; latencyMs?: number }>
+  travelers?: BookingTravelerInfo[]
+  conversationId?: string | null
+  checkIn?: string | null
+  checkOut?: string | null
+  roomType?: string | null
+}) => Promise<{
+  ok: boolean
+  confirmationId?: string
+  error?: string
+  errorCode?: string
+  retryable?: boolean
+  latencyMs?: number
+  order?: import('../bookingIntelligence/types').BookingOrderPayload
+}>
 
 export type BookingCancellerFn = (input: {
   provider: BookingProvider
@@ -198,6 +220,8 @@ export interface RunBookingExecutionInput {
   registry: BookingProviderRegistry
   idempotencyKey?: string
   sessionId?: string
+  /** Optional conversation id for persistence linkage (Sprint 61). */
+  conversationId?: string | null
   /** Resume an existing persisted session. */
   resumeSessionId?: string
   allOrNothing?: boolean
@@ -207,6 +231,8 @@ export interface RunBookingExecutionInput {
   resumeEnabled?: boolean
   executor?: BookingExecutorFn
   canceller?: BookingCancellerFn
+  /** When true (default), generate docs via DocumentCenter after success. */
+  generateDocuments?: boolean
   now?: () => number
 }
 

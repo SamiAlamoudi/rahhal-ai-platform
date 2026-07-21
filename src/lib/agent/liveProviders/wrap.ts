@@ -204,7 +204,11 @@ export function wrapLiveProvider(options: WrapLiveProviderOptions): LiveProvider
     wrapped.priceOffer = (offerId, signal) => sdk.priceOffer!(offerId, signal)
   }
   if (sdk.createOrder) {
-    wrapped.createOrder = (offerId, signal) => sdk.createOrder!(offerId, signal)
+    wrapped.createOrder = (offerId, signal, context) =>
+      sdk.createOrder!(offerId, signal, context)
+  }
+  if (sdk.retrieveOrder) {
+    wrapped.retrieveOrder = (orderId, signal) => sdk.retrieveOrder!(orderId, signal)
   }
   if (sdk.cancelOrder) {
     wrapped.cancelOrder = (orderId, signal) => sdk.cancelOrder!(orderId, signal)
