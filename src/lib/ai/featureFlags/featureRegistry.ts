@@ -241,6 +241,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: price_intelligence. Additive post-decision layer; RahhalBrain unchanged.',
   },
   {
+    id: 'ai.dynamic_packages',
+    name: 'AI Dynamic Travel Packages',
+    description:
+      'Sprint 83 — build, score, rank, and explain complete travel packages (flight/hotel/transfer/activities/addons) with compatibility filtering. Feeds Decision Engine via prioritized offer pools without contract changes.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.price_intelligence'],
+    notes:
+      'Product alias: dynamic_packages. Additive Package Builder layer; RahhalBrain and Decision Engine public APIs unchanged.',
+  },
+  {
     id: 'ai.live_providers',
     name: 'Live Travel Provider Layer',
     description:

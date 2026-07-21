@@ -187,6 +187,14 @@ export {
 } from './priceIntelligence'
 export type { BookingTimingResult } from './priceIntelligence'
 export {
+  isDynamicPackagesEnabled,
+  DYNAMIC_PACKAGES_FEATURE_ID,
+  enrichWithDynamicPackages,
+  runPackageBuilder,
+  SPRINT83_DYNAMIC_PACKAGES_VERSION,
+} from './packageBuilder'
+export type { PackageBuilderResult } from './packageBuilder'
+export {
   isBookingExecutionEnabled,
   isTransactionManagerEnabled,
   isBookingResumeEnabled,
