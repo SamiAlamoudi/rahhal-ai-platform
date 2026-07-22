@@ -29,6 +29,7 @@ export type FeatureId =
   | 'ai.price_intelligence'
   | 'ai.dynamic_packages'
   | 'ai.itinerary_refinement'
+  | 'ai.unified_trip'
   | 'ai.constitution'
   | 'ai.alpha_experience'
   | 'booking.orchestrator'

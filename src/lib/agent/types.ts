@@ -527,6 +527,20 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 93 — Unified Travel Intelligence snapshot (presentation Trip).
+   */
+  unifiedTrip?: {
+    version: string
+    tripId: string
+    valid: boolean
+    total: number
+    currency: string
+    confidence: number
+    alternativeCount: number
+    timelineCount: number
+    durationMs: number
+  }
+  /**
    * Sprint 91 — Production Alpha Experience orchestration snapshot.
    * Additive presentation facts — Conversation Brain / UI may consume timeline + recommendation.
    */

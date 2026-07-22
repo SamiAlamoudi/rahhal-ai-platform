@@ -263,6 +263,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: itinerary_refinement. Feeds Adaptive Learning outcomes; Decision Engine consumes refined offer pools only.',
   },
   {
+    id: 'ai.unified_trip',
+    name: 'Unified Travel Intelligence',
+    description:
+      'Sprint 93 — compose one presentation-ready Trip object from existing engines and providers (flights, hotels, activities, transfers, visa, insurance placeholders, pricing, timeline, alternatives, confidence).',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.dynamic_packages', 'ai.itinerary_refinement'],
+    notes:
+      'Product alias: unified_trip. Additive TripComposer under src/core/trip. Does not redesign engines.',
+  },
+  {
     id: 'ai.constitution',
     name: 'Rahhal AI Constitution',
     description:

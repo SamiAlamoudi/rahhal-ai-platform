@@ -203,6 +203,18 @@ export {
 } from './itineraryRefinement'
 export type { RefinementResult } from './itineraryRefinement'
 export {
+  isUnifiedTripEnabled,
+  UNIFIED_TRIP_FEATURE_ID,
+  runUnifiedTrip,
+  enrichWithUnifiedTrip,
+  SPRINT93_UNIFIED_TRIP_VERSION,
+} from './unifiedTrip'
+export type {
+  AgentUnifiedTripRequest,
+  AgentUnifiedTripResponse,
+  AgentUnifiedTripMeta,
+} from './unifiedTrip'
+export {
   isAlphaExperienceEnabled,
   ALPHA_EXPERIENCE_FEATURE_ID,
   runAlphaExperienceConversation,

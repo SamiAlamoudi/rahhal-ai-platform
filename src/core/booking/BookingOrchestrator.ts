@@ -14,8 +14,10 @@ import { createBookingAudit } from './BookingAudit'
 import { validateBooking } from './BookingValidator'
 import { deriveStateFromReservations } from './BookingState'
 import { buildBookingSummary } from './BookingSerializer'
+import { toBookableTrip } from './toBookableTrip'
 import {
   SPRINT94_BOOKING_ORCHESTRATOR_VERSION,
+  type BookableTrip,
   type BookingOrchestratorInput,
   type BookingOrchestratorResult,
   type BookingSession,
@@ -30,23 +32,24 @@ export class BookingOrchestrator {
     const started = Date.now()
     const nowFn = input.now ?? Date.now
     const providerId = input.providerId ?? 'booking-orchestrator'
-    const currency = (input.currency ?? input.trip.currency ?? 'SAR').toUpperCase()
+    const trip: BookableTrip = toBookableTrip(input.trip)
+    const currency = (input.currency ?? trip.currency ?? 'SAR').toUpperCase()
     const quotedTotal = input.quotedTotal
-      ?? input.trip.pricingSummary?.total
-      ?? sumTrip(input.trip)
+      ?? trip.pricingSummary?.total
+      ?? sumTrip(trip)
     const currentTotal = input.currentTotal ?? quotedTotal
     const timeoutMs = input.timeoutMs ?? 15 * 60_000
     const audit = createBookingAudit()
 
     const plan = createBookingPlan({
-      trip: input.trip,
+      trip,
       providerId,
       now: nowFn,
     })
 
     let session: BookingSession = createBookingSession({
       sessionId: input.sessionId ?? newSessionId(nowFn()),
-      tripId: input.trip.id,
+      tripId: trip.id,
       provider: providerId,
       plan,
       travelers: input.travelers,
@@ -57,7 +60,7 @@ export class BookingOrchestrator {
     })
 
     audit.record('booking.session.created', session.sessionId, {
-      tripId: input.trip.id,
+      tripId: trip.id,
       stepCount: plan.steps.length,
     })
     audit.record('booking.plan.created', session.sessionId, {
@@ -66,7 +69,7 @@ export class BookingOrchestrator {
     })
 
     const validation = validateBooking({
-      trip: input.trip,
+      trip,
       travelers: input.travelers,
       quotedTotal,
       currentTotal,
@@ -230,7 +233,7 @@ export class BookingOrchestrator {
   }
 }
 
-function sumTrip(trip: BookingOrchestratorInput['trip']): number {
+function sumTrip(trip: BookableTrip): number {
   const flights = (trip.flights ?? []).reduce((s, f) => s + f.price, 0)
   const hotel = trip.hotel?.price ?? 0
   const transfers = (trip.transfers ?? []).reduce((s, t) => s + t.price, 0)

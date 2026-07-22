@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { resetFeatureRegistry, getFeatureRegistry } from '../ai'
 import {
   canTransition,
+  composeUnifiedTrip,
   createBookingPlan,
   createBookingSession,
   deserializeBookingSession,
@@ -13,6 +14,7 @@ import {
   executeBookingStep,
   runBookingOrchestrator,
   serializeBookingSession,
+  toBookableTrip,
   validateBooking,
   SPRINT94_BOOKING_ORCHESTRATOR_VERSION,
   type BookableTrip,
@@ -273,6 +275,55 @@ describe('Sprint 94 — Live Booking Orchestrator', () => {
       })
       expect(off.enabled).toBe(false)
       expect(off.result).toBeNull()
+    })
+
+    it('consumes Sprint 93 Unified Trip via toBookableTrip', async () => {
+      const { trip } = composeUnifiedTrip({
+        destination: 'Dubai',
+        origin: 'Riyadh',
+        startDate: '2026-08-15',
+        endDate: '2026-08-20',
+        adults: 2,
+        currency: 'SAR',
+        budgetCap: 5000,
+        flightOffers: [{
+          id: 'flt_1',
+          airline: 'Saudia',
+          origin: 'RUH',
+          destination: 'DXB',
+          departureAt: '2026-08-15T08:00:00.000Z',
+          arrivalAt: '2026-08-15T11:00:00.000Z',
+          price: 1200,
+          currency: 'SAR',
+          providerId: 'amadeus',
+          providerConfidence: 0.9,
+        }],
+        hotelOffers: [{
+          id: 'htl_1',
+          name: 'City Hotel',
+          checkIn: '2026-08-15',
+          checkOut: '2026-08-20',
+          price: 1800,
+          currency: 'SAR',
+          providerId: 'placeholder',
+        }],
+        usePlaceholders: true,
+      })
+
+      expect(trip.version).toMatch(/unified-trip/)
+      const bookable = toBookableTrip(trip)
+      expect(bookable.id).toBe(trip.id)
+      expect(bookable.flights?.[0]?.origin).toBe('RUH')
+
+      const result = await runBookingOrchestrator({
+        trip,
+        travelers,
+        quotedTotal: trip.pricingSummary.total,
+        currentTotal: trip.pricingSummary.total,
+      })
+      expect(result.session.tripId).toBe(trip.id)
+      expect(result.session.state).toBe('Completed')
+      expect(result.session.reservations.length).toBeGreaterThan(0)
     })
   })
 })

@@ -66,3 +66,8 @@ export {
   createBookingOrchestrator,
   runBookingOrchestrator,
 } from './BookingOrchestrator'
+
+export {
+  toBookableTrip,
+  type TripLikeInput,
+} from './toBookableTrip'

@@ -10,7 +10,7 @@ Convert an approved Unified Trip into an **executable booking workflow** ready f
 ## Architecture
 
 ```
-Unified Trip (BookableTrip)
+Unified Trip (Sprint 93) ──toBookableTrip──▶ BookableTrip
         ↓
 Validate (price / availability / currency / travelers / timeout / provider health)
         ↓

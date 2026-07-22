@@ -25,7 +25,11 @@ export interface BookableTraveler {
   type?: 'adult' | 'child' | null
 }
 
-/** Structural Trip input — compatible with Sprint 93 Unified Trip without importing it. */
+/**
+ * Structural Trip input for booking.
+ * Prefer passing a Sprint 93 Unified `Trip` via `toBookableTrip`; this shape remains
+ * for backward-compatible callers that do not import `src/core/trip`.
+ */
 export interface BookableTrip {
   id: string
   destination?: string | null
@@ -194,7 +198,11 @@ export interface BookingAuditEvent {
 }
 
 export interface BookingOrchestratorInput {
-  trip: BookableTrip
+  /**
+   * Unified Trip (Sprint 93) or BookableTrip.
+   * Normalized via `toBookableTrip` inside the orchestrator.
+   */
+  trip: BookableTrip | import('../trip/types').Trip
   travelers: BookableTraveler[]
   sessionId?: string
   providerId?: string

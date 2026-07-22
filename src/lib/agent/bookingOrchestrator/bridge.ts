@@ -1,5 +1,6 @@
 /**
  * Sprint 94 — agent bridge for Live Booking Orchestrator.
+ * Accepts Unified Trip (Sprint 93) or BookableTrip; orchestrator normalizes via toBookableTrip.
  */
 
 import {
@@ -8,13 +9,15 @@ import {
   type BookableTraveler,
   type BookableTrip,
   type BookingOrchestratorResult,
+  type Trip,
 } from '../../../core'
 import { isBookingOrchestratorEnabled } from './feature'
 
 export { SPRINT94_BOOKING_ORCHESTRATOR_VERSION }
 
 export interface AgentBookingOrchestratorRequest {
-  trip: BookableTrip
+  /** Sprint 93 Unified Trip or structural BookableTrip. */
+  trip: Trip | BookableTrip
   travelers: BookableTraveler[]
   sessionId?: string
   providerId?: string
