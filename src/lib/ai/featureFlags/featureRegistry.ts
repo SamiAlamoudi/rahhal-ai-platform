@@ -328,6 +328,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: booking_execution_confirmation. Additive under src/core/bookingExecutionConfirmation + UI routes /booking-assistant/*. Uses abstract adapter only.',
   },
   {
+    id: 'ai.live_provider_gateway',
+    name: 'Live Provider Gateway',
+    description:
+      'Sprint 104 — unified Provider Gateway for live provider communication (Phase 1: Amadeus). Registry, health, availability, retry/timeout/rate-limit, metrics, and error translation. Default OFF — preserves mock/legacy provider paths.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['providers.amadeus.enabled'],
+    notes:
+      'Product alias: live_provider_gateway. Additive under src/core/providerGateway. Does not modify engines, booking, or UI. When OFF, gateway bridge returns disabled without calling live providers.',
+  },
+  {
     id: 'ai.live_conversation',
     name: 'Live Conversation (Alpha alias)',
     description:
