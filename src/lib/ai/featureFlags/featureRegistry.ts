@@ -371,6 +371,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: live_hotel_search. Additive under src/lib/agent/liveHotelSearch + AmadeusHotelSearchProvider. Does not modify flight search, engines, or UI. Availability only — no booking.',
   },
   {
+    id: 'ai.trip_builder',
+    name: 'AI Trip Builder',
+    description:
+      'Sprint 110 — combines live flight + hotel offers into complete trip recommendations (cost, quality, confidence, rankings). Exposes Decision Engine offer pools and Response Composer packages without modifying those engines. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: trip_builder. Additive under src/lib/agent/tripBuilder. When OFF, runner returns disabled and legacy paths are unchanged.',
+  },
+  {
     id: 'ai.live_conversation',
     name: 'Live Conversation (Alpha alias)',
     description:

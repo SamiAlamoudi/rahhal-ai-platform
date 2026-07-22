@@ -467,6 +467,26 @@ export type {
 } from './aggregation'
 export * as providerAdapters from './providers'
 
+/** Sprint 110 — AI Trip Builder */
+export {
+  isTripBuilderEnabled,
+  TRIP_BUILDER_FEATURE_ID,
+  runTripBuilder,
+  buildTrips,
+  createTripBuilder,
+  createTripBuilderRunner,
+  prioritizeOffersForDecisionEngine as prioritizeTripOffersForDecisionEngine,
+  toResponseComposerInput as toTripBuilderResponseComposerInput,
+  SPRINT110_TRIP_BUILDER_VERSION,
+} from './tripBuilder'
+export type {
+  TripBuilderInput,
+  TripBuilderResult,
+  TripCandidate,
+  TripPackageForComposer,
+  TripRankKind,
+} from './tripBuilder'
+
 /** Sprint 92 — Amadeus Sandbox TravelProvider */
 export {
   isAmadeusSandboxEnabled,

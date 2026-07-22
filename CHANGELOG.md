@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 110: AI Trip Builder (Production)
+
+### Added
+
+- AI Trip Builder (`src/lib/agent/tripBuilder`) — combines live flight + hotel offers into complete trip recommendations with cost, savings, travel quality, confidence, explanations, and ranking groups.
+- Feature flag `ai.trip_builder` (**default OFF**).
+- Decision Engine adapters (`flightOffers` / `hotelStays` prioritized) and Response Composer packages (`responseComposerPackages` / `responseComposerInput`) without modifying those engines.
+- Docs: `docs/SPRINT110_TRIP_BUILDER.md`; verify: `npm run trip-builder:verify`.
+
+### Notes
+
+- Additive only — does not modify Provider Gateway, Live Flight Search, Live Hotel Search, Decision Engine, or Response Composer. Flag OFF preserves identical legacy behavior.
+
 ## [Unreleased] — Sprint 109: Live Hotel Search (Amadeus Hotels)
 
 ### Added
