@@ -574,6 +574,69 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 97 — UI-ready concierge recommendation DTO (presentation only).
+   * Additive — absent when flag off or integration skipped.
+   */
+  conciergeRecommendation?: {
+    conciergeEnabled: boolean
+    version: string | null
+    explanation: string | null
+    timeline: {
+      stages: Array<{
+        id: string
+        label: string
+        status: string
+        message: string
+        progressPercent: number
+      }>
+      currentStageId: string | null
+      progressPercent: number
+      durationMs: number
+    } | null
+    confidence: {
+      score: number
+      level: 'high' | 'medium' | 'low'
+      label: string
+      uncertaintyExplanation: string | null
+      factors: string[]
+    } | null
+    summary: {
+      text: string
+      recommendedOptionLabel: string | null
+      keyReasons: string[]
+      nextStep: string | null
+    } | null
+    alternatives: Array<{
+      kind: string
+      label: string
+      estimatedCost: number | null
+      currency: string
+      confidence: number
+      explanation: string
+      highlights: string[]
+      optionId: string | null
+    }>
+    comparisonCards: Array<{
+      optionId: string
+      title: string
+      price: number | null
+      currency: string
+      durationMinutes: number | null
+      stops: number | null
+      hotelQuality: string | null
+      overallValue: number
+      recommendationReason: string
+      isRecommended: boolean
+    }>
+    suggestions: Array<{
+      kind: string
+      title: string
+      message: string
+      priority: 'high' | 'medium' | 'low'
+      actionable: boolean
+    }>
+  }
+  /**
    * Sprint 94 — Live Booking Orchestrator session snapshot.
    */
   bookingOrchestrator?: {

@@ -111,6 +111,10 @@ import {
   shouldShowPaymentSummary,
   type PaymentsPlatformResult,
 } from './paymentsPlatform'
+import {
+  integrateConciergeIntoTurn,
+  type ConciergeTurnIntegrationResult,
+} from './conciergeIntegration'
 import type {
   AgentIntent,
   AgentMemory,
@@ -1441,6 +1445,8 @@ export function createTravelAgentService(
       let bookingExecutionResult: BookingExecutionResult | null = null
       let paymentsResult: PaymentsPlatformResult | null = null
       let constitutionMeta: AgentProviderMeta['constitution'] | undefined
+      /** Sprint 97 — additive concierge UI integration (null until main plan path). */
+      let conciergeIntegration: ConciergeTurnIntegrationResult | null = null
 
       // Sprint 78 — Travel Strategy Planner runs before any search engines.
       if (isTravelPlannerOn()) {
@@ -1893,9 +1899,16 @@ export function createTravelAgentService(
         const withConstitution = constitutionMeta
           ? { ...withRefinement, constitution: constitutionMeta }
           : withRefinement
-        const withExecution = bookingExecutionResult
-          ? { ...withConstitution, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+        const withConcierge = conciergeIntegration?.enabled && conciergeIntegration.meta
+          ? {
+            ...withConstitution,
+            conciergeExperience: conciergeIntegration.meta,
+            conciergeRecommendation: conciergeIntegration.recommendation,
+          }
           : withConstitution
+        const withExecution = bookingExecutionResult
+          ? { ...withConcierge, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+          : withConcierge
         const withPayments = paymentsResult
           ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
           : withExecution
@@ -2459,6 +2472,47 @@ export function createTravelAgentService(
         ?? priceIntelligenceResult?.recommendation.confidence
         ?? 0.78
 
+      // Sprint 97 — integrate ConciergeComposer into conversation response (presentation only).
+      conciergeIntegration = integrateConciergeIntoTurn({
+        conversationId: input.conversationId,
+        memory,
+        packageSelected: dynamicPackagesResult?.selected
+          ? {
+            id: dynamicPackagesResult.selected.id,
+            title: dynamicPackagesResult.selected.title,
+            totalPrice: dynamicPackagesResult.selected.totalPrice,
+            currency: dynamicPackagesResult.selected.currency,
+            confidence: dynamicPackagesResult.selected.confidence,
+            labels: dynamicPackagesResult.selected.labels,
+            explanation: dynamicPackagesResult.selected.explanation,
+          }
+          : null,
+        packageRanked: (dynamicPackagesResult?.ranked ?? []).slice(0, 5).map((p) => ({
+          id: p.id,
+          title: p.title,
+          totalPrice: p.totalPrice,
+          currency: p.currency,
+          confidence: p.confidence,
+          labels: p.labels,
+          explanation: p.explanation,
+        })),
+        decision: autonomousDecisionResult
+          ? {
+            explanation: autonomousDecisionResult.recommendations.explanation,
+            confidence: autonomousDecisionResult.recommendations.confidence,
+            bestOverallId: autonomousDecisionResult.recommendations.bestOverall?.id ?? null,
+            bestBudgetId: autonomousDecisionResult.recommendations.bestBudget?.id ?? null,
+            fastestId: autonomousDecisionResult.recommendations.fastest?.id ?? null,
+            bestComfortId: autonomousDecisionResult.recommendations.bestComfort?.id ?? null,
+          }
+          : null,
+        priceTimingNote: priceIntelligenceResult?.recommendation.explanation ?? null,
+        priceConfidence: priceIntelligenceResult
+          ? priceIntelligenceResult.recommendation.confidence / 100
+          : null,
+        engineConfidence: decisionConfidence > 1 ? decisionConfidence / 100 : decisionConfidence,
+      })
+
       const constitutionPreview = applyConstitutionToTurn({
         userText,
         memory,
@@ -2504,6 +2558,7 @@ export function createTravelAgentService(
           ...(dynamicPackagesResult?.selected?.explanation
             ? [dynamicPackagesResult.selected.explanation]
             : []),
+          ...(conciergeIntegration?.recommendationFacts ?? []),
           ...constitutionPreview.recommendationFacts,
           ...constitutionPreview.recoveryNotes,
         ],

@@ -42,6 +42,7 @@
     "alpha-blockers:verify": "vitest run src/lib/__tests__/intentExtraction.sprint89.test.ts src/lib/__tests__/alphaBlockers.sprint89.test.ts",
     "alpha-experience:verify": "vitest run src/lib/__tests__/alphaExperience.sprint91.test.ts",
     "concierge-experience:verify": "vitest run src/lib/__tests__/conciergeExperience.sprint96.test.ts",
+    "concierge-integration:verify": "vitest run src/lib/__tests__/conciergeIntegration.sprint97.test.ts",
     "booking-orchestrator:verify": "vitest run src/lib/__tests__/bookingOrchestrator.sprint94.test.ts",
     "release:verify": "npm run lint && npm run typecheck && npm run build && npm run test && npm run arch:circular && npm run providers-readiness:verify && npm run amadeus-sandbox:verify && npm run unified-trip:verify && npm run alpha-experience:verify && npm run booking-orchestrator:verify",
     "beta:ops": "vitest run src/lib/__tests__/betaOperations.sprint69.test.ts src/lib/__tests__/betaLaunch.sprint67.test.ts",

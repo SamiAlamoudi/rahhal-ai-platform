@@ -239,6 +239,23 @@ export type {
   AgentConciergeExperienceMeta,
 } from './conciergeExperience'
 export {
+  integrateConciergeIntoTurn,
+  toRecommendationResponseDto,
+  toConversationResponseDto,
+  toTripResponseDto,
+  offersFromEngineSnapshots,
+  tripFactsFromMemory,
+  emptyRecommendationResponseDto,
+  SPRINT97_CONCIERGE_INTEGRATION_VERSION,
+} from './conciergeIntegration'
+export type {
+  ConciergeTurnIntegrationInput,
+  ConciergeTurnIntegrationResult,
+  RecommendationResponseDto,
+  ConversationResponseDto,
+  TripResponseDto,
+} from './conciergeIntegration'
+export {
   isBookingOrchestratorEnabled,
   BOOKING_ORCHESTRATOR_FEATURE_ID,
   runLiveBookingOrchestrator,
