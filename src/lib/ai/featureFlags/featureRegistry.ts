@@ -401,6 +401,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: orchestrator. Additive under src/lib/agent/orchestrator. Distinct from brain.ai_orchestrator (Sprint 43) and booking.orchestrator. When OFF, legacy conversation paths are unchanged.',
   },
   {
+    id: 'ai.itinerary_engine',
+    name: 'Intelligent Itinerary Engine',
+    description:
+      'Sprint 114 — transforms Trip Builder output into day-by-day itineraries (arrival/departure, meals, transfers, activities, conflict resolution, scoring). Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: itinerary_engine. Additive under src/lib/agent/itinerary. Does not modify Trip Builder, Decision Engine, Orchestrator, or Concierge. When OFF, legacy paths are unchanged.',
+  },
+  {
     id: 'ai.live_conversation',
     name: 'Live Conversation (Alpha alias)',
     description:

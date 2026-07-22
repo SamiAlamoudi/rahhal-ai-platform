@@ -545,6 +545,24 @@ export type {
   OrchestratorFinalResponse,
 } from './orchestrator'
 
+/** Sprint 114 — Intelligent Itinerary Engine */
+export {
+  isItineraryEngineEnabled,
+  ITINERARY_ENGINE_FEATURE_ID,
+  runItineraryEngine,
+  createItineraryEngine,
+  createItineraryRunner,
+  SPRINT114_ITINERARY_ENGINE_VERSION,
+} from './itinerary'
+export type {
+  ItineraryEngineInput,
+  ItineraryEngineResult,
+  ItineraryDayPlan,
+  ItineraryScores,
+  ItineraryMetadata,
+  TripStyleKind,
+} from './itinerary'
+
 /** Sprint 92 — Amadeus Sandbox TravelProvider */
 export {
   isAmadeusSandboxEnabled,
