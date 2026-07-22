@@ -53,6 +53,30 @@ function installMemoryLocalStorage(): void {
   })
 }
 
+/**
+ * Soft-fail persistence awaits real Supabase `fetch` against example.supabase.co.
+ * DNS usually rejects quickly (ENOTFOUND), but under CI load a stalled lookup can
+ * leave the promise pending past Vitest's 5s testTimeout. Reject immediately so
+ * offline soft-fail paths complete without hanging.
+ */
+function stubOfflineFetch(): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
+  )
+}
+
+function resetOrderManagementTestState(): void {
+  installMemoryLocalStorage()
+  stubOfflineFetch()
+  clearLocalBookingSessions()
+  resetBookingOrchestrator()
+  resetSupplierAdapterRegistry()
+  clearAllOrders()
+  clearBookingOrderIndex()
+  clearPaymentSessionStore()
+}
+
 async function seedSession(userId = 'user-s15') {
   const orch = getBookingOrchestrator()
   const session = orch.createBookingSession({
@@ -132,13 +156,7 @@ describe('Sprint 15 feature flags', () => {
 
 describe('Sprint 15 order lifecycle', () => {
   beforeEach(() => {
-    installMemoryLocalStorage()
-    clearLocalBookingSessions()
-    resetBookingOrchestrator()
-    resetSupplierAdapterRegistry()
-    clearAllOrders()
-    clearBookingOrderIndex()
-    clearPaymentSessionStore()
+    resetOrderManagementTestState()
   })
 
   afterEach(() => {
@@ -188,13 +206,7 @@ describe('Sprint 15 order lifecycle', () => {
 
 describe('Sprint 15 checkout review', () => {
   beforeEach(() => {
-    installMemoryLocalStorage()
-    clearLocalBookingSessions()
-    resetBookingOrchestrator()
-    resetSupplierAdapterRegistry()
-    clearAllOrders()
-    clearBookingOrderIndex()
-    clearPaymentSessionStore()
+    resetOrderManagementTestState()
   })
 
   afterEach(() => {
@@ -222,13 +234,7 @@ describe('Sprint 15 checkout review', () => {
 
 describe('Sprint 15 payment preparation + sessions', () => {
   beforeEach(() => {
-    installMemoryLocalStorage()
-    clearLocalBookingSessions()
-    resetBookingOrchestrator()
-    resetSupplierAdapterRegistry()
-    clearAllOrders()
-    clearBookingOrderIndex()
-    clearPaymentSessionStore()
+    resetOrderManagementTestState()
   })
 
   afterEach(() => {
@@ -296,6 +302,15 @@ describe('Sprint 15 payment preparation + sessions', () => {
 })
 
 describe('Sprint 15 concierge order/payment intents', () => {
+  beforeEach(() => {
+    resetOrderManagementTestState()
+    resetFeatureRegistry()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('detects order and payment questions', () => {
     expect(extractFromUserText('How much will I pay?', 'en').intent).toBe('how_much_will_i_pay')
     expect(extractFromUserText('Is my order ready?', 'en').intent).toBe('is_order_ready')
@@ -304,14 +319,6 @@ describe('Sprint 15 concierge order/payment intents', () => {
   })
 
   it('answers via buildOrderConciergeReply helpers', async () => {
-    installMemoryLocalStorage()
-    clearLocalBookingSessions()
-    resetBookingOrchestrator()
-    resetSupplierAdapterRegistry()
-    clearAllOrders()
-    clearBookingOrderIndex()
-    clearPaymentSessionStore()
-
     const session = await seedSession('user-ai')
     await startConfirmation({ sessionId: session.id, userId: 'user-ai' })
     const { order } = await createOrderFromBooking({
@@ -323,20 +330,9 @@ describe('Sprint 15 concierge order/payment intents', () => {
     expect(buildOrderConciergeReply('is_order_ready', { order })).toMatch(/ready/i)
     expect(buildOrderConciergeReply('show_checkout', { order })).toMatch(/Checkout/i)
     expect(buildOrderConciergeReply('what_is_payment_status', { order })).toMatch(/Payment status/i)
-
-    vi.unstubAllGlobals()
   })
 
   it('travel agent answers payment questions when order exists', async () => {
-    installMemoryLocalStorage()
-    clearLocalBookingSessions()
-    resetBookingOrchestrator()
-    resetSupplierAdapterRegistry()
-    clearAllOrders()
-    clearBookingOrderIndex()
-    clearPaymentSessionStore()
-    resetFeatureRegistry()
-
     const session = await seedSession('user-agent')
     await startConfirmation({ sessionId: session.id, userId: 'user-agent' })
     await createOrderFromBooking({ bookingSessionId: session.id, userId: 'user-agent' })
@@ -368,7 +364,5 @@ describe('Sprint 15 concierge order/payment intents', () => {
     const turn = await service.planTurn({ conversationId: 'c-s15', messages })
     expect(turn.memory.lastIntent).toBe('how_much_will_i_pay')
     expect(turn.reply).toMatch(/order|total|pay/i)
-
-    vi.unstubAllGlobals()
   })
 })
