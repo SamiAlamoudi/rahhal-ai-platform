@@ -162,6 +162,18 @@ export interface AlternativeGeneratorOptions {
   reasoner?: RecommendationReasoner
 }
 
+function pickByLabeledId(
+  flights: ResponseComposerFlightFacts[],
+  id: string | null | undefined,
+  fallback: () => ResponseComposerFlightFacts | null,
+): ResponseComposerFlightFacts | null {
+  if (id) {
+    const hit = flights.find((f) => f.id === id)
+    if (hit) return hit
+  }
+  return fallback()
+}
+
 export function generateAlternatives(
   flights: ResponseComposerFlightFacts[],
   options: AlternativeGeneratorOptions = {},
@@ -174,23 +186,15 @@ export function generateAlternatives(
 
   const picks: Partial<Record<ResponseRecommendationKind, ResponseComposerFlightFacts | null>> = {
     best_overall: pickBestOverall(flights, labeled?.bestOverallId),
-    cheapest:
-      (labeled?.cheapestId
-        ? flights.find((f) => f.id === labeled.cheapestId) ?? null
-        : null) ?? pickCheapest(flights),
-    fastest:
-      (labeled?.fastestId
-        ? flights.find((f) => f.id === labeled.fastestId) ?? null
-        : null) ?? pickFastest(flights),
-    best_value:
-      (labeled?.bestValueId
-        ? flights.find((f) => f.id === labeled.bestValueId) ?? null
-        : null) ?? pickBestValue(flights),
+    cheapest: pickByLabeledId(flights, labeled?.cheapestId, () => pickCheapest(flights)),
+    fastest: pickByLabeledId(flights, labeled?.fastestId, () => pickFastest(flights)),
+    best_value: pickByLabeledId(flights, labeled?.bestValueId, () => pickBestValue(flights)),
     premium: pickPremium(flights),
-    most_comfortable:
-      (labeled?.bestComfortId
-        ? flights.find((f) => f.id === labeled.bestComfortId) ?? null
-        : null) ?? pickMostComfortable(flights),
+    most_comfortable: pickByLabeledId(
+      flights,
+      labeled?.bestComfortId,
+      () => pickMostComfortable(flights),
+    ),
     business: pickBusiness(flights),
     flexible: pickFlexible(flights),
   }
@@ -231,7 +235,11 @@ export function generateAlternatives(
 }
 
 export class AlternativeGenerator {
-  constructor(private readonly reasoner: RecommendationReasoner = createRecommendationReasoner()) {}
+  private readonly reasoner: RecommendationReasoner
+
+  constructor(reasoner: RecommendationReasoner = createRecommendationReasoner()) {
+    this.reasoner = reasoner
+  }
 
   generate(
     flights: ResponseComposerFlightFacts[],
