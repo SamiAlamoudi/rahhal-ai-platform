@@ -46,6 +46,18 @@ function installMemoryLocalStorage(): void {
   })
 }
 
+/**
+ * Soft-fail persistence awaits real Supabase `fetch` against example.supabase.co.
+ * Under CI load a stalled DNS lookup can exceed Vitest's 5s testTimeout — reject
+ * immediately so offline soft-fail paths complete without hanging.
+ */
+function stubOfflineFetch(): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
+  )
+}
+
 async function seedSession(userId = 'user-s14') {
   const orch = getBookingOrchestrator()
   const session = orch.createBookingSession({
@@ -175,6 +187,7 @@ describe('Sprint 14 supplier adapters', () => {
 describe('Sprint 14 confirmation lifecycle', () => {
   beforeEach(() => {
     installMemoryLocalStorage()
+    stubOfflineFetch()
     clearLocalBookingSessions()
     resetBookingOrchestrator()
     resetSupplierAdapterRegistry()
@@ -267,6 +280,7 @@ describe('Sprint 14 concierge confirmation intents', () => {
   it('planTurn handles has my booking been confirmed', async () => {
     resetFeatureRegistry()
     installMemoryLocalStorage()
+    stubOfflineFetch()
     clearLocalBookingSessions()
     resetBookingOrchestrator()
     resetSupplierAdapterRegistry()
