@@ -252,6 +252,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: dynamic_packages. Additive Package Builder layer; RahhalBrain and Decision Engine public APIs unchanged.',
   },
   {
+    id: 'ai.itinerary_refinement',
+    name: 'Autonomous Itinerary Refinement Engine',
+    description:
+      'Sprint 84 — incremental package refinement from conversation changes (constraints, schedule, conflicts, alternatives) between Package Builder and Decision Engine. No full rebuild.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.dynamic_packages'],
+    notes:
+      'Product alias: itinerary_refinement. Feeds Adaptive Learning outcomes; Decision Engine consumes refined offer pools only.',
+  },
+  {
     id: 'ai.constitution',
     name: 'Rahhal AI Constitution',
     description:
