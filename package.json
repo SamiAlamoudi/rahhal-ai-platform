@@ -23,6 +23,7 @@
     "ga:verify": "vitest run src/lib/__tests__/gaRelease.sprint70.test.ts",
     "runtime:verify": "vitest run src/lib/__tests__/providerRuntime.sprint71.test.ts",
     "providers-readiness:verify": "vitest run src/lib/__tests__/providerReadiness.sprint90.test.ts",
+    "amadeus-sandbox:verify": "vitest run src/lib/__tests__/amadeusSandbox.sprint92.test.ts",
     "flights:verify": "vitest run src/lib/__tests__/flightSearch.sprint72.test.ts",
     "hotels:verify": "vitest run src/lib/__tests__/hotelSearch.sprint73.test.ts",
     "conversation:verify": "vitest run src/lib/__tests__/conversationSearch.sprint74.test.ts",

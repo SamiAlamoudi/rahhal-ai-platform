@@ -32,6 +32,7 @@ export type FeatureId =
   | 'ai.constitution'
   | 'ai.live_providers'
   | 'provider.amadeus'
+  | 'providers.amadeus.enabled'
   | 'provider.duffel'
   | 'provider.booking'
   | 'ai.booking_execution'
