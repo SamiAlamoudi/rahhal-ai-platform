@@ -421,6 +421,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: execution_pipeline. Additive under src/lib/agent/pipeline. Reuses public engine APIs only; does not rewrite engines. Distinct from ai.orchestrator (Sprint 113). When OFF, legacy behavior is unchanged.',
   },
   {
+    id: 'ai.streaming_conversation',
+    name: 'AI Streaming Conversation Experience',
+    description:
+      'Sprint 116 — additive streaming layer that visualizes Execution Pipeline stages in real time (started/progress/completed/warning/error). Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: streaming_conversation. Additive under src/lib/agent/streaming. Wraps pipeline via public adapters only — does not modify pipeline, orchestrator, engines, or providers. When OFF, legacy behavior is unchanged.',
+  },
+  {
     id: 'ai.live_conversation',
     name: 'Live Conversation (Alpha alias)',
     description:
