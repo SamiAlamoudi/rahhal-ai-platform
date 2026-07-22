@@ -239,6 +239,28 @@ export type {
   AgentConciergeExperienceMeta,
 } from './conciergeExperience'
 export {
+  isLiveConversationEnabled,
+  LIVE_CONVERSATION_FEATURE_ID,
+  runLiveConversationExperience,
+  enrichWithLiveConversation,
+  buildLiveConversationSession,
+  toLiveConversationUiPayload,
+  SPRINT98_LIVE_CONVERSATION_VERSION,
+} from './liveConversation'
+export type {
+  AgentLiveConversationRequest,
+  AgentLiveConversationResponse,
+  LiveConversationSessionDto,
+  LiveConversationResponseMeta,
+  ConversationTimelineDto,
+  StreamingChunkDto,
+  TypingMetadataDto,
+  ConversationProgressEvent,
+  ConversationStatus,
+  ConversationPhase,
+  LiveConversationSessionState,
+} from './liveConversation'
+export {
   isBookingOrchestratorEnabled,
   BOOKING_ORCHESTRATOR_FEATURE_ID,
   runLiveBookingOrchestrator,

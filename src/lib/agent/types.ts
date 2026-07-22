@@ -574,6 +574,24 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 98 — Live Conversation Experience snapshot (streaming-ready session metadata).
+   */
+  liveConversation?: {
+    version: string
+    conversationId: string
+    state: string
+    status: string
+    phase: string
+    estimatedProgress: number
+    streamSequence: number
+    chunkCount: number
+    responseDelay: number
+    estimatedRemaining: number
+    interrupted: boolean
+    recovered: boolean
+    durationMs: number
+  }
+  /**
    * Sprint 94 — Live Booking Orchestrator session snapshot.
    */
   bookingOrchestrator?: {

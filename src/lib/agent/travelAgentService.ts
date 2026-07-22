@@ -111,6 +111,10 @@ import {
   shouldShowPaymentSummary,
   type PaymentsPlatformResult,
 } from './paymentsPlatform'
+import {
+  runLiveConversationExperience,
+  type AgentLiveConversationResponse,
+} from './liveConversation'
 import type {
   AgentIntent,
   AgentMemory,
@@ -1441,6 +1445,8 @@ export function createTravelAgentService(
       let bookingExecutionResult: BookingExecutionResult | null = null
       let paymentsResult: PaymentsPlatformResult | null = null
       let constitutionMeta: AgentProviderMeta['constitution'] | undefined
+      /** Sprint 98 — additive live conversation streaming metadata. */
+      let liveConversationResult: AgentLiveConversationResponse | null = null
 
       // Sprint 78 — Travel Strategy Planner runs before any search engines.
       if (isTravelPlannerOn()) {
@@ -1893,9 +1899,12 @@ export function createTravelAgentService(
         const withConstitution = constitutionMeta
           ? { ...withRefinement, constitution: constitutionMeta }
           : withRefinement
-        const withExecution = bookingExecutionResult
-          ? { ...withConstitution, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+        const withLiveConversation = liveConversationResult?.enabled && liveConversationResult.meta
+          ? { ...withConstitution, liveConversation: liveConversationResult.meta }
           : withConstitution
+        const withExecution = bookingExecutionResult
+          ? { ...withLiveConversation, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+          : withLiveConversation
         const withPayments = paymentsResult
           ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
           : withExecution
@@ -2555,6 +2564,13 @@ export function createTravelAgentService(
         packagesPresent: Boolean(dynamicPackagesResult?.selected || dynamicPackagesResult?.ranked.length),
       })
       constitutionMeta = constitutionFinal.meta
+
+      // Sprint 98 — streaming-ready live conversation session metadata (presentation only).
+      liveConversationResult = runLiveConversationExperience({
+        conversationId: input.conversationId,
+        targetState: memory.tripPlan ? 'booking_ready' : 'final_recommendation',
+        mode: getFeatureRegistry().isEnabled('ai.concierge_experience') ? 'concierge' : 'legacy',
+      })
 
       let displayReply = spoken.displayText
       if (/no results|لا توجد نتائج/i.test(displayReply) && !memory.tripPlan) {

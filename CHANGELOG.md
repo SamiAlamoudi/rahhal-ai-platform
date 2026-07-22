@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 98: Live Conversation Experience
+
+### Added
+
+- Live conversation presentation layer (`src/lib/agent/liveConversation`) — session states, timeline DTO, streaming chunks, typing metadata, progress events, serializers.
+- Agent bridge + flag `ai.live_conversation` (default ON); `planTurn` attaches `meta.liveConversation`.
+- Docs: `docs/SPRINT98_LIVE_CONVERSATION.md`; verify: `npm run live-conversation:verify`.
+
+### Notes
+
+- Presentation only — no RahhalBrain, engine, provider, or booking changes.
+
 ## [Unreleased] — Sprint 96: AI Concierge Experience
 
 ### Added

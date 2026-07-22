@@ -306,6 +306,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: concierge_experience. Additive under src/core/conciergeExperience. Distinct from legacy ai.concierge. Does not redesign engines.',
   },
   {
+    id: 'ai.live_conversation',
+    name: 'Live Conversation Experience',
+    description:
+      'Sprint 98 — streaming-ready conversation session state, timeline DTO, typing metadata, and progress events for premium live chat UX. Presentation metadata only.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.concierge_experience'],
+    notes:
+      'Product alias: live_conversation. Additive under src/lib/agent/liveConversation. Does not modify RahhalBrain or engines.',
+  },
+  {
     id: 'booking.orchestrator',
     name: 'Live Booking Orchestrator',
     description:
