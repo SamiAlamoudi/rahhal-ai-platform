@@ -117,6 +117,7 @@ export type FeatureId =
   | 'ui.conversation_experience'
   | 'brain.ai_orchestrator'
   | 'ui.chatgpt_experience'
+  | 'ui.experience_v1'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'
