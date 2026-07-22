@@ -1175,6 +1175,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: experience_v1. Presentation only — no engine, provider, or orchestration changes. When OFF, existing pages remain unchanged.',
   },
+  {
+    id: 'ui.production_integration',
+    name: 'Premium UI Production Integration',
+    description:
+      'Sprint 120 — connects Sprint 119 Premium UI to production Memory, Streaming, Editing, Pipeline, Trips, and Chat. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: production_integration. Integration only under src/lib/uiIntegration + src/ui/integration. Does not create engines or duplicate business logic. When OFF, legacy Home/Chat paths remain unchanged.',
+  },
 ]
 
 export class FeatureRegistry {

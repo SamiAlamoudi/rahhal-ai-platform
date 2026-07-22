@@ -53,6 +53,7 @@ export interface UiStackProps {
   direction?: 'vertical' | 'horizontal'
   className?: string
   style?: CSSProperties
+  role?: string
 }
 
 export function UiStack({
@@ -61,11 +62,13 @@ export function UiStack({
   direction = 'vertical',
   className,
   style,
+  role,
 }: UiStackProps) {
   return (
     <div
       className={className}
       data-ui="stack"
+      role={role}
       style={{
         display: 'flex',
         flexDirection: direction === 'vertical' ? 'column' : 'row',

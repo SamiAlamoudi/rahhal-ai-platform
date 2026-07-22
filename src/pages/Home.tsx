@@ -1,10 +1,16 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import TravelConversationCard from '../components/TravelConversationCard'
 import QuickActions from '../components/QuickActions'
 import { useAuth } from '../lib/auth'
 import { getFeatureRegistry } from '../lib/ai'
 import AiHomeExperience from './AiHomeExperience'
+
+const ProductionHomeScreen = lazy(() =>
+  import('../ui/integration/ProductionHomeScreen').then((m) => ({
+    default: m.ProductionHomeScreen,
+  })),
+)
 
 function LegacyHome() {
   const navigate = useNavigate()
@@ -119,6 +125,14 @@ function LegacyHome() {
 }
 
 export default function Home() {
+  const productionIntegration = getFeatureRegistry().isEnabled('ui.production_integration')
+  if (productionIntegration) {
+    return (
+      <Suspense fallback={<div aria-busy="true">Loading…</div>}>
+        <ProductionHomeScreen />
+      </Suspense>
+    )
+  }
   const aiHomeEnabled = getFeatureRegistry().isEnabled('ui.ai_home')
   if (aiHomeEnabled) return <AiHomeExperience />
   return <LegacyHome />

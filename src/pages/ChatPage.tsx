@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
@@ -49,6 +49,13 @@ import {
   writeSessionUiRecovery,
   type ChatGptExperienceState,
 } from '../lib/chat/chatgptExperience'
+import { getFeatureRegistry } from '../lib/ai'
+
+const ProductionConversationScreen = lazy(() =>
+  import('../ui/integration/ProductionConversationScreen').then((m) => ({
+    default: m.ProductionConversationScreen,
+  })),
+)
 
 type ComposerMode = 'text' | 'voice'
 
@@ -61,6 +68,28 @@ function buildVoiceSession(callbacks: CreateVoiceSessionOptions['callbacks']): V
 }
 
 export default function ChatPage() {
+  const location = useLocation()
+  if (getFeatureRegistry().isEnabled('ui.production_integration')) {
+    const params = new URLSearchParams(location.search)
+    const conversationId = params.get('c')
+    const initialPrompt =
+      (location.state as { initialPrompt?: string; tripText?: string } | null)?.initialPrompt
+      ?? (location.state as { tripText?: string } | null)?.tripText
+      ?? null
+    return (
+      <Suspense fallback={<div aria-busy="true">Loading conversation…</div>}>
+        <ProductionConversationScreen
+          conversationId={conversationId}
+          initialPrompt={initialPrompt}
+        />
+      </Suspense>
+    )
+  }
+
+  return <LegacyChatPage />
+}
+
+function LegacyChatPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [conversations, setConversations] = useState<ChatConversation[]>([])
