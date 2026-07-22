@@ -284,6 +284,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: alpha_experience. Additive experience layer under src/core/alphaExperience. Does not redesign engines.',
   },
   {
+    id: 'booking.orchestrator',
+    name: 'Live Booking Orchestrator',
+    description:
+      'Sprint 94 — convert an approved bookable Trip into executable reservation workflow (validate → plan → flight hold → hotel/transfer/insurance placeholders → summary) with audit, recovery, and session state.',
+    lifecycle: 'beta',
+    enabled: true,
+    notes:
+      'Product alias: booking.orchestrator. Additive under src/core/booking. Does not modify Unified Trip or existing bookingExecution engines.',
+  },
+  {
     id: 'ai.live_providers',
     name: 'Live Travel Provider Layer',
     description:

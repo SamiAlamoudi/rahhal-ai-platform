@@ -544,6 +544,17 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 94 — Live Booking Orchestrator session snapshot.
+   */
+  bookingOrchestrator?: {
+    version: string
+    sessionId: string
+    state: string
+    reservationCount: number
+    paymentRequired: boolean
+    durationMs: number
+  }
+  /**
    * Sprint 57 — Booking Execution Engine snapshot (lifecycle, confirmations, resume).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */
