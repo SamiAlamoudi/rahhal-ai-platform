@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 120: Premium UI Production Integration
+
+### Added
+
+- Production UI integration (`src/lib/uiIntegration`) — wires Sprint 119 UI to Memory, Streaming, Editable Conversation, Execution Pipeline, chatEngine, and My Trips without new engines.
+- Production screens (`src/ui/integration`) — `ProductionHomeScreen`, `ProductionConversationScreen` (flag-gated from Home/Chat).
+- Feature flag `ui.production_integration` (**default OFF**).
+- Docs: `docs/SPRINT120_PRODUCTION_INTEGRATION.md`; verify: `npm run integration:verify`.
+
+### Notes
+
+- Integration only — no engine rewrites, no mock responses, no duplicated business logic. Flag OFF preserves legacy Home/Chat behavior.
+
 ## [Unreleased] — Sprint 119: Rahhal Experience Phase 1 (UI Foundation)
 
 ### Added
