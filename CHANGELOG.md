@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 104: Live Provider Integration (Production Phase 1)
+
+### Added
+
+- Provider Gateway (`src/core/providerGateway`) — single gateway, registry (Amadeus Phase 1), health monitor, availability, unified request/response, retry/timeout/rate-limit, metrics, error translation, structured logging.
+- Agent bridge `runLiveProviderGateway` — gated by `ai.live_provider_gateway` (**default OFF**).
+- Docs: `docs/SPRINT104_PROVIDER_GATEWAY.md`; verify: `npm run provider-gateway:verify`.
+
+### Notes
+
+- Additive only — reuses Sprint 90 readiness + Sprint 92 Amadeus adapter. No engine, booking, or UI redesign. Flag OFF preserves identical legacy provider behavior.
+
 ## [Unreleased] — Sprint 103: Alpha Integration & End-to-End Experience
 
 ### Added
