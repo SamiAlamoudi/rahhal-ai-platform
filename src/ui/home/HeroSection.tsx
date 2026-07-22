@@ -38,8 +38,11 @@ export function HeroSection({
         backgroundImage: `
           linear-gradient(135deg, ${homeColors.brandDeep} 0%, #1755b4 48%, ${homeColors.brand} 100%)
         `,
+        isolation: 'isolate',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
         animation: homeMotion.enter,
-        animationFillMode: 'both',
+        animationFillMode: 'backwards',
       }}
     >
       <div
@@ -49,14 +52,16 @@ export function HeroSection({
           insetInlineEnd: '-12%',
           insetBlockStart: '-30%',
           width: '58%',
+          maxWidth: '100%',
           height: '140%',
           borderRadius: '50%',
           background:
             'radial-gradient(circle, rgba(255,255,255,0.16) 0%, transparent 68%)',
           pointerEvents: 'none',
+          zIndex: 0,
         }}
       />
-      <UiStack gap="lg" style={{ position: 'relative', maxWidth: 640 }}>
+      <UiStack gap="lg" style={{ position: 'relative', zIndex: 1, maxWidth: 640, minWidth: 0 }}>
         <UiText
           as="p"
           size="sm"

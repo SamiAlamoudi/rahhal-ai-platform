@@ -33,6 +33,24 @@ describe('production stabilization diagnostics', () => {
     expect(err.code).toBe('auth_error')
     expect(err.status).toBe(401)
   })
+
+  it('surfaces real messages from plain objects instead of [object Object]', () => {
+    const err = diagnosePipelineError('conversation', 'createConversation', {
+      code: 'PGRST301',
+      message: 'JWT expired',
+      details: null,
+      hint: null,
+    })
+    expect(err.message).toBe('JWT expired')
+    expect(err.message).not.toBe('[object Object]')
+    expect(userFacingErrorMessage(err, 'fallback')).not.toContain('[object Object]')
+    expect(
+      userFacingErrorMessage(
+        { message: 'تعذر إنشاء المحادثة بسبب الشبكة' },
+        'fallback',
+      ),
+    ).toBe('تعذر إنشاء المحادثة بسبب الشبكة')
+  })
 })
 
 describe('production stabilization silence defaults', () => {

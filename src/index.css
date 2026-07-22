@@ -70,15 +70,13 @@
   }
 }
 
-/* Sprint 121 — Premium Home lightweight enter motion */
+/* Sprint 121 — Premium Home lightweight enter motion (opacity only; no translate overlap) */
 @keyframes ui-home-fade-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -86,11 +84,9 @@
   @keyframes ui-home-fade-in {
     from {
       opacity: 1;
-      transform: none;
     }
     to {
       opacity: 1;
-      transform: none;
     }
   }
 }

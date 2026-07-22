@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Production fixes: Home layout + conversation create + errors
+
+### Fixed
+
+- Production conversation bootstrap creates a real conversation when opening `/chat` without `?c=` under `ui.production_integration`.
+- Error display no longer shows `[object Object]` — extracts `message` / `userMessage` from plain Supabase-style errors.
+- Premium Home overlap on narrow / Safari viewports — Safari-safe grids, opacity-only enter motion, `minWidth: 0`, RTL `dir` on production Home/Conversation.
+
+### Notes
+
+- No new product features. Sprint 122 presentation work was not included.
+
 ## [Unreleased] — Sprint 121: Premium Home Experience (Production)
 
 ### Added

@@ -68,25 +68,118 @@ function buildVoiceSession(callbacks: CreateVoiceSessionOptions['callbacks']): V
 }
 
 export default function ChatPage() {
-  const location = useLocation()
   if (getFeatureRegistry().isEnabled('ui.production_integration')) {
-    const params = new URLSearchParams(location.search)
-    const conversationId = params.get('c')
-    const initialPrompt =
-      (location.state as { initialPrompt?: string; tripText?: string } | null)?.initialPrompt
-      ?? (location.state as { tripText?: string } | null)?.tripText
-      ?? null
-    return (
-      <Suspense fallback={<div aria-busy="true">Loading conversation…</div>}>
-        <ProductionConversationScreen
-          conversationId={conversationId}
-          initialPrompt={initialPrompt}
-        />
-      </Suspense>
-    )
+    return <ProductionChatBootstrap />
   }
 
   return <LegacyChatPage />
+}
+
+/**
+ * Ensures a real conversation id exists before mounting ProductionConversationScreen.
+ * Home → /chat without `?c=` must create a conversation (same as legacy ChatPage).
+ */
+function ProductionChatBootstrap() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const params = new URLSearchParams(location.search)
+  const conversationId = params.get('c')
+  const initialPrompt =
+    (location.state as { initialPrompt?: string; tripText?: string } | null)?.initialPrompt
+    ?? (location.state as { tripText?: string } | null)?.tripText
+    ?? null
+
+  const [readyId, setReadyId] = useState<string | null>(conversationId)
+  const [bootError, setBootError] = useState<string | null>(null)
+  const [booting, setBooting] = useState(!conversationId)
+  const [createAttempt, setCreateAttempt] = useState(0)
+
+  useEffect(() => {
+    if (conversationId) {
+      setReadyId(conversationId)
+      setBooting(false)
+      setBootError(null)
+      return
+    }
+
+    let cancelled = false
+    setBooting(true)
+    setBootError(null)
+
+    void (async () => {
+      try {
+        const created = await chatEngine.createConversation()
+        if (cancelled) return
+        writeStoredConversationId(created.id)
+        navigate(
+          {
+            pathname: '/chat',
+            search: buildChatSearch(created.id, ''),
+          },
+          { replace: true, state: location.state },
+        )
+        setReadyId(created.id)
+      } catch (e) {
+        logChatError('chat.create.production', e)
+        if (!cancelled) {
+          setBootError(userFacingErrorMessage(e, 'تعذر إنشاء المحادثة'))
+          setReadyId(null)
+        }
+      } finally {
+        if (!cancelled) setBooting(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [conversationId, navigate, location.state, createAttempt])
+
+  if (bootError) {
+    return (
+      <main
+        dir="rtl"
+        lang="ar"
+        aria-label="خطأ في إنشاء المحادثة"
+        style={{ padding: 24 }}
+      >
+        <p role="alert">{bootError}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setBootError(null)
+            setReadyId(null)
+            setCreateAttempt((n) => n + 1)
+          }}
+        >
+          إعادة المحاولة
+        </button>
+      </main>
+    )
+  }
+
+  if (booting || !readyId) {
+    return (
+      <div dir="rtl" lang="ar" aria-busy="true" aria-label="جاري إنشاء المحادثة">
+        جاري إنشاء المحادثة…
+      </div>
+    )
+  }
+
+  return (
+    <Suspense
+      fallback={
+        <div dir="rtl" lang="ar" aria-busy="true">
+          جاري تحميل المحادثة…
+        </div>
+      }
+    >
+      <ProductionConversationScreen
+        conversationId={readyId}
+        initialPrompt={initialPrompt}
+      />
+    </Suspense>
+  )
 }
 
 function LegacyChatPage() {
@@ -466,7 +559,7 @@ function LegacyChatPage() {
       setConversations((prev) => prev.map((c) => (c.id === id ? renamed : c)))
     } catch (e) {
       logChatError('chat.rename', e)
-      setActionError(e instanceof Error ? e.message : 'تعذر إعادة التسمية')
+      setActionError(userFacingErrorMessage(e, 'تعذر إعادة التسمية'))
     }
   }
 
@@ -483,7 +576,7 @@ function LegacyChatPage() {
       }
     } catch (e) {
       logChatError('chat.delete', e)
-      setActionError(e instanceof Error ? e.message : 'تعذر حذف المحادثة')
+      setActionError(userFacingErrorMessage(e, 'تعذر حذف المحادثة'))
     }
   }
 
@@ -528,7 +621,7 @@ function LegacyChatPage() {
     } catch (e) {
       if (!isBenignChatError(e)) {
         logChatError('chat.send', e)
-        setActionError(e instanceof Error ? e.message : 'تعذر إرسال الرسالة')
+        setActionError(userFacingErrorMessage(e, 'تعذر إرسال الرسالة'))
       }
     } finally {
       if (abortRef.current === controller) abortRef.current = null
@@ -741,7 +834,7 @@ function LegacyChatPage() {
       }
     } catch (e) {
       logChatError('chat.booking_action', e)
-      setActionError(e instanceof Error ? e.message : 'Booking action failed')
+      setActionError(userFacingErrorMessage(e, 'تعذر تنفيذ إجراء الحجز'))
     } finally {
       setBookingBusy(false)
     }
@@ -784,7 +877,7 @@ function LegacyChatPage() {
         })
       } catch (e) {
         logChatError('chat.seed', e)
-        setActionError(e instanceof Error ? e.message : 'تعذر بدء المحادثة')
+        setActionError(userFacingErrorMessage(e, 'تعذر بدء المحادثة'))
       }
     })()
     // Seed is one-shot (seedConsumedRef). Do not re-run on navigate clearing state.
@@ -805,7 +898,7 @@ function LegacyChatPage() {
       )
     } catch (e) {
       logChatError('agent.save', e)
-      setActionError(e instanceof Error ? e.message : 'تعذر حفظ الخطة')
+      setActionError(userFacingErrorMessage(e, 'تعذر حفظ الخطة'))
     }
   }
 
@@ -843,7 +936,7 @@ function LegacyChatPage() {
       await voiceRef.current?.startPushToTalk()
     } catch (e) {
       logChatError('voice.ptt.start', e)
-      setActionError(e instanceof Error ? e.message : 'تعذر بدء الاستماع')
+      setActionError(userFacingErrorMessage(e, 'تعذر بدء الاستماع'))
     }
   }
 
@@ -856,7 +949,7 @@ function LegacyChatPage() {
     } catch (e) {
       if (!isBenignChatError(e)) {
         logChatError('voice.ptt.send', e)
-        setActionError(e instanceof Error ? e.message : 'تعذر إرسال الرسالة الصوتية')
+        setActionError(userFacingErrorMessage(e, 'تعذر إرسال الرسالة الصوتية'))
       }
     } finally {
       setSending(false)
@@ -876,7 +969,7 @@ function LegacyChatPage() {
       await voiceRef.current.startHandsFree(activeId)
     } catch (e) {
       logChatError('voice.handsfree', e)
-      setActionError(e instanceof Error ? e.message : 'تعذر تشغيل حر اليدين')
+      setActionError(userFacingErrorMessage(e, 'تعذر تشغيل حر اليدين'))
     }
   }
 

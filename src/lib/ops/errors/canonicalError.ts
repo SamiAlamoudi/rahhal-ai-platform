@@ -125,6 +125,34 @@ export function statusForCode(code: AppErrorCode): number {
   }
 }
 
+/**
+ * Extract a human-readable string from unknown errors.
+ * Avoids `String({…})` → "[object Object]" for Supabase / plain objects.
+ */
+export function extractErrorText(error: unknown, fallback = 'unknown_error'): string {
+  if (error instanceof AppError) {
+    const text = error.userMessage || error.message
+    if (typeof text === 'string' && text.trim() && text !== '[object Object]') return text
+  }
+  if (error instanceof Error) {
+    const text = error.message
+    if (typeof text === 'string' && text.trim() && text !== '[object Object]') return text
+  }
+  if (typeof error === 'string' && error.trim() && error !== '[object Object]') {
+    return error
+  }
+  if (error && typeof error === 'object') {
+    const row = error as Record<string, unknown>
+    for (const key of ['userMessage', 'message', 'error_description', 'details', 'hint']) {
+      const value = row[key]
+      if (typeof value === 'string' && value.trim() && value !== '[object Object]') {
+        return value
+      }
+    }
+  }
+  return fallback
+}
+
 /** Normalize unknown/provider errors into AppError. */
 export function toAppError(error: unknown, context?: {
   domain?: string
@@ -132,7 +160,7 @@ export function toAppError(error: unknown, context?: {
 }): AppError {
   if (error instanceof AppError) return error
 
-  const message = error instanceof Error ? error.message : String(error ?? 'unknown_error')
+  const message = extractErrorText(error, 'unknown_error')
   const lower = message.toLowerCase()
 
   if (lower.includes('timeout') || lower.includes('aborted')) {

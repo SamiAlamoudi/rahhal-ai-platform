@@ -4,7 +4,7 @@
  * and a user-friendly message.
  */
 
-import { AppError, toAppError } from '../ops/errors/canonicalError'
+import { AppError, extractErrorText, toAppError } from '../ops/errors/canonicalError'
 import { getCorrelationId } from '../ops/logging/correlation'
 import { logChat, logChatError } from './chatLogger'
 
@@ -93,7 +93,7 @@ export function diagnosePipelineError(
   const supabase = extractSupabaseFields(error)
   const httpStatus = extractHttpStatus(error)
   const stack = error instanceof Error ? error.stack ?? null : null
-  const message = error instanceof Error ? error.message : String(error ?? 'unknown_error')
+  const message = extractErrorText(error, 'unknown_error')
   const lower = message.toLowerCase()
 
   let app = error instanceof AppError
@@ -173,7 +173,12 @@ export function diagnosePipelineError(
 }
 
 export function userFacingErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof AppError) return error.userMessage || error.message || fallback
-  if (error instanceof Error && error.message.trim()) return error.message
+  if (error instanceof AppError) {
+    const text = error.userMessage || error.message
+    if (typeof text === 'string' && text.trim() && text !== '[object Object]') return text
+    return fallback
+  }
+  const text = extractErrorText(error, '')
+  if (text && text !== 'unknown_error' && text !== '[object Object]') return text
   return fallback
 }

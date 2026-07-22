@@ -57,6 +57,7 @@ import {
 import type { EditSnapshot } from '../../lib/agent/editing'
 import type { StreamingEvent } from '../../lib/agent/streaming'
 import { useAuth } from '../../lib/auth'
+import { userFacingErrorMessage } from '../../lib/chat/pipelineDiagnostics'
 import { spacing } from '../tokens'
 
 interface ChatLine {
@@ -145,7 +146,7 @@ export const ProductionConversationScreen = memo(
             ])
           })
         } catch (err) {
-          setError(err instanceof Error ? err.message : 'Conversation turn failed')
+          setError(userFacingErrorMessage(err, 'تعذر إكمال المحادثة'))
         } finally {
           setRunning(false)
         }
@@ -219,7 +220,7 @@ export const ProductionConversationScreen = memo(
           setEditDraft('')
         })
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Edit failed')
+        setError(userFacingErrorMessage(err, 'تعذر تطبيق التعديل'))
       } finally {
         setRunning(false)
       }
@@ -325,7 +326,12 @@ export const ProductionConversationScreen = memo(
     ) : null
 
     return (
-      <main aria-label="Production conversation" style={{ padding: spacing.lg }}>
+      <main
+        dir="rtl"
+        lang="ar"
+        aria-label="محادثة رحّال"
+        style={{ padding: spacing.lg }}
+      >
         <ConversationScreen
           header={
             <UiStack gap="sm">

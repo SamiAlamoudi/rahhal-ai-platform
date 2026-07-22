@@ -47,13 +47,17 @@ export const homeMotion = {
 export function homePageStyle(): CSSProperties {
   return {
     minHeight: '100%',
+    width: '100%',
+    boxSizing: 'border-box',
+    overflowX: 'hidden',
     color: homeColors.fg,
     backgroundImage: `
       radial-gradient(120% 80% at 100% 0%, color-mix(in srgb, #1c80f0 18%, transparent), transparent 55%),
       linear-gradient(180deg, color-mix(in srgb, #122e57 6%, Canvas), Canvas 42%)
     `,
     paddingBlock: spacing['2xl'],
-    paddingInline: `max(${spacing.lg}px, env(safe-area-inset-left))`,
+    paddingInlineStart: `max(${spacing.lg}px, env(safe-area-inset-inline-start, env(safe-area-inset-left)))`,
+    paddingInlineEnd: `max(${spacing.lg}px, env(safe-area-inset-inline-end, env(safe-area-inset-right)))`,
     fontFamily: typography.family.body,
   }
 }
@@ -66,6 +70,20 @@ export function homeShellStyle(): CSSProperties {
     display: 'flex',
     flexDirection: 'column',
     gap: spacing['2xl'],
+    minWidth: 0,
+    boxSizing: 'border-box',
+  }
+}
+
+/** Safari-safe responsive two-column grid (avoids min() inside minmax overlap bugs). */
+export function homeResponsiveGridStyle(): CSSProperties {
+  return {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+    gap: spacing.xl,
+    alignItems: 'start',
+    width: '100%',
+    minWidth: 0,
   }
 }
 
@@ -77,6 +95,11 @@ export function homeCardStyle(options?: { interactive?: boolean }): CSSPropertie
     boxShadow: elevation.sm,
     padding: spacing.lg,
     color: homeColors.fg,
+    minWidth: 0,
+    maxWidth: '100%',
+    boxSizing: 'border-box',
+    position: 'relative',
+    isolation: 'isolate',
     transition: options?.interactive ? homeMotion.hover : undefined,
   }
 }
