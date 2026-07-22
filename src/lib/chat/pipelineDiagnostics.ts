@@ -148,6 +148,28 @@ export function diagnosePipelineError(
       cause: error,
       diagnostics: { supabase, httpStatus },
     })
+  } else if (
+    lower.includes('fetch failed')
+    || lower.includes('failed to fetch')
+    || lower.includes('networkerror')
+    || lower.includes('network request failed')
+    || lower.includes('load failed')
+    || lower.includes('enotfound')
+    || lower.includes('econnrefused')
+  ) {
+    app = new AppError({
+      code: 'provider_unavailable',
+      message,
+      userMessage:
+        userMessageAr
+        ?? 'تعذر الاتصال بقاعدة البيانات. تم التبديل إلى التخزين المحلي مؤقتاً.',
+      domain: `chat.${stage}`,
+      operation,
+      status: 503,
+      retryable: true,
+      cause: error,
+      diagnostics: { supabase, httpStatus },
+    })
   }
 
   logPipeline({
@@ -173,12 +195,22 @@ export function diagnosePipelineError(
 }
 
 export function userFacingErrorMessage(error: unknown, fallback: string): string {
+  const candidates: unknown[] = []
   if (error instanceof AppError) {
-    const text = error.userMessage || error.message
-    if (typeof text === 'string' && text.trim() && text !== '[object Object]') return text
-    return fallback
+    candidates.push(error.userMessage, error.message, error.cause)
   }
-  const text = extractErrorText(error, '')
-  if (text && text !== 'unknown_error' && text !== '[object Object]') return text
+  candidates.push(error)
+
+  for (const candidate of candidates) {
+    const text = extractErrorText(candidate, '')
+    if (
+      text
+      && text !== 'unknown_error'
+      && text !== '[object Object]'
+      && text.toLowerCase() !== '[object object]'
+    ) {
+      return text
+    }
+  }
   return fallback
 }

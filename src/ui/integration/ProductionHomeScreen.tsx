@@ -129,7 +129,7 @@ export const ProductionHomeScreen = memo(function ProductionHomeScreen() {
           }
         />
 
-        <div style={homeResponsiveGridStyle()}>
+        <div className="ui-home-responsive-grid" style={homeResponsiveGridStyle()}>
           <ConversationEntry
             index={1}
             onStart={() => navigate('/chat')}
@@ -142,7 +142,7 @@ export const ProductionHomeScreen = memo(function ProductionHomeScreen() {
           />
         </div>
 
-        <div style={homeResponsiveGridStyle()}>
+        <div className="ui-home-responsive-grid" style={homeResponsiveGridStyle()}>
           <RecentTripsCard
             index={3}
             trips={data.recentTrips}
@@ -165,7 +165,7 @@ export const ProductionHomeScreen = memo(function ProductionHomeScreen() {
           }
         />
 
-        <div style={homeResponsiveGridStyle()}>
+        <div className="ui-home-responsive-grid" style={homeResponsiveGridStyle()}>
           <TravelInspiration
             index={6}
             insights={data.memoryInsights}
@@ -182,7 +182,7 @@ export const ProductionHomeScreen = memo(function ProductionHomeScreen() {
 
         <FeaturedExperiences index={8} items={featured} />
 
-        <div style={homeResponsiveGridStyle()}>
+        <div className="ui-home-responsive-grid" style={homeResponsiveGridStyle()}>
           <SmartSearchEntry index={9} onSearch={() => navigate('/search')} />
           <QuickActions
             index={10}

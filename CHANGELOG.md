@@ -9,9 +9,12 @@ Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
 ### Fixed
 
-- Production conversation bootstrap creates a real conversation when opening `/chat` without `?c=` under `ui.production_integration`.
-- Error display no longer shows `[object Object]` — extracts `message` / `userMessage` from plain Supabase-style errors.
-- Premium Home overlap on narrow / Safari viewports — Safari-safe grids, opacity-only enter motion, `minWidth: 0`, RTL `dir` on production Home/Conversation.
+- **Root cause:** Supabase/PostgREST failures are plain objects (`String(err) === "[object Object]"`). `createConversation` only fell back to local chat for `auth_error` / raw `forbidden`, so network (`TypeError: fetch failed`) and RLS (`42501`) after a valid session made Create Conversation fail with banner `Something went wrong. Please try again.` and red `[object Object]`.
+- Local chat fallback now recognizes plain PostgREST/network/RLS errors via `shouldUseLocalChatFallback` + `extractErrorText` (no `String(object)`).
+- Conversation insert sends explicit `user_id` from the auth session.
+- All Chat action/voice/stream errors go through `userFacingErrorMessage` — never raw objects.
+- Premium Home iPhone Safari overlap: force single-column under 720px (`.ui-home-responsive-grid`), contain hero glow, `overflow-x: clip`, card `contain: layout paint`.
+- Production conversation bootstrap when opening `/chat` without `?c=` under `ui.production_integration`.
 
 ### Notes
 

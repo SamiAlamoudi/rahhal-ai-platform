@@ -173,10 +173,11 @@ describe('Sprint 121 — Premium Home Experience', () => {
     const shell = homeShellStyle()
     const card = homeCardStyle({ interactive: true })
     expect(page.minHeight).toBe('100%')
-    expect(page.overflowX).toBe('hidden')
+    expect(page.overflowX).toBe('clip')
     expect(shell.maxWidth).toBe(1120)
     expect(shell.minWidth).toBe(0)
     expect(card.minWidth).toBe(0)
+    expect(card.contain).toBe('layout paint')
     expect(card.borderRadius).toBeGreaterThan(0)
     expect(typeof card.transition).toBe('string')
 

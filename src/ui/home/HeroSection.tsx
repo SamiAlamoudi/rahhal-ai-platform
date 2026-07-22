@@ -47,6 +47,7 @@ export function HeroSection({
     >
       <div
         aria-hidden
+        className="ui-home-hero-glow"
         style={{
           position: 'absolute',
           insetInlineEnd: '-12%',
@@ -61,7 +62,16 @@ export function HeroSection({
           zIndex: 0,
         }}
       />
-      <UiStack gap="lg" style={{ position: 'relative', zIndex: 1, maxWidth: 640, minWidth: 0 }}>
+      <UiStack
+        gap="lg"
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          maxWidth: 640,
+          minWidth: 0,
+          width: '100%',
+        }}
+      >
         <UiText
           as="p"
           size="sm"

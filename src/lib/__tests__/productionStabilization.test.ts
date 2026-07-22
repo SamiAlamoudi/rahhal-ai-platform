@@ -5,6 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppError } from '../ops/errors/canonicalError'
 import { diagnosePipelineError, userFacingErrorMessage } from '../chat/pipelineDiagnostics'
 import { assertChatDatabaseAuth } from '../chat/chatAuthGate'
+import { chatService } from '../chat/chatService'
+import {
+  clearLocalChatStore,
+  isLocalChatAuthError,
+  shouldUseLocalChatFallback,
+} from '../chat/localChatStore'
+import { conversationRepository } from '../repositories/conversationRepository'
 import {
   DEFAULT_HANDS_FREE_SILENCE_MS,
   MAX_HANDS_FREE_SILENCE_MS,
@@ -50,6 +57,96 @@ describe('production stabilization diagnostics', () => {
         'fallback',
       ),
     ).toBe('تعذر إنشاء المحادثة بسبب الشبكة')
+  })
+
+  it('recognizes plain PostgREST/network objects for local chat fallback', () => {
+    const fetchFailed = {
+      message: 'TypeError: fetch failed',
+      details: 'ENOTFOUND example.supabase.co',
+      hint: '',
+      code: '',
+    }
+    expect(String(fetchFailed)).toBe('[object Object]')
+    expect(isLocalChatAuthError(fetchFailed)).toBe(false)
+    expect(shouldUseLocalChatFallback(fetchFailed)).toBe(true)
+    expect(shouldUseLocalChatFallback({
+      code: '42501',
+      message: 'permission denied for table conversations',
+    })).toBe(true)
+
+    const diagnosed = diagnosePipelineError('conversation', 'createConversation', fetchFailed)
+    expect(diagnosed.message).toBe('TypeError: fetch failed')
+    expect(diagnosed.message).not.toBe('[object Object]')
+    expect(userFacingErrorMessage(diagnosed, 'fallback')).not.toContain('[object Object]')
+    expect(shouldUseLocalChatFallback(diagnosed)).toBe(true)
+  })
+})
+
+describe('createConversation persistence recovery', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    clearLocalChatStore()
+    vi.spyOn(supabase.auth, 'getSession').mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.real',
+          refresh_token: 'x',
+          expires_in: 3600,
+          token_type: 'bearer',
+          user: { id: 'user-real-1' } as never,
+        } as never,
+      },
+      error: null,
+    } as never)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    clearLocalChatStore()
+  })
+
+  it('falls back to local store when Supabase insert returns fetch-failed object', async () => {
+    vi.spyOn(conversationRepository, 'create').mockRejectedValue({
+      message: 'TypeError: fetch failed',
+      details: 'TypeError: fetch failed',
+      hint: '',
+      code: '',
+    })
+
+    const created = await chatService.createConversation('رحلة اختبار')
+    expect(created.id.startsWith('lconv_')).toBe(true)
+    expect(created.title).toBe('رحلة اختبار')
+  })
+
+  it('falls back to local store on RLS 42501 plain objects', async () => {
+    vi.spyOn(conversationRepository, 'create').mockRejectedValue({
+      code: '42501',
+      message: 'permission denied for table conversations',
+      details: null,
+      hint: null,
+    })
+
+    const created = await chatService.createConversation()
+    expect(created.id.startsWith('lconv_')).toBe(true)
+  })
+
+  it('passes authenticated user_id into conversation insert', async () => {
+    const createSpy = vi.spyOn(conversationRepository, 'create').mockResolvedValue({
+      id: 'conv-db-1',
+      user_id: 'user-real-1',
+      title: 'محادثة جديدة',
+      modality_default: 'text',
+      travel_session_id: null,
+      last_message_preview: '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as never)
+
+    const created = await chatService.createConversation()
+    expect(created.id).toBe('conv-db-1')
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ user_id: 'user-real-1' }),
+    )
   })
 })
 

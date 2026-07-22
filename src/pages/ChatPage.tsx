@@ -493,7 +493,9 @@ function LegacyChatPage() {
         else setMicError(null)
       },
       onError: (error) => {
-        if (!isBenignChatError(error)) setActionError(error)
+        if (!isBenignChatError(error)) {
+          setActionError(userFacingErrorMessage(error, 'تعذر إكمال الصوت'))
+        }
       },
       onAssistantCreate: upsertMessage,
       onDelta: upsertMessage,
@@ -503,7 +505,9 @@ function LegacyChatPage() {
       },
       onStreamError: (message, error) => {
         upsertMessage(message)
-        if (!isBenignChatError(error)) setActionError(error)
+        if (!isBenignChatError(error)) {
+          setActionError(userFacingErrorMessage(error, 'تعذر إكمال الرد'))
+        }
       },
     })
     voiceRef.current = session
@@ -615,7 +619,9 @@ function LegacyChatPage() {
         },
         onError: (message, error) => {
           upsertMessage(message)
-          if (!isBenignChatError(error)) setActionError(error)
+          if (!isBenignChatError(error)) {
+            setActionError(userFacingErrorMessage(error, 'تعذر إرسال الرسالة'))
+          }
         },
       })
     } catch (e) {

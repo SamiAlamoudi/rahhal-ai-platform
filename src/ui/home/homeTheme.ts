@@ -48,8 +48,9 @@ export function homePageStyle(): CSSProperties {
   return {
     minHeight: '100%',
     width: '100%',
+    maxWidth: '100vw',
     boxSizing: 'border-box',
-    overflowX: 'hidden',
+    overflowX: 'clip',
     color: homeColors.fg,
     backgroundImage: `
       radial-gradient(120% 80% at 100% 0%, color-mix(in srgb, #1c80f0 18%, transparent), transparent 55%),
@@ -59,6 +60,8 @@ export function homePageStyle(): CSSProperties {
     paddingInlineStart: `max(${spacing.lg}px, env(safe-area-inset-inline-start, env(safe-area-inset-left)))`,
     paddingInlineEnd: `max(${spacing.lg}px, env(safe-area-inset-inline-end, env(safe-area-inset-right)))`,
     fontFamily: typography.family.body,
+    // Prevent Safari from painting absolute hero blobs across sibling sections.
+    isolation: 'isolate',
   }
 }
 
@@ -72,18 +75,25 @@ export function homeShellStyle(): CSSProperties {
     gap: spacing['2xl'],
     minWidth: 0,
     boxSizing: 'border-box',
+    overflow: 'visible',
   }
 }
 
-/** Safari-safe responsive two-column grid (avoids min() inside minmax overlap bugs). */
+/**
+ * Safari-safe responsive grid.
+ * Uses a CSS class for the breakpoint so iPhone Safari does not keep two
+ * overlapping auto-fit columns when the viewport is near 280×2 + gap.
+ */
 export function homeResponsiveGridStyle(): CSSProperties {
   return {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+    // Fallback before CSS class applies; class forces 1fr under 720px.
+    gridTemplateColumns: '1fr',
     gap: spacing.xl,
     alignItems: 'start',
     width: '100%',
     minWidth: 0,
+    maxWidth: '100%',
   }
 }
 
@@ -100,6 +110,8 @@ export function homeCardStyle(options?: { interactive?: boolean }): CSSPropertie
     boxSizing: 'border-box',
     position: 'relative',
     isolation: 'isolate',
+    overflow: 'hidden',
+    contain: 'layout paint',
     transition: options?.interactive ? homeMotion.hover : undefined,
   }
 }

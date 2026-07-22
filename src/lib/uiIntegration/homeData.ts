@@ -8,6 +8,7 @@ import { chatEngine } from '../chat/chatEngine'
 import { loadMyTrips, type BookingRecord } from '../booking'
 import type { ChatConversation } from '../chat/chatTypes'
 import type { MemoryEngineResult, TravelHistorySummary } from '../agent/memory/index'
+import { extractErrorText } from '../ops/errors/canonicalError'
 
 export interface ProductionHomeData {
   displayName: string | null
@@ -80,7 +81,7 @@ export async function loadProductionHomeData(input: {
   try {
     conversations = await safeListConversations(12)
   } catch (err) {
-    error = err instanceof Error ? err.message : 'Failed to load conversations'
+    error = extractErrorText(err, 'Failed to load conversations')
   }
 
   try {
@@ -91,7 +92,7 @@ export async function loadProductionHomeData(input: {
       }),
     ])
   } catch (err) {
-    error = error || (err instanceof Error ? err.message : 'Failed to load trips')
+    error = error || extractErrorText(err, 'Failed to load trips')
   }
 
   try {
@@ -104,7 +105,7 @@ export async function loadProductionHomeData(input: {
       { enabled: true },
     )
   } catch (err) {
-    error = error || (err instanceof Error ? err.message : 'Failed to load memory')
+    error = error || extractErrorText(err, 'Failed to load memory')
   }
 
   const recentConversations = conversations.slice(0, 8).map((c) => ({

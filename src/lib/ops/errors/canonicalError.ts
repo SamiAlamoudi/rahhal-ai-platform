@@ -43,10 +43,22 @@ export class AppError extends Error {
   readonly diagnostics: Record<string, unknown>
 
   constructor(options: AppErrorOptions) {
-    super(options.message)
+    const safeMessage =
+      options.message
+      && options.message !== '[object Object]'
+        ? options.message
+        : (typeof options.userMessage === 'string' && options.userMessage.trim()
+          ? options.userMessage
+          : userMessageForCode(options.code))
+    super(safeMessage)
     this.name = 'AppError'
     this.code = options.code
-    this.userMessage = options.userMessage ?? userMessageForCode(options.code)
+    const safeUser =
+      options.userMessage
+      && options.userMessage !== '[object Object]'
+        ? options.userMessage
+        : userMessageForCode(options.code)
+    this.userMessage = safeUser
     this.domain = options.domain ?? 'app'
     this.operation = options.operation ?? 'unknown'
     this.status = options.status ?? statusForCode(options.code)

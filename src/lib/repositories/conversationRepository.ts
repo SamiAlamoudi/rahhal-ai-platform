@@ -3,6 +3,8 @@ import type { ConversationRow } from '../types'
 
 export interface CreateConversationInput {
   title?: string
+  /** Explicit owner — prefer over relying solely on DB default auth.uid(). */
+  user_id?: string
   modality_default?: string
   travel_session_id?: string | null
   last_message_preview?: string
@@ -17,14 +19,17 @@ export interface UpdateConversationInput {
 
 export const conversationRepository = {
   async create(input: CreateConversationInput = {}): Promise<ConversationRow | null> {
+    const payload: Record<string, unknown> = {
+      title: input.title?.trim() || 'محادثة جديدة',
+      modality_default: input.modality_default ?? 'text',
+      travel_session_id: input.travel_session_id ?? null,
+      last_message_preview: input.last_message_preview ?? '',
+    }
+    if (input.user_id) payload.user_id = input.user_id
+
     const { data, error } = await supabase
       .from('conversations')
-      .insert({
-        title: input.title?.trim() || 'محادثة جديدة',
-        modality_default: input.modality_default ?? 'text',
-        travel_session_id: input.travel_session_id ?? null,
-        last_message_preview: input.last_message_preview ?? '',
-      })
+      .insert(payload)
       .select()
       .maybeSingle()
     if (error) throw error

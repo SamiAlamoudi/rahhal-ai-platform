@@ -4,6 +4,7 @@
  * Does not replace production Supabase persistence.
  */
 
+import { AppError, extractErrorText } from '../ops/errors/canonicalError'
 import type { ChatConversation, ChatMessage, ChatModality } from './chatTypes'
 
 const STORAGE_KEY = 'rahhal.alpha.chat.v1'
@@ -68,12 +69,71 @@ function id(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`
 }
 
+/**
+ * Detect auth/demo failures that should use local chat persistence.
+ * Must NOT use `String(plainObject)` — Supabase/PostgREST errors are plain
+ * objects and stringify to "[object Object]".
+ */
 export function isLocalChatAuthError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error ?? '')
   const code = (error as { code?: string } | null)?.code
+  if (code === 'auth_error' || code === '28000' || code === 'PGRST301') return true
+  if (error instanceof AppError && error.code === 'auth_error') return true
+  const message = extractErrorText(error, '')
+  return /supabase session|demo|تسجيل الدخول|jwt|not authenticated|\bauth\b/i.test(message)
+}
+
+/**
+ * Persistence failures where Alpha local chat is the correct recovery path.
+ * Covers RLS, missing grants, and network/DNS failures to Supabase (common on
+ * Preview / flaky mobile networks) — without masking validation errors.
+ */
+export function shouldUseLocalChatFallback(error: unknown): boolean {
+  if (isLocalChatAuthError(error)) return true
+
+  if (error instanceof AppError) {
+    if (error.code === 'forbidden' || error.code === 'auth_error') return true
+    // diagnosePipelineError maps fetch/network → provider_unavailable; still recover locally.
+    if (error.code === 'provider_unavailable') {
+      const technical = extractErrorText(error.cause, error.message).toLowerCase()
+      if (
+        technical.includes('fetch')
+        || technical.includes('network')
+        || technical.includes('enotfound')
+        || technical.includes('load failed')
+        || technical.includes('econnrefused')
+      ) {
+        return true
+      }
+    }
+  }
+
+  const code = (error as { code?: string } | null)?.code ?? ''
+  if (
+    code === 'forbidden'
+    || code === '42501'
+    || code === 'PGRST301'
+    || code === '42P01'
+    || code === 'PGRST205'
+  ) {
+    return true
+  }
+
+  const message = extractErrorText(error, '').toLowerCase()
+  if (!message || message === 'unknown_error' || message === '[object object]') return false
+
   return (
-    code === 'auth_error'
-    || /supabase session|demo|تسجيل الدخول|auth/i.test(message)
+    message.includes('permission denied')
+    || message.includes('row-level security')
+    || message.includes('rls')
+    || message.includes('fetch failed')
+    || message.includes('failed to fetch')
+    || message.includes('networkerror')
+    || message.includes('network request failed')
+    || message.includes('load failed')
+    || message.includes('enotfound')
+    || message.includes('econnrefused')
+    || message.includes('econnreset')
+    || message.includes('err_name_not_resolved')
   )
 }
 
