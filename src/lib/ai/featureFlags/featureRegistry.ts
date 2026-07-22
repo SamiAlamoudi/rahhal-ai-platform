@@ -306,6 +306,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: concierge_experience. Additive under src/core/conciergeExperience. Distinct from legacy ai.concierge. Does not redesign engines.',
   },
   {
+    id: 'ai.booking_assistant',
+    name: 'Smart Booking Assistant',
+    description:
+      'Sprint 101 — guides traveler from planning to booking readiness: checklist, timeline, warnings, next actions, and summary composed from existing Alpha / engine outputs. Presentation/orchestration only.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.alpha_experience'],
+    notes:
+      'Product alias: booking_assistant. Additive under src/core/bookingAssistant. Does not modify booking engines, providers, or search.',
+  },
+  {
     id: 'booking.orchestrator',
     name: 'Live Booking Orchestrator',
     description:

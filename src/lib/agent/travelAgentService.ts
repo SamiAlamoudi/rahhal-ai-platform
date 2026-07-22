@@ -119,6 +119,10 @@ import {
   assembleAlphaTravelerExperience,
   type AgentAlphaTravelerExperienceAttachment,
 } from './alphaExperience'
+import {
+  assembleBookingAssistant,
+  type AgentBookingAssistantAttachment,
+} from './bookingAssistant'
 import type {
   AgentIntent,
   AgentMemory,
@@ -1453,6 +1457,8 @@ export function createTravelAgentService(
       let conciergeIntegration: ConciergeTurnIntegrationResult | null = null
       /** Sprint 99 — unified Alpha traveler experience assembly (null until composed). */
       let alphaTravelerAssembly: AgentAlphaTravelerExperienceAttachment | null = null
+      /** Sprint 101 — Smart Booking Assistant (null until composed after Alpha). */
+      let bookingAssistantAssembly: AgentBookingAssistantAttachment | null = null
 
       // Sprint 78 — Travel Strategy Planner runs before any search engines.
       if (isTravelPlannerOn()) {
@@ -1921,9 +1927,18 @@ export function createTravelAgentService(
             },
           }
           : withConcierge
-        const withExecution = bookingExecutionResult
-          ? { ...withAlphaAssembly, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+        const withBookingAssistant = bookingAssistantAssembly
+          ? {
+            ...withAlphaAssembly,
+            bookingAssistant: {
+              ...bookingAssistantAssembly.meta,
+              experience: bookingAssistantAssembly.experience,
+            },
+          }
           : withAlphaAssembly
+        const withExecution = bookingExecutionResult
+          ? { ...withBookingAssistant, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+          : withBookingAssistant
         const withPayments = paymentsResult
           ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
           : withExecution
@@ -2555,6 +2570,54 @@ export function createTravelAgentService(
           priceConfidence: priceIntelligenceResult
             ? priceIntelligenceResult.recommendation.confidence / 100
             : null,
+          engineConfidence: decisionConfidence > 1 ? decisionConfidence / 100 : decisionConfidence,
+        })
+      }
+
+      // Sprint 101 — Smart Booking Assistant after Alpha Experience (presentation only).
+      {
+        const { flightOffers: bookingFlights, hotelStays: bookingHotels } = offersFromToolBatch(
+          toolBatch ?? undefined,
+        )
+        const priceRec = priceIntelligenceResult?.recommendation
+        bookingAssistantAssembly = assembleBookingAssistant({
+          conversationId: input.conversationId,
+          memory,
+          alphaExperience: alphaTravelerAssembly?.experience ?? null,
+          packageSelected: dynamicPackagesResult?.selected
+            ? {
+              id: dynamicPackagesResult.selected.id,
+              title: dynamicPackagesResult.selected.title,
+              totalPrice: dynamicPackagesResult.selected.totalPrice,
+              currency: dynamicPackagesResult.selected.currency,
+              confidence: dynamicPackagesResult.selected.confidence,
+            }
+            : null,
+          flightOffers: bookingFlights.length ? bookingFlights : null,
+          hotelOffers: bookingHotels.length ? bookingHotels : null,
+          priceTimingAction: priceRec?.action ?? null,
+          priceOpportunities: priceRec?.opportunities ?? null,
+          priceExplanation: priceRec?.explanation ?? null,
+          seatsRemaining: typeof bookingFlights[0]?.seatsRemaining === 'number'
+            ? bookingFlights[0].seatsRemaining as number
+            : typeof bookingFlights[0]?.availableSeats === 'number'
+              ? bookingFlights[0].availableSeats as number
+              : null,
+          roomsRemaining: typeof bookingHotels[0]?.roomsRemaining === 'number'
+            ? bookingHotels[0].roomsRemaining as number
+            : null,
+          visaRequiredSignal: travelPlannerResult?.riskFlags?.includes('visa_check_required')
+            ? true
+            : null,
+          bookingReadyFromEngine: bookingIntelligenceResult?.readiness.bookingReady ?? null,
+          paymentSessionActive: paymentsResult
+            ? ['pending', 'authorized', 'partially_captured'].includes(paymentsResult.snapshot.status)
+            : null,
+          bookingConfirmed: Boolean(
+            bookingExecutionResult
+            && bookingExecutionResult.snapshot.confirmedCount > 0,
+          ),
+          preferencesApplied: Boolean(travelerPersonalizationResult || adaptiveLearningResult),
           engineConfidence: decisionConfidence > 1 ? decisionConfidence / 100 : decisionConfidence,
         })
       }
