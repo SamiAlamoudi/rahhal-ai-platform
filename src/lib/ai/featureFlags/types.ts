@@ -33,6 +33,7 @@ export type FeatureId =
   | 'ai.constitution'
   | 'ai.alpha_experience'
   | 'ai.concierge_experience'
+  | 'ai.booking_assistant'
   | 'booking.orchestrator'
   | 'ai.live_providers'
   | 'provider.amadeus'

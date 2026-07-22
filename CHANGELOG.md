@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 101: Smart Booking Assistant
+
+### Added
+
+- Smart Booking Assistant (`src/core/bookingAssistant`) — readiness, checklist, missing requirements, timeline, evidence-only warnings, next actions, reused confidence, booking summary.
+- Agent bridge `assembleBookingAssistant` — attaches `meta.bookingAssistant` after Alpha Experience when `ai.booking_assistant` is ON.
+- Docs: `docs/SPRINT101_BOOKING_ASSISTANT.md`; verify: `npm run booking-assistant:verify`.
+
+### Notes
+
+- Presentation / orchestration only — composes existing Alpha + engine snapshots. No engine, provider, booking, search, decision, or package changes. Flag OFF preserves legacy exactly.
+
 ## [Unreleased] — Sprint 99: Alpha Experience Assembly
 
 ### Added

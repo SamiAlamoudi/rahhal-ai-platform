@@ -587,6 +587,36 @@ export interface AgentProviderMeta {
     }
   }
   /**
+   * Sprint 101 — Smart Booking Assistant (booking-ready experience).
+   * Additive — absent when `ai.booking_assistant` is OFF or assembly skipped.
+   */
+  bookingAssistant?: {
+    version: string
+    conversationId: string
+    enabled: boolean
+    sectionIds: string[]
+    sectionCount: number
+    readinessStatus: string | null
+    readyToBook: boolean
+    nextAction: string | null
+    confidenceLevel: string | null
+    confidenceScore: number | null
+    durationMs: number
+    experience: {
+      version: string
+      conversationId: string
+      enabled: boolean
+      sections: unknown[]
+      sectionIds: string[]
+      readinessStatus: string | null
+      readyToBook: boolean
+      nextAction: string | null
+      confidenceScore: number | null
+      confidenceLevel: string | null
+      durationMs: number
+    }
+  }
+  /**
    * Sprint 96 — AI Concierge Experience snapshot (timeline, explanations, alternatives).
    */
   conciergeExperience?: {

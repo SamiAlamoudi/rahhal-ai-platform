@@ -234,6 +234,19 @@ export type {
   AgentAlphaTravelerExperienceAttachment,
 } from './alphaExperience'
 export {
+  isBookingAssistantEnabled,
+  BOOKING_ASSISTANT_FEATURE_ID,
+  assembleBookingAssistant,
+  toBookingAssistantComposeInput,
+  toAgentBookingAssistantMeta,
+  SPRINT101_BOOKING_ASSISTANT_VERSION,
+} from './bookingAssistant'
+export type {
+  AssembleBookingAssistantInput,
+  AgentBookingAssistantMeta,
+  AgentBookingAssistantAttachment,
+} from './bookingAssistant'
+export {
   isConciergeExperienceEnabled,
   CONCIERGE_EXPERIENCE_FEATURE_ID,
   runConciergeExperience,
