@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 118: Editable AI Conversation (Production)
+
+### Added
+
+- Conversation Edit Engine (`src/lib/agent/editing`) — additive incremental trip refinements (hotel/budget/cabin/duration/city) with affected-stage planning, partial Execution Pipeline reruns, diffs, and edit history.
+- Feature flag `ai.editable_conversation` (**default OFF**).
+- Docs: `docs/SPRINT118_EDITABLE_CONVERSATION.md`; verify: `npm run editing:verify`.
+
+### Notes
+
+- Additive only — reuses Execution Pipeline / Streaming / Memory public APIs; does not modify pipeline, streaming, Decision Engine, Trip Builder, Itinerary, or Concierge. Flag OFF preserves identical legacy behavior.
+
 ## [Unreleased] — Sprint 116: AI Streaming Conversation Experience (Production)
 
 ### Added
