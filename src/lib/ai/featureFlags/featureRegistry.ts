@@ -263,6 +263,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: itinerary_refinement. Feeds Adaptive Learning outcomes; Decision Engine consumes refined offer pools only.',
   },
   {
+    id: 'ai.constitution',
+    name: 'Rahhal AI Constitution',
+    description:
+      'Sprint 87 — governing behavioral principles for all AI components (never end with no results, mission before destination, explainability, alternatives, recovery, intent respect). Governance validators only; no engine redesign.',
+    lifecycle: 'stable',
+    enabled: true,
+    notes:
+      'Product alias: constitution. Additive policy/validator layer under src/core/constitution. Does not change engine public APIs.',
+  },
+  {
     id: 'ai.live_providers',
     name: 'Live Travel Provider Layer',
     description:

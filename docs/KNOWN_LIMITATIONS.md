@@ -9,4 +9,5 @@
 - No OpenTelemetry export — in-process metrics + structured logs.
 - Alert sinks mock/composite until production webhook configured.
 - Hosting rollback is manual; library arms the trigger.
+- **Alpha (Sprint 88):** Constitution library not wired into `planTurn`; Package Builder often skips when offer pools thin; Itinerary Refinement (S84) not on main; intent extraction can corrupt destination on edit phrases (`only` / `instead` / month names). See `docs/ALPHA_READINESS_REPORT.md` and `docs/WEAKNESSES.md`.
 - See `docs/QA0_PRODUCT_AUDIT.md` for full QA-0 findings.

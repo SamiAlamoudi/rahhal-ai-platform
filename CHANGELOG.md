@@ -18,6 +18,42 @@ Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
 - Sits between Package Builder and Decision Engine. No full rebuild; RahhalBrain unchanged.
 
+## [Unreleased] — Sprint 88: Alpha Readiness Validation
+
+### Added
+
+- Alpha acceptance docs: `docs/ALPHA_READINESS_REPORT.md`, `USER_JOURNEYS.md`, `TEST_SCENARIOS.md`, `WEAKNESSES.md`, `TOP20_ALPHA_IMPROVEMENTS.md`.
+
+### Notes
+
+- Validation only — no new AI engines, no architecture redesign, no planning/decision engine changes.
+- Verdict: **WARNING — conditional mock-mode Alpha**; live-provider / Constitution-enforced Alpha deferred to Sprint 89+.
+
+## [Unreleased] — Sprint 90: Live Provider Integration Readiness
+
+### Added
+
+- Core provider readiness (`src/core/providers`) — registry, health, circuit breaker, retry, priority/failover, secrets validator, sandbox helpers, metrics, mock/sandbox/live stubs.
+- Docs: `LIVE_PROVIDER_READINESS.md`, `PROVIDER_ARCHITECTURE.md`, `PROVIDER_CHECKLIST.md`.
+- Verify: `npm run providers-readiness:verify`.
+
+### Notes
+
+- Infrastructure only — no AI engine, conversation, planner, learning, package, or decision changes.
+- Coexists with Sprint 71 Provider Runtime; does not cut over live search consumers.
+
+## [Unreleased] — Sprint 87: Rahhal AI Constitution
+
+### Added
+
+- Governing principles doc: `docs/RAHHAL_AI_CONSTITUTION.md`.
+- Core governance (`src/core/constitution`) — principles, policy modules, `PrincipleValidator`, behavior snapshots, events.
+- Feature flag `ai.constitution` (default ON); verify: `npm run constitution:verify`.
+
+### Notes
+
+- Not a new travel engine. Additive governance only — no engine public API changes, no RahhalBrain redesign.
+
 ## [Unreleased] — Sprint 83: AI Dynamic Travel Packages
 
 ### Added
