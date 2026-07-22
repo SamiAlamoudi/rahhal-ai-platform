@@ -215,6 +215,17 @@ export type {
   AgentAlphaExperienceMeta,
 } from './alphaExperience'
 export {
+  isBookingOrchestratorEnabled,
+  BOOKING_ORCHESTRATOR_FEATURE_ID,
+  runLiveBookingOrchestrator,
+  SPRINT94_BOOKING_ORCHESTRATOR_VERSION,
+} from './bookingOrchestrator'
+export type {
+  AgentBookingOrchestratorRequest,
+  AgentBookingOrchestratorResponse,
+  AgentBookingOrchestratorMeta,
+} from './bookingOrchestrator'
+export {
   isBookingExecutionEnabled,
   isTransactionManagerEnabled,
   isBookingResumeEnabled,

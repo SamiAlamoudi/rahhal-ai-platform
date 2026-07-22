@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 94: Live Booking Orchestrator
+
+### Added
+
+- Core booking workflow (`src/core/booking`) — BookingOrchestrator, plan, session, states, executor, validator, recovery (Retry/CircuitBreaker), audit, serializer.
+- Agent bridge `src/lib/agent/bookingOrchestrator` + flag `booking.orchestrator` (default ON).
+- Placeholder hotel / transfer / insurance reservations; flight hold path production-ready for provider adapters.
+- Docs: `docs/SPRINT94_BOOKING_ORCHESTRATOR.md`; verify: `npm run booking-orchestrator:verify`.
+
+### Notes
+
+- Additive only — converts an approved bookable Trip into an executable booking workflow without modifying Unified Trip or existing engines.
+
 ## [Unreleased] — Sprint 91: Production Alpha Experience
 
 ### Added
