@@ -391,6 +391,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: memory_engine. Additive under src/lib/agent/memory/ (import via memory/index — distinct from legacy memory.ts intake helpers). Does not modify Decision Engine, providers, or Trip Builder.',
   },
   {
+    id: 'ai.orchestrator',
+    name: 'AI Orchestrator',
+    description:
+      'Sprint 113 — additive production orchestration layer coordinating Memory → Search/Providers → Trip Builder → Decision (pass-through) → Response Composer → Concierge without modifying those engines. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: orchestrator. Additive under src/lib/agent/orchestrator. Distinct from brain.ai_orchestrator (Sprint 43) and booking.orchestrator. When OFF, legacy conversation paths are unchanged.',
+  },
+  {
     id: 'ai.live_conversation',
     name: 'Live Conversation (Alpha alias)',
     description:

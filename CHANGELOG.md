@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 113: AI Orchestrator (Production)
+
+### Added
+
+- AI Orchestrator (`src/lib/agent/orchestrator`) — additive pipeline coordination: Memory → Planner → Providers → Trip Builder → Decision (pass-through) → Response Composer → Concierge with execution plan, context, metrics, and early-exit/cache reuse.
+- Feature flag `ai.orchestrator` (**default OFF**).
+- Docs: `docs/SPRINT113_AI_ORCHESTRATOR.md`; verify: `npm run orchestrator:verify`.
+
+### Notes
+
+- Additive only — does not modify Memory Engine, Search Planner, Provider Gateway, Trip Builder, Decision Engine, Response Composer, or Concierge. Distinct from `brain.ai_orchestrator` and `booking.orchestrator`. Flag OFF preserves identical legacy behavior.
+
 ## [Unreleased] — Sprint 112: AI Memory & Personalization Engine
 
 ### Added

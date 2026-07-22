@@ -528,6 +528,23 @@ export type {
   PreferenceScoreBreakdown,
 } from './memory/index'
 
+/** Sprint 113 — AI Orchestrator (production coordination layer) */
+export {
+  isPipelineOrchestratorEnabled,
+  PIPELINE_ORCHESTRATOR_FEATURE_ID,
+  runAIOrchestrator,
+  createAIOrchestrator,
+  buildOrchestratorPlan,
+  SPRINT113_AI_ORCHESTRATOR_VERSION,
+} from './orchestrator'
+export type {
+  OrchestratorInput,
+  OrchestratorResult,
+  ExecutionPlan,
+  ExecutionMetrics,
+  OrchestratorFinalResponse,
+} from './orchestrator'
+
 /** Sprint 92 — Amadeus Sandbox TravelProvider */
 export {
   isAmadeusSandboxEnabled,
