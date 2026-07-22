@@ -177,9 +177,12 @@ describe('Sprint 99 — Alpha Experience Assembly', () => {
       expect(dto.sectionIds).toContain('price')
       expect(dto.sectionIds).toContain('confidence')
       expect(dto.sectionIds).toContain('alternatives')
-      expect(dto.sectionIds).toContain('explanation')
+      // explanation may be merged away when its summary matches concierge explanation
       expect(dto.sectionIds).toContain('summary')
       expect(dto.sectionIds).toContain('next_action')
+      expect(
+        dto.sectionIds.includes('explanation') || dto.sectionIds.includes('concierge'),
+      ).toBe(true)
       // Critical sections appear before low-priority next_action.
       expect(dto.sectionIds.indexOf('confidence')).toBeLessThan(dto.sectionIds.indexOf('next_action'))
       expect(dto.sectionIds.indexOf('price')).toBeLessThan(dto.sectionIds.indexOf('timeline'))
