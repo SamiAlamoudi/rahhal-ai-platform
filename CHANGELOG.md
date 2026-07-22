@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 91: Production Alpha Experience
+
+### Added
+
+- Core Alpha Experience (`src/core/alphaExperience`) — ConversationOrchestrator, thinking timeline, recommendation presenter, confidence aggregation, explanation layer, alternative scenarios, recoverable error copy, observability events.
+- Agent bridge `src/lib/agent/alphaExperience` + flag `ai.alpha_experience` (default ON).
+- Docs: `docs/SPRINT91_ALPHA_EXPERIENCE.md`; verify: `npm run alpha-experience:verify`.
+
+### Notes
+
+- Additive experience layer only — reuses Constitution, search plans, provider readiness, packages, refinement, and Decision Engine without redesign.
+- Existing `travelAgentService` path unchanged; orchestrator is the end-to-end Alpha entry point.
+
 ## [Unreleased] — Sprint 84: Autonomous Itinerary Refinement Engine
 
 ### Added

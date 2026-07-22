@@ -203,6 +203,18 @@ export {
 } from './itineraryRefinement'
 export type { RefinementResult } from './itineraryRefinement'
 export {
+  isAlphaExperienceEnabled,
+  ALPHA_EXPERIENCE_FEATURE_ID,
+  runAlphaExperienceConversation,
+  enrichWithAlphaExperience,
+  SPRINT91_ALPHA_EXPERIENCE_VERSION,
+} from './alphaExperience'
+export type {
+  AgentAlphaExperienceRequest,
+  AgentAlphaExperienceResponse,
+  AgentAlphaExperienceMeta,
+} from './alphaExperience'
+export {
   isBookingExecutionEnabled,
   isTransactionManagerEnabled,
   isBookingResumeEnabled,

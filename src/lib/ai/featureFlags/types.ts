@@ -30,6 +30,7 @@ export type FeatureId =
   | 'ai.dynamic_packages'
   | 'ai.itinerary_refinement'
   | 'ai.constitution'
+  | 'ai.alpha_experience'
   | 'ai.live_providers'
   | 'provider.amadeus'
   | 'provider.duffel'

@@ -527,6 +527,23 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 91 — Production Alpha Experience orchestration snapshot.
+   * Additive presentation facts — Conversation Brain / UI may consume timeline + recommendation.
+   */
+  alphaExperience?: {
+    version: string
+    conversationId: string
+    progressPercent: number
+    stageCount: number
+    alternativeCount: number
+    overallConfidence: number
+    recovered: boolean
+    constitutionOk: boolean
+    estimatedCost: number | null
+    currency: string
+    durationMs: number
+  }
+  /**
    * Sprint 57 — Booking Execution Engine snapshot (lifecycle, confirmations, resume).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */

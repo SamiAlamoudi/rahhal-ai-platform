@@ -273,6 +273,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: constitution. Additive policy/validator layer under src/core/constitution. Does not change engine public APIs.',
   },
   {
+    id: 'ai.alpha_experience',
+    name: 'Production Alpha Experience',
+    description:
+      'Sprint 91 — ConversationOrchestrator connecting intent, constitution, search, packages, refinement, decision, explanations, alternatives, and timeline into one Alpha conversation flow. Presentation/orchestration only.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.itinerary_refinement', 'ai.constitution', 'ai.dynamic_packages'],
+    notes:
+      'Product alias: alpha_experience. Additive experience layer under src/core/alphaExperience. Does not redesign engines.',
+  },
+  {
     id: 'ai.live_providers',
     name: 'Live Travel Provider Layer',
     description:
