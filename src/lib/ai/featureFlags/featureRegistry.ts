@@ -1185,6 +1185,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: production_integration. Integration only under src/lib/uiIntegration + src/ui/integration. Does not create engines or duplicate business logic. When OFF, legacy Home/Chat paths remain unchanged.',
   },
+  {
+    id: 'ui.premium_home',
+    name: 'Premium Home Experience',
+    description:
+      'Sprint 121 — polished production Home presentation sections under src/ui/home. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.production_integration'],
+    notes:
+      'Product alias: premium_home. Presentation only — composes existing production home data. Does not change navigation, engines, or APIs. When OFF, ProductionHomeScreen still renders the premium sections while gated by ui.production_integration.',
+  },
 ]
 
 export class FeatureRegistry {
