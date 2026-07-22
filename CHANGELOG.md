@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 93: Unified Travel Intelligence
+
+### Added
+
+- Core Trip composition (`src/core/trip`) — TripComposer, normalizer adapters, cost calculator, timeline, summaries, confidence, alternatives, validation, serialization.
+- Agent bridge `src/lib/agent/unifiedTrip` + flag `ai.unified_trip` (default ON).
+- Placeholder segments for hotels / activities / transfers / visa / insurance when live providers are absent.
+- Docs: `docs/SPRINT93_UNIFIED_TRIP.md`; verify: `npm run unified-trip:verify`.
+
+### Notes
+
+- Additive only — existing engines and providers unchanged. Rahhal returns one presentation-ready Trip instead of isolated search results.
+
 ## [Unreleased] — Sprint 84: Autonomous Itinerary Refinement Engine
 
 ### Added

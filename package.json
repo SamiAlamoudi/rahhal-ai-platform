@@ -35,6 +35,7 @@
     "price:verify": "vitest run src/lib/__tests__/priceIntelligence.sprint81.test.ts",
     "package:verify": "vitest run src/lib/__tests__/packageBuilder.sprint83.test.ts",
     "refine:verify": "vitest run src/lib/__tests__/itineraryRefinement.sprint84.test.ts",
+    "unified-trip:verify": "vitest run src/lib/__tests__/unifiedTrip.sprint93.test.ts",
     "constitution:verify": "vitest run src/lib/__tests__/aiConstitution.sprint87.test.ts",
     "alpha-blockers:verify": "vitest run src/lib/__tests__/intentExtraction.sprint89.test.ts src/lib/__tests__/alphaBlockers.sprint89.test.ts",
     "beta:ops": "vitest run src/lib/__tests__/betaOperations.sprint69.test.ts src/lib/__tests__/betaLaunch.sprint67.test.ts",
