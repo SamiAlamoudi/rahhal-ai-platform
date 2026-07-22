@@ -285,7 +285,7 @@ describe('Sprint 94 — Live Booking Orchestrator', () => {
         endDate: '2026-08-20',
         adults: 2,
         currency: 'SAR',
-        budget: 5000,
+        budgetCap: 5000,
         flightOffers: [{
           id: 'flt_1',
           airline: 'Saudia',
