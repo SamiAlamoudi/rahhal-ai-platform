@@ -381,6 +381,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: trip_builder. Additive under src/lib/agent/tripBuilder. When OFF, runner returns disabled and legacy paths are unchanged.',
   },
   {
+    id: 'ai.memory_engine',
+    name: 'AI Memory & Personalization Engine',
+    description:
+      'Sprint 112 — persistent traveler preference memory, conversation memory, travel history, preference resolution/scoring. Concierge/Response Composer may consume metadata. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: memory_engine. Additive under src/lib/agent/memory/ (import via memory/index — distinct from legacy memory.ts intake helpers). Does not modify Decision Engine, providers, or Trip Builder.',
+  },
+  {
     id: 'ai.live_conversation',
     name: 'Live Conversation (Alpha alias)',
     description:

@@ -507,6 +507,27 @@ export type {
   TripRankKind,
 } from './tripBuilder'
 
+/** Sprint 112 — AI Memory & Personalization Engine (import path: ./memory/index) */
+export {
+  isMemoryEngineEnabled,
+  MEMORY_ENGINE_FEATURE_ID,
+  runMemoryEngine,
+  createMemoryRunner,
+  resetMemoryEngineStores,
+  extractPreferencesFromText,
+  toConciergeMemoryHints,
+  toResponseComposerMemoryNotes,
+  SPRINT112_MEMORY_ENGINE_VERSION,
+} from './memory/index'
+export type {
+  MemoryEngineInput,
+  MemoryEngineResult,
+  MemoryTravelerProfile,
+  MemoryMetadata,
+  TravelHistorySummary,
+  PreferenceScoreBreakdown,
+} from './memory/index'
+
 /** Sprint 92 — Amadeus Sandbox TravelProvider */
 export {
   isAmadeusSandboxEnabled,
