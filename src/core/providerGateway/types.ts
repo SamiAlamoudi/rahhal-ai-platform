@@ -33,7 +33,11 @@ export interface GatewayFlightSearchInput {
   departureDate: string
   returnDate?: string | null
   adults?: number
+  children?: number
+  cabin?: string | null
   currency?: string
+  maxResults?: number
+  nonStop?: boolean
 }
 
 export interface GatewayHotelSearchInput {

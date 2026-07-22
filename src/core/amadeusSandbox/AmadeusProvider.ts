@@ -174,20 +174,25 @@ export function createAmadeusSandboxProvider(
 
     const passengers = normalizePassengerCounts({
       adults: request.adults,
-      children: options.children,
+      children: request.children ?? options.children,
     })
-    const travelClass = mapCabinToAmadeusTravelClass(options.cabin)
+    const travelClass = mapCabinToAmadeusTravelClass(request.cabin ?? options.cabin)
+    const maxResults = Math.min(
+      250,
+      Math.max(1, Math.floor(request.maxResults ?? 20)),
+    )
     const params = new URLSearchParams({
       originLocationCode: request.origin.toUpperCase(),
       destinationLocationCode: request.destination.toUpperCase(),
       departureDate: request.departureDate,
       adults: String(passengers.adults),
       currencyCode: (request.currency || 'SAR').toUpperCase(),
-      max: '20',
+      max: String(maxResults),
     })
     if (request.returnDate) params.set('returnDate', request.returnDate)
     if (passengers.children > 0) params.set('children', String(passengers.children))
     if (travelClass) params.set('travelClass', travelClass)
+    if (request.nonStop === true) params.set('nonStop', 'true')
 
     const url = `${config.baseUrl.replace(/\/$/, '')}/v2/shopping/flight-offers?${params}`
     let response: Response

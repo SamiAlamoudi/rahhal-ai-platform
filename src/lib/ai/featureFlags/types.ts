@@ -36,6 +36,7 @@ export type FeatureId =
   | 'ai.booking_assistant'
   | 'ai.booking_execution_confirmation'
   | 'ai.live_provider_gateway'
+  | 'ai.live_flight_search'
   | 'ai.live_conversation'
   | 'ai.my_trips_dashboard'
   | 'booking.orchestrator'

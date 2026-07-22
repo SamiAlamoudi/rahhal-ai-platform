@@ -339,6 +339,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: live_provider_gateway. Additive under src/core/providerGateway. Does not modify engines, booking, or UI. When OFF, gateway bridge returns disabled without calling live providers.',
   },
   {
+    id: 'ai.live_flight_search',
+    name: 'Live Flight Search (Amadeus)',
+    description:
+      'Sprint 105 — first real Amadeus Flight Offers Search via Provider Gateway. Validates criteria, maps GatewayResponse into Rahhal flight offers for Decision Engine. Default OFF — legacy/mock search paths unchanged.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['providers.amadeus.enabled'],
+    notes:
+      'Product alias: live_flight_search. Additive under src/lib/agent/liveFlightSearch. Uses Provider Gateway + Amadeus OAuth/TravelProvider. Does not modify SearchPlanner, DecisionEngine, or UI. When OFF, runner returns disabled without calling providers.',
+  },
+  {
     id: 'ai.live_conversation',
     name: 'Live Conversation (Alpha alias)',
     description:
