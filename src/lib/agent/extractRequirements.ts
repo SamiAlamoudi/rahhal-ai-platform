@@ -47,6 +47,11 @@ export interface ExtractionResult {
   locale: AgentLocale
   intent: AgentIntent
   patch: Partial<TripRequirements>
+  /** Sprint 89 — merge hints (not persisted on TripRequirements). */
+  flags?: {
+    /** Replace destination list instead of unioning with prior turns. */
+    replaceDestinations?: boolean
+  }
 }
 
 export function extractFromUserText(
@@ -58,6 +63,7 @@ export function extractFromUserText(
   const lower = normalized.toLowerCase()
   const intent = detectIntent(lower, normalized, locale)
   const patch: Partial<TripRequirements> = {}
+  const flags: NonNullable<ExtractionResult['flags']> = {}
 
   const regenerateDay = matchRegenerateDay(lower, normalized)
   if (regenerateDay != null) {
@@ -75,6 +81,10 @@ export function extractFromUserText(
   if (destinations.length > 0) {
     patch.destination = destinations[0]
     patch.destinations = destinations
+    if (isDestinationReplaceCue(lower, normalized)) {
+      flags.replaceDestinations = true
+      patch.destinations = [destinations[0]!]
+    }
   }
 
   const duration = matchDuration(lower, normalized)
@@ -166,7 +176,20 @@ export function extractFromUserText(
     if (noteMatch?.[1]) patch.notes = noteMatch[1].trim()
   }
 
-  return { locale, intent, patch }
+  // Star / villa hotel class cues (additive to hotelPreference).
+  const hotelClass = matchHotelClass(lower, normalized)
+  if (hotelClass) {
+    patch.hotelPreference = patch.hotelPreference
+      ? `${patch.hotelPreference}|${hotelClass}`
+      : hotelClass
+  }
+
+  return {
+    locale,
+    intent,
+    patch,
+    ...(Object.keys(flags).length > 0 ? { flags } : {}),
+  }
 }
 
 function detectIntent(lower: string, original: string, locale: AgentLocale): AgentIntent {
@@ -397,32 +420,41 @@ function matchDestinations(
   // Cue-based free text — ignore verbs after "to" ("to spend", "to visit").
   if (found.length === 0) {
     const enCue = stripped.lower.match(
-      /\b(?:to|in)\s+(?!spend|visit|travel|plan|go|have|be|get|make|see|book|want)([a-z][a-z]*(?:\s+[a-z]+){0,2}?)(?=\s*(?:,|\.|$|for\b|with\b|under\b|next\b|from\b|and\b|budget\b|\d|couple|family|solo))/,
+      /\b(?:to|in)\s+(?!spend|visit|travel|plan|go|have|be|get|make|see|book|want|only|just|about|change|continue)([a-z][a-z]*(?:\s+[a-z]+){0,2}?)(?=\s*(?:,|\.|$|for\b|with\b|under\b|next\b|from\b|and\b|budget\b|\d|couple|family|solo|instead\b))/,
     )
     const arCue = stripped.original.match(/(?:إلى|الى)\s+([^\s،,]{2,40})/)
     if (enCue?.[1]) {
-      const raw = capitalizeDestination(enCue[1].trim())
-      if (raw && !isStopWord(raw)) push(aliasForToken(enCue[1]) || raw)
+      const token = enCue[1].trim()
+      if (!isInvalidDestinationToken(token)) {
+        const raw = capitalizeDestination(token)
+        if (raw && !isStopWord(raw)) push(aliasForToken(token) || raw)
+      }
     }
     if (arCue?.[1]) {
-      const raw = capitalizeDestination(arCue[1].trim())
-      if (raw && !isStopWord(raw)) push(aliasForToken(arCue[1]) || raw)
+      const token = arCue[1].trim()
+      if (!isInvalidDestinationToken(token)) {
+        const raw = capitalizeDestination(token)
+        if (raw && !isStopWord(raw)) push(aliasForToken(token) || raw)
+      }
     }
   }
 
   // Bounded free-text fallback (prevents "Barcelona for a couple under…").
   if (found.length === 0) {
     const loose = stripped.lower.match(
-      /\bin\s+([a-z][a-z]*(?:\s+[a-z]+){0,1}?)(?=\s*(?:,|\.|$|for\b|with\b|under\b|next\b|from\b|budget\b|\d))/,
+      /\bin\s+([a-z][a-z]*(?:\s+[a-z]+){0,1}?)(?=\s*(?:,|\.|$|for\b|with\b|under\b|next\b|from\b|budget\b|\d|instead\b))/,
     )
       || stripped.original.match(/(?:إلى|الى)\s+([^\s،,]{2,40})/)
     if (loose?.[1]) {
-      const raw = capitalizeDestination(loose[1].replace(/[?.!].*$/, '').trim())
-      if (raw && !isStopWord(raw) && raw !== origin) push(raw)
+      const token = loose[1].replace(/[?.!].*$/, '').trim()
+      if (!isInvalidDestinationToken(token)) {
+        const raw = capitalizeDestination(token)
+        if (raw && !isStopWord(raw) && raw !== origin) push(raw)
+      }
     }
   }
 
-  return found.filter((value) => !isStopWord(value)).slice(0, 4)
+  return found.filter((value) => !isStopWord(value) && !isInvalidDestinationToken(value)).slice(0, 4)
 }
 
 function matchOrigin(lower: string, original: string): string | null {
@@ -528,8 +560,13 @@ function matchDuration(lower: string, original: string): number | null {
 }
 
 function matchBudget(lower: string, original: string): { amount: number; currency: string } | null {
-  const underEn = lower.match(/(?:under|below|max(?:imum)?|less than|budget(?:\s+is)?|my budget is|keep(?:\s+\w+)?\s+under)\s*(?:of\s*)?(?:sar|usd|aed|eur|\$)?\s*\$?\s*(\d+(?:[.,]\d+)?)/)
-  const underAr = original.match(/(?:أقل من|اقل من|تحت|ميزانية|بميزانية)\s*(?:ريال|دولار|درهم)?\s*\$?\s*(\d+(?:[.,]\d+)?)/)
+  // Allow fillers: "budget is only 1500", "change budget to just 2000 SAR"
+  const underEn = lower.match(
+    /(?:under|below|max(?:imum)?|less than|budget(?:\s+(?:is|to|of))?|my budget is|keep(?:\s+\w+)?\s+under|spend(?:\s+up\s+to)?)\s*(?:of\s*)?(?:only|just|about|around|approx(?:imately)?)?\s*(?:sar|usd|aed|eur|\$)?\s*\$?\s*(\d+(?:[.,]\d+)?)/,
+  )
+  const underAr = original.match(
+    /(?:أقل من|اقل من|تحت|ميزانية|بميزانية|غير الميزانية إلى|إلى فقط)\s*(?:ريال|دولار|درهم)?\s*\$?\s*(\d+(?:[.,]\d+)?)/,
+  )
   const sarFirst = lower.match(/\b(?:sar|usd|aed|eur)\s*(\d+(?:[.,]\d+)?)/)
   const plainMoney = lower.match(/\$\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:usd|sar|eur|aed|\$)/)
   const raw = underEn?.[1] || underAr?.[1] || sarFirst?.[1] || plainMoney?.[1] || plainMoney?.[2]
@@ -758,14 +795,27 @@ function matchHotelPreference(lower: string, original: string): string | null {
   if (/\bboutique\b|بوتيك/.test(lower) || /بوتيك/.test(original)) return 'boutique'
   if (/\bresort\b|منتجع/.test(lower) || /منتجع/.test(original)) return 'resort'
   if (/\bapartment\b|شقة|airbnb/.test(lower) || /شقة/.test(original)) return 'apartment'
+  if (/\bprivate villa\b|villa\b|فيلا/.test(lower) || /فيلا/.test(original)) return 'villa'
   if (/\bnear airport\b|قرب المطار|قريب من المطار/.test(lower)) return 'near_airport'
   if (/\bno hotel preference\b|any hotel|أي فندق|بدون تفضيل فندق|لا يهم الفندق/.test(lower)) {
     return 'any'
   }
   const hotelHint = lower.match(/(?:hotel|stay|فندق)\s*(?:preference|prefers?)?\s*[:：-]?\s*([a-z_]{3,24})/)
-  if (hotelHint?.[1] && !['in', 'to', 'for', 'and'].includes(hotelHint[1])) {
+  if (hotelHint?.[1] && !['in', 'to', 'for', 'and', 'class', 'star', 'stars'].includes(hotelHint[1])) {
     return hotelHint[1]
   }
+  return null
+}
+
+function matchHotelClass(lower: string, original: string): string | null {
+  const stars = lower.match(/\b([1-5])\s*-?\s*star(?:s)?\b/)
+    || original.match(/([1-5])\s*نجوم/)
+  if (stars?.[1]) return `${stars[1]}_star`
+  // Explicit star phrasing only — bare "luxury" is budgetStyle, not hotel class.
+  if (/\bfive[\s-]?star\b|5[\s-]?star\b|خمس نجوم/.test(lower) || /خمس\s*نجوم/.test(original)) {
+    return '5_star'
+  }
+  if (/\bbudget hotel\b|hostel\b/.test(lower)) return 'budget'
   return null
 }
 
@@ -793,16 +843,66 @@ function capitalizeDestination(value: string): string {
     .join(' ')
 }
 
+const MONTH_NAMES = new Set([
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december',
+  'jan', 'feb', 'mar', 'apr', 'jun', 'jul', 'aug', 'sep', 'sept', 'oct', 'nov', 'dec',
+])
+
+const DESTINATION_STOP_TOKENS = new Set([
+  'a', 'the', 'my', 'our', 'trip', 'plan', 'weekend', 'day', 'days',
+  'honeymoon', 'business', 'for', 'with', 'under', 'couple', 'family',
+  'solo', 'budget', 'only', 'just', 'about', 'around', 'instead', 'change',
+  'dates', 'date', 'continue', 'later', 'stop', 'resume', 'back',
+  'hotel', 'flight', 'flights', 'adults', 'adult', 'kids', 'children',
+  'people', 'travelers', 'travellers', 'next', 'this', 'last', 'month',
+  'year', 'week', 'weeks', 'now', 'please', 'make', 'it', 'to', 'of',
+])
+
+function isDestinationReplaceCue(lower: string, original: string): boolean {
+  return (
+    /\bchange(?:\s+the)?\s+destination\b/.test(lower)
+    || /\bswitch(?:\s+(?:the\s+)?destination)?\s+to\b/.test(lower)
+    || /\binstead(?:\s+of)?\b/.test(lower)
+    || /\bactually\b.+\bto\b/.test(lower)
+    || /\bnot\s+[a-z]+\s*[,—-]\s*/.test(lower)
+    || /غير(?:\s+ال)?وجهة|بدل(?:اً|ا)?\s+(?:من|عن)|بدلا من/.test(original)
+  )
+}
+
+/** Reject numeric / month / filler free-text captures that are not places. */
+function isInvalidDestinationToken(value: string): boolean {
+  const normalized = value.trim().toLowerCase().replace(/[?.!,]/g, '')
+  if (!normalized) return true
+  if (/^\d+(?:[.,]\d+)?$/.test(normalized)) return true
+  if (MONTH_NAMES.has(normalized)) return true
+  const parts = normalized.split(/\s+/).filter(Boolean)
+  if (parts.every((p) => DESTINATION_STOP_TOKENS.has(p) || MONTH_NAMES.has(p))) return true
+  if (parts.length >= 1 && DESTINATION_STOP_TOKENS.has(parts[0]!) && parts.slice(1).every((p) => MONTH_NAMES.has(p) || DESTINATION_STOP_TOKENS.has(p))) {
+    return true
+  }
+  // "april instead", "only 1500" style leftovers after capitalization
+  if (parts.some((p) => MONTH_NAMES.has(p)) && parts.every((p) => MONTH_NAMES.has(p) || DESTINATION_STOP_TOKENS.has(p))) {
+    return true
+  }
+  return false
+}
+
 function isStopWord(value: string): boolean {
   const normalized = value.trim()
   if (!normalized) return true
+  if (isInvalidDestinationToken(normalized)) return true
   if (/\b(For|With|Under|Couple|Family|Solo|Budget|Days?)\b/i.test(normalized) && normalized.split(/\s+/).length > 2) {
     return true
   }
+  const title = normalized
   return [
     'A', 'The', 'My', 'Our', 'Trip', 'Plan', 'Weekend', 'Day', 'Days',
     'Honeymoon', 'Business', 'For', 'With', 'Under', 'Couple', 'Family',
-  ].includes(normalized)
+    'Only', 'Just', 'About', 'Instead', 'April', 'March', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+    'January', 'February',
+  ].includes(title)
 }
 
 function uniqueInterests(values: string[]): string[] {

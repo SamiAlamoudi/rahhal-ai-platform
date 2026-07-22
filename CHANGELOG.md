@@ -5,6 +5,26 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 89: Alpha Blockers Resolution
+
+### Fixed
+
+- Intent extraction: stop destination corruption from budget/date fillers; destination replace on change cues; budget fillers (`only`/`just`).
+- Constitution wired into live `planTurn` (`src/lib/agent/constitution`) with recommendation + recovery facts.
+- Package Builder bridge: never silent-skip — flight-first / hotel-first / explanation fallbacks.
+- Recommendation display: reason, trade-offs, confidence, alternatives, next action.
+
+### Docs
+
+- `docs/ALPHA_READINESS_REPORT.md` (PASS)
+- `docs/SPRINT89_REGRESSION_REPORT.md`
+- `docs/SPRINT89_BUG_FIX_REPORT.md`
+- `docs/SPRINT89_ARCHITECTURE_IMPACT.md`
+
+### Notes
+
+- No new AI engines; no architecture redesign — Alpha blockers only.
+
 ## [Unreleased] — Sprint 87: Rahhal AI Constitution
 
 ### Added

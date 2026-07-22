@@ -498,6 +498,20 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 89 — Rahhal AI Constitution validation snapshot (live pipeline).
+   */
+  constitution?: {
+    enabled: boolean
+    ok: boolean
+    violationCount: number
+    violationCodes: string[]
+    checkedPrinciples: string[]
+    recoveryAttemptCount: number
+    hasRecommendation: boolean
+    confidence: number
+    durationMs: number
+  }
+  /**
    * Sprint 57 — Booking Execution Engine snapshot (lifecycle, confirmations, resume).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */

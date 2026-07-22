@@ -9,4 +9,6 @@
 - No OpenTelemetry export — in-process metrics + structured logs.
 - Alert sinks mock/composite until production webhook configured.
 - Hosting rollback is manual; library arms the trigger.
-- See `docs/QA0_PRODUCT_AUDIT.md` for full QA-0 findings.
+- Itinerary Refinement (Sprint 84) not yet on `main` — deferred; mock Alpha PASS does not require it.
+- Adaptive learning remains local PreferenceStore (not cross-device durable).
+- See `docs/ALPHA_READINESS_REPORT.md` (Sprint 89 PASS) and `docs/QA0_PRODUCT_AUDIT.md`.
