@@ -9,12 +9,15 @@ Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
 ### Fixed
 
-- **Root cause:** Supabase/PostgREST failures are plain objects (`String(err) === "[object Object]"`). `createConversation` only fell back to local chat for `auth_error` / raw `forbidden`, so network (`TypeError: fetch failed`) and RLS (`42501`) after a valid session made Create Conversation fail with banner `Something went wrong. Please try again.` and red `[object Object]`.
-- Local chat fallback now recognizes plain PostgREST/network/RLS errors via `shouldUseLocalChatFallback` + `extractErrorText` (no `String(object)`).
-- Conversation insert sends explicit `user_id` from the auth session.
-- All Chat action/voice/stream errors go through `userFacingErrorMessage` — never raw objects.
-- Premium Home iPhone Safari overlap: force single-column under 720px (`.ui-home-responsive-grid`), contain hero glow, `overflow-x: clip`, card `contain: layout paint`.
-- Production conversation bootstrap when opening `/chat` without `?c=` under `ui.production_integration`.
+- **Live root cause:** `POST https://jbeminffrsneqtzdbzqr.supabase.co/rest/v1/conversations` → **HTTP 404** `PGRST205` — hosted project has **no** `public.conversations` (migrations never applied). Not RLS. Plain PostgREST objects then rendered as `[object Object]` + `Something went wrong. Please try again.`
+- Map `PGRST205` / schema-cache misses to `config_error` + local chat fallback; readable user text.
+- SPA rewrite in `vercel.json` so `/chat` hard navigation is not Vercel `404 NOT_FOUND`.
+- Local fallback for PostgREST/network/RLS plain objects; explicit `user_id` on insert; never show `[object Object]`.
+- Premium Home iPhone Safari: single-column under 720px, contained hero, `overflow-x: clip`.
+
+### Ops (required for real DB persistence)
+
+- Apply repo migrations to Supabase project `jbeminffrsneqtzdbzqr` (at least `20260715150000_rahhal_chat_schema.sql` + grants). Until then create uses local fallback only.
 
 ### Notes
 
