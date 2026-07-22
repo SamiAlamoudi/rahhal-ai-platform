@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 99: Alpha Experience Assembly
+
+### Added
+
+- Alpha Experience Assembly (`src/core/alphaExperience`) — `AlphaExperienceComposer`, traveler journey / recommendation / summary builders, section priority + omission, unified `AlphaExperienceDTO`.
+- Agent bridge `assembleAlphaTravelerExperience` — attaches `meta.alphaTravelerExperience` when `ai.alpha_experience` is ON.
+- Docs: `docs/SPRINT99_ALPHA_EXPERIENCE_ASSEMBLY.md`; verify: `npm run alpha-experience:verify` (Sprint 91 + 99).
+
+### Notes
+
+- Presentation / orchestration only — consumes existing concierge + engine snapshots. No engine, provider, booking, search, or decision changes. Flag OFF preserves legacy exactly.
+
 ## [Unreleased] — Sprint 97: AI Concierge UI Integration
 
 ### Added

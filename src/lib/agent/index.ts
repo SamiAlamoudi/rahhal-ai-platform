@@ -219,12 +219,19 @@ export {
   ALPHA_EXPERIENCE_FEATURE_ID,
   runAlphaExperienceConversation,
   enrichWithAlphaExperience,
+  assembleAlphaTravelerExperience,
+  toAlphaExperienceComposeInput,
+  toAgentAlphaTravelerExperienceMeta,
   SPRINT91_ALPHA_EXPERIENCE_VERSION,
+  SPRINT99_ALPHA_ASSEMBLY_VERSION,
 } from './alphaExperience'
 export type {
   AgentAlphaExperienceRequest,
   AgentAlphaExperienceResponse,
   AgentAlphaExperienceMeta,
+  AssembleAlphaTravelerExperienceInput,
+  AgentAlphaTravelerExperienceMeta,
+  AgentAlphaTravelerExperienceAttachment,
 } from './alphaExperience'
 export {
   isConciergeExperienceEnabled,

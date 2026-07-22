@@ -12,3 +12,12 @@ export {
   type AgentAlphaExperienceResponse,
   type AgentAlphaExperienceMeta,
 } from './bridge'
+export {
+  assembleAlphaTravelerExperience,
+  toAlphaExperienceComposeInput,
+  toAgentAlphaTravelerExperienceMeta,
+  SPRINT99_ALPHA_ASSEMBLY_VERSION,
+  type AssembleAlphaTravelerExperienceInput,
+  type AgentAlphaTravelerExperienceMeta,
+  type AgentAlphaTravelerExperienceAttachment,
+} from './assembly'

@@ -1,5 +1,6 @@
 /**
  * Sprint 91 — Production Alpha Experience (core barrel).
+ * Sprint 99 — Alpha Experience Assembly (unified traveler DTO) — additive.
  * Additive orchestration / presentation — reuses existing engines only.
  */
 
@@ -51,3 +52,61 @@ export {
   createConversationOrchestrator,
   runAlphaExperience,
 } from './ConversationOrchestrator'
+
+/* ── Sprint 99 — Alpha Experience Assembly ─────────────────────────── */
+
+export {
+  SPRINT99_ALPHA_ASSEMBLY_VERSION,
+  type ExperienceSectionId,
+  type ExperiencePriorityLevel,
+  type TravelerTimelineStage,
+  type TravelerTimelineSection,
+  type TravelerConciergeSection,
+  type TravelerPackageSection,
+  type TravelerFlightSection,
+  type TravelerHotelSection,
+  type TravelerPriceSection,
+  type TravelerConfidenceSection,
+  type TravelerAlternativeItem,
+  type TravelerAlternativesSection,
+  type TravelerExplanationSection,
+  type TravelerSummarySection,
+  type TravelerNextActionSection,
+  type TravelerExperienceSection,
+  type AlphaExperienceDTO,
+  type AlphaExperienceComposeInput,
+} from './AlphaExperienceDTO'
+
+export {
+  EXPERIENCE_SECTION_PRIORITY,
+  priorityForSection,
+  compareSectionIds,
+} from './ExperiencePriority'
+
+export {
+  buildExperienceSections,
+  dedupeStrings,
+} from './ExperienceSections'
+
+export { buildTravelerJourneyTimeline } from './TravelerJourney'
+
+export {
+  buildFinalRecommendationText,
+  buildTravelerRecommendationHeadline,
+} from './TravelerRecommendation'
+
+export {
+  buildTravelerSummaryText,
+  buildTravelerKeyReasons,
+} from './TravelerSummary'
+
+export {
+  buildAlphaExperienceDTO,
+  dedupeExperienceSections,
+} from './TravelerResponseBuilder'
+
+export {
+  AlphaExperienceComposer,
+  createAlphaExperienceComposer,
+  composeAlphaTravelerExperience,
+} from './AlphaExperienceComposer'
