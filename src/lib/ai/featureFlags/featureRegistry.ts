@@ -1165,6 +1165,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: chatgpt_experience. No new travel engines; focuses on natural, interruptible, contextual chat/voice UX.',
   },
+  {
+    id: 'ui.experience_v1',
+    name: 'Rahhal Experience Phase 1 (UI Foundation)',
+    description:
+      'Sprint 119 — presentation-layer foundation under src/ui (home shell, conversation UI, cards, timeline, loading, design tokens). Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: experience_v1. Presentation only — no engine, provider, or orchestration changes. When OFF, existing pages remain unchanged.',
+  },
 ]
 
 export class FeatureRegistry {

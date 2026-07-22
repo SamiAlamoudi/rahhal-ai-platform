@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 119: Rahhal Experience Phase 1 (UI Foundation)
+
+### Added
+
+- Presentation foundation (`src/ui`) — home experience shells, conversation UI architecture, reusable card models, timeline, loading/empty/error/retry, design tokens, and common primitives.
+- Feature flag `ui.experience_v1` (**default OFF**).
+- Docs: `docs/SPRINT119_UI_EXPERIENCE_PHASE1.md`; verify: `npm run ui:verify`.
+
+### Notes
+
+- Presentation only — does not create or modify AI engines, providers, pipeline, streaming, or editable conversation. Flag OFF leaves existing product routes unchanged.
+
 ## [Unreleased] — Sprint 118: Editable AI Conversation (Production)
 
 ### Added
