@@ -14,6 +14,7 @@ export {
   homeMotion,
   homePageStyle,
   homeShellStyle,
+  homeResponsiveGridStyle,
   homeCardStyle,
   homeChipStyle,
   type PremiumHomeSectionId,

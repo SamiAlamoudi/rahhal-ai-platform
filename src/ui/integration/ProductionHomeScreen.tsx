@@ -22,6 +22,7 @@ import {
   TravelInspiration,
   UpcomingTrips,
   homePageStyle,
+  homeResponsiveGridStyle,
   homeShellStyle,
 } from '../home'
 import {
@@ -29,7 +30,6 @@ import {
   type ProductionHomeData,
 } from '../../lib/uiIntegration'
 import { useAuth } from '../../lib/auth'
-import { spacing } from '../tokens'
 
 export const ProductionHomeScreen = memo(function ProductionHomeScreen() {
   const navigate = useNavigate()
@@ -68,7 +68,12 @@ export const ProductionHomeScreen = memo(function ProductionHomeScreen() {
 
   if (data.error && !data.recentConversations.length && !data.recentTrips.length) {
     return (
-      <main aria-label="Rahhal home error" style={{ ...homePageStyle(), padding: spacing['2xl'] }}>
+      <main
+        dir="rtl"
+        lang="ar"
+        aria-label="خطأ في الصفحة الرئيسية"
+        style={homePageStyle()}
+      >
         <div style={homeShellStyle()}>
           <RetryState
             title="تعذر تحميل الصفحة الرئيسية"
@@ -82,7 +87,13 @@ export const ProductionHomeScreen = memo(function ProductionHomeScreen() {
   }
 
   return (
-    <main aria-label="Rahhal home" data-ui="premium-home" style={homePageStyle()}>
+    <main
+      dir="rtl"
+      lang="ar"
+      aria-label="الصفحة الرئيسية لرحّال"
+      data-ui="premium-home"
+      style={homePageStyle()}
+    >
       <div style={homeShellStyle()}>
         {data.error ? (
           <ErrorState title="تحذير" description={data.error} />
@@ -118,14 +129,7 @@ export const ProductionHomeScreen = memo(function ProductionHomeScreen() {
           }
         />
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
-            gap: spacing.xl,
-            alignItems: 'start',
-          }}
-        >
+        <div className="ui-home-responsive-grid" style={homeResponsiveGridStyle()}>
           <ConversationEntry
             index={1}
             onStart={() => navigate('/chat')}
@@ -138,14 +142,7 @@ export const ProductionHomeScreen = memo(function ProductionHomeScreen() {
           />
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
-            gap: spacing.xl,
-            alignItems: 'start',
-          }}
-        >
+        <div className="ui-home-responsive-grid" style={homeResponsiveGridStyle()}>
           <RecentTripsCard
             index={3}
             trips={data.recentTrips}
@@ -168,14 +165,7 @@ export const ProductionHomeScreen = memo(function ProductionHomeScreen() {
           }
         />
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
-            gap: spacing.xl,
-            alignItems: 'start',
-          }}
-        >
+        <div className="ui-home-responsive-grid" style={homeResponsiveGridStyle()}>
           <TravelInspiration
             index={6}
             insights={data.memoryInsights}
@@ -192,14 +182,7 @@ export const ProductionHomeScreen = memo(function ProductionHomeScreen() {
 
         <FeaturedExperiences index={8} items={featured} />
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
-            gap: spacing.xl,
-            alignItems: 'start',
-          }}
-        >
+        <div className="ui-home-responsive-grid" style={homeResponsiveGridStyle()}>
           <SmartSearchEntry index={9} onSearch={() => navigate('/search')} />
           <QuickActions
             index={10}

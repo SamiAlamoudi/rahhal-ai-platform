@@ -40,9 +40,15 @@ export function HomeSection({
       aria-labelledby={title ? `home-section-${sectionId}` : undefined}
       style={{
         ...(bare ? null : homeCardStyle()),
+        position: 'relative',
+        isolation: 'isolate',
+        minWidth: 0,
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+        // Opacity-only enter — avoid translateY stacking overlaps on mobile Safari.
         animation: homeMotion.enter,
         animationDelay: `${index * homeMotion.staggerMs}ms`,
-        animationFillMode: 'both',
+        animationFillMode: 'backwards',
         ...style,
       }}
     >

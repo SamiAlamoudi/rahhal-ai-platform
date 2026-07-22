@@ -5,6 +5,24 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Production fixes: Home layout + conversation create + errors
+
+### Fixed
+
+- **Live root cause:** `POST https://jbeminffrsneqtzdbzqr.supabase.co/rest/v1/conversations` → **HTTP 404** `PGRST205` — hosted project has **no** `public.conversations` (migrations never applied). Not RLS. Plain PostgREST objects then rendered as `[object Object]` + `Something went wrong. Please try again.`
+- Map `PGRST205` / schema-cache misses to `config_error` + local chat fallback; readable user text.
+- SPA rewrite in `vercel.json` so `/chat` hard navigation is not Vercel `404 NOT_FOUND`.
+- Local fallback for PostgREST/network/RLS plain objects; explicit `user_id` on insert; never show `[object Object]`.
+- Premium Home iPhone Safari: single-column under 720px, contained hero, `overflow-x: clip`.
+
+### Ops (required for real DB persistence)
+
+- Apply repo migrations to Supabase project `jbeminffrsneqtzdbzqr` (at least `20260715150000_rahhal_chat_schema.sql` + grants). Until then create uses local fallback only.
+
+### Notes
+
+- No new product features. Sprint 122 presentation work was not included.
+
 ## [Unreleased] — Sprint 121: Premium Home Experience (Production)
 
 ### Added

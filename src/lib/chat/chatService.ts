@@ -20,7 +20,11 @@ import {
 import { assertChatDatabaseAuth } from './chatAuthGate'
 import { diagnosePipelineError, logPipeline } from './pipelineDiagnostics'
 import { AppError } from '../ops/errors/canonicalError'
-import { isLocalChatAuthError, localChatStore } from './localChatStore'
+import {
+  isLocalChatAuthError,
+  localChatStore,
+  shouldUseLocalChatFallback,
+} from './localChatStore'
 
 export interface ConversationDetail {
   conversation: ChatConversation
@@ -230,11 +234,16 @@ export const chatService = {
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .slice(0, limit)
     } catch (error) {
-      if (isLocalChatAuthError(error)) {
+      if (shouldUseLocalChatFallback(error)) {
         logPipeline({ stage: 'conversation', event: 'list_local_fallback' })
         return localChatStore.listConversations(limit)
       }
-      throw diagnosePipelineError('conversation', 'listConversations', error)
+      const diagnosed = diagnosePipelineError('conversation', 'listConversations', error)
+      if (shouldUseLocalChatFallback(diagnosed)) {
+        logPipeline({ stage: 'conversation', event: 'list_local_fallback' })
+        return localChatStore.listConversations(limit)
+      }
+      throw diagnosed
     }
   },
 
@@ -248,9 +257,10 @@ export const chatService = {
       if (err) throw new Error(err)
     }
     try {
-      await assertChatDatabaseAuth('createConversation')
+      const { userId } = await assertChatDatabaseAuth('createConversation')
       const row = await conversationRepository.create({
         title: title?.trim() || 'محادثة جديدة',
+        user_id: userId,
         modality_default: 'text',
       })
       if (!row) {
@@ -270,11 +280,25 @@ export const chatService = {
       })
       return conversationFromRow(row)
     } catch (error) {
-      if (isLocalChatAuthError(error) || (error as { code?: string })?.code === 'forbidden') {
-        logPipeline({ stage: 'conversation', event: 'create_local_fallback' })
+      // PostgREST/network errors are plain objects — recognize them before throwing.
+      if (shouldUseLocalChatFallback(error)) {
+        logPipeline({
+          stage: 'conversation',
+          event: 'create_local_fallback',
+          message: error instanceof Error ? error.message : undefined,
+        })
         return localChatStore.createConversation(title)
       }
-      throw diagnosePipelineError('conversation', 'createConversation', error)
+      const diagnosed = diagnosePipelineError('conversation', 'createConversation', error)
+      if (shouldUseLocalChatFallback(diagnosed)) {
+        logPipeline({
+          stage: 'conversation',
+          event: 'create_local_fallback',
+          message: diagnosed.message,
+        })
+        return localChatStore.createConversation(title)
+      }
+      throw diagnosed
     }
   },
 
@@ -331,8 +355,10 @@ export const chatService = {
         messages: messages.map(messageFromRow),
       }
     } catch (error) {
-      if (isLocalChatAuthError(error)) return localChatStore.getConversationDetail(id)
-      throw diagnosePipelineError('conversation', 'getConversationDetail', error)
+      if (shouldUseLocalChatFallback(error)) return localChatStore.getConversationDetail(id)
+      const diagnosed = diagnosePipelineError('conversation', 'getConversationDetail', error)
+      if (shouldUseLocalChatFallback(diagnosed)) return localChatStore.getConversationDetail(id)
+      throw diagnosed
     }
   },
 

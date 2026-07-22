@@ -1,3 +1,5 @@
+import { extractErrorText } from '../ops/errors/canonicalError'
+
 type LogLevel = 'debug' | 'warn' | 'error'
 
 const PREFIX = '[rahhal-chat]'
@@ -22,7 +24,7 @@ export function logChat(
 }
 
 export function logChatError(scope: string, error: unknown, context?: Record<string, unknown>): void {
-  const message = error instanceof Error ? error.message : String(error ?? 'unknown_error')
+  const message = extractErrorText(error, 'unknown_error')
   if (message === 'cancelled' || message === 'aborted' || message.includes('تم إيقاف')) {
     logChat('debug', scope, message, context)
     return
@@ -33,9 +35,7 @@ export function logChatError(scope: string, error: unknown, context?: Record<str
 export function isBenignChatError(error: unknown): boolean {
   const message = typeof error === 'string'
     ? error
-    : error instanceof Error
-      ? error.message
-      : ''
+    : extractErrorText(error, '')
   const normalized = message.toLowerCase()
   return (
     normalized === 'cancelled'

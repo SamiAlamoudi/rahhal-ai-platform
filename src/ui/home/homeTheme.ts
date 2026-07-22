@@ -47,14 +47,21 @@ export const homeMotion = {
 export function homePageStyle(): CSSProperties {
   return {
     minHeight: '100%',
+    width: '100%',
+    maxWidth: '100vw',
+    boxSizing: 'border-box',
+    overflowX: 'clip',
     color: homeColors.fg,
     backgroundImage: `
       radial-gradient(120% 80% at 100% 0%, color-mix(in srgb, #1c80f0 18%, transparent), transparent 55%),
       linear-gradient(180deg, color-mix(in srgb, #122e57 6%, Canvas), Canvas 42%)
     `,
     paddingBlock: spacing['2xl'],
-    paddingInline: `max(${spacing.lg}px, env(safe-area-inset-left))`,
+    paddingInlineStart: `max(${spacing.lg}px, env(safe-area-inset-inline-start, env(safe-area-inset-left)))`,
+    paddingInlineEnd: `max(${spacing.lg}px, env(safe-area-inset-inline-end, env(safe-area-inset-right)))`,
     fontFamily: typography.family.body,
+    // Prevent Safari from painting absolute hero blobs across sibling sections.
+    isolation: 'isolate',
   }
 }
 
@@ -66,6 +73,27 @@ export function homeShellStyle(): CSSProperties {
     display: 'flex',
     flexDirection: 'column',
     gap: spacing['2xl'],
+    minWidth: 0,
+    boxSizing: 'border-box',
+    overflow: 'visible',
+  }
+}
+
+/**
+ * Safari-safe responsive grid.
+ * Uses a CSS class for the breakpoint so iPhone Safari does not keep two
+ * overlapping auto-fit columns when the viewport is near 280×2 + gap.
+ */
+export function homeResponsiveGridStyle(): CSSProperties {
+  return {
+    display: 'grid',
+    // Fallback before CSS class applies; class forces 1fr under 720px.
+    gridTemplateColumns: '1fr',
+    gap: spacing.xl,
+    alignItems: 'start',
+    width: '100%',
+    minWidth: 0,
+    maxWidth: '100%',
   }
 }
 
@@ -77,6 +105,13 @@ export function homeCardStyle(options?: { interactive?: boolean }): CSSPropertie
     boxShadow: elevation.sm,
     padding: spacing.lg,
     color: homeColors.fg,
+    minWidth: 0,
+    maxWidth: '100%',
+    boxSizing: 'border-box',
+    position: 'relative',
+    isolation: 'isolate',
+    overflow: 'hidden',
+    contain: 'layout paint',
     transition: options?.interactive ? homeMotion.hover : undefined,
   }
 }

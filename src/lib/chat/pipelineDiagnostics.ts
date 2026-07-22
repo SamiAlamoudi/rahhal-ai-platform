@@ -4,7 +4,7 @@
  * and a user-friendly message.
  */
 
-import { AppError, toAppError } from '../ops/errors/canonicalError'
+import { AppError, extractErrorText, toAppError } from '../ops/errors/canonicalError'
 import { getCorrelationId } from '../ops/logging/correlation'
 import { logChat, logChatError } from './chatLogger'
 
@@ -93,7 +93,7 @@ export function diagnosePipelineError(
   const supabase = extractSupabaseFields(error)
   const httpStatus = extractHttpStatus(error)
   const stack = error instanceof Error ? error.stack ?? null : null
-  const message = error instanceof Error ? error.message : String(error ?? 'unknown_error')
+  const message = extractErrorText(error, 'unknown_error')
   const lower = message.toLowerCase()
 
   let app = error instanceof AppError
@@ -137,6 +137,26 @@ export function diagnosePipelineError(
       cause: error,
       diagnostics: { supabase, httpStatus },
     })
+  } else if (
+    supabase?.code === 'PGRST205'
+    || supabase?.code === '42P01'
+    || lower.includes('schema cache')
+    || lower.includes("could not find the table")
+  ) {
+    // Hosted Supabase missing migrations (observed: public.conversations absent).
+    app = new AppError({
+      code: 'config_error',
+      message,
+      userMessage:
+        userMessageAr
+        ?? 'قاعدة البيانات غير مهيأة (جدول المحادثات غير موجود). طبّق migrations على مشروع Supabase.',
+      domain: `chat.${stage}`,
+      operation,
+      status: 503,
+      retryable: false,
+      cause: error,
+      diagnostics: { supabase, httpStatus },
+    })
   } else if (lower.includes('not found') || supabase?.code === 'PGRST116') {
     app = new AppError({
       code: 'not_found',
@@ -145,6 +165,28 @@ export function diagnosePipelineError(
       domain: `chat.${stage}`,
       operation,
       status: 404,
+      cause: error,
+      diagnostics: { supabase, httpStatus },
+    })
+  } else if (
+    lower.includes('fetch failed')
+    || lower.includes('failed to fetch')
+    || lower.includes('networkerror')
+    || lower.includes('network request failed')
+    || lower.includes('load failed')
+    || lower.includes('enotfound')
+    || lower.includes('econnrefused')
+  ) {
+    app = new AppError({
+      code: 'provider_unavailable',
+      message,
+      userMessage:
+        userMessageAr
+        ?? 'تعذر الاتصال بقاعدة البيانات. تم التبديل إلى التخزين المحلي مؤقتاً.',
+      domain: `chat.${stage}`,
+      operation,
+      status: 503,
+      retryable: true,
       cause: error,
       diagnostics: { supabase, httpStatus },
     })
@@ -173,7 +215,22 @@ export function diagnosePipelineError(
 }
 
 export function userFacingErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof AppError) return error.userMessage || error.message || fallback
-  if (error instanceof Error && error.message.trim()) return error.message
+  const candidates: unknown[] = []
+  if (error instanceof AppError) {
+    candidates.push(error.userMessage, error.message, error.cause)
+  }
+  candidates.push(error)
+
+  for (const candidate of candidates) {
+    const text = extractErrorText(candidate, '')
+    if (
+      text
+      && text !== 'unknown_error'
+      && text !== '[object Object]'
+      && text.toLowerCase() !== '[object object]'
+    ) {
+      return text
+    }
+  }
   return fallback
 }

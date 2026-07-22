@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { getLogger } from '../../lib/ops/logging/structuredLogger'
-import { toAppError } from '../../lib/ops/errors/canonicalError'
+import { extractErrorText, toAppError } from '../../lib/ops/errors/canonicalError'
 
 interface Props {
   children: ReactNode
@@ -25,9 +25,17 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   static getDerivedStateFromError(error: unknown): State {
     const appError = toAppError(error, { domain: 'ui', operation: 'react_render' })
+    const userMessage = extractErrorText(
+      appError.userMessage && appError.userMessage !== '[object Object]'
+        ? appError.userMessage
+        : appError,
+      'Something went wrong. Please try again.',
+    )
     return {
       hasError: true,
-      userMessage: appError.userMessage,
+      userMessage: userMessage === '[object Object]'
+        ? 'Something went wrong. Please try again.'
+        : userMessage,
       correlationId: appError.correlationId,
     }
   }
