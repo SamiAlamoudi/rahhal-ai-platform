@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 103: Alpha Integration & End-to-End Experience
+
+### Added
+
+- Alpha Integration connector (`src/lib/alphaIntegration`) — journey stages, route aliases (`/new-chat`, `/booking`), single meta→booking compose mapping, next-step resolver, flag report, graceful degradation helpers.
+- Chat `AlphaJourneyPanel` CTA to Booking Assistant review when ready; confirmation page link to My Trips.
+- Feature aliases: `ai.live_conversation`, `ai.my_trips_dashboard`.
+- Docs: `docs/SPRINT103_ALPHA_INTEGRATION.md`; verify: `npm run alpha-integration:verify`.
+
+### Notes
+
+- Integration only — no new AI engines, no architecture redesign, no provider/booking-engine changes. Flags OFF preserve legacy routes.
+
 ## [Unreleased] — Sprint 102: Booking Execution & Confirmation
 
 ### Added
