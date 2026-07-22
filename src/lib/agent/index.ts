@@ -579,6 +579,21 @@ export type {
   PipelineStageResult,
 } from './pipeline'
 
+/** Sprint 116 — AI Streaming Conversation Experience */
+export {
+  isStreamingConversationEnabled,
+  STREAMING_CONVERSATION_FEATURE_ID,
+  runStreamingConversation,
+  createStreamingConversation,
+  SPRINT116_STREAMING_CONVERSATION_VERSION,
+} from './streaming'
+export type {
+  StreamingConversationInput,
+  StreamingConversationResult,
+  StreamingEvent,
+  StreamingMetrics,
+} from './streaming'
+
 /** Sprint 92 — Amadeus Sandbox TravelProvider */
 export {
   isAmadeusSandboxEnabled,

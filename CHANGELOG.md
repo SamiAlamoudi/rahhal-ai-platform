@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 116: AI Streaming Conversation Experience (Production)
+
+### Added
+
+- AI Streaming Conversation layer (`src/lib/agent/streaming`) — additive real-time visualization of Execution Pipeline stages (started/progress/completed/warning/error), timeline, progress %, ETA, transcript rendering.
+- Feature flag `ai.streaming_conversation` (**default OFF**).
+- Docs: `docs/SPRINT116_STREAMING_CONVERSATION.md`; verify: `npm run streaming:verify`.
+
+### Notes
+
+- Additive only — wraps Execution Pipeline via public adapters; does not modify pipeline, orchestrator, Decision Engine, providers, Memory, Trip Builder, Itinerary, or Concierge. Flag OFF preserves identical legacy behavior.
+
 ## [Unreleased] — Sprint 115: Unified AI Execution Pipeline (Production)
 
 ### Added
