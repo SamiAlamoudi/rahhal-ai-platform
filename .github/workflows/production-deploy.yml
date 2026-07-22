@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: production-readiness-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   production-readiness:
     name: Production deployment gates
@@ -22,7 +26,7 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Install
+      - name: Install (lockfile-faithful)
         run: npm ci
 
       - name: Secret / env hygiene scan
@@ -35,7 +39,7 @@ jobs:
         run: npm run typecheck
 
       - name: Unit / integration tests
-        run: npm run test:run
+        run: npm run test
 
       - name: Deployment verification (Sprint 68)
         run: npm run deploy:verify
