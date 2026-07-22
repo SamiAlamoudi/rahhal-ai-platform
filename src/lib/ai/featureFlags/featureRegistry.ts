@@ -317,6 +317,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: booking_assistant. Additive under src/core/bookingAssistant. Does not modify booking engines, providers, or search.',
   },
   {
+    id: 'ai.booking_execution_confirmation',
+    name: 'Booking Execution & Confirmation',
+    description:
+      'Sprint 102 — booking review, traveler confirmation, abstract Book Now adapter workflow, and confirmation page. Extends Booking Assistant without modifying providers, search, or AI engines.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.booking_assistant'],
+    notes:
+      'Product alias: booking_execution_confirmation. Additive under src/core/bookingExecutionConfirmation + UI routes /booking-assistant/*. Uses abstract adapter only.',
+  },
+  {
     id: 'booking.orchestrator',
     name: 'Live Booking Orchestrator',
     description:

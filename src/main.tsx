@@ -26,6 +26,8 @@ const ResultsPage = lazy(() => import('./pages/ResultsPage.tsx'))
 const FlightDetailsPage = lazy(() => import('./pages/FlightDetailsPage.tsx'))
 const IntegrationDiagnostics = lazy(() => import('./pages/IntegrationDiagnostics.tsx'))
 const BookingReview = lazy(() => import('./pages/BookingReview.tsx'))
+const BookingAssistantReviewPage = lazy(() => import('./pages/BookingAssistantReviewPage.tsx'))
+const BookingAssistantConfirmationPage = lazy(() => import('./pages/BookingAssistantConfirmationPage.tsx'))
 const PassengerBookingPage = lazy(() => import('./pages/PassengerBookingPage.tsx'))
 const BookingReturn = lazy(() => import('./pages/BookingReturn.tsx'))
 const MyTrips = lazy(() => import('./pages/MyTrips.tsx'))
@@ -123,6 +125,16 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/booking/review" element={
             <ProtectedRoute>
               <BookingReview />
+            </ProtectedRoute>
+          } />
+          <Route path="/booking-assistant/review" element={
+            <ProtectedRoute>
+              <BookingAssistantReviewPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/booking-assistant/confirmation/:bookingId" element={
+            <ProtectedRoute>
+              <BookingAssistantConfirmationPage />
             </ProtectedRoute>
           } />
           <Route path="/booking/passengers" element={
