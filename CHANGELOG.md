@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 121: Premium Home Experience (Production)
+
+### Added
+
+- Premium Home presentation sections (`src/ui/home`) — hero greeting, conversation entry, continue conversation, recent/upcoming trips, suggested destinations, travel inspiration, recommended actions, quick actions, smart search entry, featured experiences, skeleton/empty/error states.
+- Upgraded `ProductionHomeScreen` to compose Sprint 121 sections with existing `loadProductionHomeData` (no mock content).
+- Feature flag `ui.premium_home` (**default OFF**, depends on `ui.production_integration`).
+- Docs: `docs/SPRINT121_PREMIUM_HOME.md`; verify: `npm run ui:verify`.
+
+### Notes
+
+- Presentation only — does not modify AI engines, orchestration, pipeline, itinerary, memory, search, backend APIs, or navigation routes. Home remains gated by `ui.production_integration`.
+
 ## [Unreleased] — Sprint 120: Premium UI Production Integration
 
 ### Added

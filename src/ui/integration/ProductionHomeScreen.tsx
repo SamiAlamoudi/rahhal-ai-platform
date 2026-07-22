@@ -1,64 +1,35 @@
 /**
- * Sprint 120 — Production Home screen bound to real Memory / Trips / Chat data.
+ * Sprint 120/121 — Production Home screen.
+ * Sprint 121: premium presentation sections; data still from loadProductionHomeData.
  */
 
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { HomeExperience } from '../layout'
-import { UiStack, UiText, UiButton } from '../common'
-import { EmptyState, ErrorState, RetryState, Skeleton } from '../loading'
-import { RecommendationCard } from '../cards'
+import { UiButton } from '../common'
+import { ErrorState, RetryState } from '../loading'
+import {
+  ConversationEntry,
+  ContinueConversation,
+  FeaturedExperiences,
+  featuredItemsFromHistory,
+  HeroSection,
+  HomeSkeleton,
+  QuickActions,
+  RecommendedActions,
+  RecentTripsCard,
+  SmartSearchEntry,
+  SuggestedDestinations,
+  TravelInspiration,
+  UpcomingTrips,
+  homePageStyle,
+  homeShellStyle,
+} from '../home'
 import {
   loadProductionHomeData,
   type ProductionHomeData,
 } from '../../lib/uiIntegration'
 import { useAuth } from '../../lib/auth'
 import { spacing } from '../tokens'
-
-function ListBlock({
-  items,
-  empty,
-  onSelect,
-}: {
-  items: Array<{ id: string; title: string; meta?: string }>
-  empty: string
-  onSelect: (id: string) => void
-}) {
-  if (!items.length) {
-    return <EmptyState title={empty} />
-  }
-  return (
-    <UiStack gap="sm" role="list">
-      {items.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          role="listitem"
-          onClick={() => onSelect(item.id)}
-          style={{
-            textAlign: 'start',
-            padding: spacing.md,
-            borderRadius: 10,
-            border: '1px solid transparent',
-            background: 'transparent',
-            cursor: 'pointer',
-            font: 'inherit',
-          }}
-        >
-          <UiText as="span" weight="semibold" size="sm">
-            {item.title}
-          </UiText>
-          {item.meta ? (
-            <UiText as="span" size="xs">
-              {' '}
-              — {item.meta}
-            </UiText>
-          ) : null}
-        </button>
-      ))}
-    </UiStack>
-  )
-}
 
 export const ProductionHomeScreen = memo(function ProductionHomeScreen() {
   const navigate = useNavigate()
@@ -86,131 +57,175 @@ export const ProductionHomeScreen = memo(function ProductionHomeScreen() {
     void refresh()
   }, [authLoading, refresh])
 
+  const featured = useMemo(
+    () => featuredItemsFromHistory(data?.travelHistory ?? null),
+    [data?.travelHistory],
+  )
+
   if (authLoading || loading || !data) {
-    return (
-      <main aria-busy="true" aria-label="Loading home" style={{ padding: spacing['2xl'] }}>
-        <UiStack gap="md">
-          <Skeleton height={28} width="40%" />
-          <Skeleton height={120} />
-          <Skeleton height={120} />
-        </UiStack>
-      </main>
-    )
+    return <HomeSkeleton />
   }
 
   if (data.error && !data.recentConversations.length && !data.recentTrips.length) {
     return (
-      <main style={{ padding: spacing['2xl'] }}>
-        <RetryState
-          title="تعذر تحميل الصفحة الرئيسية"
-          description={data.error}
-          onRetry={() => void refresh()}
-        />
+      <main aria-label="Rahhal home error" style={{ ...homePageStyle(), padding: spacing['2xl'] }}>
+        <div style={homeShellStyle()}>
+          <RetryState
+            title="تعذر تحميل الصفحة الرئيسية"
+            description={data.error}
+            retryLabel="إعادة المحاولة"
+            onRetry={() => void refresh()}
+          />
+        </div>
       </main>
     )
   }
 
   return (
-    <main aria-label="Rahhal home" style={{ padding: spacing.lg }}>
-      {data.error ? (
-        <ErrorState title="تحذير" description={data.error} />
-      ) : null}
-      <HomeExperience
-        greeting={
-          <UiStack gap="sm">
-            <UiText as="h1" size="2xl" weight="bold">
-              رحّال
-            </UiText>
-            <UiText as="p" size="lg" weight="semibold">
-              {data.greeting}
-            </UiText>
-            {data.memoryInsights[0] ? (
-              <UiText size="sm">{data.memoryInsights[0]}</UiText>
-            ) : null}
-          </UiStack>
-        }
-        recentTrips={
-          <ListBlock
-            empty="لا توجد رحلات حديثة"
-            items={data.recentTrips.map((t) => ({
-              id: t.id,
-              title: t.title,
-              meta: t.totalLabel,
-            }))}
-            onSelect={(id) => navigate(`/my-trips/${id}`)}
-          />
-        }
-        suggestedDestinations={
-          data.suggestedDestinations.length ? (
-            <UiStack direction="horizontal" gap="sm">
-              {data.suggestedDestinations.map((d) => (
-                <UiButton
-                  key={d}
-                  onClick={() =>
-                    navigate('/chat', { state: { initialPrompt: `Plan a trip to ${d}` } })
-                  }
-                  aria-label={`Suggest ${d}`}
-                >
-                  {d}
-                </UiButton>
-              ))}
-            </UiStack>
-          ) : (
-            <EmptyState title="لا توجد وجهات مقترحة بعد" />
-          )
-        }
-        continueConversation={
-          data.continueConversation ? (
+    <main aria-label="Rahhal home" data-ui="premium-home" style={homePageStyle()}>
+      <div style={homeShellStyle()}>
+        {data.error ? (
+          <ErrorState title="تحذير" description={data.error} />
+        ) : null}
+
+        <HeroSection
+          greeting={data.greeting}
+          insight={data.memoryInsights[0] ?? null}
+          primaryAction={
             <UiButton
-              onClick={() =>
-                navigate(`/chat?c=${encodeURIComponent(data.continueConversation!.id)}`)
-              }
+              onClick={() => navigate('/chat')}
+              aria-label="ابدأ التخطيط"
+              style={{
+                background: '#ffffff',
+                color: '#122e57',
+              }}
             >
-              متابعة: {data.continueConversation.title}
+              ابدأ التخطيط
             </UiButton>
-          ) : (
-            <UiButton onClick={() => navigate('/chat')}>ابدأ محادثة جديدة</UiButton>
-          )
-        }
-        upcomingTrips={
-          <ListBlock
-            empty="لا توجد رحلات قادمة"
-            items={data.upcomingTrips.map((t) => ({
-              id: t.id,
-              title: t.title,
-              meta: t.status,
-            }))}
+          }
+          secondaryAction={
+            <UiButton
+              onClick={() => navigate('/search')}
+              aria-label="فتح البحث"
+              style={{
+                background: 'transparent',
+                color: '#ffffff',
+                border: '1px solid rgba(255,255,255,0.45)',
+              }}
+            >
+              بحث
+            </UiButton>
+          }
+        />
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
+            gap: spacing.xl,
+            alignItems: 'start',
+          }}
+        >
+          <ConversationEntry
+            index={1}
+            onStart={() => navigate('/chat')}
+          />
+          <ContinueConversation
+            index={2}
+            conversation={data.continueConversation}
+            onContinue={(id) => navigate(`/chat?c=${encodeURIComponent(id)}`)}
+            onStartNew={() => navigate('/chat')}
+          />
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+            gap: spacing.xl,
+            alignItems: 'start',
+          }}
+        >
+          <RecentTripsCard
+            index={3}
+            trips={data.recentTrips}
             onSelect={(id) => navigate(`/my-trips/${id}`)}
           />
-        }
-        quickActions={
-          <UiStack gap="md">
-            <UiStack direction="horizontal" gap="sm">
-              <UiButton onClick={() => navigate('/chat')}>محادثة</UiButton>
-              <UiButton onClick={() => navigate('/search')}>بحث</UiButton>
-              <UiButton onClick={() => navigate('/my-trips')}>رحلاتي</UiButton>
-            </UiStack>
-            {data.personalizedRecommendations.length ? (
-              <UiStack gap="sm">
-                {data.personalizedRecommendations.map((r) => (
-                  <RecommendationCard key={r} title={r} reason="من الذاكرة" />
-                ))}
-              </UiStack>
-            ) : null}
-            {data.recentConversations.length ? (
-              <ListBlock
-                empty=""
-                items={data.recentConversations.map((c) => ({
-                  id: c.id,
-                  title: c.title,
-                  meta: c.updatedAt,
-                }))}
-                onSelect={(id) => navigate(`/chat?c=${encodeURIComponent(id)}`)}
-              />
-            ) : null}
-          </UiStack>
-        }
-      />
+          <UpcomingTrips
+            index={4}
+            trips={data.upcomingTrips}
+            onSelect={(id) => navigate(`/my-trips/${id}`)}
+          />
+        </div>
+
+        <SuggestedDestinations
+          index={5}
+          destinations={data.suggestedDestinations}
+          onSelect={(destination) =>
+            navigate('/chat', {
+              state: { initialPrompt: `Plan a trip to ${destination}` },
+            })
+          }
+        />
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+            gap: spacing.xl,
+            alignItems: 'start',
+          }}
+        >
+          <TravelInspiration
+            index={6}
+            insights={data.memoryInsights}
+            historyNotes={data.travelHistory?.notes ?? []}
+          />
+          <RecommendedActions
+            index={7}
+            recommendations={data.personalizedRecommendations}
+            onSelect={(recommendation) =>
+              navigate('/chat', { state: { initialPrompt: recommendation } })
+            }
+          />
+        </div>
+
+        <FeaturedExperiences index={8} items={featured} />
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+            gap: spacing.xl,
+            alignItems: 'start',
+          }}
+        >
+          <SmartSearchEntry index={9} onSearch={() => navigate('/search')} />
+          <QuickActions
+            index={10}
+            actions={[
+              {
+                id: 'chat',
+                label: 'محادثة',
+                primary: true,
+                onClick: () => navigate('/chat'),
+              },
+              {
+                id: 'search',
+                label: 'بحث',
+                onClick: () => navigate('/search'),
+              },
+              {
+                id: 'trips',
+                label: 'رحلاتي',
+                onClick: () => navigate('/my-trips'),
+              },
+            ]}
+            recentConversations={data.recentConversations}
+            onOpenConversation={(id) => navigate(`/chat?c=${encodeURIComponent(id)}`)}
+          />
+        </div>
+      </div>
     </main>
   )
 })

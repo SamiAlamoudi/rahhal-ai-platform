@@ -119,6 +119,7 @@ export type FeatureId =
   | 'ui.chatgpt_experience'
   | 'ui.experience_v1'
   | 'ui.production_integration'
+  | 'ui.premium_home'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

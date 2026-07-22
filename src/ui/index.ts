@@ -28,6 +28,7 @@ export * from './chat'
 export * from './cards'
 export * from './timeline'
 export * from './loading'
+export * from './home'
 export * from './integration'
 
 import { CARD_UI_MODELS } from './cards'

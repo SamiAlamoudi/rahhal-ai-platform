@@ -70,6 +70,31 @@
   }
 }
 
+/* Sprint 121 — Premium Home lightweight enter motion */
+@keyframes ui-home-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes ui-home-fade-in {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
 .voice-mic-pulse {
   animation: voice-mic-pulse 1.4s ease-out infinite;
 }
