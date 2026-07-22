@@ -227,6 +227,18 @@ export type {
   AgentAlphaExperienceMeta,
 } from './alphaExperience'
 export {
+  isConciergeExperienceEnabled,
+  CONCIERGE_EXPERIENCE_FEATURE_ID,
+  runConciergeExperience,
+  enrichWithConciergeExperience,
+  SPRINT96_AI_CONCIERGE_VERSION,
+} from './conciergeExperience'
+export type {
+  AgentConciergeExperienceRequest,
+  AgentConciergeExperienceResponse,
+  AgentConciergeExperienceMeta,
+} from './conciergeExperience'
+export {
   isBookingOrchestratorEnabled,
   BOOKING_ORCHESTRATOR_FEATURE_ID,
   runLiveBookingOrchestrator,

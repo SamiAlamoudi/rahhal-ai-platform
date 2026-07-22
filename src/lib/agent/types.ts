@@ -558,6 +558,22 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 96 — AI Concierge Experience snapshot (timeline, explanations, alternatives).
+   */
+  conciergeExperience?: {
+    version: string
+    conversationId: string
+    progressPercent: number
+    stageCount: number
+    alternativeCount: number
+    comparisonCount: number
+    suggestionCount: number
+    confidenceLevel: string
+    confidenceScore: number
+    recommendedOption: string | null
+    durationMs: number
+  }
+  /**
    * Sprint 94 — Live Booking Orchestrator session snapshot.
    */
   bookingOrchestrator?: {
