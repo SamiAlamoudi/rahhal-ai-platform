@@ -18,6 +18,18 @@ Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
 - Availability only — no booking. Flag OFF preserves identical legacy hotel paths. Does not modify Decision Engine, Response Composer, or UI.
 
+## [Unreleased] — Sprint 106: AI Response Composer
+
+### Added
+
+- AI Response Composer (`src/lib/agent/responseComposer`) — executive summary, recommendations, alternatives, confidence, travel insights, booking/fare/layover warnings from provider facts only.
+- Feature flag `ai.response_composer` (**default OFF**).
+- Docs: `docs/SPRINT106_RESPONSE_COMPOSER.md`; verify: `npm run response-composer:verify`.
+
+### Notes
+
+- Additive presentation only — does not modify engines, Provider Gateway, Live Flight Search, or UI. Flag OFF preserves identical legacy behavior.
+
 ## [Unreleased] — Sprint 105: Live Flight Search (Amadeus Production Bridge)
 
 ### Added
