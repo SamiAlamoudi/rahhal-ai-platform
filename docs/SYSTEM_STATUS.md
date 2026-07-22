@@ -1,11 +1,11 @@
 # SYSTEM STATUS
 
-Overall: **healthy** (CI green; mock-mode production defaults)
+Overall: **healthy** (CI green; mock-mode production defaults) · Alpha: **WARNING** (`docs/ALPHA_READINESS_REPORT.md`)
 
 Rahhal: **1.0.0 GA**  
 Package: **1.1.0-rc.1**  
-Main tip (this PR): **Sprint 74 — Conversation → Real Search Integration**  
-Last full product QA: **Sprint QA-0** (`docs/QA0_PRODUCT_AUDIT.md`)
+Main tip: **Sprint 87 — Rahhal AI Constitution** (Sprint 74–83 AI stack on `/chat`; S84 refinement not on main)  
+Last full product QA: **Sprint 88 Alpha Readiness** (`docs/ALPHA_READINESS_REPORT.md`) · prior: QA-0
 
 ## Subsystems
 

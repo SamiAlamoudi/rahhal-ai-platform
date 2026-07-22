@@ -5,6 +5,17 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 88: Alpha Readiness Validation
+
+### Added
+
+- Alpha acceptance docs: `docs/ALPHA_READINESS_REPORT.md`, `USER_JOURNEYS.md`, `TEST_SCENARIOS.md`, `WEAKNESSES.md`, `TOP20_ALPHA_IMPROVEMENTS.md`.
+
+### Notes
+
+- Validation only — no new AI engines, no architecture redesign, no planning/decision engine changes.
+- Verdict: **WARNING — conditional mock-mode Alpha**; live-provider / Constitution-enforced Alpha deferred to Sprint 89+.
+
 ## [Unreleased] — Sprint 87: Rahhal AI Constitution
 
 ### Added
