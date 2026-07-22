@@ -284,6 +284,27 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: constitution. Additive policy/validator layer under src/core/constitution. Does not change engine public APIs.',
   },
   {
+    id: 'ai.alpha_experience',
+    name: 'Production Alpha Experience',
+    description:
+      'Sprint 91 — ConversationOrchestrator connecting intent, constitution, search, packages, refinement, decision, explanations, alternatives, and timeline into one Alpha conversation flow. Presentation/orchestration only.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.itinerary_refinement', 'ai.constitution', 'ai.dynamic_packages'],
+    notes:
+      'Product alias: alpha_experience. Additive experience layer under src/core/alphaExperience. Does not redesign engines.',
+  },
+  {
+    id: 'booking.orchestrator',
+    name: 'Live Booking Orchestrator',
+    description:
+      'Sprint 94 — convert an approved bookable Trip into executable reservation workflow (validate → plan → flight hold → hotel/transfer/insurance placeholders → summary) with audit, recovery, and session state.',
+    lifecycle: 'beta',
+    enabled: true,
+    notes:
+      'Product alias: booking.orchestrator. Additive under src/core/booking. Does not modify Unified Trip or existing bookingExecution engines.',
+  },
+  {
     id: 'ai.live_providers',
     name: 'Live Travel Provider Layer',
     description:

@@ -38,6 +38,8 @@
     "unified-trip:verify": "vitest run src/lib/__tests__/unifiedTrip.sprint93.test.ts",
     "constitution:verify": "vitest run src/lib/__tests__/aiConstitution.sprint87.test.ts",
     "alpha-blockers:verify": "vitest run src/lib/__tests__/intentExtraction.sprint89.test.ts src/lib/__tests__/alphaBlockers.sprint89.test.ts",
+    "alpha-experience:verify": "vitest run src/lib/__tests__/alphaExperience.sprint91.test.ts",
+    "booking-orchestrator:verify": "vitest run src/lib/__tests__/bookingOrchestrator.sprint94.test.ts",
     "beta:ops": "vitest run src/lib/__tests__/betaOperations.sprint69.test.ts src/lib/__tests__/betaLaunch.sprint67.test.ts",
     "deploy:verify": "vitest run src/lib/__tests__/deploymentLaunch.sprint68.test.ts",
     "production:verify": "vitest run src/lib/__tests__/deploymentLaunch.sprint68.test.ts src/lib/__tests__/productionHardening.sprint65.test.ts src/lib/__tests__/e2eProductionValidation.sprint66.test.ts",

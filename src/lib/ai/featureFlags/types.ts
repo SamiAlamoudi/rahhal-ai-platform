@@ -31,6 +31,8 @@ export type FeatureId =
   | 'ai.itinerary_refinement'
   | 'ai.unified_trip'
   | 'ai.constitution'
+  | 'ai.alpha_experience'
+  | 'booking.orchestrator'
   | 'ai.live_providers'
   | 'provider.amadeus'
   | 'provider.duffel'
