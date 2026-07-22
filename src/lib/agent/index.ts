@@ -258,6 +258,26 @@ export type {
   AgentConciergeExperienceResponse,
   AgentConciergeExperienceMeta,
 } from './conciergeExperience'
+/** Sprint 111 — Decision Conversation Layer (post–Response Composer) */
+export {
+  isConciergeEnabled,
+  CONCIERGE_FEATURE_ID,
+  runConcierge,
+  createConciergeRunner,
+  optionsFromResponseComposer,
+  SPRINT111_CONCIERGE_VERSION,
+} from './concierge'
+export type {
+  ConciergeInput,
+  ConciergeResult,
+  ConciergeRecommendationOption,
+  ConciergeExplanation,
+  ConciergeTradeoff,
+  ConciergeScenario,
+  ConciergeSavingsAnalysis,
+  ConciergeNarrative,
+  ConciergeConversationMetadata,
+} from './concierge'
 export {
   integrateConciergeIntoTurn,
   toRecommendationResponseDto,

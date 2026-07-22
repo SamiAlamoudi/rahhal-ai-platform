@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 111: AI Concierge Experience (Decision Conversation Layer)
+
+### Added
+
+- Decision conversation layer (`src/lib/agent/concierge`) — sits after Response Composer: explanations, tradeoffs, what-if scenarios (no re-search), savings analysis, narration, and conversation metadata.
+- Reuses feature flag `ai.concierge_experience` (Sprint 96 registry; Sprint 111 runner is additive and inert until called).
+- Docs: `docs/SPRINT111_CONCIERGE_EXPERIENCE.md`; verify: `npm run concierge:verify`.
+
+### Notes
+
+- Additive only — does not modify Decision Engine, Provider Gateway, Trip Builder, or Response Composer contracts. Flag OFF disables the Sprint 111 runner enhancement path.
+
 ## [Unreleased] — Sprint 110: AI Trip Builder (Production)
 
 ### Added
