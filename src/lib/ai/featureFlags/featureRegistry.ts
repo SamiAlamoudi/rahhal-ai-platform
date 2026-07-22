@@ -295,6 +295,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: alpha_experience. Additive experience layer under src/core/alphaExperience. Does not redesign engines.',
   },
   {
+    id: 'ai.concierge_experience',
+    name: 'AI Concierge Experience',
+    description:
+      'Sprint 96 — premium concierge presentation: recommendation timeline, natural-language explanations, alternative scenarios, confidence indicator, conversation summaries, comparison cards, and proactive suggestions. Presentation only.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ai.alpha_experience', 'ai.unified_trip'],
+    notes:
+      'Product alias: concierge_experience. Additive under src/core/conciergeExperience. Distinct from legacy ai.concierge. Does not redesign engines.',
+  },
+  {
     id: 'booking.orchestrator',
     name: 'Live Booking Orchestrator',
     description:
