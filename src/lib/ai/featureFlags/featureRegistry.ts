@@ -350,6 +350,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: live_flight_search. Additive under src/lib/agent/liveFlightSearch. Uses Provider Gateway + Amadeus OAuth/TravelProvider. Does not modify SearchPlanner, DecisionEngine, or UI. When OFF, runner returns disabled without calling providers.',
   },
   {
+    id: 'ai.live_hotel_search',
+    name: 'Live Hotel Search (Amadeus)',
+    description:
+      'Sprint 109 — Amadeus Hotel Search (availability) via Provider Gateway. Validates criteria, maps GatewayResponse into HotelOffer[] with ranking groups for Decision Engine / Response Composer. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['providers.amadeus.enabled'],
+    notes:
+      'Product alias: live_hotel_search. Additive under src/lib/agent/liveHotelSearch + AmadeusHotelSearchProvider. Does not modify flight search, engines, or UI. Availability only — no booking.',
+  },
+  {
     id: 'ai.live_conversation',
     name: 'Live Conversation (Alpha alias)',
     description:

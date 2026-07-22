@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 109: Live Hotel Search (Amadeus Hotels)
+
+### Added
+
+- Live Hotel Search bridge (`src/lib/agent/liveHotelSearch`) — validate → compose → Provider Gateway → Amadeus hotel availability → `HotelOffer[]` with ranking groups.
+- Additive `createAmadeusHotelSearchProvider` (hotels only; flight provider unchanged).
+- Feature flag `ai.live_hotel_search` (**default OFF**).
+- Docs: `docs/SPRINT109_LIVE_HOTEL_SEARCH.md`; verify: `npm run live-hotel-search:verify`.
+
+### Notes
+
+- Availability only — no booking. Flag OFF preserves identical legacy hotel paths. Does not modify Decision Engine, Response Composer, or UI.
+
 ## [Unreleased] — Sprint 105: Live Flight Search (Amadeus Production Bridge)
 
 ### Added

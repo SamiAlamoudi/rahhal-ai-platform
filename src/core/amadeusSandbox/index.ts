@@ -59,3 +59,9 @@ export {
   type AmadeusSandboxProvider,
   type AmadeusSandboxProviderOptions,
 } from './AmadeusProvider'
+
+export {
+  createAmadeusHotelSearchProvider,
+  AMADEUS_HOTEL_PROVIDER_ID,
+  type AmadeusHotelProviderOptions,
+} from './AmadeusHotelProvider'

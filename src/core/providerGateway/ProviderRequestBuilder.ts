@@ -46,7 +46,10 @@ export function buildGatewayHotelRequest(
     checkIn: hotel.checkIn.trim(),
     checkOut: hotel.checkOut ?? null,
     adults: hotel.adults ?? 1,
+    children: hotel.children,
+    rooms: hotel.rooms,
     currency: hotel.currency ?? 'SAR',
+    maxResults: hotel.maxResults,
     signal: request.signal,
   }
 }

@@ -45,7 +45,10 @@ export interface GatewayHotelSearchInput {
   checkIn: string
   checkOut?: string | null
   adults?: number
+  children?: number
+  rooms?: number
   currency?: string
+  maxResults?: number
 }
 
 export interface GatewayPackageSearchInput {

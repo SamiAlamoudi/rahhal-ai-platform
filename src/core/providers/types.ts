@@ -63,7 +63,10 @@ export interface HotelSearchRequest {
   checkIn: string
   checkOut?: string | null
   adults?: number
+  children?: number
+  rooms?: number
   currency?: string
+  maxResults?: number
   signal?: AbortSignal
 }
 
