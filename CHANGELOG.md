@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 97: AI Concierge UI Integration
+
+### Added
+
+- Concierge conversation pipeline integration (`src/lib/agent/conciergeIntegration`) — UI DTOs, serializers for Conversation / Recommendation / Trip responses, engine-snapshot adapters, `integrateConciergeIntoTurn`.
+- `travelAgentService.planTurn` attaches `conciergeExperience` + `conciergeRecommendation` meta and feeds recommendation facts when `ai.concierge_experience` is ON.
+- Docs: `docs/SPRINT97_CONCIERGE_INTEGRATION.md`; verify: `npm run concierge-integration:verify`.
+
+### Notes
+
+- Presentation/integration only — no RahhalBrain redesign, no engine or booking logic changes. Flag off preserves legacy responses.
+
 ## [Unreleased] — Sprint 96: AI Concierge Experience
 
 ### Added
