@@ -7,6 +7,10 @@ on:
   push:
     branches: [main, 'cursor/**']
 
+concurrency:
+  group: preview-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   preview:
     name: Preview build & verify
@@ -23,7 +27,7 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Install
+      - name: Install (lockfile-faithful)
         run: npm ci
 
       - name: Verify preview environment contract

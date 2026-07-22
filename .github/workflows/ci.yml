@@ -5,6 +5,11 @@ on:
     branches: [main, 'cursor/**']
   pull_request:
 
+# Cancel stale runs on the same ref so PRs are not blocked by outdated builds.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     name: Quality gates
@@ -21,7 +26,7 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Install
+      - name: Install (lockfile-faithful)
         run: npm ci
 
       - name: Secret / env hygiene scan
@@ -37,7 +42,7 @@ jobs:
         run: npm run arch:circular
 
       - name: Test
-        run: npm run test:run
+        run: npm run test
 
       - name: Providers check
         run: npm run providers:check
@@ -65,7 +70,7 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Install
+      - name: Install (lockfile-faithful)
         run: npm ci
 
       - name: Install Playwright Chromium

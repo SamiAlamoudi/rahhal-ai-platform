@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 95: Release Stabilization & CI/CD Hardening
+
+### Changed
+
+- CI / Preview / Production-readiness workflows: concurrency cancel-in-progress; lockfile-faithful `npm ci`; PR gates use `npm run test` (non-watch).
+- `package.json`: `npm test` → `vitest run` (CI-safe); added `test:watch` and `release:verify`.
+- `vercel.json`: explicit `installCommand: npm ci` so production builds follow `package-lock.json`.
+
+### Notes
+
+- No new product features. No engine / booking / Unified Trip / provider behavior changes.
+- Release readiness report: `docs/SPRINT95_RELEASE_READINESS.md`.
+
 ## [Unreleased] — Sprint 94: Live Booking Orchestrator
 
 ### Added
