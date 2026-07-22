@@ -182,6 +182,29 @@ function renderPlanDisplay(facts: TravelFacts, ar: boolean): string {
     lines.push(ar ? '### لماذا هذه الخيارات' : '### Why these choices')
     for (const reason of plan.whyChoices) lines.push(`- ${reason}`)
   }
+  if (plan.tradeoffs && plan.tradeoffs.length) {
+    lines.push('')
+    lines.push(ar ? '### المقايضات' : '### Trade-offs')
+    for (const t of plan.tradeoffs) lines.push(`- ${t}`)
+  }
+  if (plan.confidence != null && Number.isFinite(plan.confidence)) {
+    lines.push('')
+    lines.push(
+      ar
+        ? `### الثقة: ${Math.round(plan.confidence * 100)}%`
+        : `### Confidence: ${Math.round(plan.confidence * 100)}%`,
+    )
+  }
+  if (plan.alternatives && plan.alternatives.length) {
+    lines.push('')
+    lines.push(ar ? '### بدائل' : '### Alternatives')
+    for (const a of plan.alternatives) lines.push(`- ${a}`)
+  }
+  if (plan.nextAction) {
+    lines.push('')
+    lines.push(ar ? '### الخطوة التالية' : '### Next action')
+    lines.push(`- ${plan.nextAction}`)
+  }
   return lines.join('\n')
 }
 

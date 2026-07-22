@@ -18,17 +18,6 @@ Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
 - Sits between Package Builder and Decision Engine. No full rebuild; RahhalBrain unchanged.
 
-## [Unreleased] — Sprint 88: Alpha Readiness Validation
-
-### Added
-
-- Alpha acceptance docs: `docs/ALPHA_READINESS_REPORT.md`, `USER_JOURNEYS.md`, `TEST_SCENARIOS.md`, `WEAKNESSES.md`, `TOP20_ALPHA_IMPROVEMENTS.md`.
-
-### Notes
-
-- Validation only — no new AI engines, no architecture redesign, no planning/decision engine changes.
-- Verdict: **WARNING — conditional mock-mode Alpha**; live-provider / Constitution-enforced Alpha deferred to Sprint 89+.
-
 ## [Unreleased] — Sprint 90: Live Provider Integration Readiness
 
 ### Added
@@ -41,6 +30,37 @@ Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
 - Infrastructure only — no AI engine, conversation, planner, learning, package, or decision changes.
 - Coexists with Sprint 71 Provider Runtime; does not cut over live search consumers.
+
+## [Unreleased] — Sprint 89: Alpha Blockers Resolution
+
+### Fixed
+
+- Intent extraction: stop destination corruption from budget/date fillers; destination replace on change cues; budget fillers (`only`/`just`).
+- Constitution wired into live `planTurn` (`src/lib/agent/constitution`) with recommendation + recovery facts.
+- Package Builder bridge: never silent-skip — flight-first / hotel-first / explanation fallbacks.
+- Recommendation display: reason, trade-offs, confidence, alternatives, next action.
+
+### Docs
+
+- `docs/ALPHA_READINESS_REPORT.md` (PASS)
+- `docs/SPRINT89_REGRESSION_REPORT.md`
+- `docs/SPRINT89_BUG_FIX_REPORT.md`
+- `docs/SPRINT89_ARCHITECTURE_IMPACT.md`
+
+### Notes
+
+- No new AI engines; no architecture redesign — Alpha blockers only.
+
+## [Unreleased] — Sprint 88: Alpha Readiness Validation
+
+### Added
+
+- Alpha acceptance docs: `docs/USER_JOURNEYS.md`, `TEST_SCENARIOS.md`, `WEAKNESSES.md`, `TOP20_ALPHA_IMPROVEMENTS.md` (historical WARNING baseline; superseded by Sprint 89 PASS report).
+
+### Notes
+
+- Validation only — no new AI engines, no architecture redesign, no planning/decision engine changes.
+- Sprint 88 verdict was **WARNING**; Sprint 89 closed the blockers to **PASS**.
 
 ## [Unreleased] — Sprint 87: Rahhal AI Constitution
 

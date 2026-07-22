@@ -8,16 +8,154 @@ import {
   runBookingTiming,
   runPackageBuilder,
   rerankPackagesWithPreferences,
+  SPRINT83_DYNAMIC_PACKAGES_VERSION,
   type NormalizedActivityOffer,
   type NormalizedAddonOffer,
   type NormalizedFlightOffer,
   type NormalizedHotelOffer,
   type NormalizedTransferOffer,
   type PackageBuilderResult,
+  type PackageCandidate,
   type TravelerProfile,
 } from '../../../core'
 import type { AgentMemory, TripPlan } from '../types'
 import { isDynamicPackagesEnabled } from './feature'
+
+type PartialPackageMode = 'flight_first' | 'hotel_first' | 'manual_explanation'
+
+function buildEmptyPoolPackageResult(input: {
+  mode: PartialPackageMode
+  explanation: string
+}): PackageBuilderResult {
+  const selected: PackageCandidate = {
+    id: `pkg_partial_${input.mode}`,
+    title: 'Recovery package — awaiting offers',
+    currency: 'SAR',
+    totalPrice: 0,
+    components: [],
+    destination: null,
+    checkIn: null,
+    checkOut: null,
+    arrivalAt: null,
+    departureAt: null,
+    score: 40,
+    dimensions: null,
+    confidence: 0.35,
+    labels: ['best_value'],
+    reasons: [
+      'Offer pools were empty — recovery path engaged.',
+      'Next: nearby airports/cities, flexible dates, alternative suppliers.',
+    ],
+    explanation: input.explanation,
+    compatible: true,
+    rejectionReasons: [],
+    normalizedKey: `partial:${input.mode}`,
+    providerConfidence: 0.3,
+  }
+  return {
+    version: SPRINT83_DYNAMIC_PACKAGES_VERSION,
+    packages: [selected],
+    ranked: [selected],
+    selected,
+    labels: {
+      bestOverall: null,
+      bestBudget: null,
+      bestBusiness: null,
+      bestFamily: null,
+      bestLuxury: null,
+      bestWeekend: null,
+      bestValue: selected,
+    },
+    duplicateCount: 0,
+    filteredCount: 0,
+    events: [],
+    durationMs: 0,
+  }
+}
+
+function buildPartialPackageResult(input: {
+  mode: 'flight_first' | 'hotel_first'
+  flights: NormalizedFlightOffer[]
+  hotels: NormalizedHotelOffer[]
+  destination: string | null
+  budgetCap: number | null
+}): PackageBuilderResult {
+  const components = input.mode === 'flight_first'
+    ? input.flights.slice(0, 3).map((f) => ({
+      kind: 'flight' as const,
+      id: f.id,
+      title: `${f.airline} ${f.origin ?? ''}→${f.destination ?? ''}`.trim(),
+      price: f.price,
+      currency: f.currency,
+      payload: { partial: true, stops: f.stops },
+    }))
+    : input.hotels.slice(0, 3).map((h) => ({
+      kind: 'hotel' as const,
+      id: h.id,
+      title: h.name,
+      price: h.price,
+      currency: h.currency,
+      payload: { partial: true, stars: h.stars },
+    }))
+
+  const totalPrice = components.reduce((s, c) => s + c.price, 0)
+  const currency = components[0]?.currency ?? 'SAR'
+  const missing = input.mode === 'flight_first' ? 'hotel' : 'flight'
+  const selected: PackageCandidate = {
+    id: `pkg_partial_${input.mode}_${components[0]?.id ?? 'none'}`,
+    title: input.mode === 'flight_first'
+      ? 'Flight-first partial package'
+      : 'Hotel-first partial package',
+    currency,
+    totalPrice,
+    components,
+    destination: input.destination,
+    checkIn: null,
+    checkOut: null,
+    arrivalAt: null,
+    departureAt: null,
+    score: 55,
+    dimensions: null,
+    confidence: 0.55,
+    labels: ['best_value'],
+    reasons: [
+      `${missing} offers missing — serving ${input.mode.replace('_', '-')} partial.`,
+      'Alternatives: other suppliers, nearby areas, flexible dates.',
+      input.budgetCap != null ? `Budget cap considered: ${input.budgetCap} ${currency}` : 'No budget cap set.',
+    ],
+    explanation: [
+      `Why: Keep momentum with available ${input.mode === 'flight_first' ? 'flights' : 'hotels'} while recovering the missing side.`,
+      `Benefits: Concrete ${input.mode === 'flight_first' ? 'flight' : 'stay'} options now; search continues for ${missing}s.`,
+      `Tradeoffs: Incomplete package until ${missing} inventory returns.`,
+      `Confidence: 55%.`,
+      'Next: confirm this direction or ask for nearby airports / alternative hotels.',
+    ].join('\n'),
+    compatible: true,
+    rejectionReasons: [],
+    normalizedKey: `partial:${input.mode}:${components.map((c) => c.id).join('+')}`,
+    providerConfidence: 0.5,
+  }
+
+  return {
+    version: SPRINT83_DYNAMIC_PACKAGES_VERSION,
+    packages: [selected],
+    ranked: [selected],
+    selected,
+    labels: {
+      bestOverall: null,
+      bestBudget: null,
+      bestBusiness: null,
+      bestFamily: null,
+      bestLuxury: null,
+      bestWeekend: null,
+      bestValue: selected,
+    },
+    duplicateCount: 0,
+    filteredCount: 0,
+    events: [],
+    durationMs: 0,
+  }
+}
 
 function num(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value
@@ -201,10 +339,46 @@ export async function enrichWithDynamicPackages(input: {
 
   const flights = normalizeFlightOffers(flightOffers)
   const hotels = normalizeHotelOffers(hotelStays)
-  if (flights.length === 0 || hotels.length === 0) {
+
+  // Sprint 89 — never silent-skip. Prefer full packages; else partial / one-sided /
+  // explanatory fallback so Decision + Conversation always see package intent.
+  if (flights.length === 0 && hotels.length === 0) {
+    const notes = [
+      ...input.tripPlan.notes,
+      'Package builder: no flight or hotel offers yet — searching alternatives (nearby cities, flexible dates, other suppliers).',
+      'Partial package deferred: flight-first and hotel-first will unlock once either pool returns.',
+    ]
     return {
-      tripPlan: input.tripPlan,
-      dynamicPackages: null,
+      tripPlan: { ...input.tripPlan, notes },
+      dynamicPackages: buildEmptyPoolPackageResult({
+        mode: 'manual_explanation',
+        explanation:
+          'No live offers in either pool. Closest next step: broaden search (nearby airports/cities, flexible dates) then rebuild flight+hotel packages.',
+      }),
+      flightOffers,
+      hotelStays,
+    }
+  }
+
+  if (flights.length === 0 || hotels.length === 0) {
+    const mode = flights.length > 0 ? 'flight_first' : 'hotel_first'
+    const partial = buildPartialPackageResult({
+      mode,
+      flights,
+      hotels,
+      destination: input.memory.requirements.destination,
+      budgetCap: input.memory.requirements.budgetAmount,
+    })
+    const notes = [
+      ...input.tripPlan.notes,
+      mode === 'flight_first'
+        ? 'Package builder: hotel pool empty — flight-first partial package with hotel alternatives pending.'
+        : 'Package builder: flight pool empty — hotel-first partial package with flight alternatives pending.',
+      partial.selected?.explanation?.split('\n')[0] ?? '',
+    ]
+    return {
+      tripPlan: { ...input.tripPlan, notes: notes.filter(Boolean) },
+      dynamicPackages: partial,
       flightOffers,
       hotelStays,
     }

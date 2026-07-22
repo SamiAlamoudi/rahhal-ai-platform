@@ -9,5 +9,8 @@
 - No OpenTelemetry export — in-process metrics + structured logs.
 - Alert sinks mock/composite until production webhook configured.
 - Hosting rollback is manual; library arms the trigger.
-- **Alpha (Sprint 88):** Constitution library not wired into `planTurn`; Package Builder often skips when offer pools thin; Itinerary Refinement (S84) not on main; intent extraction can corrupt destination on edit phrases (`only` / `instead` / month names). See `docs/ALPHA_READINESS_REPORT.md` and `docs/WEAKNESSES.md`.
+- Itinerary Refinement (Sprint 84) not yet on `main` — deferred; mock Alpha PASS does not require it.
+- Adaptive learning remains local PreferenceStore (not cross-device durable).
+- Sprint 88 Alpha WARNING findings (Constitution unwired, package silent-skip, intent destination corruption) were **fixed in Sprint 89** — see `docs/ALPHA_READINESS_REPORT.md` (PASS) and `docs/WEAKNESSES.md` (historical).
 - See `docs/QA0_PRODUCT_AUDIT.md` for full QA-0 findings.
+- Provider readiness core (Sprint 90) is additive; live cutover of search consumers remains ops-gated (`docs/LIVE_PROVIDER_READINESS.md`).

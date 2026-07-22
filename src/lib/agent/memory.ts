@@ -36,9 +36,14 @@ export function memoryFromMeta(meta: Record<string, unknown> | null | undefined)
 export function mergeRequirements(
   base: TripRequirements,
   patch: Partial<TripRequirements>,
+  options?: { replaceDestinations?: boolean },
 ): TripRequirements {
+  const replaceDestinations = options?.replaceDestinations === true
+
   const destinations = patch.destinations && patch.destinations.length > 0
-    ? uniqueStrings([...base.destinations, ...patch.destinations])
+    ? (replaceDestinations
+      ? uniqueStrings(patch.destinations)
+      : uniqueStrings([...base.destinations, ...patch.destinations]))
     : base.destinations
 
   const destination = patch.destination ?? base.destination ?? destinations[0] ?? null

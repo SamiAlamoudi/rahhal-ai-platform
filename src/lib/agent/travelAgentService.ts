@@ -90,6 +90,7 @@ import {
   isDynamicPackagesEnabled,
   type PackageBuilderResult,
 } from './packageBuilder'
+import { applyConstitutionToTurn } from './constitution'
 import {
   enrichWithItineraryRefinement,
   isItineraryRefinementEnabled,
@@ -1393,7 +1394,9 @@ export function createTravelAgentService(
         ...prior,
         locale: extracted.locale || prior.locale,
         lastIntent: extracted.intent,
-        requirements: mergeRequirements(prior.requirements, extracted.patch),
+        requirements: mergeRequirements(prior.requirements, extracted.patch, {
+          replaceDestinations: extracted.flags?.replaceDestinations,
+        }),
       }
       memory.missingFields = missingRequirementFields(memory.requirements)
 
@@ -1437,6 +1440,7 @@ export function createTravelAgentService(
       let itineraryRefinementResult: RefinementResult | null = null
       let bookingExecutionResult: BookingExecutionResult | null = null
       let paymentsResult: PaymentsPlatformResult | null = null
+      let constitutionMeta: AgentProviderMeta['constitution'] | undefined
 
       // Sprint 78 — Travel Strategy Planner runs before any search engines.
       if (isTravelPlannerOn()) {
@@ -1886,9 +1890,12 @@ export function createTravelAgentService(
             itineraryRefinement: toMetaItineraryRefinement(itineraryRefinementResult),
           }
           : withPackages
-        const withExecution = bookingExecutionResult
-          ? { ...withRefinement, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+        const withConstitution = constitutionMeta
+          ? { ...withRefinement, constitution: constitutionMeta }
           : withRefinement
+        const withExecution = bookingExecutionResult
+          ? { ...withConstitution, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+          : withConstitution
         const withPayments = paymentsResult
           ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
           : withExecution
@@ -2440,12 +2447,49 @@ export function createTravelAgentService(
         }
       }
 
+      const toolSummaries = toolBatch ? toToolSummaries(toolBatch.results) : undefined
+      const toolHadNoResults = (toolBatch?.results ?? []).some((r) => {
+        const err = typeof r.error === 'string' ? r.error : ''
+        const summary = typeof r.summary === 'string' ? r.summary : ''
+        return /no_results|no (?:flight|hotel) offers|no results/i.test(`${err} ${summary}`)
+      })
+
+      const decisionConfidence = autonomousDecisionResult?.recommendations?.confidence
+        ?? dynamicPackagesResult?.selected?.confidence
+        ?? priceIntelligenceResult?.recommendation.confidence
+        ?? 0.78
+
+      const constitutionPreview = applyConstitutionToTurn({
+        userText,
+        memory,
+        tripPlan: memory.tripPlan,
+        replyText: '',
+        intent: memory.lastIntent,
+        mission: travelPlannerResult?.travelPurpose ?? memory.requirements.tripPurpose,
+        confidence: decisionConfidence,
+        explanation: {
+          why: autonomousDecisionResult?.recommendations.explanation
+            ?? dynamicPackagesResult?.selected?.explanation?.split('\n')[0]
+            ?? null,
+          benefits: dynamicPackagesResult?.selected?.reasons?.slice(0, 3),
+          tradeoffs: tripOptimizerResult?.recommendationFacts?.slice(0, 2),
+          confidence: decisionConfidence,
+        },
+        alternativeCount: Math.max(
+          dynamicPackagesResult?.ranked.length ?? 0,
+          autonomousDecisionResult ? 2 : 0,
+        ),
+        toolHadNoResults,
+        recoveredFromFailures: Boolean(autonomousSnapshot?.recoveredFromFailures),
+        packagesPresent: Boolean(dynamicPackagesResult?.selected || dynamicPackagesResult?.ranked.length),
+      })
+
       const facts = buildTravelFacts({
         memory,
         objective,
         tripPlan: memory.tripPlan,
         missingSlots: memory.missingFields.map(String),
-        toolResults: toolBatch ? toToolSummaries(toolBatch.results) : undefined,
+        toolResults: toolSummaries,
         savedTitle,
         recommendations: [
           ...(travelPlannerResult?.recommendationFacts ?? []),
@@ -2457,6 +2501,11 @@ export function createTravelAgentService(
           ...(bookingIntelligenceResult?.recommendationFacts ?? []),
           ...(bookingExecutionResult?.executionFacts ?? []),
           ...(paymentsResult?.paymentFacts ?? []),
+          ...(dynamicPackagesResult?.selected?.explanation
+            ? [dynamicPackagesResult.selected.explanation]
+            : []),
+          ...constitutionPreview.recommendationFacts,
+          ...constitutionPreview.recoveryNotes,
         ],
         warnings: bookingIntelligenceResult && !bookingIntelligenceResult.readiness.bookingReady
           ? [bookingIntelligenceResult.readiness.clarification].filter(Boolean) as string[]
@@ -2466,6 +2515,8 @@ export function createTravelAgentService(
             ? [`Booking execution failures: ${bookingExecutionResult.snapshot.failedCount}`]
             : paymentsResult && paymentsResult.snapshot.status === 'failed'
               ? [`Payment failed: ${paymentsResult.session.lastError ?? 'unknown'}`]
+              : toolHadNoResults
+                ? constitutionPreview.recoveryNotes
               : undefined,
       })
       const spoken = await speakTravelFacts({
@@ -2475,6 +2526,45 @@ export function createTravelAgentService(
         facts,
         signal: input.signal,
       })
+
+      // Sprint 89 — validate traveler-facing reply; keep meta on every interaction.
+      const constitutionFinal = applyConstitutionToTurn({
+        userText,
+        memory,
+        tripPlan: memory.tripPlan,
+        replyText: spoken.displayText,
+        intent: memory.lastIntent,
+        mission: travelPlannerResult?.travelPurpose ?? memory.requirements.tripPurpose,
+        confidence: decisionConfidence,
+        explanation: {
+          why: autonomousDecisionResult?.recommendations.explanation
+            ?? dynamicPackagesResult?.selected?.explanation?.split('\n')[0]
+            ?? constitutionPreview.snapshot.explanation?.why
+            ?? null,
+          benefits: constitutionPreview.snapshot.explanation?.benefits,
+          tradeoffs: constitutionPreview.snapshot.explanation?.tradeoffs,
+          confidence: decisionConfidence,
+        },
+        alternativeCount: Math.max(
+          dynamicPackagesResult?.ranked.length ?? 0,
+          autonomousDecisionResult ? 2 : 0,
+          constitutionPreview.snapshot.alternativeCount ?? 0,
+        ),
+        toolHadNoResults,
+        recoveredFromFailures: Boolean(autonomousSnapshot?.recoveredFromFailures),
+        packagesPresent: Boolean(dynamicPackagesResult?.selected || dynamicPackagesResult?.ranked.length),
+      })
+      constitutionMeta = constitutionFinal.meta
+
+      let displayReply = spoken.displayText
+      if (/no results|لا توجد نتائج/i.test(displayReply) && !memory.tripPlan) {
+        displayReply = [
+          displayReply.replace(/\bno results\b/gi, 'limited matches'),
+          '',
+          constitutionFinal.recoveryNotes[0]
+            ?? 'I am expanding nearby airports, flexible dates, alternative hotels, and other providers for closer options.',
+        ].join('\n')
+      }
 
       const meta: AgentProviderMeta = {
         kind: 'travel_agent',
@@ -2489,7 +2579,7 @@ export function createTravelAgentService(
       }
 
       return {
-        reply: spoken.displayText,
+        reply: displayReply,
         memory,
         tripPlan: memory.tripPlan,
         meta: attachTurnMeta(meta, spoken.spokenText),
