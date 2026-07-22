@@ -5,7 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
-<<<<<<< HEAD
+## [Unreleased] — Sprint 96: AI Concierge Experience
+
+### Added
+
+- Core Concierge Experience (`src/core/conciergeExperience`) — recommendation timeline, explanation engine, alternative scenarios, confidence indicator, conversation summary, comparison cards, proactive suggestions, ConciergeComposer.
+- Agent bridge `src/lib/agent/conciergeExperience` + flag `ai.concierge_experience` (default ON).
+- Docs: `docs/SPRINT96_AI_CONCIERGE.md`; verify: `npm run concierge-experience:verify`.
+
+### Notes
+
+- Additive presentation layer only — reuses existing trip/offer/decision facts without redesigning engines, Alpha Experience, Unified Trip, or Booking Orchestrator.
+
 ## [Unreleased] — Sprint 95: Release Stabilization & CI/CD Hardening
 
 ### Changed
@@ -18,19 +29,6 @@ Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
 - No new product features. No engine / booking / Unified Trip / provider behavior changes.
 - Release readiness report: `docs/SPRINT95_RELEASE_READINESS.md`.
-=======
-## [Unreleased] — Sprint 96: AI Concierge Experience
-
-### Added
-
-- Core Concierge Experience (`src/core/conciergeExperience`) — recommendation timeline, explanation engine, alternative scenarios, confidence indicator, conversation summary, comparison cards, proactive suggestions, ConciergeComposer.
-- Agent bridge `src/lib/agent/conciergeExperience` + flag `ai.concierge_experience` (default ON).
-- Docs: `docs/SPRINT96_AI_CONCIERGE.md`; verify: `npm run concierge-experience:verify`.
-
-### Notes
-
-- Additive presentation layer only — reuses existing trip/offer/decision facts without redesigning engines, Alpha Experience, Unified Trip, or Booking Orchestrator.
->>>>>>> f553d90 (feat(concierge): Sprint 96 — AI Concierge Experience)
 
 ## [Unreleased] — Sprint 94: Live Booking Orchestrator
 
