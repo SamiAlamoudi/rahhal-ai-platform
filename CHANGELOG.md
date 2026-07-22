@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 102: Booking Execution & Confirmation
+
+### Added
+
+- Booking Execution & Confirmation (`src/core/bookingExecutionConfirmation`) — review model, traveler validation, abstract `BookingProviderAdapter`, Book Now workflow, lifecycle states, confirmation model.
+- UI: `/booking-assistant/review` and `/booking-assistant/confirmation/:bookingId` (additive; legacy booking routes unchanged).
+- Feature flag `ai.booking_execution_confirmation` (default ON).
+- Docs: `docs/SPRINT102_BOOKING_EXECUTION_CONFIRMATION.md`; verify: `npm run booking-execution:verify`.
+
+### Notes
+
+- Extends Booking Assistant only. Abstract adapter + stub for tests/demos — no provider-specific booking implementation. Flag OFF redirects to legacy booking paths.
+
 ## [Unreleased] — Sprint 101: Smart Booking Assistant
 
 ### Added
