@@ -298,12 +298,12 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     id: 'ai.concierge_experience',
     name: 'AI Concierge Experience',
     description:
-      'Sprint 96 — premium concierge presentation: recommendation timeline, natural-language explanations, alternative scenarios, confidence indicator, conversation summaries, comparison cards, and proactive suggestions. Presentation only.',
+      'Sprint 96 presentation + Sprint 111 decision conversation layer after Response Composer (explanations, tradeoffs, scenarios, savings, narration, metadata). Presentation only — does not modify Decision Engine.',
     lifecycle: 'beta',
     enabled: true,
     dependsOn: ['ai.alpha_experience', 'ai.unified_trip'],
     notes:
-      'Product alias: concierge_experience. Additive under src/core/conciergeExperience. Distinct from legacy ai.concierge. Does not redesign engines.',
+      'Product alias: concierge_experience. Sprint 96: src/core/conciergeExperience. Sprint 111 additive: src/lib/agent/concierge (post–Response Composer). Distinct from legacy ai.concierge. Does not redesign engines. Sprint 111 runner is inert until called.',
   },
   {
     id: 'ai.booking_assistant',
