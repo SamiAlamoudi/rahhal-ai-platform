@@ -27,7 +27,11 @@ export function buildGatewayFlightRequest(
     departureDate: flight.departureDate.trim(),
     returnDate: flight.returnDate ?? null,
     adults: flight.adults ?? 1,
+    children: flight.children,
+    cabin: flight.cabin ?? null,
     currency: flight.currency ?? 'SAR',
+    maxResults: flight.maxResults,
+    nonStop: flight.nonStop,
     signal: request.signal,
   }
 }

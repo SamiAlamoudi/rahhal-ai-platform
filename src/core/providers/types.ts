@@ -46,7 +46,15 @@ export interface FlightSearchRequest {
   departureDate: string
   returnDate?: string | null
   adults?: number
+  /** Optional child passengers (Amadeus Flight Offers). */
+  children?: number
+  /** Cabin / travel class hint (economy, business, …). */
+  cabin?: string | null
   currency?: string
+  /** Cap offers returned by the provider (Amadeus `max`). */
+  maxResults?: number
+  /** Prefer non-stop itineraries when the provider supports it. */
+  nonStop?: boolean
   signal?: AbortSignal
 }
 

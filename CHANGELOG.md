@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 105: Live Flight Search (Amadeus Production Bridge)
+
+### Added
+
+- Live Flight Search bridge (`src/lib/agent/liveFlightSearch`) — validate → compose → Provider Gateway → Amadeus Flight Offers → Rahhal flight offers for Decision Engine.
+- Feature flag `ai.live_flight_search` (**default OFF**).
+- Additive request fields: children, cabin, maxResults, nonStop through Gateway + Amadeus adapter.
+- Docs: `docs/SPRINT105_LIVE_FLIGHT_SEARCH.md`; verify: `npm run live-flight-search:verify`.
+
+### Notes
+
+- Additive only — reuses Sprint 104 Gateway + Sprint 92 Amadeus OAuth. No engine/UI redesign. Flag OFF preserves identical legacy search behavior.
+
 ## [Unreleased] — Sprint 104: Live Provider Integration (Production Phase 1)
 
 ### Added
