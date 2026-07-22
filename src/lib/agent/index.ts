@@ -594,6 +594,22 @@ export type {
   StreamingMetrics,
 } from './streaming'
 
+/** Sprint 118 — Editable AI Conversation */
+export {
+  isEditableConversationEnabled,
+  EDITABLE_CONVERSATION_FEATURE_ID,
+  runConversationEditor,
+  createConversationEditor,
+  SPRINT118_EDITABLE_CONVERSATION_VERSION,
+} from './editing'
+export type {
+  ConversationEditInput,
+  ConversationEditorResult,
+  EditPlan,
+  EditDiff,
+  EditKind,
+} from './editing'
+
 /** Sprint 92 — Amadeus Sandbox TravelProvider */
 export {
   isAmadeusSandboxEnabled,

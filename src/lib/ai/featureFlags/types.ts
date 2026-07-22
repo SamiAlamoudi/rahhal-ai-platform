@@ -45,6 +45,7 @@ export type FeatureId =
   | 'ai.itinerary_engine'
   | 'ai.execution_pipeline'
   | 'ai.streaming_conversation'
+  | 'ai.editable_conversation'
   | 'ai.live_conversation'
   | 'ai.my_trips_dashboard'
   | 'booking.orchestrator'

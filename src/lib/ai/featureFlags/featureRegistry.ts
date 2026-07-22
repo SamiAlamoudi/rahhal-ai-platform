@@ -431,6 +431,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: streaming_conversation. Additive under src/lib/agent/streaming. Wraps pipeline via public adapters only — does not modify pipeline, orchestrator, engines, or providers. When OFF, legacy behavior is unchanged.',
   },
   {
+    id: 'ai.editable_conversation',
+    name: 'Editable AI Conversation',
+    description:
+      'Sprint 118 — additive conversation edit engine for incremental trip refinements (hotel/budget/cabin/duration/city) with partial pipeline reruns. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: editable_conversation. Additive under src/lib/agent/editing. Reuses Execution Pipeline / Streaming public APIs; does not modify engines. When OFF, legacy behavior is unchanged.',
+  },
+  {
     id: 'ai.live_conversation',
     name: 'Live Conversation (Alpha alias)',
     description:
