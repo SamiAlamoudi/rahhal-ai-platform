@@ -418,6 +418,21 @@ export type {
 } from './aggregation'
 export * as providerAdapters from './providers'
 
+/** Sprint 92 — Amadeus Sandbox TravelProvider */
+export {
+  isAmadeusSandboxEnabled,
+  AMADEUS_SANDBOX_FEATURE_ID,
+  createAmadeusSandboxProvider,
+  registerAmadeusSandboxProvider,
+  createAmadeusSandboxRegistry,
+  SPRINT92_AMADEUS_SANDBOX_VERSION,
+  AMADEUS_SANDBOX_PROVIDER_ID,
+} from './providers/amadeusSandbox'
+export type {
+  AmadeusSandboxProvider,
+  AmadeusSandboxProviderOptions,
+} from './providers/amadeusSandbox'
+
 /** Sprint 71 — Live Provider Integration Framework (Provider Runtime) */
 export {
   createProviderRuntimeRegistry,

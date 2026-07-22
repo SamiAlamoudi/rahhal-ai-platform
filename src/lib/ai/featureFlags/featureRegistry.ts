@@ -326,6 +326,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Requires AMADEUS_API_KEY / AMADEUS_API_SECRET (server-only; CLIENT_ID/SECRET aliases OK).',
   },
   {
+    id: 'providers.amadeus.enabled',
+    name: 'Amadeus Sandbox TravelProvider',
+    description:
+      'Sprint 92 — Amadeus Sandbox via Sprint 90 TravelProvider (flight search, OAuth, normalization). Default ON in sandbox / non-production; OFF in production unless PROVIDERS_AMADEUS_ENABLED=true.',
+    lifecycle: 'beta',
+    enabled: true,
+    notes:
+      'Product alias: providers.amadeus.enabled. Additive wrapper under src/core/amadeusSandbox. Does not modify Provider Readiness sources. No hotels.',
+  },
+  {
     id: 'provider.duffel',
     name: 'Duffel live adapter',
     description: 'Sprint 56 — Duffel offer search, details, pricing; order/cancel stubs.',

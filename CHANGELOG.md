@@ -32,6 +32,20 @@ Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
 - Additive only — existing engines and providers unchanged. Rahhal returns one presentation-ready Trip instead of isolated search results.
 
+## [Unreleased] — Sprint 92: Amadeus Sandbox TravelProvider
+
+### Added
+
+- Amadeus Sandbox provider (`src/core/amadeusSandbox`) implementing Sprint 90 `TravelProvider` — OAuth lifecycle, flight search, airport lookup, airline/currency/passenger normalization, observability events.
+- Agent bridge `src/lib/agent/providers/amadeusSandbox` + flag `providers.amadeus.enabled` (ON in sandbox, OFF in production).
+- Docs: `docs/SPRINT92_AMADEUS_SANDBOX.md`; verify: `npm run amadeus-sandbox:verify`.
+
+### Notes
+
+- Additive only — Provider Readiness sources and AI engines unchanged. Hotels out of scope.
+- Registers via `registerAmadeusSandboxProvider` / `createAmadeusSandboxRegistry`; reuses RetryPolicy, CircuitBreaker, and Registry failover.
+- Additive adapters `toUnifiedTripFlightOffer` / `toBookableFlightSegment` for Sprint 93 Unified Trip and Sprint 94 Booking Orchestrator (no engine redesign).
+
 ## [Unreleased] — Sprint 91: Production Alpha Experience
 
 ### Added

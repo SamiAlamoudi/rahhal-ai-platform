@@ -35,6 +35,7 @@ export type FeatureId =
   | 'booking.orchestrator'
   | 'ai.live_providers'
   | 'provider.amadeus'
+  | 'providers.amadeus.enabled'
   | 'provider.duffel'
   | 'provider.booking'
   | 'ai.booking_execution'
