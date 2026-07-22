@@ -21,6 +21,10 @@ import {
   StreamingBubble,
   SuggestionBubble,
   TypingIndicator,
+  VoiceButton,
+  AttachmentButton,
+} from '../chat'
+import {
   FlightCard,
   HotelCard,
   PackageCard,
@@ -29,20 +33,20 @@ import {
   ConfidenceCard,
   ComparisonCard,
   ItineraryCard,
+} from '../cards'
+import {
   Timeline,
   TimelineDay,
   TimelineItem,
   TimelineEvent,
+} from '../timeline'
+import {
   ProgressIndicator,
   StreamingPlaceholder,
   RetryState,
   EmptyState,
-  UiStack,
-  UiText,
-  UiButton,
-  VoiceButton,
-  AttachmentButton,
-} from '../../ui'
+} from '../loading'
+import { UiStack, UiText, UiButton } from '../common'
 import {
   runProductionConversationTurn,
   runProductionEditTurn,
@@ -53,7 +57,7 @@ import {
 import type { EditSnapshot } from '../../lib/agent/editing'
 import type { StreamingEvent } from '../../lib/agent/streaming'
 import { useAuth } from '../../lib/auth'
-import { spacing } from '../../ui/tokens'
+import { spacing } from '../tokens'
 
 interface ChatLine {
   id: string

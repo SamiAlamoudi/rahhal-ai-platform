@@ -4,23 +4,16 @@
 
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  HomeExperience,
-  UiStack,
-  UiText,
-  UiButton,
-  EmptyState,
-  ErrorState,
-  RetryState,
-  Skeleton,
-  RecommendationCard,
-} from '../../ui'
+import { HomeExperience } from '../layout'
+import { UiStack, UiText, UiButton } from '../common'
+import { EmptyState, ErrorState, RetryState, Skeleton } from '../loading'
+import { RecommendationCard } from '../cards'
 import {
   loadProductionHomeData,
   type ProductionHomeData,
 } from '../../lib/uiIntegration'
 import { useAuth } from '../../lib/auth'
-import { spacing } from '../../ui/tokens'
+import { spacing } from '../tokens'
 
 function ListBlock({
   items,
