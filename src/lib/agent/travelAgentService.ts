@@ -115,6 +115,10 @@ import {
   integrateConciergeIntoTurn,
   type ConciergeTurnIntegrationResult,
 } from './conciergeIntegration'
+import {
+  assembleAlphaTravelerExperience,
+  type AgentAlphaTravelerExperienceAttachment,
+} from './alphaExperience'
 import type {
   AgentIntent,
   AgentMemory,
@@ -1447,6 +1451,8 @@ export function createTravelAgentService(
       let constitutionMeta: AgentProviderMeta['constitution'] | undefined
       /** Sprint 97 — additive concierge UI integration (null until main plan path). */
       let conciergeIntegration: ConciergeTurnIntegrationResult | null = null
+      /** Sprint 99 — unified Alpha traveler experience assembly (null until composed). */
+      let alphaTravelerAssembly: AgentAlphaTravelerExperienceAttachment | null = null
 
       // Sprint 78 — Travel Strategy Planner runs before any search engines.
       if (isTravelPlannerOn()) {
@@ -1906,9 +1912,18 @@ export function createTravelAgentService(
             conciergeRecommendation: conciergeIntegration.recommendation,
           }
           : withConstitution
-        const withExecution = bookingExecutionResult
-          ? { ...withConcierge, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+        const withAlphaAssembly = alphaTravelerAssembly
+          ? {
+            ...withConcierge,
+            alphaTravelerExperience: {
+              ...alphaTravelerAssembly.meta,
+              experience: alphaTravelerAssembly.experience,
+            },
+          }
           : withConcierge
+        const withExecution = bookingExecutionResult
+          ? { ...withAlphaAssembly, bookingExecution: toMetaBookingExecution(bookingExecutionResult) }
+          : withAlphaAssembly
         const withPayments = paymentsResult
           ? { ...withExecution, payments: toMetaPayments(paymentsResult) }
           : withExecution
@@ -2512,6 +2527,37 @@ export function createTravelAgentService(
           : null,
         engineConfidence: decisionConfidence > 1 ? decisionConfidence / 100 : decisionConfidence,
       })
+
+      // Sprint 99 — assemble unified Alpha traveler experience (presentation only).
+      {
+        const { flightOffers: alphaFlights, hotelStays: alphaHotels } = offersFromToolBatch(
+          toolBatch ?? undefined,
+        )
+        alphaTravelerAssembly = assembleAlphaTravelerExperience({
+          conversationId: input.conversationId,
+          memory,
+          conciergeIntegration,
+          packageSelected: dynamicPackagesResult?.selected
+            ? {
+              id: dynamicPackagesResult.selected.id,
+              title: dynamicPackagesResult.selected.title,
+              totalPrice: dynamicPackagesResult.selected.totalPrice,
+              currency: dynamicPackagesResult.selected.currency,
+              confidence: dynamicPackagesResult.selected.confidence,
+              explanation: dynamicPackagesResult.selected.explanation,
+              components: dynamicPackagesResult.selected.components,
+            }
+            : null,
+          flightOffers: alphaFlights.length ? alphaFlights : null,
+          hotelOffers: alphaHotels.length ? alphaHotels : null,
+          decisionExplanation: autonomousDecisionResult?.recommendations.explanation ?? null,
+          priceTimingNote: priceIntelligenceResult?.recommendation.explanation ?? null,
+          priceConfidence: priceIntelligenceResult
+            ? priceIntelligenceResult.recommendation.confidence / 100
+            : null,
+          engineConfidence: decisionConfidence > 1 ? decisionConfidence / 100 : decisionConfidence,
+        })
+      }
 
       const constitutionPreview = applyConstitutionToTurn({
         userText,

@@ -558,6 +558,35 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Sprint 99 — unified Alpha Traveler Experience assembly (presentation only).
+   * Additive — absent when `ai.alpha_experience` is OFF or assembly skipped.
+   * Full DTO on `experience` for Future UI; `meta` is the compact snapshot.
+   */
+  alphaTravelerExperience?: {
+    version: string
+    conversationId: string
+    enabled: boolean
+    sectionIds: string[]
+    sectionCount: number
+    finalRecommendation: string | null
+    confidenceLevel: string | null
+    confidenceScore: number | null
+    nextAction: string | null
+    durationMs: number
+    experience: {
+      version: string
+      conversationId: string
+      enabled: boolean
+      sections: unknown[]
+      sectionIds: string[]
+      finalRecommendation: string | null
+      confidenceLevel: string | null
+      confidenceScore: number | null
+      nextAction: string | null
+      durationMs: number
+    }
+  }
+  /**
    * Sprint 96 — AI Concierge Experience snapshot (timeline, explanations, alternatives).
    */
   conciergeExperience?: {
