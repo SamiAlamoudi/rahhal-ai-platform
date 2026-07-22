@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 114: Intelligent Itinerary Engine (Production)
+
+### Added
+
+- Intelligent Itinerary Engine (`src/lib/agent/itinerary`) — transforms Trip Builder output into day-by-day schedules (arrival/departure, hotel check-in/out, meals, transfers, activities, free time, conflict resolution, scoring, explanations, metadata).
+- Feature flag `ai.itinerary_engine` (**default OFF**).
+- Docs: `docs/SPRINT114_ITINERARY_ENGINE.md`; verify: `npm run itinerary:verify`.
+
+### Notes
+
+- Additive only — does not modify AI Orchestrator, Memory Engine, Decision Engine, Search Planner, Provider Gateway, Flight/Hotel Search, Trip Builder, Response Composer, or Concierge. Flag OFF preserves identical legacy behavior.
+
 ## [Unreleased] — Sprint 113: AI Orchestrator (Production)
 
 ### Added
