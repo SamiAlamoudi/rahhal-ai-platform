@@ -20,7 +20,11 @@ export interface GatewayMetricsRecord {
 }
 
 export class GatewayMetrics {
-  constructor(private readonly store: ProviderMetricsStore = createProviderMetricsStore()) {}
+  private readonly store: ProviderMetricsStore
+
+  constructor(store: ProviderMetricsStore = createProviderMetricsStore()) {
+    this.store = store
+  }
 
   record(entry: GatewayMetricsRecord): void {
     const key = `${entry.providerId}:${entry.operation}`

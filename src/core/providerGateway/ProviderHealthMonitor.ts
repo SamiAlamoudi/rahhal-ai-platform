@@ -14,7 +14,11 @@ export interface GatewayHealthSnapshot {
 }
 
 export class ProviderHealthMonitor {
-  constructor(private readonly registry: GatewayProviderRegistry) {}
+  private readonly registry: GatewayProviderRegistry
+
+  constructor(registry: GatewayProviderRegistry) {
+    this.registry = registry
+  }
 
   async check(
     providerId: GatewayProviderId,
