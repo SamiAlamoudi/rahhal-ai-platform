@@ -137,6 +137,26 @@ export function diagnosePipelineError(
       cause: error,
       diagnostics: { supabase, httpStatus },
     })
+  } else if (
+    supabase?.code === 'PGRST205'
+    || supabase?.code === '42P01'
+    || lower.includes('schema cache')
+    || lower.includes("could not find the table")
+  ) {
+    // Hosted Supabase missing migrations (observed: public.conversations absent).
+    app = new AppError({
+      code: 'config_error',
+      message,
+      userMessage:
+        userMessageAr
+        ?? 'قاعدة البيانات غير مهيأة (جدول المحادثات غير موجود). طبّق migrations على مشروع Supabase.',
+      domain: `chat.${stage}`,
+      operation,
+      status: 503,
+      retryable: false,
+      cause: error,
+      diagnostics: { supabase, httpStatus },
+    })
   } else if (lower.includes('not found') || supabase?.code === 'PGRST116') {
     app = new AppError({
       code: 'not_found',

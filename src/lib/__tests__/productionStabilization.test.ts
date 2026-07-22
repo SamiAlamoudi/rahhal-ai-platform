@@ -59,6 +59,21 @@ describe('production stabilization diagnostics', () => {
     ).toBe('تعذر إنشاء المحادثة بسبب الشبكة')
   })
 
+  it('maps missing conversations table (PGRST205) to config_error with readable text', () => {
+    const err = diagnosePipelineError('conversation', 'createConversation', {
+      code: 'PGRST205',
+      details: null,
+      hint: null,
+      message: "Could not find the table 'public.conversations' in the schema cache",
+    })
+    expect(err.code).toBe('config_error')
+    expect(err.message).toContain('conversations')
+    expect(err.message).not.toBe('[object Object]')
+    expect(userFacingErrorMessage(err, 'fallback')).not.toContain('[object Object]')
+    expect(userFacingErrorMessage(err, 'fallback')).toMatch(/migrations|المحادثات|قاعدة/)
+    expect(shouldUseLocalChatFallback(err)).toBe(true)
+  })
+
   it('recognizes plain PostgREST/network objects for local chat fallback', () => {
     const fetchFailed = {
       message: 'TypeError: fetch failed',

@@ -91,7 +91,9 @@ export function shouldUseLocalChatFallback(error: unknown): boolean {
   if (isLocalChatAuthError(error)) return true
 
   if (error instanceof AppError) {
-    if (error.code === 'forbidden' || error.code === 'auth_error') return true
+    if (error.code === 'forbidden' || error.code === 'auth_error' || error.code === 'config_error') {
+      return true
+    }
     // diagnosePipelineError maps fetch/network → provider_unavailable; still recover locally.
     if (error.code === 'provider_unavailable') {
       const technical = extractErrorText(error.cause, error.message).toLowerCase()
