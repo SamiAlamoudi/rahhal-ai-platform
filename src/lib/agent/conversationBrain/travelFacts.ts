@@ -94,6 +94,11 @@ export interface TravelFacts {
     travelTips: string[]
     packingSuggestions: string[]
     whyChoices: string[]
+    /** Sprint 89 — structured recommendation quality (Constitution P3/P5). */
+    tradeoffs?: string[]
+    confidence?: number | null
+    alternatives?: string[]
+    nextAction?: string | null
   } | null
   toolSummaries?: Array<{ tool: string; summary: string }>
   savedTitle?: string | null
@@ -179,6 +184,10 @@ export function buildPlanFacts(plan: TripPlan): NonNullable<TravelFacts['plan']>
       plan.decision?.activities?.whySelected,
       ...(plan.decision?.suggestions ?? []).slice(0, 3),
     ].filter((x): x is string => Boolean(x)),
+    tradeoffs: [],
+    confidence: null,
+    alternatives: [],
+    nextAction: null,
   }
 }
 
@@ -196,6 +205,21 @@ export function buildTravelFacts(input: {
   savedTitle?: string | null
 }): TravelFacts {
   const plan = input.tripPlan ?? input.memory.tripPlan
+  const planFacts = plan ? buildPlanFacts(plan) : null
+  const recs = input.recommendations ?? []
+  if (planFacts) {
+    const reason = recs.find((r) => /^Reason:/i.test(r))
+    const tradeoffs = recs.filter((r) => /^Trade-?offs?:/i.test(r)).map((r) => r.replace(/^Trade-?offs?:\s*/i, ''))
+    const confidenceLine = recs.find((r) => /^Confidence:/i.test(r))
+    const alternatives = recs.filter((r) => /^Alternatives:/i.test(r)).map((r) => r.replace(/^Alternatives:\s*/i, ''))
+    const nextAction = recs.find((r) => /^Next action:/i.test(r))?.replace(/^Next action:\s*/i, '') ?? null
+    const confMatch = confidenceLine?.match(/(\d+(?:\.\d+)?)\s*%?/)
+    if (reason) planFacts.whyChoices = [reason.replace(/^Reason:\s*/i, ''), ...planFacts.whyChoices]
+    if (tradeoffs.length) planFacts.tradeoffs = tradeoffs
+    if (confMatch?.[1]) planFacts.confidence = Number(confMatch[1]) > 1 ? Number(confMatch[1]) / 100 : Number(confMatch[1])
+    if (alternatives.length) planFacts.alternatives = alternatives
+    if (nextAction) planFacts.nextAction = nextAction
+  }
   return {
     locale: input.memory.locale,
     objective: input.objective,
@@ -206,7 +230,7 @@ export function buildTravelFacts(input: {
     optionHints: input.optionHints,
     warnings: input.warnings,
     recommendations: input.recommendations,
-    plan: plan ? buildPlanFacts(plan) : null,
+    plan: planFacts,
     toolSummaries: input.toolResults?.map((t) => ({ tool: t.tool, summary: t.summary })),
     savedTitle: input.savedTitle,
     phase: input.memory.phase,
