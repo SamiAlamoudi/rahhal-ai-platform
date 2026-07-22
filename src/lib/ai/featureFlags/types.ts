@@ -35,6 +35,8 @@ export type FeatureId =
   | 'ai.concierge_experience'
   | 'ai.booking_assistant'
   | 'ai.booking_execution_confirmation'
+  | 'ai.live_conversation'
+  | 'ai.my_trips_dashboard'
   | 'booking.orchestrator'
   | 'ai.live_providers'
   | 'provider.amadeus'

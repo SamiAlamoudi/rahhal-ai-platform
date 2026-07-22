@@ -1,12 +1,19 @@
 /**
  * Rahhal Alpha — journey CTAs on assistant messages (book / pay / documents).
  * Surfaces Booking Execution + Payments meta without exposing internals.
+ * Sprint 103 — also links Booking Assistant → review when ready (integration only).
  */
 
 import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import { getDefaultPaymentsPlatformEngine } from '../../lib/agent/paymentsPlatform'
 import type { AgentProviderMeta } from '../../lib/agent/types'
+import {
+  resolveAlphaNextStep,
+} from '../../lib/alphaIntegration'
+import { isBookingExecutionConfirmationEnabled } from '../../lib/bookingExecutionConfirmation'
+import { getFeatureRegistry } from '../../lib/ai'
 
 type Props = {
   message: ChatMessage
@@ -86,6 +93,7 @@ function friendlyDocumentLabel(label: string, kind: string, locale: 'ar' | 'en')
 }
 
 export default function AlphaJourneyPanel({ message, busy, locale = 'ar', onCommand }: Props) {
+  const navigate = useNavigate()
   const meta = asAgentMeta(message.providerMeta)
   const payments = meta?.payments
   const execution = meta?.bookingExecution
@@ -101,10 +109,23 @@ export default function AlphaJourneyPanel({ message, busy, locale = 'ar', onComm
     }
   }, [payments?.paymentSessionId])
 
-  if (!meta || (!intelligence && !execution && !payments)) return null
+  const nextStep = useMemo(() => {
+    if (!meta) return null
+    return resolveAlphaNextStep({
+      meta,
+      bookingExecutionEnabled: isBookingExecutionConfirmationEnabled(),
+      myTripsEnabled: getFeatureRegistry().isEnabled('ui.my_trips')
+        || getFeatureRegistry().isEnabled('ai.my_trips_dashboard'),
+      locale,
+    })
+  }, [meta, locale])
 
-  const bookingReady = Boolean(intelligence?.bookingReady)
-  const canBook = bookingReady && !execution
+  if (!meta || (!intelligence && !execution && !payments && !meta.bookingAssistant && !meta.alphaTravelerExperience)) {
+    return null
+  }
+
+  const bookingReady = Boolean(intelligence?.bookingReady || meta.bookingAssistant?.readyToBook)
+  const canBook = bookingReady && !execution && !nextStep
   const canPay =
     Boolean(execution && (execution.status === 'confirmed' || execution.status === 'ticketed' || execution.confirmedCount > 0))
     && (!payments || payments.status === 'failed' || payments.status === 'pending')
@@ -177,6 +198,17 @@ export default function AlphaJourneyPanel({ message, busy, locale = 'ar', onComm
       </div>
 
       <div className="flex flex-wrap gap-2">
+        {nextStep && (
+          <button
+            type="button"
+            disabled={busy}
+            data-testid="alpha-journey-next-step"
+            onClick={() => navigate(nextStep.path, { state: nextStep.state })}
+            className="rounded-full bg-teal-800 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-teal-900 disabled:opacity-40"
+          >
+            {nextStep.label}
+          </button>
+        )}
         {canBook && (
           <button
             type="button"

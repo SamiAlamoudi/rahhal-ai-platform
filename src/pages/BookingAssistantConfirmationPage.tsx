@@ -61,13 +61,22 @@ export default function BookingAssistantConfirmationPage() {
       className="min-h-screen bg-gradient-to-b from-teal-50/50 via-white to-stone-50"
     >
       <header className="border-b border-stone-200/80 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-800">
             رحّال · Confirmation
           </p>
-          <Link to="/chat" className="text-sm text-slate-600 hover:text-slate-900">
-            Back to chat
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link to="/chat" className="text-sm text-slate-600 hover:text-slate-900">
+              Back to chat
+            </Link>
+            <Link
+              to="/my-trips"
+              data-testid="booking-assistant-open-my-trips"
+              className="text-sm font-medium text-teal-800 hover:text-teal-950"
+            >
+              My Trips
+            </Link>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">

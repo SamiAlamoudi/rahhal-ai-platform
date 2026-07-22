@@ -328,6 +328,27 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: booking_execution_confirmation. Additive under src/core/bookingExecutionConfirmation + UI routes /booking-assistant/*. Uses abstract adapter only.',
   },
   {
+    id: 'ai.live_conversation',
+    name: 'Live Conversation (Alpha alias)',
+    description:
+      'Sprint 103 — product alias for the live conversation experience. Maps onto the primary /chat pipeline; does not add a new conversation engine.',
+    lifecycle: 'beta',
+    enabled: true,
+    notes:
+      'Integration alias only. OFF preserves standard chat behavior. Does not gate ChatPage — informational for Alpha readiness audits.',
+  },
+  {
+    id: 'ai.my_trips_dashboard',
+    name: 'My Trips Dashboard (Alpha alias)',
+    description:
+      'Sprint 103 — product alias for the My Trips entry point. Maps onto ui.my_trips without replacing the existing dashboard.',
+    lifecycle: 'beta',
+    enabled: true,
+    dependsOn: ['ui.my_trips'],
+    notes:
+      'Integration alias only. OFF follows ui.my_trips — legacy My Trips hidden when ui.my_trips is off.',
+  },
+  {
     id: 'booking.orchestrator',
     name: 'Live Booking Orchestrator',
     description:

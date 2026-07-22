@@ -9,6 +9,7 @@ import { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './lib/auth/Protecte
 import type { NormalizedTravelOption } from './utils/searchOrchestrator'
 import type { ReasoningResult } from './utils/reasoningEngine'
 import type { TravelSearchRequest } from './utils/travelSearchRequest'
+import { resolveBookingEntryPath } from './lib/alphaIntegration'
 
 const Home = lazy(() => import('./pages/Home.tsx'))
 const TravelConversation = lazy(() => import('./pages/TravelConversation.tsx'))
@@ -77,6 +78,11 @@ function ResultsRoute() {
       travelSessionId={state.travelSessionId ?? null}
     />
   )
+}
+
+/** Sprint 103 — /booking entry resolves to assistant or legacy review. */
+function BookingEntryRedirect() {
+  return <Navigate to={resolveBookingEntryPath()} replace />
 }
 
 // Phase X — startup validation + global error handlers (non-UI).
@@ -180,6 +186,16 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/settings" element={
             <ProtectedRoute>
               <Settings />
+            </ProtectedRoute>
+          } />
+          <Route path="/new-chat" element={
+            <ProtectedRoute>
+              <Navigate to="/chat" replace />
+            </ProtectedRoute>
+          } />
+          <Route path="/booking" element={
+            <ProtectedRoute>
+              <BookingEntryRedirect />
             </ProtectedRoute>
           } />
           <Route path="/chat" element={
