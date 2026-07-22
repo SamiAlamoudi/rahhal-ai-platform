@@ -5,6 +5,19 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 90: Live Provider Integration Readiness
+
+### Added
+
+- Core provider readiness (`src/core/providers`) — registry, health, circuit breaker, retry, priority/failover, secrets validator, sandbox helpers, metrics, mock/sandbox/live stubs.
+- Docs: `LIVE_PROVIDER_READINESS.md`, `PROVIDER_ARCHITECTURE.md`, `PROVIDER_CHECKLIST.md`.
+- Verify: `npm run providers-readiness:verify`.
+
+### Notes
+
+- Infrastructure only — no AI engine, conversation, planner, learning, package, or decision changes.
+- Coexists with Sprint 71 Provider Runtime; does not cut over live search consumers.
+
 ## [Unreleased] — Sprint 89: Alpha Blockers Resolution
 
 ### Fixed
@@ -24,6 +37,17 @@ Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 ### Notes
 
 - No new AI engines; no architecture redesign — Alpha blockers only.
+
+## [Unreleased] — Sprint 88: Alpha Readiness Validation
+
+### Added
+
+- Alpha acceptance docs: `docs/USER_JOURNEYS.md`, `TEST_SCENARIOS.md`, `WEAKNESSES.md`, `TOP20_ALPHA_IMPROVEMENTS.md` (historical WARNING baseline; superseded by Sprint 89 PASS report).
+
+### Notes
+
+- Validation only — no new AI engines, no architecture redesign, no planning/decision engine changes.
+- Sprint 88 verdict was **WARNING**; Sprint 89 closed the blockers to **PASS**.
 
 ## [Unreleased] — Sprint 87: Rahhal AI Constitution
 

@@ -8,6 +8,9 @@
 
 **Companions:** `docs/SPRINT89_REGRESSION_REPORT.md`, `docs/SPRINT89_BUG_FIX_REPORT.md`, `docs/SPRINT89_ARCHITECTURE_IMPACT.md`
 
+
+> **Note:** Sprint 88 produced the WARNING baseline (`USER_JOURNEYS.md`, `WEAKNESSES.md`, etc.). This report is the Sprint 89 updated PASS verdict after blocker fixes. Sprint 90 provider readiness is additive infrastructure (`docs/LIVE_PROVIDER_READINESS.md`) and does not change this Alpha PASS.
+
 ---
 
 ## Executive verdict

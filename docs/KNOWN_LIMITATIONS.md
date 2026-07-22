@@ -11,4 +11,6 @@
 - Hosting rollback is manual; library arms the trigger.
 - Itinerary Refinement (Sprint 84) not yet on `main` — deferred; mock Alpha PASS does not require it.
 - Adaptive learning remains local PreferenceStore (not cross-device durable).
-- See `docs/ALPHA_READINESS_REPORT.md` (Sprint 89 PASS) and `docs/QA0_PRODUCT_AUDIT.md`.
+- Sprint 88 Alpha WARNING findings (Constitution unwired, package silent-skip, intent destination corruption) were **fixed in Sprint 89** — see `docs/ALPHA_READINESS_REPORT.md` (PASS) and `docs/WEAKNESSES.md` (historical).
+- See `docs/QA0_PRODUCT_AUDIT.md` for full QA-0 findings.
+- Provider readiness core (Sprint 90) is additive; live cutover of search consumers remains ops-gated (`docs/LIVE_PROVIDER_READINESS.md`).
