@@ -5,6 +5,18 @@ All notable changes to Rahhal are documented in this file.
 Canonical V1 GA + post-GA rollup: [`docs/CHANGELOG_V1.md`](docs/CHANGELOG_V1.md).  
 Product QA: [`docs/QA0_PRODUCT_AUDIT.md`](docs/QA0_PRODUCT_AUDIT.md).
 
+## [Unreleased] — Sprint 115: Unified AI Execution Pipeline (Production)
+
+### Added
+
+- Unified AI Execution Pipeline (`src/lib/agent/pipeline`) — single-call additive coordinator: Conversation → Memory → Preferences → Search Planning → Flights → Hotels → Decision (pass-through) → Trip Builder → Itinerary → Response Composer → Concierge, with isolated stages, timeouts, retries, recovery, metrics, and logging.
+- Feature flag `ai.execution_pipeline` (**default OFF**).
+- Docs: `docs/SPRINT115_EXECUTION_PIPELINE.md`; verify: `npm run pipeline:verify`.
+
+### Notes
+
+- Additive only — reuses public engine APIs; does not rewrite Decision Engine, Search Planner, Providers, Trip Builder, Itinerary, Response Composer, or Concierge. Distinct from `ai.orchestrator` (Sprint 113). Flag OFF preserves identical legacy behavior.
+
 ## [Unreleased] — Sprint 114: Intelligent Itinerary Engine (Production)
 
 ### Added
