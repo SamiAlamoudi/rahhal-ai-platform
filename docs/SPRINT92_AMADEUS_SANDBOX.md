@@ -26,7 +26,19 @@ Decision Engine → Packages → Refinement → Recommendation
 - Registers via `registerAmadeusSandboxProvider(registry)` / `createAmadeusSandboxRegistry()`
 - Reuses `createProviderRetryPolicy`, `createProviderCircuitBreaker`, `classifyProviderFailure`, `ProviderRegistry.searchFlightsWithFailover`
 
-**Not modified:** Constitution, Conversation, Learning, Decision Engine, Packages, Refinement, Alpha Experience, Provider Readiness source files.
+**Not modified:** Constitution, Conversation, Learning, Decision Engine, Packages, Refinement, Alpha Experience, Unified Trip, Booking Orchestrator, Provider Readiness source files.
+
+## Compatibility (Sprint 91 / 93 / 94)
+
+Amadeus Sandbox stays an isolated provider. Additive adapters only:
+
+| Adapter | Target |
+|---------|--------|
+| `toDecisionEngineFlightOffer` | Decision Engine / packages |
+| `toUnifiedTripFlightOffer` | Sprint 93 `composeUnifiedTrip` flightOffers |
+| `toBookableFlightSegment` | Sprint 94 BookableTrip flight shape |
+
+Prefer: Amadeus → Unified Trip → `toBookableTrip` → Booking Orchestrator.
 
 ## Authentication
 

@@ -184,3 +184,52 @@ export function toDecisionEngineFlightOffer(
     payload: flight,
   }
 }
+
+/**
+ * Additive adapter → Sprint 93 Unified Trip `flightOffers` / TripNormalizer input.
+ * Does not modify TripComposer; callers pass the result into `composeUnifiedTrip`.
+ */
+export function toUnifiedTripFlightOffer(
+  flight: AmadeusNormalizedFlight,
+): Record<string, unknown> {
+  const base = toDecisionEngineFlightOffer(flight)
+  return {
+    ...base,
+    airline: flight.airlineName ?? flight.airline,
+    providerConfidence: 0.9,
+  }
+}
+
+/**
+ * Additive adapter → Sprint 94 BookableTrip flight segment shape.
+ * Prefer composing a Unified Trip then `toBookableTrip`; this maps a single Amadeus
+ * flight when booking a flight-only hold without a full Trip composition.
+ */
+export function toBookableFlightSegment(
+  flight: AmadeusNormalizedFlight,
+): {
+  id: string
+  airline: string | null
+  origin: string
+  destination: string
+  departureAt: string | null
+  arrivalAt: string | null
+  price: number
+  currency: string
+  providerId: string
+  confidence: number
+} {
+  return {
+    id: flight.id,
+    airline: flight.airlineName ?? flight.airline,
+    origin: flight.origin,
+    destination: flight.destination,
+    departureAt: flight.departureAt,
+    arrivalAt: flight.arrivalAt,
+    price: flight.price,
+    currency: flight.currency,
+    providerId: flight.providerId,
+    confidence: 0.9,
+  }
+}
+

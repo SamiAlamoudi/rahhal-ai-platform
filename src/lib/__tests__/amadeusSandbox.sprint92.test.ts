@@ -23,6 +23,10 @@ import {
   resetAmadeusProviderEventListeners,
   resolveAmadeusSandboxConfig,
   isProductionDeployTarget,
+  toUnifiedTripFlightOffer,
+  toBookableFlightSegment,
+  composeUnifiedTrip,
+  toBookableTrip,
   SPRINT92_AMADEUS_SANDBOX_VERSION,
   type AmadeusProviderEvent,
   type AmadeusOfferRaw,
@@ -474,6 +478,32 @@ describe('Sprint 92 — Amadeus Sandbox', () => {
       await oauth.refreshToken()
       expect(seen.some((e) => e.name === 'provider.token.refresh')).toBe(true)
       expect(JSON.stringify(seen)).not.toMatch(/secret/)
+    })
+  })
+
+  describe('Sprint 93 / 94 additive adapters', () => {
+    it('maps Amadeus flights into Unified Trip and BookableTrip shapes', () => {
+      const flight = normalizeAmadeusFlightOffer(sampleOffer, 0, { adults: 1, children: 0 })
+      const tripOffer = toUnifiedTripFlightOffer(flight)
+      expect(tripOffer.origin).toBe('RUH')
+      expect(tripOffer.providerId).toBe('amadeus')
+
+      const { trip } = composeUnifiedTrip({
+        destination: 'Dubai',
+        origin: 'Riyadh',
+        startDate: '2026-08-15',
+        endDate: '2026-08-20',
+        adults: 1,
+        currency: 'SAR',
+        flightOffers: [tripOffer],
+        usePlaceholders: true,
+      })
+      expect(trip.flights[0]?.providerId).toBe('amadeus')
+      expect(trip.valid).toBe(true)
+
+      const bookable = toBookableTrip(trip)
+      expect(bookable.flights?.[0]?.origin).toBe('RUH')
+      expect(toBookableFlightSegment(flight).providerId).toBe('amadeus')
     })
   })
 })

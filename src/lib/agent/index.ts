@@ -203,6 +203,41 @@ export {
 } from './itineraryRefinement'
 export type { RefinementResult } from './itineraryRefinement'
 export {
+  isUnifiedTripEnabled,
+  UNIFIED_TRIP_FEATURE_ID,
+  runUnifiedTrip,
+  enrichWithUnifiedTrip,
+  SPRINT93_UNIFIED_TRIP_VERSION,
+} from './unifiedTrip'
+export type {
+  AgentUnifiedTripRequest,
+  AgentUnifiedTripResponse,
+  AgentUnifiedTripMeta,
+} from './unifiedTrip'
+export {
+  isAlphaExperienceEnabled,
+  ALPHA_EXPERIENCE_FEATURE_ID,
+  runAlphaExperienceConversation,
+  enrichWithAlphaExperience,
+  SPRINT91_ALPHA_EXPERIENCE_VERSION,
+} from './alphaExperience'
+export type {
+  AgentAlphaExperienceRequest,
+  AgentAlphaExperienceResponse,
+  AgentAlphaExperienceMeta,
+} from './alphaExperience'
+export {
+  isBookingOrchestratorEnabled,
+  BOOKING_ORCHESTRATOR_FEATURE_ID,
+  runLiveBookingOrchestrator,
+  SPRINT94_BOOKING_ORCHESTRATOR_VERSION,
+} from './bookingOrchestrator'
+export type {
+  AgentBookingOrchestratorRequest,
+  AgentBookingOrchestratorResponse,
+  AgentBookingOrchestratorMeta,
+} from './bookingOrchestrator'
+export {
   isBookingExecutionEnabled,
   isTransactionManagerEnabled,
   isBookingResumeEnabled,

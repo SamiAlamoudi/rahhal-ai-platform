@@ -42,6 +42,8 @@ export {
   normalizeAmadeusFlightOffer,
   normalizeAmadeusAirport,
   toDecisionEngineFlightOffer,
+  toUnifiedTripFlightOffer,
+  toBookableFlightSegment,
   type AmadeusOfferRaw,
 } from './normalize'
 
