@@ -563,6 +563,22 @@ export type {
   TripStyleKind,
 } from './itinerary'
 
+/** Sprint 115 — Unified AI Execution Pipeline */
+export {
+  isExecutionPipelineEnabled,
+  EXECUTION_PIPELINE_FEATURE_ID,
+  runUnifiedExecutionPipeline,
+  createPipelineRunner,
+  SPRINT115_EXECUTION_PIPELINE_VERSION,
+} from './pipeline'
+export type {
+  PipelineInput,
+  PipelineResult,
+  PipelineMetrics,
+  PipelineStageId,
+  PipelineStageResult,
+} from './pipeline'
+
 /** Sprint 92 — Amadeus Sandbox TravelProvider */
 export {
   isAmadeusSandboxEnabled,

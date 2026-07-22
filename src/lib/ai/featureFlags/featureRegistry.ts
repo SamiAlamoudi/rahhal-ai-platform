@@ -411,6 +411,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: itinerary_engine. Additive under src/lib/agent/itinerary. Does not modify Trip Builder, Decision Engine, Orchestrator, or Concierge. When OFF, legacy paths are unchanged.',
   },
   {
+    id: 'ai.execution_pipeline',
+    name: 'Unified AI Execution Pipeline',
+    description:
+      'Sprint 115 — additive single-call pipeline coordinating Conversation → Memory → Search → Flights/Hotels → Decision → Trip Builder → Itinerary → Response Composer → Concierge. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: execution_pipeline. Additive under src/lib/agent/pipeline. Reuses public engine APIs only; does not rewrite engines. Distinct from ai.orchestrator (Sprint 113). When OFF, legacy behavior is unchanged.',
+  },
+  {
     id: 'ai.live_conversation',
     name: 'Live Conversation (Alpha alias)',
     description:
