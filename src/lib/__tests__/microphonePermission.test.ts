@@ -3,6 +3,7 @@ import {
   queryMicrophonePermission,
   requestMicrophoneAccess,
   subscribeMicrophonePermission,
+  takeRetainedMicrophoneStream,
 } from '../chat/voice/microphonePermission'
 
 describe('microphonePermission', () => {
@@ -19,6 +20,7 @@ describe('microphonePermission', () => {
 
   it('maps getUserMedia success and denial', async () => {
     const stop = vi.fn()
+    vi.stubGlobal('window', { isSecureContext: true })
     vi.stubGlobal('navigator', {
       mediaDevices: {
         getUserMedia: vi.fn().mockResolvedValue({
@@ -70,5 +72,35 @@ describe('microphonePermission', () => {
     expect(onChange).toHaveBeenCalledWith({ state: 'granted', error: null })
     unsub()
     expect(listeners.get('change')?.size ?? 0).toBe(0)
+  })
+
+  it('reports unsupported on insecure context', async () => {
+    vi.stubGlobal('window', { isSecureContext: false })
+    vi.stubGlobal('navigator', {
+      mediaDevices: { getUserMedia: vi.fn() },
+    })
+    const state = await queryMicrophonePermission()
+    expect(state.state).toBe('unsupported')
+    expect(state.error).toMatch(/HTTPS|آمن/)
+  })
+
+  it('retains stream when requested for VAD reuse', async () => {
+    const stop = vi.fn()
+    const track = { stop }
+    vi.stubGlobal('window', { isSecureContext: true })
+    vi.stubGlobal('navigator', {
+      mediaDevices: {
+        getUserMedia: vi.fn().mockResolvedValue({
+          getTracks: () => [track],
+          getAudioTracks: () => [track],
+        }),
+      },
+    })
+    const granted = await requestMicrophoneAccess({ retainStream: true })
+    expect(granted.state).toBe('granted')
+    expect(stop).not.toHaveBeenCalled()
+    const stream = takeRetainedMicrophoneStream()
+    expect(stream).toBeTruthy()
+    expect(takeRetainedMicrophoneStream()).toBeNull()
   })
 })

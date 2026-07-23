@@ -10,7 +10,12 @@ import type { ChatMessage } from '../chatTypes'
 import { isBenignChatError } from '../chatLogger'
 import { logPipeline, diagnosePipelineError } from '../pipelineDiagnostics'
 import { createSpeechToTextProvider, createTextToSpeechProvider } from './voiceProviderFactory'
-import { queryMicrophonePermission, requestMicrophoneAccess } from './microphonePermission'
+import {
+  discardRetainedMicrophoneStream,
+  queryMicrophonePermission,
+  requestMicrophoneAccess,
+  takeRetainedMicrophoneStream,
+} from './microphonePermission'
 import { createVoiceActivityMonitor, type VoiceActivityMonitor } from './voiceActivityMonitor'
 import type {
   MicrophonePermissionState,
@@ -203,10 +208,28 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   const startListening = async (continuous: boolean, opts?: { preserveUtterance?: boolean }) => {
     if (disposed) return
     if (!stt.isSupported()) {
-      throw new Error('التعرف على الكلام غير متاح')
+      discardRetainedMicrophoneStream()
+      const message = 'التعرف على الكلام غير متاح في هذا المتصفح — استخدم الكتابة أو جرّب Chrome / Edge'
+      setStatus('error')
+      callbacks.onError?.(message)
+      throw new Error(message)
     }
     const permission = await ensureMicPermission()
-    if (permission.state !== 'granted') return
+    if (permission.state !== 'granted') {
+      discardRetainedMicrophoneStream()
+      return
+    }
+    // Best-effort: retain one mic stream for VAD. Never block STT if MediaDevices
+    // is missing (unit tests / restricted embeds) after permission already succeeded.
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
+      const micGrant = await requestMicrophoneAccess({ retainStream: true })
+      if (micGrant.state === 'denied') {
+        callbacks.onPermission?.(micGrant)
+        setStatus('error')
+        if (micGrant.error) callbacks.onError?.(micGrant.error)
+        return
+      }
+    }
     if (opts?.preserveUtterance) {
       utterancePrefix = utteranceBuffer.trim()
     } else {
@@ -223,12 +246,20 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       event: 'listening_started',
       meta: { continuous, silenceTimeoutMs, mode, preserveUtterance: !!opts?.preserveUtterance },
     })
-    void activityMonitor.start()
-    await stt.start({
-      locale,
-      continuous,
-      interimResults: true,
-    })
+    const reused = takeRetainedMicrophoneStream()
+    void activityMonitor.start(reused)
+    try {
+      await stt.start({
+        locale,
+        continuous,
+        interimResults: true,
+      })
+    } catch (e) {
+      stopVad()
+      listening = false
+      discardRetainedMicrophoneStream()
+      throw e
+    }
   }
 
   const maybeResumeHandsFree = async () => {
@@ -595,6 +626,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       utteranceBuffer = ''
       utterancePrefix = ''
       stopVad()
+      discardRetainedMicrophoneStream()
       tts.stop()
       stt.abort()
       activeAbort?.abort()

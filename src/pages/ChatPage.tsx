@@ -3,12 +3,17 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
 import VoiceComposer from '../components/chat/VoiceComposer'
+import ChatShellSkeleton from '../components/chat/ChatShellSkeleton'
 import LiveNotificationsBanner from '../components/chat/experience/LiveNotificationsBanner'
 import VirtualizedMessageList from '../components/chat/experience/VirtualizedMessageList'
 import { travelAgentService } from '../lib/agent/travelAgentService'
 import { detectAgentLocale } from '../lib/agent/locale'
 import type { TripPlan } from '../lib/agent/types'
 import { chatEngine } from '../lib/chat/chatEngine'
+import {
+  canRemapOptimisticConversation,
+  createConversationOptimistic,
+} from '../lib/chat/optimisticCreate'
 import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
 import { validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
 import { isBenignChatError, logChatError } from '../lib/chat/chatLogger'
@@ -37,7 +42,11 @@ import {
   type ConversationLiveEvent,
   type ConversationTimelineEvent,
 } from '../lib/chat/conversationExperienceUi'
-import { createSpeechToTextProvider, createTextToSpeechProvider } from '../lib/chat/voice/voiceProviderFactory'
+import {
+  createSpeechToTextProvider,
+  createTextToSpeechProvider,
+  isWebSpeechRecognitionAvailable,
+} from '../lib/chat/voice/voiceProviderFactory'
 import { createVoiceSession, type CreateVoiceSessionOptions, type VoiceSession } from '../lib/chat/voice/voiceSession'
 import { subscribeMicrophonePermission } from '../lib/chat/voice/microphonePermission'
 import type { VoiceInputMode, VoiceLocale, VoiceSessionStatus } from '../lib/chat/voice/voiceTypes'
@@ -50,6 +59,7 @@ import {
   type ChatGptExperienceState,
 } from '../lib/chat/chatgptExperience'
 import { getFeatureRegistry } from '../lib/ai'
+import { markUx } from '../lib/perf/uxMetrics'
 
 const ProductionConversationScreen = lazy(() =>
   import('../ui/integration/ProductionConversationScreen').then((m) => ({
@@ -77,7 +87,7 @@ export default function ChatPage() {
       ?? (location.state as { tripText?: string } | null)?.tripText
       ?? null
     return (
-      <Suspense fallback={<div aria-busy="true">Loading conversation…</div>}>
+      <Suspense fallback={<ChatShellSkeleton label="جاري تحميل المحادثة…" />}>
         <ProductionConversationScreen
           conversationId={conversationId}
           initialPrompt={initialPrompt}
@@ -109,9 +119,9 @@ function LegacyChatPage() {
   const [voiceMode, setVoiceMode] = useState<VoiceInputMode>('hands_free')
   const [voiceLocale, setVoiceLocale] = useState<VoiceLocale>('ar')
   const [partialTranscript, setPartialTranscript] = useState('')
-  const [voiceLevel, setVoiceLevel] = useState(0)
   const [micError, setMicError] = useState<string | null>(null)
   const [permissionState, setPermissionState] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null)
+  const [speechSupported] = useState(() => isWebSpeechRecognitionAvailable())
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine)
   const [themePreference, setThemePreference] = useState<ChatThemeMode | 'system'>(() => readStoredChatTheme())
   const [theme, setTheme] = useState<ChatThemeMode>(() => resolveChatTheme(readStoredChatTheme()))
@@ -378,6 +388,52 @@ function LegacyChatPage() {
   }, [loadConversations])
 
   useEffect(() => {
+    if (!speechSupported) {
+      setMicError('التعرف على الكلام غير متاح في هذا المتصفح — استخدم Chrome أو Edge، أو تابع بالكتابة')
+      setPermissionState((prev) => prev ?? 'unsupported')
+    }
+  }, [speechSupported])
+
+  const patchConversationPreview = useCallback((conversationId: string, preview: string, title?: string) => {
+    const at = new Date().toISOString()
+    setConversations((prev) => {
+      const next = prev.map((c) => {
+        if (c.id !== conversationId) return c
+        return {
+          ...c,
+          lastMessagePreview: preview.slice(0, 120),
+          title: title?.trim() || c.title,
+          updatedAt: at,
+        }
+      })
+      return [...next].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    })
+  }, [])
+
+  const settleOptimisticCreate = useCallback(
+    async (
+      optimistic: ChatConversation,
+      settle: Promise<ChatConversation>,
+    ) => {
+      try {
+        const remote = await settle
+        if (remote.id === optimistic.id) return remote
+        if (activeIdRef.current !== optimistic.id) return remote
+        if (!canRemapOptimisticConversation(optimistic.id)) return optimistic
+        setConversations((prev) => {
+          const without = prev.filter((c) => c.id !== optimistic.id && c.id !== remote.id)
+          return [remote, ...without]
+        })
+        selectConversation(remote.id)
+        return remote
+      } catch {
+        return optimistic
+      }
+    },
+    [selectConversation],
+  )
+
+  useEffect(() => {
     let unsubscribe = () => {}
     void subscribeMicrophonePermission((state) => {
       setPermissionState(state.state)
@@ -393,11 +449,11 @@ function LegacyChatPage() {
       onStatus: setVoiceStatus,
       onPartialTranscript: setPartialTranscript,
       onFinalTranscript: setPartialTranscript,
-      onLevel: setVoiceLevel,
+      // Level is polled via getLevel in VoiceComposer — avoid ChatPage re-renders.
       onPermission: (state) => {
         setPermissionState(state.state)
         if (state.state !== 'granted') setMicError(state.error || 'يلزم إذن الميكروفون')
-        else setMicError(null)
+        else if (speechSupported) setMicError(null)
       },
       onError: (error) => {
         if (!isBenignChatError(error)) setActionError(error)
@@ -406,7 +462,9 @@ function LegacyChatPage() {
       onDelta: upsertMessage,
       onComplete: (message) => {
         upsertMessage(message)
-        void loadConversations(activeIdRef.current)
+        if (activeIdRef.current) {
+          patchConversationPreview(activeIdRef.current, message.content)
+        }
       },
       onStreamError: (message, error) => {
         upsertMessage(message)
@@ -418,7 +476,7 @@ function LegacyChatPage() {
       session.dispose()
       voiceRef.current = null
     }
-  }, [loadConversations, upsertMessage])
+  }, [upsertMessage, patchConversationPreview, speechSupported])
 
   useEffect(() => {
     voiceRef.current?.setLocale(voiceLocale)
@@ -437,14 +495,18 @@ function LegacyChatPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [mobileSidebarOpen])
 
-  const handleCreate = async () => {
+  const handleCreate = () => {
     setActionError(null)
+    const started = typeof performance !== 'undefined' ? performance.now() : Date.now()
     try {
-      const created = await chatEngine.createConversation()
-      setConversations((prev) => [created, ...prev])
-      selectConversation(created.id)
+      const { conversation, settle, readyAt } = createConversationOptimistic()
+      setConversations((prev) => [conversation, ...prev.filter((c) => c.id !== conversation.id)])
+      selectConversation(conversation.id)
       setMessages([])
       setMobileSidebarOpen(false)
+      markUx('conversation_create_ui', started)
+      void readyAt
+      void settleOptimisticCreate(conversation, settle)
     } catch (e) {
       logChatError('chat.create', e)
       setActionError(userFacingErrorMessage(e, 'تعذر إنشاء المحادثة'))
@@ -518,7 +580,7 @@ function LegacyChatPage() {
         onDelta: upsertMessage,
         onComplete: (message) => {
           upsertMessage(message)
-          void loadConversations(activeId)
+          if (activeId) patchConversationPreview(activeId, message.content)
         },
         onError: (message, error) => {
           upsertMessage(message)
@@ -547,6 +609,7 @@ function LegacyChatPage() {
     const content = draft
     setDraft('')
     const tempId = `temp-${Date.now()}`
+    const optimisticStart = typeof performance !== 'undefined' ? performance.now() : Date.now()
     setMessages((prev) => [
       ...prev,
       {
@@ -565,17 +628,31 @@ function LegacyChatPage() {
         updatedAt: new Date().toISOString(),
       },
     ])
+    markUx('first_message_optimistic', optimisticStart)
+    patchConversationPreview(activeId, content.trim())
 
     await runGeneration(async (handlers) => {
+      let firstDeltaMarked = false
+      const wrapped = {
+        ...handlers,
+        onDelta: (message: ChatMessage) => {
+          if (!firstDeltaMarked && message.content) {
+            firstDeltaMarked = true
+            markUx('assistant_first_delta')
+          }
+          handlers.onDelta?.(message)
+        },
+      }
       const result = await chatEngine.sendMessage({
         conversationId: activeId,
         content,
         modality: 'text',
-      }, handlers)
+      }, wrapped)
       setMessages((prev) => {
         const withoutTemp = prev.filter((m) => m.id !== tempId && m.id !== result.assistant.id)
         return [...withoutTemp, result.user, result.assistant]
       })
+      patchConversationPreview(activeId, result.assistant.content || content.trim())
     })
   }
 
@@ -766,14 +843,15 @@ function LegacyChatPage() {
 
     void (async () => {
       try {
-        const created = await chatEngine.createConversation()
-        setConversations((prev) => [created, ...prev])
-        selectConversation(created.id)
-        navigate({ pathname: '/chat', search: buildChatSearch(created.id, '') }, { replace: true, state: {} })
+        const { conversation, settle } = createConversationOptimistic()
+        setConversations((prev) => [conversation, ...prev.filter((c) => c.id !== conversation.id)])
+        selectConversation(conversation.id)
+        navigate({ pathname: '/chat', search: buildChatSearch(conversation.id, '') }, { replace: true, state: {} })
         setDraft('')
+        const settled = await settleOptimisticCreate(conversation, settle)
         await runGeneration(async (handlers) => {
           const result = await chatEngine.sendMessage({
-            conversationId: created.id,
+            conversationId: settled.id,
             content: seed,
             modality: 'text',
           }, handlers)
@@ -781,6 +859,7 @@ function LegacyChatPage() {
             const withoutAssistant = prev.filter((m) => m.id !== result.assistant.id)
             return [...withoutAssistant, result.user, result.assistant]
           })
+          patchConversationPreview(settled.id, result.assistant.content || seed)
         })
       } catch (e) {
         logChatError('chat.seed', e)
@@ -836,9 +915,21 @@ function LegacyChatPage() {
     })
   }
 
+  const ensureActiveConversation = useCallback((): string | null => {
+    if (activeIdRef.current) return activeIdRef.current
+    const { conversation, settle } = createConversationOptimistic()
+    setConversations((prev) => [conversation, ...prev.filter((c) => c.id !== conversation.id)])
+    selectConversation(conversation.id)
+    setMessages([])
+    void settleOptimisticCreate(conversation, settle)
+    return conversation.id
+  }, [selectConversation, settleOptimisticCreate])
+
   const handlePushStart = async () => {
-    if (!activeId || !online) return
+    if (!online || !speechSupported) return
     setActionError(null)
+    const conversationId = ensureActiveConversation()
+    if (!conversationId) return
     try {
       await voiceRef.current?.startPushToTalk()
     } catch (e) {
@@ -848,11 +939,12 @@ function LegacyChatPage() {
   }
 
   const handlePushEnd = async () => {
-    if (!activeId) return
+    const conversationId = activeIdRef.current
+    if (!conversationId) return
     setSending(true)
     try {
-      await voiceRef.current?.stopPushToTalkAndSend(activeId)
-      void loadConversations(activeId)
+      const assistant = await voiceRef.current?.stopPushToTalkAndSend(conversationId)
+      if (assistant) patchConversationPreview(conversationId, assistant.content)
     } catch (e) {
       if (!isBenignChatError(e)) {
         logChatError('voice.ptt.send', e)
@@ -864,21 +956,25 @@ function LegacyChatPage() {
   }
 
   const handleToggleHandsFree = async () => {
-    if (!activeId || !voiceRef.current) return
+    if (!voiceRef.current || !speechSupported) return
     setActionError(null)
     if (voiceStatus === 'listening' && voiceMode === 'hands_free') {
       await voiceRef.current.stopListening()
       return
     }
+    const conversationId = ensureActiveConversation()
+    if (!conversationId) return
     try {
       voiceRef.current.setMode('hands_free')
       setVoiceMode('hands_free')
-      await voiceRef.current.startHandsFree(activeId)
+      await voiceRef.current.startHandsFree(conversationId)
     } catch (e) {
       logChatError('voice.handsfree', e)
       setActionError(e instanceof Error ? e.message : 'تعذر تشغيل حر اليدين')
     }
   }
+
+  const getVoiceLevel = useCallback(() => voiceRef.current?.getLevel() ?? 0, [])
 
   return (
     <div className={`flex h-[100dvh] flex-col bg-gradient-to-b from-slate-50/50 via-white to-white ${chatThemeClassName(theme)}`}>
@@ -948,8 +1044,8 @@ function LegacyChatPage() {
             </div>
             <button
               type="button"
-              onClick={() => void handleCreate()}
-              className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-700"
+              onClick={handleCreate}
+              className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-bold text-white transition-all duration-150 hover:bg-primary-700 active:scale-[0.98]"
             >
               محادثة جديدة
             </button>
@@ -966,7 +1062,7 @@ function LegacyChatPage() {
             pinnedIds={chatgptOn ? pinnedIds : []}
             onQueryChange={setQuery}
             onSelect={(id) => selectConversation(id)}
-            onCreate={() => void handleCreate()}
+            onCreate={handleCreate}
             onRename={(id) => void handleRename(id)}
             onDelete={(id) => void handleDelete(id)}
             onTogglePin={chatgptOn ? handleTogglePin : undefined}
@@ -1024,13 +1120,15 @@ function LegacyChatPage() {
               <p className="text-sm text-slate-500">ابدأ محادثة ثم بدّل بين الكتابة والصوت في أي وقت</p>
               <button
                 type="button"
-                onClick={() => void handleCreate()}
-                className="mt-4 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-700"
+                onClick={handleCreate}
+                className="mt-4 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-bold text-white transition-all duration-150 hover:bg-primary-700 active:scale-[0.98]"
               >
                 إنشاء محادثة
               </button>
             </div>
           )}
+
+          {listLoading && !activeId && <ChatShellSkeleton />}
 
           {activeId && (
             <>
@@ -1042,8 +1140,16 @@ function LegacyChatPage() {
                   stickToBottomRef.current = distance < 96
                 }}
               >
-                {detailLoading && (
-                  <p className="py-10 text-center text-sm text-slate-400">جاري تحميل الرسائل...</p>
+                {detailLoading && messages.length === 0 && (
+                  <div className="mx-auto w-full max-w-2xl space-y-4 py-6" aria-busy="true">
+                    <div className="h-14 w-[70%] animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+                    <div className="ml-auto h-10 w-[50%] animate-pulse rounded-2xl bg-primary-100/70 dark:bg-primary-950" />
+                    <div className="h-16 w-[75%] animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+                    <p className="sr-only">جاري تحميل الرسائل...</p>
+                  </div>
+                )}
+                {detailLoading && messages.length > 0 && (
+                  <p className="py-2 text-center text-[11px] text-slate-400">تحديث الرسائل…</p>
                 )}
                 {detailError && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -1121,16 +1227,17 @@ function LegacyChatPage() {
               <div className="border-t border-slate-100 bg-white/90 px-4 py-3 backdrop-blur-md sm:px-6">
                 {composerMode === 'voice' ? (
                   <VoiceComposer
-                    enabled={!!activeId && !isStreaming}
+                    enabled={!isStreaming && online}
                     status={voiceStatus}
                     mode={voiceMode}
                     locale={voiceLocale}
                     partialTranscript={partialTranscript}
                     permissionError={micError}
                     permissionState={permissionState}
+                    speechSupported={speechSupported}
                     busy={isStreaming || voiceBusy}
                     online={online}
-                    level={voiceLevel}
+                    getLevel={getVoiceLevel}
                     onModeChange={setVoiceMode}
                     onLocaleChange={setVoiceLocale}
                     onPushStart={() => void handlePushStart()}
@@ -1158,7 +1265,7 @@ function LegacyChatPage() {
                           onClick={() => void handleAttachImage()}
                           disabled={!activeId || isStreaming || voiceBusy}
                           title="مرفقات الصور (بنية جاهزة — التخزين لاحقاً)"
-                          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-40"
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 transition-all duration-150 hover:bg-slate-50 active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100"
                         >
                           صورة
                         </button>
@@ -1167,7 +1274,7 @@ function LegacyChatPage() {
                             type="button"
                             onClick={stopGeneration}
                             aria-label="إيقاف التوليد"
-                            className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-100"
+                            className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-bold text-rose-700 transition-all duration-150 hover:bg-rose-100 active:scale-[0.98]"
                           >
                             إيقاف
                           </button>
@@ -1176,7 +1283,7 @@ function LegacyChatPage() {
                           <button
                             type="button"
                             onClick={() => void handleContinueGenerating()}
-                            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-all duration-150 hover:bg-slate-50 active:scale-[0.98]"
                           >
                             متابعة
                           </button>
@@ -1184,7 +1291,7 @@ function LegacyChatPage() {
                         <button
                           type="submit"
                           disabled={!activeId || isStreaming || voiceBusy || !draft.trim() || !online}
-                          className="rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700 disabled:bg-slate-300"
+                          className="rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-all duration-150 hover:bg-primary-700 active:scale-[0.98] disabled:bg-slate-300 disabled:active:scale-100"
                         >
                           {sending ? 'جاري الإرسال...' : 'إرسال'}
                         </button>

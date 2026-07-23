@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
+import RouteSkeleton from '../../components/ux/RouteSkeleton'
 import { useAuth } from './AuthContext'
 
 interface ProtectedRouteProps {
@@ -7,14 +8,7 @@ interface ProtectedRouteProps {
 }
 
 function LoadingScreen({ showLabel = true }: { showLabel?: boolean }) {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <div className="flex flex-col items-center gap-3">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
-        {showLabel && <p className="text-sm text-slate-500">جاري التحميل...</p>}
-      </div>
-    </div>
-  )
+  return <RouteSkeleton label={showLabel ? 'جاري التحميل…' : undefined} />
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {

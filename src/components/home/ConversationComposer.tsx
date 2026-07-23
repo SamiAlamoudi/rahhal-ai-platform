@@ -119,7 +119,7 @@ export function ConversationComposer({
             aria-label={micLabel}
             aria-pressed={listening}
             title={micLabel}
-            className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors disabled:opacity-40 ${
+            className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-150 active:scale-[0.96] disabled:opacity-40 disabled:active:scale-100 ${
               listening
                 ? 'voice-mic-pulse border-rose-300 bg-rose-50 text-rose-600'
                 : 'border-slate-200 text-slate-500 hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700'

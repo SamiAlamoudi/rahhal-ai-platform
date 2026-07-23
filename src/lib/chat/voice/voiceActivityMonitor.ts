@@ -15,7 +15,8 @@ export type VoiceActivityMonitorOptions = {
 }
 
 export type VoiceActivityMonitor = {
-  start: () => Promise<void>
+  /** Pass an existing mic stream to avoid a second getUserMedia prompt. */
+  start: (existingStream?: MediaStream | null) => Promise<void>
   stop: () => void
   isSpeaking: () => boolean
   getLevel: () => number
@@ -64,24 +65,36 @@ export function createVoiceActivityMonitor(
     isSpeaking: () => speaking,
     getLevel: () => level,
     stop,
-    async start() {
+    async start(existingStream?: MediaStream | null) {
       stop()
-      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      if (typeof navigator === 'undefined') {
         options.log?.({
           stage: 'microphone',
           event: 'vad_unsupported',
-          message: 'getUserMedia unavailable',
+          message: 'no navigator',
         })
         return
       }
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        })
+        if (existingStream && existingStream.getAudioTracks().length > 0) {
+          stream = existingStream
+          options.log?.({ stage: 'microphone', event: 'vad_reused_stream' })
+        } else if (navigator.mediaDevices?.getUserMedia) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          })
+        } else {
+          options.log?.({
+            stage: 'microphone',
+            event: 'vad_unsupported',
+            message: 'getUserMedia unavailable',
+          })
+          return
+        }
         const Ctx =
           window.AudioContext
           || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
@@ -91,6 +104,10 @@ export function createVoiceActivityMonitor(
           return
         }
         audioContext = new Ctx()
+        // Some browsers start AudioContext suspended until a user gesture resumes it.
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume().catch(() => undefined)
+        }
         const source = audioContext.createMediaStreamSource(stream)
         analyser = audioContext.createAnalyser()
         analyser.fftSize = 512

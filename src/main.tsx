@@ -3,13 +3,17 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import './index.css'
 import { AppErrorBoundary } from './components/ops/AppErrorBoundary'
+import RouteSkeleton from './components/ux/RouteSkeleton'
 import { runStartup } from './lib/ops'
 import { AuthProvider } from './lib/auth/AuthContext.tsx'
 import { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './lib/auth/ProtectedRoute.tsx'
+import { markUx } from './lib/perf/uxMetrics'
 import type { NormalizedTravelOption } from './utils/searchOrchestrator'
 import type { ReasoningResult } from './utils/reasoningEngine'
 import type { TravelSearchRequest } from './utils/travelSearchRequest'
 import { resolveBookingEntryPath } from './lib/alphaIntegration'
+
+const startupMark = typeof performance !== 'undefined' ? performance.now() : Date.now()
 
 const Home = lazy(() => import('./pages/Home.tsx'))
 const TravelConversation = lazy(() => import('./pages/TravelConversation.tsx'))
@@ -47,16 +51,7 @@ const CheckoutSuccessPage = lazy(() => import('./pages/CheckoutSuccessPage.tsx')
 const CheckoutFailurePage = lazy(() => import('./pages/CheckoutFailurePage.tsx'))
 
 function RouteFallback() {
-  return (
-    <div
-      dir="rtl"
-      className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500"
-      role="status"
-      aria-live="polite"
-    >
-      جاري التحميل...
-    </div>
-  )
+  return <RouteSkeleton />
 }
 
 function ResultsRoute() {
@@ -90,6 +85,8 @@ runStartup({
   failFast: false,
   installHandlers: true,
 })
+
+markUx('app_startup', startupMark)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

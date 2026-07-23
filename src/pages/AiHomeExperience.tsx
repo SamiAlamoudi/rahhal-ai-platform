@@ -13,6 +13,7 @@ import {
 import { loadUserBookingRecords } from '../lib/booking'
 import { listManagedOrdersForUser } from '../lib/orderManagement'
 import { useAuth } from '../lib/auth'
+import { markUx } from '../lib/perf/uxMetrics'
 import {
   AiHomeHero,
   ContinueBookingPanel,
@@ -83,8 +84,12 @@ export default function AiHomeExperience() {
     let cancelled = false
     ;(async () => {
       setLoading(true)
+      const started = typeof performance !== 'undefined' ? performance.now() : Date.now()
       await refresh()
-      if (!cancelled) setLoading(false)
+      if (!cancelled) {
+        setLoading(false)
+        markUx('dashboard_render', started)
+      }
     })()
     return () => {
       cancelled = true
