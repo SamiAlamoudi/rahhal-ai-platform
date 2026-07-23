@@ -16,7 +16,7 @@ The app needs a Supabase backend for auth; all app routes are behind `ProtectedR
 VITE_SUPABASE_URL=<supabase url>
 VITE_SUPABASE_ANON_KEY=<anon key>
 ```
-`src/lib/supabaseClient.ts` calls `createClient` at import time, so without these two vars the app throws on load.
+`src/lib/supabase.ts` (compat re-export: `src/lib/supabaseClient.ts`) calls `createClient` at import time, so without these two vars the app throws on load.
 
 Two backend options:
 - Hosted Supabase (matches the app's design): set the two vars above to a hosted project. The committed CSP already allows `https://*.supabase.co`, so **no code changes are needed**.

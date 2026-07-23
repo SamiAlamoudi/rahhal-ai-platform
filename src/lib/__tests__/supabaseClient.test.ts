@@ -1,12 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
-import { supabase } from '../supabaseClient'
+import { supabase } from '../supabase'
+import { supabase as supabaseCompat } from '../supabaseClient'
 
 describe('Supabase Client: initialization', () => {
   it('creates a valid Supabase client instance', () => {
     expect(supabase).toBeDefined()
     expect(supabase.auth).toBeDefined()
     expect(supabase.from).toBeDefined()
+  })
+
+  it('re-exports the same client from supabaseClient', () => {
+    expect(supabaseCompat).toBe(supabase)
   })
 
   it('is configured with persistent sessions', () => {

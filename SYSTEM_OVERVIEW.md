@@ -17,7 +17,7 @@ Rahhal (رحّال) is an Arabic RTL travel decision SPA. Conversation and scori
 ## Data & auth
 
 - **Supabase Auth** + Postgres + RLS (`supabase/migrations`)
-- Client: `lib/supabaseClient` (infrastructure)
+- Client: `lib/supabase` (infrastructure)
 - Repositories: `lib/repositories/*` (infrastructure)
 - Secrets: Edge Functions / server env only (Amadeus, Maps, Weather, Moyasar)
 

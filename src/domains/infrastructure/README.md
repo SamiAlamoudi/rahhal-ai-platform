@@ -9,7 +9,7 @@ External integrations, operational tooling, repositories, and the Supabase clien
 - `src/integrations`
 - `src/lib/ops`
 - `src/lib/repositories`
-- `supabase` from `src/lib/supabaseClient`
+- `supabase` from `src/lib/supabase`
 
 ## Dependencies
 
