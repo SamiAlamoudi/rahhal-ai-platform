@@ -1,3 +1,11 @@
+/**
+ * Conversation intake memory helpers used by `travelAgentService.planTurn`.
+ *
+ * Recovery Phase 1 — ONE memory pipeline for product turns:
+ * `rebuildMemoryFromMessages` in this file (+ preference seeding via `ai.persistent_memory`).
+ *
+ * Sprint 112 Memory Engine under `./memory/` is quarantined (flag OFF). See `./memory/DEPRECATION.md`.
+ */
 import type { ChatMessage } from '../chat/chatTypes'
 import type { AgentMemory, AgentProviderMeta, TripPlan, TripRequirements } from './types'
 import { emptyMemory, emptyRequirements, INTAKE_FIELD_ORDER, withTripPlan } from './types'

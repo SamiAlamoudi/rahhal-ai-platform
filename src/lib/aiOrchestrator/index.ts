@@ -1,5 +1,8 @@
 /**
  * Sprint 43 — Rahhal AI Orchestrator public surface.
+ *
+ * @deprecated Recovery Phase 1 — quarantined. Sole turn owner is `travelAgentService.planTurn`.
+ * See `./DEPRECATION.md`.
  */
 
 export type {

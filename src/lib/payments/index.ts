@@ -1,6 +1,10 @@
 /**
  * Sprint 34 — Payments & Checkout Platform.
  *
+ * @deprecated Recovery Phase 1 — quarantined experimental stack.
+ * Active payment implementation: `src/lib/payment`.
+ * See `./DEPRECATION.md`.
+ *
  * Sits after TravelExecutionEngine and before final booking confirmation.
  * Distinct from src/lib/payment/ (hosted Moyasar/checkout stack).
  */
