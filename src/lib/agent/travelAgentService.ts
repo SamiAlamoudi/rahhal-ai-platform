@@ -2331,7 +2331,9 @@ export function createTravelAgentService(
                 planningDraft: {
                   destination: planningDraft.destination,
                   rankedCities: planningDraft.rankedCities,
+                  durationDays: planningDraft.durationDays,
                   recommendedDurationDays: planningDraft.recommendedDurationDays,
+                  travelerCount: planningDraft.travelerCount,
                   budgetAmount: planningDraft.budgetAmount,
                   budgetCurrency: planningDraft.budgetCurrency,
                   confidence: planningDraft.confidence,

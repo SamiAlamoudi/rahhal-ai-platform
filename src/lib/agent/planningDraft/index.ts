@@ -4,12 +4,15 @@ export type {
   PlanningDraftCityOption,
   PlanningConfidence,
   CityBudgetFit,
+  PlanningEstimate,
 } from './types'
 
 export {
   buildPlanningDraft,
   canBuildPlanningDraft,
   planningDraftToInsightLines,
+  resolveTravelerCount,
+  resolveDurationDays,
   type BuildPlanningDraftInput,
 } from './buildPlanningDraft'
 

@@ -269,19 +269,20 @@ export interface AgentProviderMeta {
   planningDraft?: {
     destination: string
     rankedCities: string[]
-    recommendedDurationDays: number
+    durationDays: number | null
+    recommendedDurationDays: number | null
+    travelerCount: number | null
     budgetAmount: number | null
     budgetCurrency: string
     confidence: string
     confidenceScore: number
     breakdown: {
-      flights: number
-      hotels: number
-      food: number
-      transportation: number
-      activities: number
-      currency: string
-      estimatedTotal: number
+      flights: { low: number; mid: number; high: number; currency: string; confidence: string; reason: string }
+      hotels: { low: number; mid: number; high: number; currency: string; confidence: string; reason: string }
+      food: { low: number; mid: number; high: number; currency: string; confidence: string; reason: string }
+      transportation: { low: number; mid: number; high: number; currency: string; confidence: string; reason: string }
+      activities: { low: number; mid: number; high: number; currency: string; confidence: string; reason: string }
+      estimatedTotal: { low: number; mid: number; high: number; currency: string; confidence: string; reason: string }
     }
     missingAssumptions: string[]
     rankingNote: string

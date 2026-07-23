@@ -1,10 +1,11 @@
 /**
  * Deterministic Planning Draft builder.
  * Rule-based estimates only — no providers, no LLM, no bookings.
+ *
+ * Never invents travelerCount. Unknown scalars stay null and widen ranges.
  */
 
 import type { AgentLocale, TripRequirements } from '../types'
-import { allocateBudget } from '../budgetIntelligence/allocate'
 import {
   CITY_ONLY_PRIORS,
   COUNTRY_CITY_PRIORS,
@@ -18,6 +19,7 @@ import type {
   PlanningDraft,
   PlanningDraftBreakdown,
   PlanningDraftCityOption,
+  PlanningEstimate,
 } from './types'
 
 export interface BuildPlanningDraftInput {
@@ -33,8 +35,35 @@ export function canBuildPlanningDraft(requirements: TripRequirements): boolean {
   const hasTiming = requirements.durationDays != null
     || Boolean(requirements.startDate)
     || Boolean(requirements.endDate)
-  // Destination + (budget or timing) is enough to start estimating.
   return hasBudget || hasTiming
+}
+
+/**
+ * Explicit traveler count only.
+ * - travelers number → use it
+ * - travelerType solo → 1, couple → 2 (type was extracted)
+ * - family/friends/business/null without count → null
+ */
+export function resolveTravelerCount(req: TripRequirements): number | null {
+  if (req.travelers != null && req.travelers > 0) return req.travelers
+  if (req.travelerType === 'solo') return 1
+  if (req.travelerType === 'couple') return 2
+  return null
+}
+
+/** Explicit duration only — never invent 5/7 from a month hint. */
+export function resolveDurationDays(req: TripRequirements): number | null {
+  if (req.durationDays != null && req.durationDays > 0) {
+    return Math.min(21, req.durationDays)
+  }
+  if (req.startDate && req.endDate) {
+    const start = Date.parse(req.startDate)
+    const end = Date.parse(req.endDate)
+    if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
+      return Math.min(21, Math.max(1, Math.round((end - start) / 86_400_000) + 1))
+    }
+  }
+  return null
 }
 
 export function buildPlanningDraft(input: BuildPlanningDraftInput): PlanningDraft | null {
@@ -43,31 +72,37 @@ export function buildPlanningDraft(input: BuildPlanningDraftInput): PlanningDraf
   if (!canBuildPlanningDraft(req)) return null
 
   const destination = req.destination || req.destinations[0] || ''
-  const currency = (req.budgetCurrency || 'SAR').toUpperCase() === 'ر.س' ? 'SAR' : (req.budgetCurrency || 'SAR')
+  const currency = normalizeCurrency(req.budgetCurrency)
   const durationDays = resolveDurationDays(req)
-  const travelers = Math.max(1, req.travelers ?? (req.travelerType === 'solo' ? 1 : 2))
+  const travelerCount = resolveTravelerCount(req)
   const monthHint = monthFromIso(req.startDate)
   const priors = resolveCityPriors(destination)
-  const budgetAmount = req.budgetAmount
+  const budgetAmount = req.budgetAmount ?? null
   const budgetFlexible = req.budgetFlexible === true
   const budgetSar = budgetAmount != null ? toSar(budgetAmount, currency) : null
+  const originKnown = Boolean(req.origin)
 
-  const nights = Math.max(1, durationDays - 1)
+  // Planning span used only for math — never reported as a known fact when null.
+  const planningDays = durationDays ?? 7
+  const nights = Math.max(1, planningDays - 1)
+  const recommendedDurationDays = durationDays == null ? 7 : null
+
   const cityOptions = priors.map((prior) =>
     estimateCityOption({
       prior,
       locale,
       nights,
-      durationDays,
-      travelers,
+      planningDays,
+      durationKnown: durationDays != null,
+      travelerCount,
       monthHint,
       budgetSar,
       currency,
       budgetFlexible,
+      originKnown,
     }),
   )
 
-  // Rank: comfortable > balanced > tight > stretch; then lower estimated total.
   const fitRank: Record<CityBudgetFit, number> = {
     comfortable: 0,
     balanced: 1,
@@ -77,32 +112,43 @@ export function buildPlanningDraft(input: BuildPlanningDraftInput): PlanningDraf
   const ranked = [...cityOptions].sort((a, b) => {
     const fitDelta = fitRank[a.fit] - fitRank[b.fit]
     if (fitDelta !== 0) return fitDelta
-    return a.estimatedTotal - b.estimatedTotal
+    return a.estimatedTotal.mid - b.estimatedTotal.mid
   })
 
-  const primary = ranked[0]!
-  const breakdown = buildPrimaryBreakdown({
-    prior: priors.find((p) => p.nameEn === primary.name) ?? priors[0]!,
+  const primaryPrior = priors.find((p) =>
+    p.nameEn === ranked[0]?.name || p.nameAr === ranked[0]?.name,
+  ) ?? priors[0]!
+
+  const breakdown = buildBreakdown({
+    prior: primaryPrior,
     nights,
-    durationDays,
-    travelers,
+    planningDays,
+    durationKnown: durationDays != null,
+    travelerCount,
     monthHint,
     budgetSar,
     currency,
-    budgetFlexible,
-    style: req.budgetStyle,
+    originKnown,
+    locale,
   })
 
-  const missingAssumptions = collectMissingAssumptions(req, durationDays, travelers)
+  const missingAssumptions = collectMissingAssumptions({
+    req,
+    durationDays,
+    recommendedDurationDays,
+    travelerCount,
+  })
+
   const confidence = scoreConfidence({
     req,
     durationDays,
+    travelerCount,
     budgetAmount,
     cityCount: ranked.length,
     missingCount: missingAssumptions.length,
   })
 
-  const tradeoffs = buildTradeoffs(ranked, locale, currency)
+  const tradeoffs = buildTradeoffs(ranked, locale)
   const rankingNote = buildRankingNote({
     ranked,
     destination,
@@ -112,18 +158,24 @@ export function buildPlanningDraft(input: BuildPlanningDraftInput): PlanningDraf
     monthHint,
   })
 
-  const dailySpendEstimate = Math.round(
-    (breakdown.food + breakdown.transportation + breakdown.activities) / Math.max(1, durationDays),
-  )
+  const dailySpendEstimate = buildDailySpendEstimate({
+    breakdown,
+    planningDays,
+    durationKnown: durationDays != null,
+    travelerCount,
+    currency,
+    locale,
+  })
 
   return {
     kind: 'planning_draft',
     destination,
     cities: ranked,
     rankedCities: ranked.map((c) => c.name),
-    recommendedDurationDays: durationDays,
-    assumedTravelers: travelers,
-    budgetAmount: budgetAmount ?? null,
+    durationDays,
+    recommendedDurationDays,
+    travelerCount,
+    budgetAmount,
     budgetCurrency: currency,
     budgetFlexible,
     breakdown,
@@ -149,32 +201,43 @@ export function planningDraftToInsightLines(draft: PlanningDraft, locale: AgentL
   const b = draft.breakdown
   lines.push(
     ar
-      ? `تقدير أولي (~${draft.confidence}): طيران ≈${b.flights} · فنادق ≈${b.hotels} · طعام ≈${b.food} · تنقل ≈${b.transportation} · أنشطة ≈${b.activities} ${b.currency}`
-      : `Rough split (~${draft.confidence} confidence): flights ≈${b.flights} · hotels ≈${b.hotels} · food ≈${b.food} · transport ≈${b.transportation} · activities ≈${b.activities} ${b.currency}`,
+      ? `تقدير أولي (ثقة ${draft.confidence}): طيران ${fmtRange(b.flights)} · فنادق ${fmtRange(b.hotels)} · طعام ${fmtRange(b.food)} · تنقل ${fmtRange(b.transportation)} · أنشطة ${fmtRange(b.activities)}`
+      : `First-pass ranges (${draft.confidence} confidence): flights ${fmtRange(b.flights)} · hotels ${fmtRange(b.hotels)} · food ${fmtRange(b.food)} · transport ${fmtRange(b.transportation)} · activities ${fmtRange(b.activities)}`,
+  )
+  lines.push(
+    ar
+      ? `طيران: ${fmtRange(b.flights)} — ${b.flights.reason}`
+      : `Flights: ${fmtRange(b.flights)} — ${b.flights.reason}`,
+  )
+  lines.push(
+    ar
+      ? `فنادق: ${fmtRange(b.hotels)} — ${b.hotels.reason}`
+      : `Hotels: ${fmtRange(b.hotels)} — ${b.hotels.reason}`,
   )
   for (const t of draft.tradeoffs.slice(0, 2)) lines.push(t)
+  if (draft.travelerCount == null) {
+    lines.push(ar ? 'عدد المسافرين غير محدد — التقديرات كمديات.' : 'Party size unknown — estimates shown as ranges.')
+  }
   if (draft.missingAssumptions[0]) {
     lines.push(
       ar
-        ? `افتراض ناقص: ${draft.missingAssumptions[0]}`
-        : `Open assumption: ${draft.missingAssumptions[0]}`,
+        ? `معلومة ناقصة: ${draft.missingAssumptions[0]}`
+        : `Missing: ${draft.missingAssumptions[0]}`,
     )
   }
   return lines
 }
 
-function resolveDurationDays(req: TripRequirements): number {
-  if (req.durationDays != null && req.durationDays > 0) return Math.min(21, req.durationDays)
-  if (req.startDate && req.endDate) {
-    const start = Date.parse(req.startDate)
-    const end = Date.parse(req.endDate)
-    if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
-      return Math.min(21, Math.max(1, Math.round((end - start) / 86_400_000) + 1))
-    }
-  }
-  // Month-only / vague timing → consultant default week.
-  if (req.startDate) return 7
-  return 5
+function fmtRange(est: PlanningEstimate): string {
+  if (est.low === est.high) return `≈${est.mid} ${est.currency}`
+  return `${est.low}–${est.high} ${est.currency}`
+}
+
+function normalizeCurrency(raw: string | null | undefined): string {
+  if (!raw) return 'SAR'
+  const c = raw.toUpperCase()
+  if (c === 'ر.س' || c === 'ريال') return 'SAR'
+  return c
 }
 
 function monthFromIso(iso: string | null | undefined): number | null {
@@ -191,7 +254,6 @@ function resolveCityPriors(destination: string): CityCostPrior[] {
   const key = normalizeKey(destination)
   if (COUNTRY_CITY_PRIORS[key]) return COUNTRY_CITY_PRIORS[key]!
   if (CITY_ONLY_PRIORS[key]) return [CITY_ONLY_PRIORS[key]!]
-  // Fallback generic city prior derived from destination name.
   return [{
     nameEn: destination,
     nameAr: destination,
@@ -209,45 +271,151 @@ function peakMultiplier(prior: CityCostPrior, monthHint: number | null): number 
   return prior.peakMonths.includes(monthHint) ? 1.18 : 1
 }
 
-function estimateFlightSar(prior: CityCostPrior, travelers: number, monthHint: number | null): number {
-  const base = Math.round(prior.flightHoursFromRiyadh * 180 * travelers)
-  return Math.round(base * peakMultiplier(prior, monthHint))
+function monthLabel(monthHint: number | null, locale: AgentLocale): string {
+  if (monthHint === 8) return locale === 'ar' ? 'أغسطس' : 'August'
+  if (monthHint == null) return locale === 'ar' ? 'موسم غير محدد' : 'an unspecified season'
+  return locale === 'ar' ? 'هذه الفترة' : 'this travel window'
+}
+
+function makeEstimate(input: {
+  low: number
+  mid: number
+  high: number
+  currency: string
+  confidence: PlanningConfidence
+  reason: string
+}): PlanningEstimate {
+  const low = Math.max(0, Math.round(Math.min(input.low, input.mid, input.high)))
+  const high = Math.max(0, Math.round(Math.max(input.low, input.mid, input.high)))
+  const mid = Math.max(0, Math.round(input.mid))
+  return {
+    low,
+    mid: Math.min(high, Math.max(low, mid)),
+    high,
+    currency: input.currency,
+    confidence: input.confidence,
+    reason: input.reason,
+  }
+}
+
+function travelerBounds(travelerCount: number | null): { low: number; mid: number; high: number; known: boolean } {
+  if (travelerCount != null && travelerCount > 0) {
+    return { low: travelerCount, mid: travelerCount, high: travelerCount, known: true }
+  }
+  // Unknown party size — never invent a point count; bound the math as 1–2.
+  return { low: 1, mid: 1, high: 2, known: false }
+}
+
+function estimateFlightSarForPax(
+  prior: CityCostPrior,
+  pax: number,
+  monthHint: number | null,
+  originKnown: boolean,
+): { low: number; mid: number; high: number } {
+  const peak = peakMultiplier(prior, monthHint)
+  const mid = Math.round(prior.flightHoursFromRiyadh * 180 * pax * peak)
+  // Unknown origin widens the band; known origin tightens around Riyadh-baseline prior.
+  const spread = originKnown ? 0.12 : 0.22
+  return {
+    low: Math.round(mid * (1 - spread)),
+    mid,
+    high: Math.round(mid * (1 + spread)),
+  }
 }
 
 function estimateCityOption(input: {
   prior: CityCostPrior
   locale: AgentLocale
   nights: number
-  durationDays: number
-  travelers: number
+  planningDays: number
+  durationKnown: boolean
+  travelerCount: number | null
   monthHint: number | null
   budgetSar: number | null
   currency: string
   budgetFlexible: boolean
+  originKnown: boolean
 }): PlanningDraftCityOption {
-  const { prior, locale, nights, durationDays, travelers, monthHint, budgetSar, currency, budgetFlexible } = input
+  const {
+    prior, locale, nights, planningDays, durationKnown,
+    travelerCount, monthHint, budgetSar, currency, budgetFlexible, originKnown,
+  } = input
   const peak = peakMultiplier(prior, monthHint)
-  const flights = estimateFlightSar(prior, travelers, monthHint)
-  const hotelNightly = Math.round(prior.hotelNightlySar * peak)
-  // Assume 1 room per 2 travelers.
-  const rooms = Math.max(1, Math.ceil(travelers / 2))
-  const hotels = hotelNightly * nights * rooms
-  const food = Math.round(prior.dailyLocalSar * 0.55 * durationDays * travelers * peak)
-  const transportation = Math.round(prior.dailyLocalSar * 0.2 * durationDays * travelers)
-  const activities = Math.round(prior.dailyLocalSar * 0.25 * durationDays * travelers)
-  const estimatedTotalSar = flights + hotels + food + transportation + activities
-  const estimatedTotal = fromSar(estimatedTotalSar, currency)
-  const fit = classifyFit(estimatedTotalSar, budgetSar, budgetFlexible)
+  const pax = travelerBounds(travelerCount)
+  const month = monthLabel(monthHint, locale)
+
+  const flightLow = estimateFlightSarForPax(prior, pax.low, monthHint, originKnown)
+  const flightHigh = estimateFlightSarForPax(prior, pax.high, monthHint, originKnown)
+
+  const nightlyMid = Math.round(prior.hotelNightlySar * peak)
+  const nightlyLow = Math.round(nightlyMid * 0.85)
+  const nightlyHigh = Math.round(nightlyMid * 1.2)
+  // One room for up to 2 guests — stated in reason, not a hidden party invent.
+  const roomsLow = 1
+  const roomsHigh = pax.known ? Math.max(1, Math.ceil(pax.mid / 2)) : 1
+
+  const hotelsLow = nightlyLow * nights * roomsLow
+  const hotelsMid = nightlyMid * nights * roomsLow
+  const hotelsHigh = nightlyHigh * nights * Math.max(roomsLow, roomsHigh)
+
+  const foodLow = Math.round(prior.dailyLocalSar * 0.45 * planningDays * pax.low * peak)
+  const foodMid = Math.round(prior.dailyLocalSar * 0.55 * planningDays * pax.mid * peak)
+  const foodHigh = Math.round(prior.dailyLocalSar * 0.65 * planningDays * pax.high * peak)
+
+  const transportLow = Math.round(prior.dailyLocalSar * 0.15 * planningDays * pax.low)
+  const transportMid = Math.round(prior.dailyLocalSar * 0.2 * planningDays * pax.mid)
+  const transportHigh = Math.round(prior.dailyLocalSar * 0.28 * planningDays * pax.high)
+
+  const actLow = Math.round(prior.dailyLocalSar * 0.18 * planningDays * pax.low)
+  const actMid = Math.round(prior.dailyLocalSar * 0.25 * planningDays * pax.mid)
+  const actHigh = Math.round(prior.dailyLocalSar * 0.35 * planningDays * pax.high)
+
+  const totalLow = flightLow.low + hotelsLow + foodLow + transportLow + actLow
+  const totalMid = flightLow.mid + hotelsMid + foodMid + transportMid + actMid
+  const totalHigh = flightHigh.high + hotelsHigh + foodHigh + transportHigh + actHigh
+
+  const fit = classifyFit(totalMid, budgetSar, budgetFlexible)
   const why = buildCityWhy(prior, fit, locale, monthHint)
+
+  const uncertaintyBits: string[] = []
+  if (!originKnown) uncertaintyBits.push(locale === 'ar' ? 'مدينة المغادرة غير معروفة' : 'departure city unknown')
+  if (!pax.known) uncertaintyBits.push(locale === 'ar' ? 'عدد المسافرين غير محدد' : 'party size unknown')
+  if (!durationKnown) uncertaintyBits.push(locale === 'ar' ? 'المدة غير مثبتة' : 'duration not confirmed')
+  const uncertainty = uncertaintyBits.length
+    ? uncertaintyBits.join(locale === 'ar' ? '؛ ' : '; ')
+    : (locale === 'ar' ? 'بناءً على المدخلات المتوفرة' : 'based on stated inputs')
+
+  const conf: PlanningConfidence = (!pax.known || !originKnown || !durationKnown)
+    ? 'low'
+    : monthHint != null
+      ? 'medium'
+      : 'medium'
 
   return {
     name: locale === 'ar' ? prior.nameAr : prior.nameEn,
     relativeHotelCost: prior.relativeHotelCost,
     fit,
     why,
-    estimatedTotal,
-    hotelNightly: fromSar(hotelNightly, currency),
-    confidence: fit === 'stretch' ? 0.45 : fit === 'tight' ? 0.6 : fit === 'balanced' ? 0.75 : 0.85,
+    estimatedTotal: makeEstimate({
+      low: fromSar(totalLow, currency),
+      mid: fromSar(totalMid, currency),
+      high: fromSar(totalHigh, currency),
+      currency,
+      confidence: conf,
+      reason: locale === 'ar'
+        ? `تقدير إجمالي لـ${prior.nameAr} — ${uncertainty}`
+        : `Total range for ${prior.nameEn} — ${uncertainty}`,
+    }),
+    hotelNightly: makeEstimate({
+      low: fromSar(nightlyLow, currency),
+      mid: fromSar(nightlyMid, currency),
+      high: fromSar(nightlyHigh, currency),
+      currency,
+      confidence: monthHint != null ? 'medium' : 'low',
+      reason: locale === 'ar'
+        ? `متوسط تسعير ${month} لـ${prior.nameAr}`
+        : `Average ${month} pricing for ${prior.nameEn}`,
+    }),
   }
 }
 
@@ -299,105 +467,195 @@ function buildCityWhy(
   return [styleBit, hotelBit, fitBit, peakBit].filter(Boolean).join(ar ? ' — ' : ' — ')
 }
 
-function buildPrimaryBreakdown(input: {
+function buildBreakdown(input: {
   prior: CityCostPrior
   nights: number
-  durationDays: number
-  travelers: number
+  planningDays: number
+  durationKnown: boolean
+  travelerCount: number | null
   monthHint: number | null
   budgetSar: number | null
   currency: string
-  budgetFlexible: boolean
-  style: TripRequirements['budgetStyle']
+  originKnown: boolean
+  locale: AgentLocale
 }): PlanningDraftBreakdown {
-  const { prior, nights, durationDays, travelers, monthHint, budgetSar, currency, style } = input
+  const {
+    prior, nights, planningDays, durationKnown, travelerCount,
+    monthHint, currency, originKnown, locale,
+  } = input
+  const ar = locale === 'ar'
   const peak = peakMultiplier(prior, monthHint)
-  const rooms = Math.max(1, Math.ceil(travelers / 2))
+  const pax = travelerBounds(travelerCount)
+  const month = monthLabel(monthHint, locale)
+  const cityName = ar ? prior.nameAr : prior.nameEn
 
-  if (budgetSar != null && budgetSar > 0) {
-    const allocation = allocateBudget({
-      total: budgetSar,
-      currency: 'SAR',
-      style: style ?? 'midrange',
-      nights,
-    })
-    // Split non-hotel/flight remainder into food / transport / activities (deterministic).
-    const localPool = Math.max(0, budgetSar - allocation.flights - allocation.hotels)
-    const food = Math.round(localPool * 0.5)
-    const transportation = Math.round(localPool * 0.22)
-    const activities = Math.max(0, localPool - food - transportation)
-    return {
-      flights: fromSar(allocation.flights, currency),
-      hotels: fromSar(allocation.hotels, currency),
-      food: fromSar(food, currency),
-      transportation: fromSar(transportation, currency),
-      activities: fromSar(activities, currency),
-      currency,
-      estimatedTotal: fromSar(budgetSar, currency),
-    }
+  const flightLow = estimateFlightSarForPax(prior, pax.low, monthHint, originKnown)
+  const flightHigh = estimateFlightSarForPax(prior, pax.high, monthHint, originKnown)
+  const flightReasonParts: string[] = []
+  if (!originKnown) {
+    flightReasonParts.push(ar ? 'مدينة المغادرة غير معروفة' : 'departure city unknown')
+  } else {
+    flightReasonParts.push(ar ? 'خط أساس من الرياض' : 'Riyadh-baseline route prior')
+  }
+  if (!pax.known) {
+    flightReasonParts.push(ar ? 'عدد المسافرين غير محدد (مدى 1–2)' : 'party size unknown (range assumes 1–2)')
+  } else {
+    flightReasonParts.push(ar ? `لـ${pax.mid} مسافر` : `for ${pax.mid} traveler(s)`)
+  }
+  if (monthHint != null && prior.peakMonths.includes(monthHint)) {
+    flightReasonParts.push(ar ? `ضغط موسمي في ${month}` : `seasonal pressure in ${month}`)
   }
 
-  const flights = estimateFlightSar(prior, travelers, monthHint)
-  const hotels = Math.round(prior.hotelNightlySar * peak) * nights * rooms
-  const food = Math.round(prior.dailyLocalSar * 0.55 * durationDays * travelers * peak)
-  const transportation = Math.round(prior.dailyLocalSar * 0.2 * durationDays * travelers)
-  const activities = Math.round(prior.dailyLocalSar * 0.25 * durationDays * travelers)
-  const estimatedTotalSar = flights + hotels + food + transportation + activities
-  return {
-    flights: fromSar(flights, currency),
-    hotels: fromSar(hotels, currency),
-    food: fromSar(food, currency),
-    transportation: fromSar(transportation, currency),
-    activities: fromSar(activities, currency),
+  const flights = makeEstimate({
+    low: fromSar(flightLow.low, currency),
+    mid: fromSar(Math.round((flightLow.mid + flightHigh.mid) / 2), currency),
+    high: fromSar(flightHigh.high, currency),
     currency,
-    estimatedTotal: fromSar(estimatedTotalSar, currency),
-  }
+    confidence: originKnown && pax.known ? 'medium' : 'low',
+    reason: flightReasonParts.join(ar ? '؛ ' : '; '),
+  })
+
+  const nightlyMid = Math.round(prior.hotelNightlySar * peak)
+  const hotels = makeEstimate({
+    low: fromSar(Math.round(nightlyMid * 0.85) * nights, currency),
+    mid: fromSar(nightlyMid * nights, currency),
+    high: fromSar(Math.round(nightlyMid * 1.2) * nights * (pax.known && pax.mid > 2 ? Math.ceil(pax.mid / 2) : 1), currency),
+    currency,
+    confidence: durationKnown && monthHint != null ? 'medium' : 'low',
+    reason: ar
+      ? `متوسط تسعير ${month} لـ${cityName}${durationKnown ? '' : '؛ المدة غير مثبتة'}`
+      : `Average ${month} pricing for ${cityName}${durationKnown ? '' : '; duration not confirmed'}`,
+  })
+
+  const food = makeEstimate({
+    low: fromSar(Math.round(prior.dailyLocalSar * 0.45 * planningDays * pax.low * peak), currency),
+    mid: fromSar(Math.round(prior.dailyLocalSar * 0.55 * planningDays * pax.mid * peak), currency),
+    high: fromSar(Math.round(prior.dailyLocalSar * 0.65 * planningDays * pax.high * peak), currency),
+    currency,
+    confidence: pax.known && durationKnown ? 'medium' : 'low',
+    reason: ar
+      ? `إنفاق يومي محلي في ${cityName}${pax.known ? '' : '؛ عدد المسافرين غير محدد'}`
+      : `Local daily spend in ${cityName}${pax.known ? '' : '; party size unknown'}`,
+  })
+
+  const transportation = makeEstimate({
+    low: fromSar(Math.round(prior.dailyLocalSar * 0.15 * planningDays * pax.low), currency),
+    mid: fromSar(Math.round(prior.dailyLocalSar * 0.2 * planningDays * pax.mid), currency),
+    high: fromSar(Math.round(prior.dailyLocalSar * 0.28 * planningDays * pax.high), currency),
+    currency,
+    confidence: pax.known && durationKnown ? 'medium' : 'low',
+    reason: ar
+      ? `تنقل محلي تقديري${durationKnown ? '' : '؛ المدة غير مثبتة'}`
+      : `Local transport estimate${durationKnown ? '' : '; duration not confirmed'}`,
+  })
+
+  const activities = makeEstimate({
+    low: fromSar(Math.round(prior.dailyLocalSar * 0.18 * planningDays * pax.low), currency),
+    mid: fromSar(Math.round(prior.dailyLocalSar * 0.25 * planningDays * pax.mid), currency),
+    high: fromSar(Math.round(prior.dailyLocalSar * 0.35 * planningDays * pax.high), currency),
+    currency,
+    confidence: 'low',
+    reason: ar
+      ? `أنشطة اختيارية — تتغير حسب أسلوب الرحلة`
+      : `Optional activities — varies with trip style`,
+  })
+
+  const estimatedTotal = makeEstimate({
+    low: flights.low + hotels.low + food.low + transportation.low + activities.low,
+    mid: flights.mid + hotels.mid + food.mid + transportation.mid + activities.mid,
+    high: flights.high + hotels.high + food.high + transportation.high + activities.high,
+    currency,
+    confidence: confidenceMin(flights.confidence, hotels.confidence, food.confidence),
+    reason: ar
+      ? `مجموع المديات للفئات أعلاه`
+      : `Sum of category ranges above`,
+  })
+
+  return { flights, hotels, food, transportation, activities, estimatedTotal }
 }
 
-function collectMissingAssumptions(
-  req: TripRequirements,
-  durationDays: number,
-  travelers: number,
-): string[] {
+function confidenceMin(...values: PlanningConfidence[]): PlanningConfidence {
+  if (values.includes('low')) return 'low'
+  if (values.includes('medium')) return 'medium'
+  return 'high'
+}
+
+function buildDailySpendEstimate(input: {
+  breakdown: PlanningDraftBreakdown
+  planningDays: number
+  durationKnown: boolean
+  travelerCount: number | null
+  currency: string
+  locale: AgentLocale
+}): PlanningEstimate {
+  const { breakdown, planningDays, durationKnown, travelerCount, currency, locale } = input
+  const ar = locale === 'ar'
+  const localLow = breakdown.food.low + breakdown.transportation.low + breakdown.activities.low
+  const localMid = breakdown.food.mid + breakdown.transportation.mid + breakdown.activities.mid
+  const localHigh = breakdown.food.high + breakdown.transportation.high + breakdown.activities.high
+  const days = Math.max(1, planningDays)
+  return makeEstimate({
+    low: Math.round(localLow / days),
+    mid: Math.round(localMid / days),
+    high: Math.round(localHigh / days),
+    currency,
+    confidence: durationKnown && travelerCount != null ? 'medium' : 'low',
+    reason: ar
+      ? `إنفاق يومي (طعام+تنقل+أنشطة)${durationKnown ? '' : '؛ المدة غير مثبتة'}${travelerCount == null ? '؛ عدد المسافرين غير محدد' : ''}`
+      : `Daily local spend (food+transport+activities)${durationKnown ? '' : '; duration not confirmed'}${travelerCount == null ? '; party size unknown' : ''}`,
+  })
+}
+
+function collectMissingAssumptions(input: {
+  req: TripRequirements
+  durationDays: number | null
+  recommendedDurationDays: number | null
+  travelerCount: number | null
+}): string[] {
   const missing: string[] = []
-  if (!req.origin) missing.push('exact departure city')
-  if (req.durationDays == null) missing.push(`duration assumed as ${durationDays} days`)
-  if (req.travelers == null && req.travelerType == null) {
-    missing.push(`party size assumed as ${travelers}`)
+  if (!input.req.origin) missing.push('exact departure city')
+  if (input.travelerCount == null) missing.push('traveler count unknown')
+  if (input.durationDays == null) {
+    missing.push(
+      input.recommendedDurationDays != null
+        ? `duration unknown (planning span suggested as ${input.recommendedDurationDays} days for ranges only)`
+        : 'duration unknown',
+    )
   }
-  if (req.budgetAmount == null && req.budgetFlexible !== true) {
+  if (input.req.budgetAmount == null && input.req.budgetFlexible !== true) {
     missing.push('budget ceiling not set')
   }
-  if (!req.startDate && !req.endDate) missing.push('exact travel dates')
+  if (!input.req.startDate && !input.req.endDate) missing.push('exact travel dates')
   return missing
 }
 
 function scoreConfidence(input: {
   req: TripRequirements
-  durationDays: number
-  budgetAmount: number | null | undefined
+  durationDays: number | null
+  travelerCount: number | null
+  budgetAmount: number | null
   cityCount: number
   missingCount: number
 }): { label: PlanningConfidence; score: number } {
-  let score = 0.35
+  let score = 0.3
   if (input.req.destination) score += 0.15
-  if (input.budgetAmount != null) score += 0.2
-  else if (input.req.budgetFlexible) score += 0.1
-  if (input.req.durationDays != null) score += 0.15
-  else if (input.req.startDate) score += 0.08
-  if (input.req.origin) score += 0.08
-  if (input.req.travelers != null) score += 0.05
-  if (input.cityCount >= 2) score += 0.05
-  score -= Math.min(0.2, input.missingCount * 0.04)
-  score = Math.max(0.2, Math.min(0.92, score))
-  const label: PlanningConfidence = score >= 0.72 ? 'high' : score >= 0.5 ? 'medium' : 'low'
+  if (input.budgetAmount != null) score += 0.18
+  else if (input.req.budgetFlexible) score += 0.08
+  if (input.durationDays != null) score += 0.15
+  else if (input.req.startDate) score += 0.06
+  if (input.req.origin) score += 0.1
+  if (input.travelerCount != null) score += 0.12
+  else score -= 0.08
+  if (input.cityCount >= 2) score += 0.04
+  score -= Math.min(0.25, input.missingCount * 0.05)
+  score = Math.max(0.15, Math.min(0.9, score))
+  const label: PlanningConfidence = score >= 0.72 ? 'high' : score >= 0.48 ? 'medium' : 'low'
   return { label, score: Math.round(score * 100) / 100 }
 }
 
 function buildTradeoffs(
   ranked: PlanningDraftCityOption[],
   locale: AgentLocale,
-  currency: string,
 ): string[] {
   const ar = locale === 'ar'
   const out: string[] = []
@@ -406,8 +664,8 @@ function buildTradeoffs(
     const b = ranked[1]!
     out.push(
       ar
-        ? `${a.name} أوفر على الإقامة تقريباً من ${b.name} (ليلة ≈${a.hotelNightly} مقابل ≈${b.hotelNightly} ${currency}).`
-        : `${a.name} is generally lighter on stays than ${b.name} (nightly ≈${a.hotelNightly} vs ≈${b.hotelNightly} ${currency}).`,
+        ? `${a.name} أوفر على الإقامة تقريباً من ${b.name} (ليلة ${fmtRange(a.hotelNightly)} مقابل ${fmtRange(b.hotelNightly)}).`
+        : `${a.name} is generally lighter on stays than ${b.name} (nightly ${fmtRange(a.hotelNightly)} vs ${fmtRange(b.hotelNightly)}).`,
     )
   }
   const stretch = ranked.find((c) => c.fit === 'stretch' || c.fit === 'tight')
@@ -424,7 +682,7 @@ function buildTradeoffs(
 function buildRankingNote(input: {
   ranked: PlanningDraftCityOption[]
   destination: string
-  budgetAmount: number | null | undefined
+  budgetAmount: number | null
   currency: string
   locale: AgentLocale
   monthHint: number | null
@@ -439,7 +697,7 @@ function buildRankingNote(input: {
   const monthBit = monthHint === 8
     ? (ar ? 'في أغسطس' : 'in August')
     : monthHint != null
-      ? (ar ? `في هذا الشهر` : 'in this travel window')
+      ? (ar ? 'في هذا الشهر' : 'in this travel window')
       : ''
 
   if (second && top.relativeHotelCost === 'lower' && budgetAmount != null) {

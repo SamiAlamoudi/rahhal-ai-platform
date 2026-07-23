@@ -299,11 +299,32 @@ export function generateLocalConversation(input: {
       if (draft && draft.cities.length > 0) {
         const cityLines = draft.cities.slice(0, 3).map((city) => `• ${city.name} — ${city.why}`)
         const b = draft.breakdown
+        const fmt = (est: { low: number; high: number; mid: number; currency: string }) =>
+          est.low === est.high ? `≈${est.mid} ${est.currency}` : `${est.low}–${est.high} ${est.currency}`
         const split = ar
-          ? `تقدير أوّلي (ثقة ${draft.confidence}): طيران ≈${b.flights} · فنادق ≈${b.hotels} · طعام ≈${b.food} · تنقل ≈${b.transportation} · أنشطة ≈${b.activities} ${b.currency}`
-          : `First-pass split (${draft.confidence} confidence): flights ≈${b.flights} · hotels ≈${b.hotels} · food ≈${b.food} · transport ≈${b.transportation} · activities ≈${b.activities} ${b.currency}`
+          ? [
+            `تقدير أوّلي (ثقة ${draft.confidence}):`,
+            `• طيران ${fmt(b.flights)} — ${b.flights.reason}`,
+            `• فنادق ${fmt(b.hotels)} — ${b.hotels.reason}`,
+            `• طعام ${fmt(b.food)} — ${b.food.reason}`,
+            `• تنقل ${fmt(b.transportation)} — ${b.transportation.reason}`,
+            `• أنشطة ${fmt(b.activities)} — ${b.activities.reason}`,
+          ].join('\n')
+          : [
+            `First-pass ranges (${draft.confidence} confidence):`,
+            `• Flights ${fmt(b.flights)} — ${b.flights.reason}`,
+            `• Hotels ${fmt(b.hotels)} — ${b.hotels.reason}`,
+            `• Food ${fmt(b.food)} — ${b.food.reason}`,
+            `• Transport ${fmt(b.transportation)} — ${b.transportation.reason}`,
+            `• Activities ${fmt(b.activities)} — ${b.activities.reason}`,
+          ].join('\n')
         const trade = draft.tradeoffs[0] ? `• ${draft.tradeoffs[0]}` : ''
-        hints = [...cityLines, '', split, trade].filter(Boolean).join('\n')
+        const partyNote = draft.travelerCount == null
+          ? (ar
+            ? '• عدد المسافرين غير محدد — لذلك المبالغ كمديات.'
+            : '• Party size unknown — amounts are ranges, not point figures.')
+          : ''
+        hints = [...cityLines, '', split, trade, partyNote].filter(Boolean).join('\n')
       } else if (input.facts.optionHints?.length) {
         hints = input.facts.optionHints.map((h) => `• ${h}`).join('\n')
       }

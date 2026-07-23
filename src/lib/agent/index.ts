@@ -42,7 +42,10 @@ export {
   buildPlanningDraft,
   canBuildPlanningDraft,
   planningDraftToInsightLines,
+  resolveTravelerCount,
+  resolveDurationDays,
   type PlanningDraft,
+  type PlanningEstimate,
 } from './planningDraft'
 export {
   buildTripPlan,

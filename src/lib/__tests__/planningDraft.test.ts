@@ -1,5 +1,6 @@
 /**
  * Planning Draft — deterministic trip intelligence (not itinerary, not bookings).
+ * Audit: no invented traveler counts; estimates are ranges with confidence + reason.
  */
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetFeatureRegistry } from '../ai'
@@ -7,7 +8,10 @@ import {
   buildPlanningDraft,
   canBuildPlanningDraft,
   planningDraftToInsightLines,
+  resolveTravelerCount,
+  resolveDurationDays,
 } from '../agent/planningDraft'
+import type { PlanningEstimate } from '../agent/planningDraft'
 import { emptyRequirements } from '../agent/types'
 import { mergeRequirements } from '../agent/memory'
 import { createTravelAgentService } from '../agent/travelAgentService'
@@ -61,6 +65,17 @@ function assistant(
   }
 }
 
+function expectEstimate(est: PlanningEstimate) {
+  expect(est.low).toBeTypeOf('number')
+  expect(est.mid).toBeTypeOf('number')
+  expect(est.high).toBeTypeOf('number')
+  expect(est.low).toBeLessThanOrEqual(est.mid)
+  expect(est.mid).toBeLessThanOrEqual(est.high)
+  expect(est.high).toBeGreaterThanOrEqual(est.low)
+  expect(est.reason.length).toBeGreaterThan(3)
+  expect(['low', 'medium', 'high']).toContain(est.confidence)
+}
+
 describe('Planning Draft — readiness', () => {
   it('does not draft on destination alone', () => {
     const req = mergeRequirements(emptyRequirements(), {
@@ -79,20 +94,22 @@ describe('Planning Draft — readiness', () => {
     })
     expect(canBuildPlanningDraft(req)).toBe(true)
   })
+})
 
-  it('drafts when destination + budget exist', () => {
+describe('Planning Draft — no hidden traveler assumptions', () => {
+  it('resolveTravelerCount stays null when not extracted', () => {
     const req = mergeRequirements(emptyRequirements(), {
       destination: 'Morocco',
       destinations: ['Morocco'],
+      durationDays: 7,
       budgetAmount: 5000,
-      budgetCurrency: 'SAR',
     })
-    expect(canBuildPlanningDraft(req)).toBe(true)
+    expect(req.travelers).toBeNull()
+    expect(req.travelerType).toBeNull()
+    expect(resolveTravelerCount(req)).toBeNull()
   })
-})
 
-describe('Planning Draft — Morocco estimate', () => {
-  it('produces ranked cities, breakdown, confidence, and missing assumptions', () => {
+  it('never invents travelerCount=2 on Morocco budget draft', () => {
     const req = mergeRequirements(emptyRequirements(), {
       destination: 'Morocco',
       destinations: ['Morocco'],
@@ -101,28 +118,132 @@ describe('Planning Draft — Morocco estimate', () => {
       budgetAmount: 5000,
       budgetCurrency: 'SAR',
     })
-    const draft = buildPlanningDraft({ requirements: req, locale: 'en' })
-    expect(draft).toBeTruthy()
-    expect(draft!.kind).toBe('planning_draft')
-    expect(draft!.destination).toBe('Morocco')
-    expect(draft!.recommendedDurationDays).toBe(7)
-    expect(draft!.cities.map((c) => c.name)).toEqual(
-      expect.arrayContaining(['Agadir', 'Marrakech', 'Casablanca']),
-    )
-    expect(draft!.rankedCities[0]).toBeTruthy()
-    expect(draft!.breakdown.flights).toBeGreaterThan(0)
-    expect(draft!.breakdown.hotels).toBeGreaterThan(0)
-    expect(draft!.breakdown.food).toBeGreaterThan(0)
-    expect(draft!.breakdown.transportation).toBeGreaterThan(0)
-    expect(draft!.breakdown.activities).toBeGreaterThan(0)
-    expect(draft!.breakdown.currency).toBe('SAR')
-    expect(['low', 'medium', 'high']).toContain(draft!.confidence)
-    expect(draft!.missingAssumptions.some((m) => /departure city/i.test(m))).toBe(true)
-    expect(draft!.rankingNote).toMatch(/Agadir|Marrakech|Casablanca|budget/i)
-    // Agadir should rank ahead of Marrakech on a tight August budget (lower hotels).
-    expect(draft!.rankedCities.indexOf('Agadir')).toBeLessThan(
-      draft!.rankedCities.indexOf('Marrakech'),
-    )
+    const draft = buildPlanningDraft({ requirements: req, locale: 'en' })!
+    expect(draft.travelerCount).toBeNull()
+    expect(draft.missingAssumptions).toContain('traveler count unknown')
+    expect(draft.confidence).not.toBe('high')
+  })
+
+  it('uses explicit travelers when extracted', () => {
+    const req = mergeRequirements(emptyRequirements(), {
+      destination: 'Morocco',
+      destinations: ['Morocco'],
+      durationDays: 7,
+      budgetAmount: 5000,
+      budgetCurrency: 'SAR',
+      travelers: 2,
+      travelerType: 'couple',
+    })
+    const draft = buildPlanningDraft({ requirements: req, locale: 'en' })!
+    expect(draft.travelerCount).toBe(2)
+    expect(draft.missingAssumptions).not.toContain('traveler count unknown')
+  })
+
+  it('maps solo travelerType to 1 without inventing a couple', () => {
+    const req = mergeRequirements(emptyRequirements(), {
+      destination: 'Tokyo',
+      destinations: ['Tokyo'],
+      durationDays: 5,
+      budgetAmount: 8000,
+      travelerType: 'solo',
+    })
+    expect(resolveTravelerCount(req)).toBe(1)
+    expect(buildPlanningDraft({ requirements: req, locale: 'en' })!.travelerCount).toBe(1)
+  })
+
+  it('family without count stays null', () => {
+    const req = mergeRequirements(emptyRequirements(), {
+      destination: 'Japan',
+      destinations: ['Japan'],
+      durationDays: 7,
+      budgetAmount: 12000,
+      travelerType: 'family',
+    })
+    expect(resolveTravelerCount(req)).toBeNull()
+    expect(buildPlanningDraft({ requirements: req, locale: 'en' })!.travelerCount).toBeNull()
+  })
+})
+
+describe('Planning Draft — no silent duration default as fact', () => {
+  it('durationDays is null when only a month hint exists', () => {
+    const req = mergeRequirements(emptyRequirements(), {
+      destination: 'Morocco',
+      destinations: ['Morocco'],
+      startDate: '2026-08-15',
+      budgetAmount: 5000,
+      budgetCurrency: 'SAR',
+    })
+    expect(resolveDurationDays(req)).toBeNull()
+    const draft = buildPlanningDraft({ requirements: req, locale: 'en' })!
+    expect(draft.durationDays).toBeNull()
+    expect(draft.recommendedDurationDays).toBe(7)
+    expect(draft.missingAssumptions.some((m) => /duration unknown/i.test(m))).toBe(true)
+  })
+
+  it('keeps explicit durationDays', () => {
+    const req = mergeRequirements(emptyRequirements(), {
+      destination: 'Morocco',
+      destinations: ['Morocco'],
+      durationDays: 7,
+      budgetAmount: 5000,
+    })
+    const draft = buildPlanningDraft({ requirements: req, locale: 'en' })!
+    expect(draft.durationDays).toBe(7)
+    expect(draft.recommendedDurationDays).toBeNull()
+  })
+})
+
+describe('Planning Draft — ranged estimates with confidence + reason', () => {
+  it('every breakdown line is a range with confidence and reason', () => {
+    const req = mergeRequirements(emptyRequirements(), {
+      destination: 'Morocco',
+      destinations: ['Morocco'],
+      durationDays: 7,
+      startDate: '2026-08-01',
+      budgetAmount: 5000,
+      budgetCurrency: 'SAR',
+    })
+    const draft = buildPlanningDraft({ requirements: req, locale: 'en' })!
+    expectEstimate(draft.breakdown.flights)
+    expectEstimate(draft.breakdown.hotels)
+    expectEstimate(draft.breakdown.food)
+    expectEstimate(draft.breakdown.transportation)
+    expectEstimate(draft.breakdown.activities)
+    expectEstimate(draft.breakdown.estimatedTotal)
+    expectEstimate(draft.dailySpendEstimate)
+    for (const city of draft.cities) {
+      expectEstimate(city.estimatedTotal)
+      expectEstimate(city.hotelNightly)
+    }
+  })
+
+  it('flight range cites unknown departure city', () => {
+    const req = mergeRequirements(emptyRequirements(), {
+      destination: 'Morocco',
+      destinations: ['Morocco'],
+      durationDays: 7,
+      budgetAmount: 5000,
+      budgetCurrency: 'SAR',
+    })
+    const draft = buildPlanningDraft({ requirements: req, locale: 'en' })!
+    expect(draft.breakdown.flights.low).toBeLessThan(draft.breakdown.flights.high)
+    expect(draft.breakdown.flights.reason).toMatch(/departure city unknown/i)
+    expect(draft.breakdown.flights.confidence).toBe('low')
+  })
+
+  it('hotel estimate cites August pricing for Agadir when ranked first', () => {
+    const req = mergeRequirements(emptyRequirements(), {
+      destination: 'Morocco',
+      destinations: ['Morocco'],
+      durationDays: 7,
+      startDate: '2026-08-01',
+      budgetAmount: 5000,
+      budgetCurrency: 'SAR',
+    })
+    const draft = buildPlanningDraft({ requirements: req, locale: 'en' })!
+    expect(draft.rankedCities[0]).toBe('Agadir')
+    expect(draft.breakdown.hotels.reason).toMatch(/August|Agadir/i)
+    expect(draft.cities[0]!.hotelNightly.reason).toMatch(/August|Agadir/i)
   })
 
   it('is deterministic across identical inputs', () => {
@@ -139,7 +260,7 @@ describe('Planning Draft — Morocco estimate', () => {
     expect(a).toEqual(b)
   })
 
-  it('insight lines never look like raw JSON keys', () => {
+  it('insight lines use ranges and never look like raw JSON keys', () => {
     const req = mergeRequirements(emptyRequirements(), {
       destination: 'Morocco',
       destinations: ['Morocco'],
@@ -150,14 +271,15 @@ describe('Planning Draft — Morocco estimate', () => {
     const draft = buildPlanningDraft({ requirements: req, locale: 'en' })!
     const lines = planningDraftToInsightLines(draft, 'en').join('\n')
     expect(lines).not.toMatch(/"kind"\s*:|"breakdown"\s*:|planning_draft/)
-    expect(lines).toMatch(/flights|hotels|food/i)
+    expect(lines).toMatch(/\d+–\d+|flights|hotels/i)
+    expect(lines).toMatch(/departure city unknown|party size unknown/i)
   })
 })
 
 describe('Planning Draft — planTurn integration', () => {
   beforeEach(() => resetFeatureRegistry())
 
-  it('attaches draft to meta and phrases planning in the reply (no JSON dump)', async () => {
+  it('attaches honest draft meta (null travelers, ranged breakdown)', async () => {
     const service = createTravelAgentService({
       tools: createMockAgentToolRegistry(),
       smartClarificationEnabled: true,
@@ -178,13 +300,17 @@ describe('Planning Draft — planTurn integration', () => {
 
     expect(turn.meta.planningDraft).toBeTruthy()
     expect(turn.meta.planningDraft?.destination).toBe('Morocco')
-    expect(turn.meta.planningDraft?.breakdown.flights).toBeGreaterThan(0)
-    expect(turn.meta.planningDraft?.rankedCities.length).toBeGreaterThanOrEqual(2)
+    expect(turn.meta.planningDraft?.travelerCount).toBeNull()
+    expect(turn.meta.planningDraft?.breakdown.flights.low).toBeLessThan(
+      turn.meta.planningDraft!.breakdown.flights.high,
+    )
+    expect(turn.meta.planningDraft?.breakdown.flights.reason).toMatch(/departure city unknown/i)
+    expect(turn.meta.planningDraft?.missingAssumptions).toContain('traveler count unknown')
     expect(turn.tripPlan).toBeNull()
 
     expect(turn.reply).toMatch(/Agadir|Marrakech/i)
-    expect(turn.reply).toMatch(/hotel|budget|fit|lower|≈|flights|food/i)
-    expect(turn.reply).not.toMatch(/"kind"\s*:\s*"planning_draft"|missingAssumptions/)
+    expect(turn.reply).toMatch(/\d+–\d+|departure city unknown|party size unknown/i)
+    expect(turn.reply).not.toMatch(/"kind"\s*:\s*"planning_draft"/)
     expect(turn.reply).toMatch(/beach|city|relax|which interests|direction/i)
   })
 
@@ -204,6 +330,7 @@ describe('Planning Draft — planTurn integration', () => {
       ],
     })
     expect(turn.meta.planningDraft?.rankedCities[0]).toBe('Agadir')
+    expect(turn.meta.planningDraft?.travelerCount).toBeNull()
     expect(turn.reply).toMatch(/Agadir/i)
     expect(turn.reply).toMatch(/Marrakech/i)
   })
