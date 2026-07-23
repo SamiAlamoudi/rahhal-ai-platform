@@ -80,7 +80,9 @@ describe('Concierge Phase 3 — consultant voice', () => {
       requirements: memory.requirements,
     })
     expect(reply).toMatch(/Bali|Noted|relaxed|beach/i)
-    expect(reply).toMatch(/days|dates|budget|people/i)
+    // Value-first: consultant advises / proposes — does not census days/budget/people.
+    expect(['propose_options', 'advise']).toContain(decision.action)
+    expect(decision.askFields).toEqual([])
   })
 
   it('proposes options in a consultative tone', () => {

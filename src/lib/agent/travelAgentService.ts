@@ -2249,7 +2249,10 @@ export function createTravelAgentService(
           // Experience Sprint 2 — Concierge decides policy/facts only; LLM writes the reply.
           memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
           let optionHints: string[] | undefined
-          if (
+          const decisionBrief = conciergeResult.decision.valueBrief
+          if (decisionBrief && decisionBrief.length > 0) {
+            optionHints = decisionBrief
+          } else if (
             conciergeResult.decision.action === 'propose_options'
             || conciergeResult.decision.action === 'advise'
           ) {
@@ -2260,13 +2263,20 @@ export function createTravelAgentService(
             })
             optionHints = recs.optionLines
           }
+          const valueNotes = [
+            conciergeResult.decision.framingNote,
+            conciergeResult.decision.preferenceQuestion,
+          ].filter((row): row is string => Boolean(row && row.trim()))
           const facts = buildTravelFacts({
             memory,
             objective: mapConciergeObjective(conciergeResult.decision.action),
-            missingSlots: (conciergeResult.decision.askFields ?? memory.missingFields).map(String),
+            // Value-first turns leave askFields empty on purpose — do not fall back to
+            // the full missingFields census (that recreates form interrogation).
+            missingSlots: (conciergeResult.decision.askFields ?? []).map(String),
             softSignals: conciergeResult.decision.state.softSignals as unknown as Record<string, unknown>,
             heardSummary: conciergeResult.decision.state.heardSummary,
             optionHints,
+            recommendations: valueNotes.length > 0 ? valueNotes : undefined,
           })
           const spoken = await speakTravelFacts({
             llms,
