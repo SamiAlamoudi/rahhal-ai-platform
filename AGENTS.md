@@ -32,5 +32,7 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
 ```
 
 ### Demo tips
-- Primary chat UX: `/chat` (agent + feature-flagged conversation experience).
-- Legacy planning + mock search: `/travel-conversation` or `/search` (SearchWorkspace) — fill destination, departure city, flexible dates (or a date), duration, adults, budget amount + currency, then click "أكد خطتي وابدأ البحث".
+- Primary chat UX: `/chat` (LegacyChatPage → chatEngine → `travelAgentService.planTurn`). Recovery Phase 1 froze this as the sole conversation spine.
+- `/travel-conversation` redirects to `/chat` (legacy page quarantined).
+- Legacy mock search form: `/search` (SearchWorkspace) — fill destination, departure city, flexible dates (or a date), duration, adults, budget amount + currency, then click "أكد خطتي وابدأ البحث".
+- Voice on `/chat` is browser voice *input* into the same turn (not realtime duplex).

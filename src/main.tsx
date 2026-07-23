@@ -12,7 +12,7 @@ import type { TravelSearchRequest } from './utils/travelSearchRequest'
 import { resolveBookingEntryPath } from './lib/alphaIntegration'
 
 const Home = lazy(() => import('./pages/Home.tsx'))
-const TravelConversation = lazy(() => import('./pages/TravelConversation.tsx'))
+// TravelConversation page quarantined (Recovery Phase 1) — route redirects to /chat.
 const SearchWorkspace = lazy(() => import('./pages/SearchWorkspace.tsx'))
 const Login = lazy(() => import('./pages/Login.tsx'))
 const SignUp = lazy(() => import('./pages/SignUp.tsx'))
@@ -85,6 +85,20 @@ function BookingEntryRedirect() {
   return <Navigate to={resolveBookingEntryPath()} replace />
 }
 
+/** Recovery Phase 1 — legacy intake → sole chat UI, preserving seed state. */
+function TravelConversationRedirect() {
+  const location = useLocation()
+  const prior = (location.state as { tripText?: string; initialPrompt?: string } | null) ?? null
+  const seed = prior?.initialPrompt ?? prior?.tripText
+  return (
+    <Navigate
+      to="/chat"
+      replace
+      state={seed ? { initialPrompt: seed, tripText: seed } : prior}
+    />
+  )
+}
+
 // Phase X — startup validation + global error handlers (non-UI).
 runStartup({
   failFast: false,
@@ -103,9 +117,10 @@ createRoot(document.getElementById('root')!).render(
               <Home />
             </ProtectedRoute>
           } />
+          {/* Recovery Phase 1 — ONE Chat UI: legacy intake redirects to /chat. */}
           <Route path="/travel-conversation" element={
             <ProtectedRoute>
-              <TravelConversation />
+              <TravelConversationRedirect />
             </ProtectedRoute>
           } />
           <Route path="/search" element={

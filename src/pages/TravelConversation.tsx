@@ -1,3 +1,8 @@
+/**
+ * @deprecated Recovery Phase 1 — quarantined.
+ * Product intake is `/chat` (LegacyChatPage → chatEngine → planTurn).
+ * Route `/travel-conversation` redirects to `/chat`. This page is kept for reference / future deletion.
+ */
 import { useState, useMemo, useRef, useEffect, Suspense, lazy } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {

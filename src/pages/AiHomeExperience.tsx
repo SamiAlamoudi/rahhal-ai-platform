@@ -95,12 +95,13 @@ export default function AiHomeExperience() {
     (text: string) => {
       const trimmed = text.trim()
       if (!trimmed) return
+      // Recovery Phase 1 — ONE Chat UI: always seed `/chat` (never travel-conversation).
       if (conversationHome) {
         const entry = conversationEntryPath(trimmed)
         navigate(entry.pathname, { state: entry.state })
         return
       }
-      navigate('/travel-conversation', { state: { tripText: trimmed } })
+      navigate('/chat', { state: { initialPrompt: trimmed, tripText: trimmed } })
     },
     [conversationHome, navigate],
   )

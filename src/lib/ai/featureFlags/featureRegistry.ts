@@ -385,20 +385,20 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     name: 'AI Memory & Personalization Engine',
     description:
       'Sprint 112 — persistent traveler preference memory, conversation memory, travel history, preference resolution/scoring. Concierge/Response Composer may consume metadata. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     notes:
-      'Product alias: memory_engine. Additive under src/lib/agent/memory/ (import via memory/index — distinct from legacy memory.ts intake helpers). Does not modify Decision Engine, providers, or Trip Builder.',
+      'Product alias: memory_engine. Additive under src/lib/agent/memory/ (import via memory/index — distinct from legacy memory.ts intake helpers). Does not modify Decision Engine, providers, or Trip Builder. Recovery Phase 1 FREEZE: quarantined; sole turn owner = planTurn.',
   },
   {
     id: 'ai.orchestrator',
     name: 'AI Orchestrator',
     description:
       'Sprint 113 — additive production orchestration layer coordinating Memory → Search/Providers → Trip Builder → Decision (pass-through) → Response Composer → Concierge without modifying those engines. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     notes:
-      'Product alias: orchestrator. Additive under src/lib/agent/orchestrator. Distinct from brain.ai_orchestrator (Sprint 43) and booking.orchestrator. When OFF, legacy conversation paths are unchanged.',
+      'Product alias: orchestrator. Additive under src/lib/agent/orchestrator. Distinct from brain.ai_orchestrator (Sprint 43) and booking.orchestrator. When OFF, legacy conversation paths are unchanged. Recovery Phase 1 FREEZE: quarantined; sole turn owner = planTurn.',
   },
   {
     id: 'ai.itinerary_engine',
@@ -415,30 +415,30 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     name: 'Unified AI Execution Pipeline',
     description:
       'Sprint 115 — additive single-call pipeline coordinating Conversation → Memory → Search → Flights/Hotels → Decision → Trip Builder → Itinerary → Response Composer → Concierge. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     notes:
-      'Product alias: execution_pipeline. Additive under src/lib/agent/pipeline. Reuses public engine APIs only; does not rewrite engines. Distinct from ai.orchestrator (Sprint 113). When OFF, legacy behavior is unchanged.',
+      'Product alias: execution_pipeline. Additive under src/lib/agent/pipeline. Reuses public engine APIs only; does not rewrite engines. Distinct from ai.orchestrator (Sprint 113). When OFF, legacy behavior is unchanged. Recovery Phase 1 FREEZE: quarantined; sole turn owner = planTurn.',
   },
   {
     id: 'ai.streaming_conversation',
     name: 'AI Streaming Conversation Experience',
     description:
       'Sprint 116 — additive streaming layer that visualizes Execution Pipeline stages in real time (started/progress/completed/warning/error). Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     notes:
-      'Product alias: streaming_conversation. Additive under src/lib/agent/streaming. Wraps pipeline via public adapters only — does not modify pipeline, orchestrator, engines, or providers. When OFF, legacy behavior is unchanged.',
+      'Product alias: streaming_conversation. Additive under src/lib/agent/streaming. Wraps pipeline via public adapters only — does not modify pipeline, orchestrator, engines, or providers. When OFF, legacy behavior is unchanged. Recovery Phase 1 FREEZE: quarantined; sole turn owner = planTurn.',
   },
   {
     id: 'ai.editable_conversation',
     name: 'Editable AI Conversation',
     description:
       'Sprint 118 — additive conversation edit engine for incremental trip refinements (hotel/budget/cabin/duration/city) with partial pipeline reruns. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     notes:
-      'Product alias: editable_conversation. Additive under src/lib/agent/editing. Reuses Execution Pipeline / Streaming public APIs; does not modify engines. When OFF, legacy behavior is unchanged.',
+      'Product alias: editable_conversation. Additive under src/lib/agent/editing. Reuses Execution Pipeline / Streaming public APIs; does not modify engines. When OFF, legacy behavior is unchanged. Recovery Phase 1 FREEZE: quarantined; sole turn owner = planTurn.',
   },
   {
     id: 'ai.live_conversation',
@@ -797,59 +797,77 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     name: 'Voice Conversation UI',
     description:
       'Sprint 18 voice conversation foundation UI (orb/indicators) — architecture only; default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['ai.concierge'],
     notes: 'Product alias: voice_conversation. Does not enable realtime providers.',
+ ,
+    notes:
+      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'voice.realtime',
     name: 'Voice Realtime Transport',
     description:
       'Sprint 18 flag for future realtime transport. Default OFF — no OpenAI/Azure/ElevenLabs I/O.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['ui.voice_conversation'],
     notes: 'Product alias: voice_realtime. Stubs only in Sprint 18.',
+ ,
+    notes:
+      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'voice.provider',
     name: 'Voice Provider Selection',
     description:
       'Sprint 18 provider abstraction gate. Default OFF; factory still resolves to mock when exercised.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['ui.voice_conversation'],
     notes: 'Product alias: voice_provider',
+ ,
+    notes:
+      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'voice.mock',
     name: 'Mock Voice Provider',
     description:
       'Sprint 18 mock voice provider harness (no audio, no fake dialogue). Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['ui.voice_conversation'],
     notes: 'Product alias: voice_mock. Only non-live provider in Sprint 18.',
+ ,
+    notes:
+      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'brain.enabled',
     name: 'AI Travel Brain',
     description:
       'Sprint 19 conversation intelligence orchestration layer. Default OFF — no LLM providers.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['ai.concierge'],
     notes: 'Product alias: brain_enabled',
+ ,
+    notes:
+      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'brain.memory',
     name: 'Brain Conversation Memory',
     description: 'Sprint 19 slot-filled conversation memory. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['brain.enabled'],
     notes: 'Product alias: brain_memory',
+ ,
+    notes:
+      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'brain.intent',
@@ -975,11 +993,11 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     name: 'Conversation Memory & Context Engine',
     description:
       'Sprint 28 short-term conversation memory, long-term travel preferences, context assembly, summarization, and privacy-safe retention. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['brain.trip_orchestrator'],
     notes:
-      'Product alias: brain_context_memory. Additive to Sprint 19–27; passport/nationality only when explicitly provided; no LLM providers.',
+      'Product alias: brain_context_memory. Additive to Sprint 19–27; passport/nationality only when explicitly provided; no LLM providers. Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'brain.unified_travel_planner',
@@ -997,11 +1015,11 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     name: 'AI Conversation Experience',
     description:
       'Sprint 32 production conversational UI layer over UnifiedTravelPlanner and AITripOrchestrator. Natural planning without booking forms. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['brain.unified_travel_planner'],
     notes:
-      'Product alias: conversation_ui. Additive chat experience — reuses planner/orchestrator/memory; does not duplicate planning or booking logic.',
+      'Product alias: conversation_ui. Additive chat experience — reuses planner/orchestrator/memory; does not duplicate planning or booking logic. Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'brain.travel_execution_engine',
@@ -1019,11 +1037,11 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     name: 'Payments & Checkout Platform',
     description:
       'Sprint 34 payments platform — payment intents, multi-provider sandbox adapters, receipts/invoices, refunds, and conversation pay-now after TravelExecutionEngine. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['brain.travel_execution_engine'],
     notes:
-      'Product alias: payments_platform. Additive to src/lib/payment hosted checkout; does not duplicate planning/execution/booking logic. Sandbox adapters only — no live Stripe/Adyen credentials.',
+      'Product alias: payments_platform. Additive to src/lib/payment hosted checkout; does not duplicate planning/execution/booking logic. Sandbox adapters only — no live Stripe/Adyen credentials. Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'brain.trip_management',
@@ -1096,11 +1114,11 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     name: 'Universal Revenue, Finance & Settlement Platform',
     description:
       'Sprint 41 post-booking finance backbone — revenue recognition, wallets, settlements, double-entry ledger, invoices, tax/FX, and financial reports. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['brain.supplier_marketplace'],
     notes:
-      'Product alias: finance_platform. Not a payment gateway; additive finance layer after booking/payments.',
+      'Product alias: finance_platform. Not a payment gateway; additive finance layer after booking/payments. Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'providers.hotel_foundation',
@@ -1120,6 +1138,9 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'deprecated',
     enabled: false,
     notes: 'Keep VITE_PAYMENT_PROVIDER=mock until payment production freeze lifts.',
+ ,
+    notes:
+      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'providers.live_master',
@@ -1134,67 +1155,67 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     name: 'Conversation Experience & Booking UX',
     description:
       'Sprint 42 production conversation UX — rich travel cards, in-chat booking actions, timeline, live notifications, maps, memory chips, themes. Presentation only over Sprint 32–35 engines. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['brain.conversation_ui'],
     notes:
-      'Product alias: conversation_experience. Does not create new backend engines; integrates conversation UI, execution, payments, trips, and memory.',
+      'Recovery Phase 1 FREEZE: presentation experiment; not the sole chat shell. Grouped with brain.conversation_ui.',
   },
   {
     id: 'brain.ai_orchestrator',
     name: 'Rahhal AI Orchestrator',
     description:
       'Sprint 43 central AI tool routing, planning, parallel execution, ranking, and conversational synthesis. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: [
       'brain.conversation_ui',
       'brain.finance_platform',
     ],
     notes:
-      'Product alias: ai_orchestrator. Routes to existing engines only — no duplicated business logic.',
+      'Recovery Phase 1 FREEZE: duplicate of turn ownership. Sole turn owner = travelAgentService.planTurn. Distinct from ai.orchestrator (also frozen).',
   },
   {
     id: 'ui.chatgpt_experience',
     name: 'ChatGPT-like Conversation Experience',
     description:
       'Sprint 44 ChatGPT-quality conversation layer — memory manager, intent, response planner, tool decision, streaming UX, voice states, context recovery. Orchestrates existing engines only. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['ui.conversation_experience'],
     notes:
-      'Product alias: chatgpt_experience. No new travel engines; focuses on natural, interruptible, contextual chat/voice UX.',
+      'Recovery Phase 1 FREEZE: disconnected from chatProviderFactory default. Sole conversation = travel-agent → planTurn.',
   },
   {
     id: 'ui.experience_v1',
     name: 'Rahhal Experience Phase 1 (UI Foundation)',
     description:
       'Sprint 119 — presentation-layer foundation under src/ui (home shell, conversation UI, cards, timeline, loading, design tokens). Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     notes:
-      'Product alias: experience_v1. Presentation only — no engine, provider, or orchestration changes. When OFF, existing pages remain unchanged.',
+      'Product alias: experience_v1. Presentation only — no engine, provider, or orchestration changes. When OFF, existing pages remain unchanged. Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'ui.production_integration',
     name: 'Premium UI Production Integration',
     description:
       'Sprint 120 — connects Sprint 119 Premium UI to production Memory, Streaming, Editing, Pipeline, Trips, and Chat. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     notes:
-      'Product alias: production_integration. Integration only under src/lib/uiIntegration + src/ui/integration. Does not create engines or duplicate business logic. When OFF, legacy Home/Chat paths remain unchanged.',
+      'Recovery Phase 1 FREEZE: disconnected from Home/Chat routing. Sole chat UI = LegacyChatPage. Quarantined under src/ui/integration.',
   },
   {
     id: 'ui.premium_home',
     name: 'Premium Home Experience',
     description:
       'Sprint 121 — polished production Home presentation sections under src/ui/home. Default OFF.',
-    lifecycle: 'experimental',
+    lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['ui.production_integration'],
     notes:
-      'Product alias: premium_home. Presentation only — composes existing production home data. Does not change navigation, engines, or APIs. When OFF, ProductionHomeScreen still renders the premium sections while gated by ui.production_integration.',
+      'Product alias: premium_home. Presentation only — composes existing production home data. Does not change navigation, engines, or APIs. When OFF, ProductionHomeScreen still renders the premium sections while gated by ui.production_integration. Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
 ]
 

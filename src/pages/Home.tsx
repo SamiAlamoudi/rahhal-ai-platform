@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import TravelConversationCard from '../components/TravelConversationCard'
 import QuickActions from '../components/QuickActions'
@@ -6,11 +6,11 @@ import { useAuth } from '../lib/auth'
 import { getFeatureRegistry } from '../lib/ai'
 import AiHomeExperience from './AiHomeExperience'
 
-const ProductionHomeScreen = lazy(() =>
-  import('../ui/integration/ProductionHomeScreen').then((m) => ({
-    default: m.ProductionHomeScreen,
-  })),
-)
+/**
+ * Recovery Phase 1 — ONE home composition for product traffic.
+ * ProductionHomeScreen remains quarantined under `src/ui/integration` (tests only).
+ * Intake always seeds `/chat` (not `/travel-conversation`).
+ */
 
 function LegacyHome() {
   const navigate = useNavigate()
@@ -18,7 +18,7 @@ function LegacyHome() {
   const [tripText, setTripText] = useState('')
 
   const handleStartPlanning = () => {
-    navigate('/travel-conversation', { state: { tripText } })
+    navigate('/chat', { state: { initialPrompt: tripText, tripText } })
   }
 
   return (
@@ -125,14 +125,7 @@ function LegacyHome() {
 }
 
 export default function Home() {
-  const productionIntegration = getFeatureRegistry().isEnabled('ui.production_integration')
-  if (productionIntegration) {
-    return (
-      <Suspense fallback={<div aria-busy="true">Loading…</div>}>
-        <ProductionHomeScreen />
-      </Suspense>
-    )
-  }
+  // Recovery Phase 1: ignore ui.production_integration for routing.
   const aiHomeEnabled = getFeatureRegistry().isEnabled('ui.ai_home')
   if (aiHomeEnabled) return <AiHomeExperience />
   return <LegacyHome />
