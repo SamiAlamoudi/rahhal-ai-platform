@@ -1,7 +1,13 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { authService, validateSignInForm, mapAuthErrorMessage, type AuthError } from '../lib/auth'
 import { isDemoAuthEnabled } from '../lib/auth/demoAuth'
+import { markUx } from '../lib/perf/uxMetrics'
+
+/** Warm the chat chunk while the user is still on login. */
+function prefetchChatRoute(): void {
+  void import('./ChatPage')
+}
 
 export default function Login() {
   const navigate = useNavigate()
@@ -11,6 +17,11 @@ export default function Login() {
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const demoEnabled = isDemoAuthEnabled()
+
+  useEffect(() => {
+    markUx('login_render')
+    prefetchChatRoute()
+  }, [])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -22,6 +33,7 @@ export default function Login() {
     }
     setErrors([])
     setLoading(true)
+    prefetchChatRoute()
     const result = await authService.signIn(email, password)
     setLoading(false)
     if (!result.success) {
@@ -35,6 +47,7 @@ export default function Login() {
     setGeneralError(null)
     setErrors([])
     setLoading(true)
+    prefetchChatRoute()
     const result = await authService.signInDemo()
     setLoading(false)
     if (!result.success) {
@@ -44,7 +57,8 @@ export default function Login() {
     navigate('/chat')
   }
 
-  const fieldError = (field: string) => errors.find(e => e.field === field)?.message
+  const emailError = errors.find((e) => e.field === 'email')?.message
+  const passwordError = errors.find((e) => e.field === 'password')?.message
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-sky-50 via-white to-white px-4">
@@ -74,7 +88,7 @@ export default function Login() {
               placeholder="example@email.com"
               autoComplete="email"
             />
-            {fieldError('email') && <p className="mt-1 text-xs text-rose-500">{fieldError('email')}</p>}
+            {emailError && <p className="mt-1 text-xs text-rose-500">{emailError}</p>}
           </div>
 
           <div>
@@ -87,7 +101,7 @@ export default function Login() {
               placeholder="••••••••"
               autoComplete="current-password"
             />
-            {fieldError('password') && <p className="mt-1 text-xs text-rose-500">{fieldError('password')}</p>}
+            {passwordError && <p className="mt-1 text-xs text-rose-500">{passwordError}</p>}
           </div>
 
           <button

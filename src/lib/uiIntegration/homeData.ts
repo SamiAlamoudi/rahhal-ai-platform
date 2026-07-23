@@ -78,20 +78,23 @@ export async function loadProductionHomeData(input: {
   let memory: MemoryEngineResult | null = null
 
   try {
-    conversations = await safeListConversations(12)
-  } catch (err) {
-    error = err instanceof Error ? err.message : 'Failed to load conversations'
-  }
-
-  try {
-    trips = await Promise.race([
-      loadMyTrips(input.userId),
-      new Promise<null>((resolve) => {
-        setTimeout(() => resolve(null), 1500)
+    // Parallelize independent network loads (UX-01 — reduce home waterfall).
+    const [conversationResult, tripResult] = await Promise.all([
+      safeListConversations(12),
+      Promise.race([
+        loadMyTrips(input.userId),
+        new Promise<null>((resolve) => {
+          setTimeout(() => resolve(null), 1500)
+        }),
+      ]).catch((err) => {
+        error = err instanceof Error ? err.message : 'Failed to load trips'
+        return null
       }),
     ])
+    conversations = conversationResult
+    trips = tripResult
   } catch (err) {
-    error = error || (err instanceof Error ? err.message : 'Failed to load trips')
+    error = err instanceof Error ? err.message : 'Failed to load home data'
   }
 
   try {

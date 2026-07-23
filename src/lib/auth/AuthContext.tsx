@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../supabaseClient'
 import { isAdminUser } from './adminAccess'
@@ -99,17 +99,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      session,
+      loading,
+      isAuthenticated: !!user,
+      isAdmin: isAdminUser(user),
+      isDemoSession: isDemoToken(session),
+    }),
+    [user, session, loading],
+  )
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session,
-        loading,
-        isAuthenticated: !!user,
-        isAdmin: isAdminUser(user),
-        isDemoSession: isDemoToken(session),
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   )
