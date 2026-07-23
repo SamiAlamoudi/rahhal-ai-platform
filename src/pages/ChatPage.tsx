@@ -49,7 +49,6 @@ import {
   writeSessionUiRecovery,
   type ChatGptExperienceState,
 } from '../lib/chat/chatgptExperience'
-import { getFeatureRegistry } from '../lib/ai'
 
 /**
  * Recovery Phase 1 — ONE Chat UI.

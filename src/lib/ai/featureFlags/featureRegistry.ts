@@ -800,10 +800,8 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['ai.concierge'],
-    notes: 'Product alias: voice_conversation. Does not enable realtime providers.',
- ,
     notes:
-      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
+      'Product alias: voice_conversation. Does not enable realtime providers. Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'voice.realtime',
@@ -813,10 +811,8 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['ui.voice_conversation'],
-    notes: 'Product alias: voice_realtime. Stubs only in Sprint 18.',
- ,
     notes:
-      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
+      'Product alias: voice_realtime. Stubs only in Sprint 18. Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'voice.provider',
@@ -826,10 +822,8 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['ui.voice_conversation'],
-    notes: 'Product alias: voice_provider',
- ,
     notes:
-      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
+      'Product alias: voice_provider Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'voice.mock',
@@ -839,10 +833,8 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['ui.voice_conversation'],
-    notes: 'Product alias: voice_mock. Only non-live provider in Sprint 18.',
- ,
     notes:
-      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
+      'Product alias: voice_mock. Only non-live provider in Sprint 18. Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'brain.enabled',
@@ -852,10 +844,8 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['ai.concierge'],
-    notes: 'Product alias: brain_enabled',
- ,
     notes:
-      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
+      'Product alias: brain_enabled Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'brain.memory',
@@ -864,10 +854,8 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'deprecated',
     enabled: false,
     dependsOn: ['brain.enabled'],
-    notes: 'Product alias: brain_memory',
- ,
     notes:
-      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
+      'Product alias: brain_memory Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'brain.intent',
@@ -1137,10 +1125,8 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     description: 'Enable live payment rails (Moyasar etc.). Remains OFF in v1.1 planning.',
     lifecycle: 'deprecated',
     enabled: false,
-    notes: 'Keep VITE_PAYMENT_PROVIDER=mock until payment production freeze lifts.',
- ,
     notes:
-      'Recovery Phase 1 FREEZE: quarantined parallel stack.',
+      'Keep VITE_PAYMENT_PROVIDER=mock until payment production freeze lifts. Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'providers.live_master',
