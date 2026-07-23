@@ -221,7 +221,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     }
     // Best-effort: retain one mic stream for VAD. Never block STT if MediaDevices
     // is missing (unit tests / restricted embeds) after permission already succeeded.
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
       const micGrant = await requestMicrophoneAccess({ retainStream: true })
       if (micGrant.state === 'denied') {
         callbacks.onPermission?.(micGrant)
