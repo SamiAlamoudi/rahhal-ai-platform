@@ -5,6 +5,7 @@
 
 import type { AgentLocale, AgentMemory, TripPlan, TripRequirements } from '../types'
 import type { AgentToolRunSummary } from '../types'
+import type { PlanningDraft } from '../planningDraft/types'
 
 export type ConversationObjective =
   | 'greet_or_continue'
@@ -75,6 +76,11 @@ export interface TravelFacts {
   optionHints?: string[]
   warnings?: string[]
   recommendations?: string[]
+  /**
+   * Internal planning intelligence (rule-based).
+   * Never dump as JSON to the traveler — Conversation Brain phrases it.
+   */
+  planningDraft?: PlanningDraft | null
   plan?: {
     title: string
     summary: string
@@ -201,6 +207,7 @@ export function buildTravelFacts(input: {
   optionHints?: string[]
   warnings?: string[]
   recommendations?: string[]
+  planningDraft?: PlanningDraft | null
   toolResults?: AgentToolRunSummary[]
   savedTitle?: string | null
 }): TravelFacts {
@@ -230,6 +237,7 @@ export function buildTravelFacts(input: {
     optionHints: input.optionHints,
     warnings: input.warnings,
     recommendations: input.recommendations,
+    planningDraft: input.planningDraft ?? null,
     plan: planFacts,
     toolSummaries: input.toolResults?.map((t) => ({ tool: t.tool, summary: t.summary })),
     savedTitle: input.savedTitle,

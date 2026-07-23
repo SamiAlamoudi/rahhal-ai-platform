@@ -39,6 +39,12 @@ export {
 } from './clarification'
 export { extractFromUserText } from './extractRequirements'
 export {
+  buildPlanningDraft,
+  canBuildPlanningDraft,
+  planningDraftToInsightLines,
+  type PlanningDraft,
+} from './planningDraft'
+export {
   buildTripPlan,
   buildTravelItinerary,
   applyTripPlanEdits,

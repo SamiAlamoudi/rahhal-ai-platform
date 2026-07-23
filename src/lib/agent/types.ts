@@ -263,6 +263,30 @@ export interface AgentProviderMeta {
     rationale: string[]
   }
   /**
+   * Planning Draft — internal estimate intelligence (not a TripPlan, not bookings).
+   * Used by Conversation Brain; never rendered as raw JSON in the chat body.
+   */
+  planningDraft?: {
+    destination: string
+    rankedCities: string[]
+    recommendedDurationDays: number
+    budgetAmount: number | null
+    budgetCurrency: string
+    confidence: string
+    confidenceScore: number
+    breakdown: {
+      flights: number
+      hotels: number
+      food: number
+      transportation: number
+      activities: number
+      currency: string
+      estimatedTotal: number
+    }
+    missingAssumptions: string[]
+    rankingNote: string
+  }
+  /**
    * Sprint 51 — Executive Travel Platform snapshot.
    */
   executivePlatform?: {

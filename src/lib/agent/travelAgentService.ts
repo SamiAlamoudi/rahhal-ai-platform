@@ -24,6 +24,11 @@ import {
   type TravelFacts,
 } from './conversationBrain'
 import {
+  buildPlanningDraft,
+  canBuildPlanningDraft,
+  planningDraftToInsightLines,
+} from './planningDraft'
+import {
   applySmartClarification,
   mergeRequirements,
   missingRequirementFields,
@@ -2263,10 +2268,35 @@ export function createTravelAgentService(
             })
             optionHints = recs.optionLines
           }
-          const valueNotes = [
-            conciergeResult.decision.framingNote,
-            conciergeResult.decision.preferenceQuestion,
-          ].filter((row): row is string => Boolean(row && row.trim()))
+          // Planning Draft — deterministic estimates for Conversation Brain (not TripPlan).
+          const planningDraft = canBuildPlanningDraft(memory.requirements)
+            ? buildPlanningDraft({
+              requirements: memory.requirements,
+              locale: memory.locale,
+            })
+            : null
+
+          const valueNotes: string[] = []
+          if (planningDraft) {
+            const insightLines = planningDraftToInsightLines(planningDraft, memory.locale)
+            // Prefer draft ranking + city why-lines as option hints when we have estimates.
+            optionHints = [
+              ...planningDraft.cities.slice(0, 3).map((city) => `${city.name} — ${city.why}`),
+              ...insightLines.slice(1, 3),
+            ]
+            valueNotes.push(planningDraft.rankingNote)
+            if (conciergeResult.decision.preferenceQuestion) {
+              valueNotes.push(conciergeResult.decision.preferenceQuestion)
+            }
+          } else {
+            for (const row of [
+              conciergeResult.decision.framingNote,
+              conciergeResult.decision.preferenceQuestion,
+            ]) {
+              if (row && row.trim()) valueNotes.push(row)
+            }
+          }
+
           const facts = buildTravelFacts({
             memory,
             objective: mapConciergeObjective(conciergeResult.decision.action),
@@ -2277,6 +2307,7 @@ export function createTravelAgentService(
             heardSummary: conciergeResult.decision.state.heardSummary,
             optionHints,
             recommendations: valueNotes.length > 0 ? valueNotes : undefined,
+            planningDraft,
           })
           const spoken = await speakTravelFacts({
             llms,
@@ -2295,6 +2326,22 @@ export function createTravelAgentService(
             voicePhase: 'final',
             toolResults: [],
             concierge: toMetaConcierge(conciergeState),
+            ...(planningDraft
+              ? {
+                planningDraft: {
+                  destination: planningDraft.destination,
+                  rankedCities: planningDraft.rankedCities,
+                  recommendedDurationDays: planningDraft.recommendedDurationDays,
+                  budgetAmount: planningDraft.budgetAmount,
+                  budgetCurrency: planningDraft.budgetCurrency,
+                  confidence: planningDraft.confidence,
+                  confidenceScore: planningDraft.confidenceScore,
+                  breakdown: planningDraft.breakdown,
+                  missingAssumptions: planningDraft.missingAssumptions,
+                  rankingNote: planningDraft.rankingNote,
+                },
+              }
+              : {}),
           }
           return {
             reply: spoken.displayText,

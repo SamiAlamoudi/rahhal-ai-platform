@@ -288,14 +288,37 @@ export function generateLocalConversation(input: {
     case 'propose_options':
     case 'advise': {
       const ack = acknowledge(input.facts, seed, ar)
-      const framing = input.facts.recommendations?.[0]
+      const draft = input.facts.planningDraft
+      const framing = draft?.rankingNote
+        || input.facts.recommendations?.[0]
         || pick(seed + 2, ar
           ? ['هذه قراءة مستشار على ما عندنا الآن.', 'خلّيني أضيّق لك الاتجاه قبل ما نسأل تفاصيل إضافية.']
           : ['Here is a consultant read on what we already know.', 'Let me narrow direction before asking for more detail.'])
-      const hints = input.facts.optionHints?.length
-        ? input.facts.optionHints.map((h) => `• ${h}`).join('\n')
-        : ''
-      const closer = input.facts.recommendations?.[1]
+
+      let hints = ''
+      if (draft && draft.cities.length > 0) {
+        const cityLines = draft.cities.slice(0, 3).map((city) => `• ${city.name} — ${city.why}`)
+        const b = draft.breakdown
+        const split = ar
+          ? `تقدير أوّلي (ثقة ${draft.confidence}): طيران ≈${b.flights} · فنادق ≈${b.hotels} · طعام ≈${b.food} · تنقل ≈${b.transportation} · أنشطة ≈${b.activities} ${b.currency}`
+          : `First-pass split (${draft.confidence} confidence): flights ≈${b.flights} · hotels ≈${b.hotels} · food ≈${b.food} · transport ≈${b.transportation} · activities ≈${b.activities} ${b.currency}`
+        const trade = draft.tradeoffs[0] ? `• ${draft.tradeoffs[0]}` : ''
+        hints = [...cityLines, '', split, trade].filter(Boolean).join('\n')
+      } else if (input.facts.optionHints?.length) {
+        hints = input.facts.optionHints.map((h) => `• ${h}`).join('\n')
+      }
+
+      const beachCity = draft?.cities.some((c) =>
+        /agadir|antalya|bali|beach|شاطئ|أكادير|أنطاليا|بالي/i.test(`${c.name} ${c.why}`),
+      )
+      const styleCloser = beachCity
+        ? (ar
+          ? 'تميل لرحلة شاطئ واسترخاء، ولا تجربة مدينة وثقافة؟'
+          : 'Would you like a relaxing beach trip or a city experience?')
+        : null
+      const questionFromFacts = input.facts.recommendations?.find((row) => /[?؟]\s*$/.test(row.trim()))
+      const closer = styleCloser
+        || questionFromFacts
         || pick(seed + 1, ar
           ? ['من هذه الاتجاهات، أيّها يشدّك أكثر؟', 'بحر وهدوء، ولا مدينة وثقافة؟']
           : ['From these directions, which interests you most?', 'Beach and calm, or city and culture?'])
