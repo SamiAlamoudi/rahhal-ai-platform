@@ -51,10 +51,10 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
   const hasPlan = Boolean(ctx.memory.tripPlan)
   const heardSummary = buildHeardSummary(ctx, softSignals.mustHaves)
 
-  let action: ConciergeAction
+  let action: ConciergeAction = 'ask'
   let askFields: Array<keyof TripRequirements> = []
   let shouldExecuteAgent = false
-  let rationale: string
+  let rationale = 'Default discovery ask.'
   let valueBrief: string[] | undefined
   let framingNote: string | null | undefined
   let preferenceQuestion: string | null | undefined
@@ -67,7 +67,7 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
     hardMissing,
   })
 
-  const applyValueLead = (prefix: string) => {
+  const applyValueLead = (prefix: string): void => {
     action = valueGate.action
     askFields = []
     shouldExecuteAgent = false
