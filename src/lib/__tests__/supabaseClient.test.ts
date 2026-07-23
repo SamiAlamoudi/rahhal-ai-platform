@@ -32,4 +32,10 @@ describe('Supabase Client: env vars', () => {
     expect(import.meta.env.VITE_SUPABASE_ANON_KEY).toBeDefined()
     expect(typeof import.meta.env.VITE_SUPABASE_ANON_KEY).toBe('string')
   })
+
+  it('createClient receives non-empty url and key from env', () => {
+    expect(import.meta.env.VITE_SUPABASE_URL.length).toBeGreaterThan(0)
+    expect(import.meta.env.VITE_SUPABASE_ANON_KEY.length).toBeGreaterThan(0)
+    expect(supabase).toBeDefined()
+  })
 })
