@@ -54,9 +54,9 @@ export function createLocalAgentLlmAdapter(): AgentLlmProvider {
         status: 'ok',
         text: JSON.stringify({
           displayText: userMessage
-            ? `I hear you — ${userMessage.slice(0, 80)}. Tell me a little more about the trip.`
-            : 'Tell me a little more about the trip you are planning.',
-          spokenText: 'Tell me a little more about the trip you are planning.',
+            ? `Understood. What is the one detail still blocking the plan?`
+            : 'What is the one detail still blocking the plan?',
+          spokenText: 'What is the one detail still blocking the plan?',
         }),
       }
     },
@@ -64,10 +64,22 @@ export function createLocalAgentLlmAdapter(): AgentLlmProvider {
 }
 
 function extractFactsFromPayload(payload: string): TravelFacts | null {
-  const marker = 'Travel Facts (structured — not prose):'
-  const idx = payload.indexOf(marker)
+  const markers = [
+    'Travel Facts (source of truth — never contradict or re-ask known fields):',
+    'Travel Facts (structured — not prose):',
+  ]
+  let idx = -1
+  let markerLen = 0
+  for (const marker of markers) {
+    const at = payload.indexOf(marker)
+    if (at >= 0) {
+      idx = at
+      markerLen = marker.length
+      break
+    }
+  }
   if (idx < 0) return null
-  const after = payload.slice(idx + marker.length).trim()
+  const after = payload.slice(idx + markerLen).trim()
   const endMarkers = [
     '\nUser profile',
     '\nRecent conversation:',
@@ -90,5 +102,8 @@ function extractLatestUserMessage(payload: string): string {
   const marker = 'Latest user message:'
   const idx = payload.indexOf(marker)
   if (idx < 0) return ''
-  return payload.slice(idx + marker.length).trim()
+  const body = payload.slice(idx + marker.length).trim()
+  // Drop trailing instruction line if present.
+  const cut = body.split(/\nWrite the next advisor/i)[0] ?? body
+  return cut.trim()
 }

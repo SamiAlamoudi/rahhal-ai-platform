@@ -67,8 +67,8 @@ export function buildConsultantReply(input: ConsultantVoiceInput): string {
     case 'search':
       // Agent will produce the structured plan reply; Concierge only bridges.
       return line(locale, {
-        ar: 'ممتاز — عندي أفكار أولية، خلّني أقارن أفضل الخيارات.',
-        en: 'Excellent — I already have a few ideas. Let me compare the best options.',
+        ar: 'لحظة — عندي أفكار أولية، خلّني أقارن أفضل الخيارات.',
+        en: 'One moment — I already have a few ideas. Let me compare the best options.',
       })
     case 'refine':
       return line(locale, {

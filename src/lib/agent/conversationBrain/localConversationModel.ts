@@ -29,17 +29,25 @@ function knownBits(facts: TravelFacts, ar: boolean): string[] {
   const bits: string[] = []
   const dest = k.destination || k.destinations?.[0]
   if (dest) bits.push(dest)
-  if (k.durationDays != null) {
+  if (k.startDate && k.endDate) {
+    bits.push(ar ? `من ${k.startDate} إلى ${k.endDate}` : `${k.startDate} → ${k.endDate}`)
+  } else if (k.startDate) {
+    bits.push(ar ? `حوالي ${k.startDate}` : `around ${k.startDate}`)
+  } else if (k.durationDays != null) {
     bits.push(ar ? `${k.durationDays} أيام` : `${k.durationDays} days`)
   }
+  if (k.origin) {
+    bits.push(ar ? `من ${k.origin}` : `from ${k.origin}`)
+  }
   if (k.travelerType === 'couple' || k.travelers === 2) {
-    bits.push(ar ? 'للاثنين' : 'for the two of you')
+    bits.push(ar ? 'للاثنين' : 'for two')
   } else if (k.travelerType === 'family') {
     bits.push(ar ? 'للعائلة' : 'for the family')
+  } else if (k.travelerType === 'solo' || k.travelers === 1) {
+    bits.push(ar ? 'فردي' : 'solo')
   } else if (k.travelers != null) {
     bits.push(ar ? `${k.travelers} مسافرين` : `${k.travelers} travelers`)
   }
-  if (k.startDate) bits.push(k.startDate)
   if (k.budgetFlexible) bits.push(ar ? 'ميزانية مرنة' : 'flexible budget')
   else if (k.budgetAmount != null) {
     bits.push(`${k.budgetAmount} ${k.budgetCurrency || ''}`.trim())
@@ -52,56 +60,64 @@ function askForSlot(slot: string, facts: TravelFacts, seed: number, ar: boolean)
   const variants: Record<string, { ar: string[]; en: string[] }> = {
     destination: {
       ar: [
-        'وين تحس إن الرحلة هذي لازم تكون؟',
-        'لو رسمت الصورة في بالك — أي وجهة تطلع أولاً؟',
-        'خبرني عن المكان اللي تتمنى تصحى فيه.',
+        'أي وجهة نخطط لها؟',
+        'وين الوجهة؟',
+        'سمّ لي الوجهة ونبني عليها.',
       ],
       en: [
-        'Where do you picture this trip unfolding?',
-        'If you sketch it freely — which place comes to mind first?',
-        'Tell me about the destination that feels right.',
+        'Which destination should we plan for?',
+        'Where are you headed?',
+        'Name the destination and I will build from there.',
       ],
     },
     durationDays: {
       ar: [
-        dest ? `متى تتخيّل ${dest}، وكم يوم تقريباً؟` : 'متى تقريباً، وكم يوم تحس إن الرحلة تحتاج؟',
-        dest ? `توقيت ${dest} عندك مرن، ولا عندك عدد أيام واضح؟` : 'التوقيت عندك مرن، ولا مدة معيّنة؟',
-        'حبّذ لو تقول لي الإطار الزمني والمدة بالأيام اللي تناسبك.',
+        dest ? `متى تقريباً تقصد ${dest}، وكم يوم؟` : 'متى تقريباً، وكم يوم؟',
+        dest ? `ما الإطار الزمني لـ${dest}؟` : 'ما الإطار الزمني للرحلة؟',
+        'أحتاج توقيتاً تقريباً أو عدد الأيام فقط.',
       ],
       en: [
-        dest ? `When are you imagining ${dest}, and for roughly how many days?` : 'When roughly, and for how many days?',
-        dest ? `Is timing for ${dest} flexible, or do you already have a duration in days?` : 'Is timing flexible, or do you already have a duration in mind?',
-        'It helps if you share when — and how many days feel right.',
+        dest ? `When roughly for ${dest}, and for how many days?` : 'When roughly, and for how many days?',
+        dest ? `What timing window works for ${dest}?` : 'What timing window works?',
+        'I only need an approximate period or a day count.',
       ],
     },
     budgetAmount: {
       ar: [
-        'وش الميزانية اللي ترتاح لها، أو نخليها مرنة؟',
-        'نضبط الخيارات على سقف معيّن، ولا الميزانية مفتوحة؟',
-        'حاب أحدد لك خيارات ضمن مدى ميزانية، أو نتركها مرنة؟',
+        'ما سقف الميزانية، أو نتركها مرنة؟',
+        'هل عندك ميزانية محددة، أم مرنة؟',
+        'أضبط الخيارات على ميزانية معيّنة، أو بلا سقف؟',
       ],
       en: [
-        'What budget range feels comfortable — or shall we keep it flexible?',
-        'Should I shape options around a ceiling, or leave budget open?',
-        'Want me to tune choices to a range, or keep things flexible?',
+        'What budget ceiling should I use — or keep it flexible?',
+        'Do you have a budget in mind, or shall we keep it open?',
+        'Should I constrain options to a budget, or leave it flexible?',
       ],
     },
     travelers: {
       ar: [
-        'بتسافر لوحدك، ولا مع أحد؟',
-        'الرفقة كيف — فردي، اثنين، ولا أكثر؟',
-        'مين بيكون معك في هالرحلة؟',
+        'كم شخص يسافر؟',
+        'الرحلة فردية، لاثنين، أم أكثر؟',
       ],
       en: [
-        'Traveling solo, or with someone?',
-        'Who is coming along — just you, or a small group?',
-        'Is this a solo trip or shared with others?',
+        'How many people are traveling?',
+        'Solo, for two, or a larger party?',
+      ],
+    },
+    origin: {
+      ar: [
+        'من أي مدينة المغادرة؟',
+        'وين نقطة الإقلاع؟',
+      ],
+      en: [
+        'Which city will you depart from?',
+        'Where are you flying out of?',
       ],
     },
   }
   const pack = variants[slot] ?? {
-    ar: ['خبرني أكثر عشان أضبط الخيارات بدقة.'],
-    en: ['Tell me a little more so I can tune this carefully.'],
+    ar: ['ما التفصيلة الناقصة عشان أكمّل التخطيط؟'],
+    en: ['What is the one detail still blocking the plan?'],
   }
   return pick(seed, ar ? pack.ar : pack.en)
 }
@@ -110,20 +126,20 @@ function acknowledge(facts: TravelFacts, seed: number, ar: boolean): string {
   const bits = knownBits(facts, ar)
   if (bits.length === 0) {
     return pick(seed, ar
-      ? ['يبدو إن عندك رحلة جميلة تتشكّل.', 'حماس الرحلة واضح عندك.', 'خلّنا نبنيها بهدوء على ذوقك.']
-      : ['There is a lovely trip taking shape here.', 'I can feel the excitement in what you shared.', 'Let’s shape this gently around you.'])
+      ? ['فهمت.', 'خلّنا نضبط الأساسيات.', 'جاهز نبدأ التخطيط.']
+      : ['Understood.', 'Let us lock the essentials.', 'Ready to plan.'])
   }
-  const joined = bits.slice(0, 3).join(ar ? ' · ' : ' · ')
+  const joined = bits.slice(0, 4).join(ar ? ' · ' : ' · ')
   return pick(seed + 3, ar
     ? [
-      `${joined} — صورة واضحة وجميلة.`,
-      `أخذت ${joined} كأساس، وبيكمّل الباقي بسلاسة.`,
-      `ممتاز — ${joined} يعطيني اتجاه قوي.`,
+      `فهمت: ${joined}.`,
+      `عندي: ${joined}.`,
+      `${joined} — هذا الأساس.`,
     ]
     : [
-      `${joined} — that already paints a strong picture.`,
-      `I am holding ${joined} as the base, and we can refine from there.`,
-      `Great — ${joined} gives me a clear direction.`,
+      `Understood: ${joined}.`,
+      `I have: ${joined}.`,
+      `${joined} — that is the base.`,
     ])
 }
 
@@ -272,8 +288,8 @@ export function generateLocalConversation(input: {
         ? input.facts.optionHints.map((h, i) => `${i + 1}. ${h}`).join('\n')
         : ''
       const closer = pick(seed + 1, ar
-        ? ['أي اتجاه أقرب لك؟', 'وش الإحساس اللي تبيه أكثر؟']
-        : ['Which direction feels closer?', 'What vibe are you leaning toward?'])
+        ? ['أي اتجاه نكمّل عليه؟', 'وش الأنسب لك من هالخيارات؟']
+        : ['Which direction should we take?', 'Which of these fits you best?'])
       const displayText = [ack, hints, closer].filter(Boolean).join('\n\n')
       return { displayText, spokenText: `${ack} ${closer}` }
     }

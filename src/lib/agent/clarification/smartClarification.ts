@@ -2,21 +2,22 @@
  * Sprint 46 — Smart Clarification / Never-Ask-Twice engine.
  *
  * Soft preferences are inferred — never interrogated like a booking form.
- * Hard requirements (destination, dates/duration, budget, travelers) still block planning.
+ * Hard requirements that block planning: destination, approx dates/duration, budget.
+ * Party size is inferred when unset so the consultant can act instead of interrogate.
  */
 
 import type { BudgetStyle, PackageScope, TripRequirements } from '../types'
 
-/** Hard slots the consultant may still ask about. */
+/** Hard slots the consultant may still ask about (one at a time). */
 export const HARD_CLARIFICATION_FIELDS: Array<keyof TripRequirements> = [
   'destination',
   'durationDays',
   'budgetAmount',
-  'travelers',
 ]
 
 /** Soft slots — always inferred when unset; never form-asked. */
 export const SOFT_CLARIFICATION_FIELDS: Array<keyof TripRequirements> = [
+  'travelers',
   'travelerType',
   'interests',
   'weatherPreference',
@@ -29,6 +30,16 @@ export interface ClarificationInference {
   requirements: TripRequirements
   inferred: Array<keyof TripRequirements>
   rationale: string[]
+}
+
+/**
+ * True when the traveler has given enough timing signal to plan
+ * (explicit duration and/or approximate start / date window).
+ */
+export function hasApproximateTravelDates(requirements: TripRequirements): boolean {
+  if (requirements.durationDays != null) return true
+  if (requirements.startDate) return true
+  return false
 }
 
 /**
@@ -61,6 +72,25 @@ export function inferSoftRequirements(
   if (next.travelers == null && next.travelerType === 'couple') {
     next.travelers = 2
     inferred.push('travelers')
+  }
+  // Default party size so dest + budget + dates can proceed without a census question.
+  if (next.travelers == null) {
+    next.travelers = 2
+    inferred.push('travelers')
+    rationale.push(locale === 'ar'
+      ? 'افترضت مسافرين اثنين ما لم يُذكر خلاف ذلك'
+      : 'Assumed two travelers unless stated otherwise')
+  }
+  if (next.travelerType == null && next.travelers != null) {
+    if (next.travelers === 1) next.travelerType = 'solo'
+    else if (next.travelers === 2) next.travelerType = 'couple'
+    else next.travelerType = 'family'
+    if (!inferred.includes('travelerType')) {
+      inferred.push('travelerType')
+      rationale.push(locale === 'ar'
+        ? `استنتجت نوع المسافرين من العدد (${next.travelers})`
+        : `Inferred traveler type from party size (${next.travelers})`)
+    }
   }
 
   if (next.interests.length === 0) {
@@ -110,12 +140,31 @@ export function inferSoftRequirements(
     else if (next.travelerType === 'couple') next.tripPurpose = 'leisure'
   }
 
+  // If we have a date window but no duration, derive nights from the window.
+  if (
+    next.durationDays == null
+    && next.startDate
+    && next.endDate
+  ) {
+    const start = Date.parse(next.startDate)
+    const end = Date.parse(next.endDate)
+    if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
+      const days = Math.max(1, Math.round((end - start) / 86_400_000) + 1)
+      next.durationDays = days
+      inferred.push('durationDays')
+      rationale.push(locale === 'ar'
+        ? `استنتجت المدة (${days} أيام) من فترة السفر`
+        : `Inferred duration (${days} days) from the travel window`)
+    }
+  }
+
   return { requirements: next, inferred, rationale }
 }
 
 /**
  * Missing fields the AI is allowed to ask about.
  * Soft slots are never returned once smart clarification is active.
+ * Inspect known state first — never re-ask filled slots.
  */
 export function missingClarificationFields(
   requirements: TripRequirements,
@@ -132,7 +181,8 @@ export function missingClarificationFields(
       continue
     }
     if (field === 'durationDays') {
-      if (req.durationDays == null && (!req.startDate || !req.endDate)) {
+      // Approx dates (startDate and/or duration) satisfy timing — never re-ask.
+      if (!hasApproximateTravelDates(req)) {
         missing.push('durationDays')
       }
       continue
@@ -141,14 +191,12 @@ export function missingClarificationFields(
       if (req.budgetAmount == null && req.budgetFlexible !== true) missing.push('budgetAmount')
       continue
     }
-    if (field === 'travelers') {
-      if (req.travelers == null) missing.push('travelers')
-    }
   }
 
   if (!smart) {
     // Legacy full intake — keep soft slots blocking (tests / flag off).
     for (const field of SOFT_CLARIFICATION_FIELDS) {
+      if (field === 'travelers' && req.travelers == null) missing.push('travelers')
       if (field === 'travelerType' && req.travelerType == null) missing.push('travelerType')
       if (field === 'interests' && req.interests.length === 0) missing.push('interests')
       if (field === 'weatherPreference' && !req.weatherPreference) missing.push('weatherPreference')

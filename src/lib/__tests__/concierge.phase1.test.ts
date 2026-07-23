@@ -70,7 +70,7 @@ describe('Concierge Phase 1 — domain model', () => {
 
   it('counts only hard intake missing fields', () => {
     expect(hardMissingCount(['destination', 'interests', 'hotelPreference'])).toBe(1)
-    expect(hardMissingCount(['destination', 'durationDays', 'budgetAmount', 'travelers'])).toBe(4)
+    expect(hardMissingCount(['destination', 'durationDays', 'budgetAmount', 'travelers'])).toBe(3)
   })
 })
 

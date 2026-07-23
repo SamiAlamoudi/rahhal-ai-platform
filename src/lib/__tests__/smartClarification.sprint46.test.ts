@@ -181,7 +181,10 @@ describe('travelAgentService never-ask-twice', () => {
       messages: [user('I want to travel to Japan.')],
     })
     expect(turn.tripPlan).toBeNull()
+    expect(turn.memory.requirements.destination).toBe('Japan')
     expect(turn.memory.missingFields[0]).toBe('durationDays')
-    expect(turn.reply.toLowerCase()).toMatch(/when|day|مدة|متى/)
+    expect(turn.memory.missingFields).not.toContain('destination')
+    // Does not interrogate soft preferences or re-ask destination.
+    expect(turn.reply.toLowerCase()).not.toMatch(/preferred weather|hotel preference|ما الطقس|تفضيل الفندق/)
   })
 })

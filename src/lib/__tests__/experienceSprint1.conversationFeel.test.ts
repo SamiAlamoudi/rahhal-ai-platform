@@ -53,7 +53,8 @@ describe('Experience Sprint 1 — conversation-first advisor', () => {
     memory.missingFields = ['durationDays']
     const reply = buildFollowUpQuestion(memory, memory.missingFields)
     expect(reply.toLowerCase()).not.toMatch(/next question|step 1|please choose|select |بدون تخمين|سؤال التالي/)
-    expect(reply).toMatch(/Japan|wonderful|timing|days|dates/i)
+    expect(reply).toMatch(/Japan|timing|days|dates|when/i)
+    expect(reply.toLowerCase()).not.toMatch(/\b(great|excellent|wonderful|perfect|lovely)\b/)
     // At most one question mark for a single follow-up.
     expect((reply.match(/\?/g) ?? []).length).toBeLessThanOrEqual(2)
   })
