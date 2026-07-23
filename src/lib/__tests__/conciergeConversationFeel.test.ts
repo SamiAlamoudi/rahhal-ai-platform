@@ -129,7 +129,7 @@ describe('Concierge feel — one question + act when ready', () => {
     expect(decision.askFields).toHaveLength(1)
   })
 
-  it('infers travelers and clears missing when dest + budget + dates exist', () => {
+  it('does not invent travelers; hard slots clear when dest + budget + dates exist', () => {
     const base = mergeRequirements(emptyRequirements(), {
       destination: 'Morocco',
       destinations: ['Morocco'],
@@ -140,7 +140,8 @@ describe('Concierge feel — one question + act when ready', () => {
       budgetCurrency: 'SAR',
     })
     const inferred = inferSoftRequirements(base, { locale: 'en' })
-    expect(inferred.requirements.travelers).toBe(2)
+    expect(inferred.requirements.travelers).toBeNull()
+    expect(inferred.requirements.travelerType).toBeNull()
     expect(missingRequirementFields(inferred.requirements, { smart: true })).toEqual([])
   })
 

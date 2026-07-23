@@ -1,12 +1,12 @@
 /**
  * Sprint 46 — Smart Clarification / Never-Ask-Twice engine.
  *
- * Soft preferences are inferred — never interrogated like a booking form.
+ * Soft preferences are NOT form-filled with invented defaults.
+ * Only high-confidence bridges from values the traveler already stated.
  * Hard requirements that block planning: destination, approx dates/duration, budget.
- * Party size is inferred when unset so the consultant can act instead of interrogate.
  */
 
-import type { BudgetStyle, PackageScope, TripRequirements } from '../types'
+import type { TripRequirements } from '../types'
 
 /** Hard slots the consultant may still ask about (one at a time). */
 export const HARD_CLARIFICATION_FIELDS: Array<keyof TripRequirements> = [
@@ -15,7 +15,7 @@ export const HARD_CLARIFICATION_FIELDS: Array<keyof TripRequirements> = [
   'budgetAmount',
 ]
 
-/** Soft slots — always inferred when unset; never form-asked. */
+/** Soft slots — never form-asked when smart clarification is on; left null until stated. */
 export const SOFT_CLARIFICATION_FIELDS: Array<keyof TripRequirements> = [
   'travelers',
   'travelerType',
@@ -43,8 +43,8 @@ export function hasApproximateTravelDates(requirements: TripRequirements): boole
 }
 
 /**
- * Fill soft preference slots with safe conversational defaults.
- * Never overwrites an explicit user/memory value.
+ * High-confidence bridges only. Never invent party size, hotel, style, purpose, etc.
+ * Missing information stays null / empty so the consultant can ask or proceed honestly.
  */
 export function inferSoftRequirements(
   requirements: TripRequirements,
@@ -55,7 +55,7 @@ export function inferSoftRequirements(
   const rationale: string[] = []
   const locale = options.locale ?? 'ar'
 
-  // Traveler type from party size (already partially done in merge — reinforce).
+  // High confidence: party size ↔ traveler type when one side is already explicit.
   if (next.travelerType == null && next.travelers != null) {
     if (next.travelers === 1) next.travelerType = 'solo'
     else if (next.travelers === 2) next.travelerType = 'couple'
@@ -68,79 +68,15 @@ export function inferSoftRequirements(
   if (next.travelers == null && next.travelerType === 'solo') {
     next.travelers = 1
     inferred.push('travelers')
+    rationale.push(locale === 'ar' ? 'فردي → مسافر واحد' : 'Solo → 1 traveler')
   }
   if (next.travelers == null && next.travelerType === 'couple') {
     next.travelers = 2
     inferred.push('travelers')
-  }
-  // Default party size so dest + budget + dates can proceed without a census question.
-  if (next.travelers == null) {
-    next.travelers = 2
-    inferred.push('travelers')
-    rationale.push(locale === 'ar'
-      ? 'افترضت مسافرين اثنين ما لم يُذكر خلاف ذلك'
-      : 'Assumed two travelers unless stated otherwise')
-  }
-  if (next.travelerType == null && next.travelers != null) {
-    if (next.travelers === 1) next.travelerType = 'solo'
-    else if (next.travelers === 2) next.travelerType = 'couple'
-    else next.travelerType = 'family'
-    if (!inferred.includes('travelerType')) {
-      inferred.push('travelerType')
-      rationale.push(locale === 'ar'
-        ? `استنتجت نوع المسافرين من العدد (${next.travelers})`
-        : `Inferred traveler type from party size (${next.travelers})`)
-    }
+    rationale.push(locale === 'ar' ? 'زوجان → مسافران' : 'Couple → 2 travelers')
   }
 
-  if (next.interests.length === 0) {
-    next.interests = ['any']
-    inferred.push('interests')
-    rationale.push(locale === 'ar'
-      ? 'لم تُحدد اهتمامات — سأبني خطة متوازنة'
-      : 'No interests stated — using a balanced plan')
-  }
-
-  if (!next.weatherPreference) {
-    next.weatherPreference = 'flexible'
-    inferred.push('weatherPreference')
-    rationale.push(locale === 'ar'
-      ? 'الطقس مرن ما لم تُحدد خلاف ذلك'
-      : 'Weather treated as flexible unless stated')
-  }
-
-  if (!next.budgetStyle) {
-    next.budgetStyle = inferBudgetStyle(next)
-    inferred.push('budgetStyle')
-    rationale.push(locale === 'ar'
-      ? `أسلوب الميزانية المستنتج: ${next.budgetStyle}`
-      : `Inferred budget style: ${next.budgetStyle}`)
-  }
-
-  if (!next.hotelPreference) {
-    next.hotelPreference = next.tripPurpose === 'business' ? 'central' : 'any'
-    inferred.push('hotelPreference')
-    rationale.push(locale === 'ar'
-      ? `تفضيل الفندق المستنتج: ${next.hotelPreference}`
-      : `Inferred hotel preference: ${next.hotelPreference}`)
-  }
-
-  if (!next.packageScope) {
-    const scope: PackageScope = next.tripPurpose === 'business' ? 'flights_only' : 'full_package'
-    next.packageScope = scope
-    inferred.push('packageScope')
-    rationale.push(locale === 'ar'
-      ? `نطاق الباقة المستنتج: ${scope}`
-      : `Inferred package scope: ${scope}`)
-  }
-
-  if (!next.tripPurpose) {
-    if (next.travelerType === 'business') next.tripPurpose = 'business'
-    else if (next.travelerType === 'family') next.tripPurpose = 'family'
-    else if (next.travelerType === 'couple') next.tripPurpose = 'leisure'
-  }
-
-  // If we have a date window but no duration, derive nights from the window.
+  // High confidence: closed date window → duration in days.
   if (
     next.durationDays == null
     && next.startDate
@@ -207,29 +143,4 @@ export function missingClarificationFields(
   }
 
   return missing
-}
-
-function inferBudgetStyle(requirements: TripRequirements): BudgetStyle {
-  if (requirements.budgetFlexible) return 'midrange'
-  const amount = requirements.budgetAmount
-  if (amount == null) return 'midrange'
-  const currency = (requirements.budgetCurrency || 'SAR').toUpperCase()
-  const sar = toSar(amount, currency)
-  const days = requirements.durationDays ?? 5
-  const travelers = Math.max(1, requirements.travelers ?? 2)
-  const perPersonPerDay = sar / (days * travelers)
-  if (perPersonPerDay >= 1500) return 'luxury'
-  if (perPersonPerDay <= 450) return 'budget'
-  return 'midrange'
-}
-
-function toSar(amount: number, currency: string): number {
-  const map: Record<string, number> = {
-    SAR: 1,
-    USD: 3.75,
-    EUR: 4.1,
-    GBP: 4.8,
-    AED: 1.02,
-  }
-  return amount * (map[currency] ?? 1)
 }

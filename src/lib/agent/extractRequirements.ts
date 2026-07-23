@@ -559,25 +559,49 @@ function matchDuration(lower: string, original: string): number | null {
   return null
 }
 
+/** Eastern / Persian digits → ASCII so "٥٠٠٠" and "5000" share one parser. */
+function normalizeNumerals(text: string): string {
+  const map: Record<string, string> = {
+    '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
+    '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
+    '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4',
+    '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9',
+  }
+  return text.replace(/[٠-٩۰-۹]/g, (ch) => map[ch] ?? ch)
+}
+
 function matchBudget(lower: string, original: string): { amount: number; currency: string } | null {
+  const lowerN = normalizeNumerals(lower)
+  const originalN = normalizeNumerals(original)
+
+  // Bare numeric reply: "5000", "12,000", "2500.50", "٥٠٠٠"
+  // (consultant follow-ups often answer budget with a number alone)
+  const bare = originalN.trim().match(/^(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)$/)
+  if (bare?.[1]) {
+    const amount = Number(bare[1].replace(/,/g, ''))
+    if (Number.isFinite(amount) && amount > 0) {
+      return { amount, currency: 'USD' }
+    }
+  }
+
   // Allow fillers: "budget is only 1500", "change budget to just 2000 SAR"
-  const underEn = lower.match(
+  const underEn = lowerN.match(
     /(?:under|below|max(?:imum)?|less than|budget(?:\s+(?:is|to|of))?|my budget is|keep(?:\s+\w+)?\s+under|spend(?:\s+up\s+to)?)\s*(?:of\s*)?(?:only|just|about|around|approx(?:imately)?)?\s*(?:sar|usd|aed|eur|\$)?\s*\$?\s*(\d+(?:[.,]\d+)?)/,
   )
-  const underAr = original.match(
-    /(?:أقل من|اقل من|تحت|ميزانية|بميزانية|غير الميزانية إلى|إلى فقط)\s*(?:ريال|دولار|درهم)?\s*\$?\s*(\d+(?:[.,]\d+)?)/,
+  const underAr = originalN.match(
+    /(?:أقل من|اقل من|تحت|ميزانية|بميزانية|ميزانيتي|غير الميزانية إلى|إلى فقط)\s*(?:ريال|دولار|درهم)?\s*\$?\s*(\d+(?:[.,]\d+)?)/,
   )
-  const sarFirst = lower.match(/\b(?:sar|usd|aed|eur)\s*(\d+(?:[.,]\d+)?)/)
-  const plainMoney = lower.match(/\$\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:usd|sar|eur|aed|\$)/)
+  const sarFirst = lowerN.match(/\b(?:sar|usd|aed|eur)\s*(\d+(?:[.,]\d+)?)/)
+  const plainMoney = lowerN.match(/\$\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:usd|sar|eur|aed|\$|ريال|دولار|درهم)/)
   const raw = underEn?.[1] || underAr?.[1] || sarFirst?.[1] || plainMoney?.[1] || plainMoney?.[2]
   if (!raw) return null
   const amount = Number(raw.replace(/,/g, ''))
   if (!Number.isFinite(amount) || amount <= 0) return null
   let currency = 'USD'
-  if (/\bsar\b|ر.?س|ريال/.test(lower) || /ريال/.test(original)) currency = 'SAR'
-  else if (/\baed\b|درهم/.test(lower) || /درهم/.test(original)) currency = 'AED'
-  else if (/\beur\b|€|يورو/.test(lower)) currency = 'EUR'
-  else if (/\$|usd|دولار/.test(lower) || /دولار/.test(original)) currency = 'USD'
+  if (/\bsar\b|ر.?س|ريال/.test(lowerN) || /ريال/.test(originalN)) currency = 'SAR'
+  else if (/\baed\b|درهم/.test(lowerN) || /درهم/.test(originalN)) currency = 'AED'
+  else if (/\beur\b|€|يورو/.test(lowerN)) currency = 'EUR'
+  else if (/\$|usd|دولار/.test(lowerN) || /دولار/.test(originalN)) currency = 'USD'
   return { amount, currency }
 }
 
