@@ -49,7 +49,11 @@ function assistant(
     attachments: [],
     status: 'complete',
     error: null,
-    providerMeta: { agentMemory: memory },
+    providerMeta: {
+      kind: 'travel_agent',
+      version: 2,
+      memory,
+    },
     createdAt: now,
     updatedAt: now,
   }

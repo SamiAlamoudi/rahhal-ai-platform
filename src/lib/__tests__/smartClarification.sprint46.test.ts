@@ -43,14 +43,16 @@ describe('Sprint 46 feature flag', () => {
 
 describe('inferSoftRequirements', () => {
   it('bridges traveler type from party size only — does not invent soft form fields', () => {
-    const base = mergeRequirements(emptyRequirements(), {
+    // Bypass mergeRequirements (which already bridges travelerType) to exercise soft inference.
+    const base = {
+      ...emptyRequirements(),
       destination: 'Japan',
       destinations: ['Japan'],
       durationDays: 5,
       budgetAmount: 3000,
       budgetCurrency: 'USD',
       travelers: 2,
-    })
+    }
     const result = inferSoftRequirements(base, { locale: 'en' })
     expect(result.requirements.travelerType).toBe('couple')
     expect(result.requirements.interests).toEqual([])
@@ -160,9 +162,10 @@ describe('travelAgentService never-ask-twice', () => {
     expect(turn.tripPlan).toBeTruthy()
     expect(turn.tripPlan?.destinations).toContain('Japan')
     expect(turn.tripPlan?.durationDays).toBe(5)
-    expect(turn.memory.requirements.interests.length).toBeGreaterThan(0)
-    expect(turn.memory.requirements.packageScope).toBeTruthy()
-    expect(turn.meta.clarification?.inferredFields.length).toBeGreaterThan(0)
+    // Soft form fields are not invented by inferSoftRequirements for this intake.
+    expect(turn.memory.requirements.interests).toEqual([])
+    expect(turn.memory.requirements.packageScope).toBeNull()
+    expect(turn.memory.requirements.weatherPreference).toBeNull()
     expect(turn.reply.toLowerCase()).not.toMatch(/preferred weather\?|ما الطقس المفضل/)
     expect(turn.reply.toLowerCase()).not.toMatch(/hotel preference\?|تفضيل الفندق/)
   })
