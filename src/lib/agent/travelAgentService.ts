@@ -23,6 +23,19 @@ import {
   type ConversationObjective,
   type TravelFacts,
 } from './conversationBrain'
+import { assertTurnNotAborted } from './planTurn/abortCheckpoint'
+import {
+  stageAutonomous,
+  stageBrainPipeline,
+  stageConcierge,
+  stageEarlyIntentRouters,
+  stageFinalSpeak,
+  stageInitMemory,
+  stageLlmAndTools,
+  stagePreBrainEnrichers,
+  stageRahhalBrain,
+  stagePresentation,
+} from './planTurn/stages'
 import {
   buildPlanningDraft,
   canBuildPlanningDraft,
@@ -851,6 +864,7 @@ async function speakTravelFacts(input: {
   facts: TravelFacts
   signal?: AbortSignal
 }): Promise<{ displayText: string; spokenText: string; providerId: string }> {
+  assertTurnNotAborted(input.signal)
   return runConversationBrain(input)
 }
 
@@ -1393,106 +1407,150 @@ export function createTravelAgentService(
 
   const service: TravelAgentService = {
     async planTurn(input) {
-      const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
-      const userText = lastUser?.content ?? ''
-      // Alpha — booking / payment / confirmation cues must reach Execution + Payments.
-      const alphaBookingCue = shouldRunBookingExecution({
-        userText,
-        bookingReady: true,
-      })
-      const alphaPaymentCue = shouldRunPayments({ userText })
-      const alphaSummaryCue = shouldShowPaymentSummary(userText)
-      const alphaJourneyCue = alphaBookingCue || alphaPaymentCue || alphaSummaryCue
-      const prior = rebuildMemoryFromMessages(input.messages.slice(0, -1))
-      let extracted = extractFromUserText(userText, prior.locale)
-      const preferenceUserId = getBookingHistoryUserId() || input.conversationId
+      assertTurnNotAborted(input.signal)
+      const initialized = stageInitMemory(input.signal, () => {
+        const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
+        const userText = lastUser?.content ?? ''
+        // Alpha — booking / payment / confirmation cues must reach Execution + Payments.
+        const alphaBookingCue = shouldRunBookingExecution({
+          userText,
+          bookingReady: true,
+        })
+        const alphaPaymentCue = shouldRunPayments({ userText })
+        const alphaSummaryCue = shouldShowPaymentSummary(userText)
+        const alphaJourneyCue = alphaBookingCue || alphaPaymentCue || alphaSummaryCue
+        const prior = rebuildMemoryFromMessages(input.messages.slice(0, -1))
+        let extracted = extractFromUserText(userText, prior.locale)
+        const preferenceUserId = getBookingHistoryUserId() || input.conversationId
 
-      let memory: AgentMemory = {
-        ...prior,
-        locale: extracted.locale || prior.locale,
-        lastIntent: extracted.intent,
-        requirements: mergeRequirements(prior.requirements, extracted.patch, {
-          replaceDestinations: extracted.flags?.replaceDestinations,
-        }),
-      }
-      memory.missingFields = missingRequirementFields(memory.requirements)
-
-      // Alpha — confirm/pay turns must keep prior trip context even if the last
-      // user line has no destination text (CTAs like "أكد الحجز" / "ادفع الآن").
-      if (alphaJourneyCue && memory.missingFields.length > 0) {
-        for (const message of input.messages.slice(0, -1)) {
-          if (message.role !== 'user') continue
-          const priorExtract = extractFromUserText(message.content, memory.locale)
-          memory = {
-            ...memory,
-            requirements: mergeRequirements(memory.requirements, priorExtract.patch),
-          }
+        let memory: AgentMemory = {
+          ...prior,
+          locale: extracted.locale || prior.locale,
+          lastIntent: extracted.intent,
+          requirements: mergeRequirements(prior.requirements, extracted.patch, {
+            replaceDestinations: extracted.flags?.replaceDestinations,
+          }),
         }
         memory.missingFields = missingRequirementFields(memory.requirements)
-        if (!memory.tripPlan && prior.tripPlan) {
-          memory = withTripPlan(memory, prior.tripPlan)
+
+        // Alpha — confirm/pay turns must keep prior trip context even if the last
+        // user line has no destination text (CTAs like "أكد الحجز" / "ادفع الآن").
+        if (alphaJourneyCue && memory.missingFields.length > 0) {
+          for (const message of input.messages.slice(0, -1)) {
+            if (message.role !== 'user') continue
+            const priorExtract = extractFromUserText(message.content, memory.locale)
+            memory = {
+              ...memory,
+              requirements: mergeRequirements(memory.requirements, priorExtract.patch),
+            }
+          }
+          memory.missingFields = missingRequirementFields(memory.requirements)
+          if (!memory.tripPlan && prior.tripPlan) {
+            memory = withTripPlan(memory, prior.tripPlan)
+          }
         }
-      }
 
-      let reasoningResult: TravelReasoningResult | null = null
-      let reasoningMeta: AgentProviderMeta['reasoning'] | undefined
-      let clarificationMeta: NonNullable<AgentProviderMeta['clarification']> | undefined
-      let rahhalBrainMeta: RahhalBrainMetaSnapshot | undefined
-      let travelExecutiveSnapshot: RahhalBrainTurnResult['executive']
-      let executivePlatformSnapshot: RahhalBrainTurnResult['executivePlatform']
-      let liveIntelligenceSnapshot: RahhalBrainTurnResult['liveIntelligence']
-      let autonomousSnapshot: AutonomousAgentSnapshot | null = isAutonomousEnabled()
-        ? priorAutonomousFromMessages(input.messages.slice(0, -1))
-        : null
-      const priorAutonomous = autonomousSnapshot
-      let bookingIntelligenceResult: BookingIntelligenceResult | null = null
-      let budgetIntelligenceResult: BudgetIntelligenceResult | null = null
-      let travelerPersonalizationResult: TravelerPersonalizationResult | null = null
-      let tripOptimizerResult: TripOptimizerResult | null = null
-      let travelPlannerResult: TravelPlannerResult | null = null
-      let autonomousDecisionResult: AutonomousDecisionResult | null = null
-      let adaptiveLearningResult: AdaptiveLearningResult | null = null
-      let priceIntelligenceResult: BookingTimingResult | null = null
-      let dynamicPackagesResult: PackageBuilderResult | null = null
-      let itineraryRefinementResult: RefinementResult | null = null
-      let bookingExecutionResult: BookingExecutionResult | null = null
-      let paymentsResult: PaymentsPlatformResult | null = null
-      let constitutionMeta: AgentProviderMeta['constitution'] | undefined
-      /** Sprint 97 — additive concierge UI integration (null until main plan path). */
-      let conciergeIntegration: ConciergeTurnIntegrationResult | null = null
-      /** Sprint 99 — unified Alpha traveler experience assembly (null until composed). */
-      let alphaTravelerAssembly: AgentAlphaTravelerExperienceAttachment | null = null
-      /** Sprint 101 — Smart Booking Assistant (null until composed after Alpha). */
-      let bookingAssistantAssembly: AgentBookingAssistantAttachment | null = null
+        const autonomousSnapshot: AutonomousAgentSnapshot | null = isAutonomousEnabled()
+          ? priorAutonomousFromMessages(input.messages.slice(0, -1))
+          : null
 
-      // Sprint 78 — Travel Strategy Planner runs before any search engines.
-      if (isTravelPlannerOn()) {
-        travelPlannerResult = runTravelPlanner({
+        return {
           userText,
+          alphaJourneyCue,
+          preferenceUserId,
+          extracted,
           memory,
-          locale: memory.locale,
-        })
-      }
+          reasoningResult: null as TravelReasoningResult | null,
+          reasoningMeta: undefined as AgentProviderMeta['reasoning'] | undefined,
+          clarificationMeta: undefined as NonNullable<AgentProviderMeta['clarification']> | undefined,
+          rahhalBrainMeta: undefined as RahhalBrainMetaSnapshot | undefined,
+          travelExecutiveSnapshot: undefined as RahhalBrainTurnResult['executive'],
+          executivePlatformSnapshot: undefined as RahhalBrainTurnResult['executivePlatform'],
+          liveIntelligenceSnapshot: undefined as RahhalBrainTurnResult['liveIntelligence'],
+          autonomousSnapshot,
+          priorAutonomous: autonomousSnapshot,
+          bookingIntelligenceResult: null as BookingIntelligenceResult | null,
+          budgetIntelligenceResult: null as BudgetIntelligenceResult | null,
+          travelerPersonalizationResult: null as TravelerPersonalizationResult | null,
+          tripOptimizerResult: null as TripOptimizerResult | null,
+          travelPlannerResult: null as TravelPlannerResult | null,
+          autonomousDecisionResult: null as AutonomousDecisionResult | null,
+          adaptiveLearningResult: null as AdaptiveLearningResult | null,
+          priceIntelligenceResult: null as BookingTimingResult | null,
+          dynamicPackagesResult: null as PackageBuilderResult | null,
+          itineraryRefinementResult: null as RefinementResult | null,
+          bookingExecutionResult: null as BookingExecutionResult | null,
+          paymentsResult: null as PaymentsPlatformResult | null,
+          constitutionMeta: undefined as AgentProviderMeta['constitution'] | undefined,
+          conciergeIntegration: null as ConciergeTurnIntegrationResult | null,
+          alphaTravelerAssembly: null as AgentAlphaTravelerExperienceAttachment | null,
+          bookingAssistantAssembly: null as AgentBookingAssistantAttachment | null,
+        }
+      })
+      let {
+        userText,
+        alphaJourneyCue,
+        preferenceUserId,
+        extracted,
+        memory,
+        reasoningResult,
+        reasoningMeta,
+        clarificationMeta,
+        rahhalBrainMeta,
+        travelExecutiveSnapshot,
+        executivePlatformSnapshot,
+        liveIntelligenceSnapshot,
+        autonomousSnapshot,
+        priorAutonomous,
+        bookingIntelligenceResult,
+        budgetIntelligenceResult,
+        travelerPersonalizationResult,
+        tripOptimizerResult,
+        travelPlannerResult,
+        autonomousDecisionResult,
+        adaptiveLearningResult,
+        priceIntelligenceResult,
+        dynamicPackagesResult,
+        itineraryRefinementResult,
+        bookingExecutionResult,
+        paymentsResult,
+        constitutionMeta,
+        conciergeIntegration,
+        alphaTravelerAssembly,
+        bookingAssistantAssembly,
+      } = initialized
 
-      // Sprint 76 — learn preferences from conversation even when tools do not run.
-      if (isTravelerPersonalizationOn()) {
-        travelerPersonalizationResult = runTravelerPersonalization({
-          userId: input.conversationId,
-          userText,
-          memory,
-        })
-      }
+      stagePreBrainEnrichers(() => {
+        // Sprint 78 — Travel Strategy Planner runs before any search engines.
+        if (isTravelPlannerOn()) {
+          travelPlannerResult = runTravelPlanner({
+            userText,
+            memory,
+            locale: memory.locale,
+          })
+        }
 
-      // Sprint 80 — adaptive learning (local preference adaptation) before Decision Engine.
-      if (isAdaptiveLearningOn()) {
-        adaptiveLearningResult = runAdaptiveLearningTurn({
-          userId: input.conversationId,
-          userText,
-          enabled: options.adaptiveLearningEnabled,
-        })
-      }
+        // Sprint 76 — learn preferences from conversation even when tools do not run.
+        if (isTravelerPersonalizationOn()) {
+          travelerPersonalizationResult = runTravelerPersonalization({
+            userId: input.conversationId,
+            userText,
+            memory,
+          })
+        }
 
-      if (isBrainCoreEnabled()) {
+        // Sprint 80 — adaptive learning (local preference adaptation) before Decision Engine.
+        if (isAdaptiveLearningOn()) {
+          adaptiveLearningResult = runAdaptiveLearningTurn({
+            userId: input.conversationId,
+            userText,
+            enabled: options.adaptiveLearningEnabled,
+          })
+        }
+      })
+
+      const rahhalStageResult = await stageRahhalBrain<TravelAgentTurnResult | null>(async () => {
+        if (isBrainCoreEnabled()) {
         const brainTurn = runRahhalBrainTurn(
           {
             conversationId: input.conversationId,
@@ -1570,7 +1628,7 @@ export function createTravelAgentService(
         // 'clarify' is intentionally NOT an early-return here:
         // downstream intent routers (booking history, order, confirmation, itinerary, brain flags)
         // must still run. The clarify reply flows through the normal attach/return paths below.
-      } else {
+        } else {
         // Sprint 45/48 — seed empty slots from long-term preference memory (never overwrite).
         if (isPreferenceMemoryEnabled() || isReasoningEnabled()) {
           memory = {
@@ -1666,8 +1724,11 @@ export function createTravelAgentService(
         memory.missingFields = missingRequirementFields(memory.requirements, {
           smart: isClarificationEnabled(),
         })
-        memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
-      }
+          memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
+        }
+        return null
+      })
+      if (rahhalStageResult) return rahhalStageResult
 
       // Sprint 20–27 — every user message through Brain when flags are on.
       let brainMeta: BrainMetaSnapshot | undefined
@@ -1676,7 +1737,8 @@ export function createTravelAgentService(
       const executionOn = isExecutionEnabled()
       const searchOn = isSearchEnabled()
       const orchestratorOn = isTripOrchestratorEnabled()
-      if (isBrainEnabled() && userText.trim()) {
+      await stageBrainPipeline(async () => {
+        if (isBrainEnabled() && userText.trim()) {
         let brainResult: BrainTurnResult | null = null
 
         if (orchestratorOn) {
@@ -1818,7 +1880,8 @@ export function createTravelAgentService(
             ),
           }
         }
-      }
+        }
+      })
 
       const attachBrain = <T extends AgentProviderMeta>(meta: T): T =>
         withBrainMeta(meta, brainMeta)
@@ -1962,8 +2025,9 @@ export function createTravelAgentService(
         }
       }
 
-      // Sprint 45 — open-ended reasoning owns the consultant reply when proposing destinations.
-      if (
+      const earlyIntentRouterResult = await stageEarlyIntentRouters<TravelAgentTurnResult | null>(async () => {
+        // Sprint 45 — open-ended reasoning owns the consultant reply when proposing destinations.
+        if (
         !isBrainCoreEnabled()
         && reasoningResult
         && reasoningMeta
@@ -2020,10 +2084,10 @@ export function createTravelAgentService(
           meta: attachTurnMeta(meta, spoken.spokenText),
           toolBatch: null,
         }
-      }
+        }
 
-      // Sprint 22 — clarification from TripPlanningEngine (shared with voice via runIntegratedBrainTurn).
-      if (
+        // Sprint 22 — clarification from TripPlanningEngine (shared with voice via runIntegratedBrainTurn).
+        if (
         (tripPlanningOn || executionOn || searchOn || orchestratorOn)
         && brainMeta?.clarificationQuestion
         && brainMeta.planning?.stage === 'clarify'
@@ -2059,10 +2123,10 @@ export function createTravelAgentService(
             toolBatch: null,
           }
         }
-      }
+        }
 
-      // Sprint 21 — contextual one-question follow-up (text + voice share this path).
-      if (
+        // Sprint 21 — contextual one-question follow-up (text + voice share this path).
+        if (
         travelEngineOn
         && !tripPlanningOn
         && brainMeta?.action === 'ask_missing'
@@ -2099,10 +2163,10 @@ export function createTravelAgentService(
             toolBatch: null,
           }
         }
-      }
+        }
 
-      // Sprint 17 — smart itinerary intents (above order / confirmation / history).
-      if (
+        // Sprint 17 — smart itinerary intents (above order / confirmation / history).
+        if (
         SMART_ITINERARY_INTENTS.has(extracted.intent)
         && isSmartItineraryEnabled()
       ) {
@@ -2128,11 +2192,11 @@ export function createTravelAgentService(
           meta: attachTurnMeta(meta, reply),
           toolBatch: null,
         }
-      }
+        }
 
-      // Sprint 15 — order / payment intents (above confirmation / history).
-      // Alpha journey cues continue into Booking Execution + Payments instead.
-      if (
+        // Sprint 15 — order / payment intents (above confirmation / history).
+        // Alpha journey cues continue into Booking Execution + Payments instead.
+        if (
         ORDER_PAYMENT_INTENTS.has(extracted.intent)
         && isOrderManagementEnabled()
         && !alphaJourneyCue
@@ -2166,11 +2230,11 @@ export function createTravelAgentService(
           meta: attachTurnMeta(meta),
           toolBatch: null,
         }
-      }
+        }
 
-      // Sprint 14 — confirmation intents (above history / concierge intake).
-      // Alpha journey cues continue into Booking Execution + Payments instead.
-      if (
+        // Sprint 14 — confirmation intents (above history / concierge intake).
+        // Alpha journey cues continue into Booking Execution + Payments instead.
+        if (
         CONFIRMATION_INTENTS.has(extracted.intent)
         && isBookingConfirmationEnabled()
         && !alphaJourneyCue
@@ -2202,10 +2266,10 @@ export function createTravelAgentService(
           meta: attachTurnMeta(meta),
           toolBatch: null,
         }
-      }
+        }
 
-      // Sprint 13 — booking history intents (above concierge intake; no tools).
-      if (
+        // Sprint 13 — booking history intents (above concierge intake; no tools).
+        if (
         BOOKING_HISTORY_INTENTS.has(extracted.intent)
         && isBookingHistoryEnabled()
       ) {
@@ -2230,15 +2294,19 @@ export function createTravelAgentService(
           meta: attachTurnMeta(meta),
           toolBatch: null,
         }
-      }
+        }
+        return null
+      })
+      if (earlyIntentRouterResult) return earlyIntentRouterResult
 
       let conciergeState: ConciergeState | null = rebuildConciergeStateFromMessages(
         input.messages.slice(0, -1),
       )
 
-      // Concierge sits above the agent: consultant dialogue or agent handoff.
-      // It never selects providers — only whether the agent should execute.
-      if (isConciergeEnabled() && conciergeService) {
+      const conciergeStageResult = await stageConcierge<TravelAgentTurnResult | null>(input.signal, async () => {
+        // Concierge sits above the agent: consultant dialogue or agent handoff.
+        // It never selects providers — only whether the agent should execute.
+        if (isConciergeEnabled() && conciergeService) {
         const conciergeResult = conciergeService.runTurn({
           locale: memory.locale,
           memory,
@@ -2352,23 +2420,28 @@ export function createTravelAgentService(
             meta: attachTurnMeta(meta, spoken.spokenText),
             toolBatch: null,
           }
+          }
         }
-      }
-
-      const llm = llms.getActive()
-      const llmResult = await llm.complete({
-        conversationId: input.conversationId,
-        messages: input.messages,
-        memory,
-        locale: memory.locale,
-        signal: input.signal,
+        return null
       })
+      if (conciergeStageResult) return conciergeStageResult
 
       let toolBatch: ToolExecutionBatch | null = null
       let objective: ConversationObjective = 'general'
       let savedTitle: string | null = null
 
-      if (extracted.intent === 'save') {
+      await stageLlmAndTools(input.signal, async () => {
+        const llm = llms.getActive()
+        assertTurnNotAborted(input.signal)
+        const llmResult = await llm.complete({
+          conversationId: input.conversationId,
+          messages: input.messages,
+          memory,
+          locale: memory.locale,
+          signal: input.signal,
+        })
+
+        if (extracted.intent === 'save') {
         if (!memory.tripPlan) {
           objective = 'explain_unavailable'
           memory.phase = 'collecting'
@@ -2401,6 +2474,7 @@ export function createTravelAgentService(
           missingFields: [],
         }
         const refreshedDay = regenerateTripDay(existingPlan, day, memory.locale)
+        assertTurnNotAborted(input.signal)
         const ran = await runToolsForPlan({
           memory,
           conversationId: input.conversationId,
@@ -2467,6 +2541,7 @@ export function createTravelAgentService(
         const seed = extracted.intent === 'regenerate' && (!scope || scope === 'whole')
           ? `regen-${Date.now()}`
           : undefined
+        assertTurnNotAborted(input.signal)
         const ran = await runToolsForPlan({
           memory,
           conversationId: input.conversationId,
@@ -2515,54 +2590,58 @@ export function createTravelAgentService(
         const existingPlan = memory.tripPlan
         memory = withTripPlan({ ...memory, phase: 'planned' }, existingPlan)
         objective = 'present_plan'
-      } else {
-        objective = 'collect_missing'
-      }
-
-      // Sprint 54 — keep the travel goal alive across clarification turns.
-      if (isAutonomousEnabled()) {
-        const goal = upsertTravelGoal({
-          conversationId: input.conversationId,
-          userText,
-          memory,
-          priorGoal: autonomousSnapshot?.goal ?? priorAutonomous?.goal ?? null,
-        })
-        if (!autonomousSnapshot || autonomousSnapshot.outcome === 'blocked' || !autonomousSnapshot.plan) {
-          autonomousSnapshot = {
-            state: 'COMPLETE',
-            progressPhase: objective === 'collect_missing' ? 'Completed' : (autonomousSnapshot?.progressPhase ?? 'Thinking'),
-            goal,
-            plan: autonomousSnapshot?.plan ?? null,
-            completedTaskIds: autonomousSnapshot?.completedTaskIds ?? priorAutonomous?.completedTaskIds ?? [],
-            pendingTaskIds: autonomousSnapshot?.pendingTaskIds ?? priorAutonomous?.pendingTaskIds ?? [],
-            lastProviderId: autonomousSnapshot?.lastProviderId ?? priorAutonomous?.lastProviderId ?? null,
-            totalRetries: autonomousSnapshot?.totalRetries ?? priorAutonomous?.totalRetries ?? 0,
-            durationMs: autonomousSnapshot?.durationMs ?? 0,
-            outcome: objective === 'collect_missing' ? 'blocked' : (autonomousSnapshot?.outcome ?? 'ok'),
-            logs: autonomousSnapshot?.logs ?? priorAutonomous?.logs ?? [],
-            recoveredFromFailures: autonomousSnapshot?.recoveredFromFailures
-              ?? priorAutonomous?.recoveredFromFailures
-              ?? false,
-          }
         } else {
-          autonomousSnapshot = { ...autonomousSnapshot, goal }
+          objective = 'collect_missing'
         }
-      }
-
-      const toolSummaries = toolBatch ? toToolSummaries(toolBatch.results) : undefined
-      const toolHadNoResults = (toolBatch?.results ?? []).some((r) => {
-        const err = typeof r.error === 'string' ? r.error : ''
-        const summary = typeof r.summary === 'string' ? r.summary : ''
-        return /no_results|no (?:flight|hotel) offers|no results/i.test(`${err} ${summary}`)
       })
 
-      const decisionConfidence = autonomousDecisionResult?.recommendations?.confidence
-        ?? dynamicPackagesResult?.selected?.confidence
-        ?? priceIntelligenceResult?.recommendation.confidence
-        ?? 0.78
+      stageAutonomous(() => {
+        // Sprint 54 — keep the travel goal alive across clarification turns.
+        if (isAutonomousEnabled()) {
+          const goal = upsertTravelGoal({
+            conversationId: input.conversationId,
+            userText,
+            memory,
+            priorGoal: autonomousSnapshot?.goal ?? priorAutonomous?.goal ?? null,
+          })
+          if (!autonomousSnapshot || autonomousSnapshot.outcome === 'blocked' || !autonomousSnapshot.plan) {
+            autonomousSnapshot = {
+              state: 'COMPLETE',
+              progressPhase: objective === 'collect_missing' ? 'Completed' : (autonomousSnapshot?.progressPhase ?? 'Thinking'),
+              goal,
+              plan: autonomousSnapshot?.plan ?? null,
+              completedTaskIds: autonomousSnapshot?.completedTaskIds ?? priorAutonomous?.completedTaskIds ?? [],
+              pendingTaskIds: autonomousSnapshot?.pendingTaskIds ?? priorAutonomous?.pendingTaskIds ?? [],
+              lastProviderId: autonomousSnapshot?.lastProviderId ?? priorAutonomous?.lastProviderId ?? null,
+              totalRetries: autonomousSnapshot?.totalRetries ?? priorAutonomous?.totalRetries ?? 0,
+              durationMs: autonomousSnapshot?.durationMs ?? 0,
+              outcome: objective === 'collect_missing' ? 'blocked' : (autonomousSnapshot?.outcome ?? 'ok'),
+              logs: autonomousSnapshot?.logs ?? priorAutonomous?.logs ?? [],
+              recoveredFromFailures: autonomousSnapshot?.recoveredFromFailures
+                ?? priorAutonomous?.recoveredFromFailures
+                ?? false,
+            }
+          } else {
+            autonomousSnapshot = { ...autonomousSnapshot, goal }
+          }
+        }
+      })
 
-      // Sprint 97 — integrate ConciergeComposer into conversation response (presentation only).
-      conciergeIntegration = integrateConciergeIntoTurn({
+      const presentation = stagePresentation(() => {
+        const toolSummaries = toolBatch ? toToolSummaries(toolBatch.results) : undefined
+        const toolHadNoResults = (toolBatch?.results ?? []).some((r) => {
+          const err = typeof r.error === 'string' ? r.error : ''
+          const summary = typeof r.summary === 'string' ? r.summary : ''
+          return /no_results|no (?:flight|hotel) offers|no results/i.test(`${err} ${summary}`)
+        })
+
+        const decisionConfidence = autonomousDecisionResult?.recommendations?.confidence
+          ?? dynamicPackagesResult?.selected?.confidence
+          ?? priceIntelligenceResult?.recommendation.confidence
+          ?? 0.78
+
+        // Sprint 97 — integrate ConciergeComposer into conversation response (presentation only).
+        conciergeIntegration = integrateConciergeIntoTurn({
         conversationId: input.conversationId,
         memory,
         packageSelected: dynamicPackagesResult?.selected
@@ -2706,7 +2785,7 @@ export function createTravelAgentService(
         packagesPresent: Boolean(dynamicPackagesResult?.selected || dynamicPackagesResult?.ranked.length),
       })
 
-      const facts = buildTravelFacts({
+        const facts = buildTravelFacts({
         memory,
         objective,
         tripPlan: memory.tripPlan,
@@ -2741,14 +2820,28 @@ export function createTravelAgentService(
               : toolHadNoResults
                 ? constitutionPreview.recoveryNotes
               : undefined,
+        })
+        return {
+          facts,
+          toolHadNoResults,
+          decisionConfidence,
+          constitutionPreview,
+        }
       })
-      const spoken = await speakTravelFacts({
-        llms,
-        conversationId: input.conversationId,
-        messages: input.messages,
+      const {
         facts,
-        signal: input.signal,
-      })
+        toolHadNoResults,
+        decisionConfidence,
+        constitutionPreview,
+      } = presentation
+      return stageFinalSpeak<TravelAgentTurnResult>(input.signal, async () => {
+        const spoken = await speakTravelFacts({
+          llms,
+          conversationId: input.conversationId,
+          messages: input.messages,
+          facts,
+          signal: input.signal,
+        })
 
       // Sprint 89 — validate traveler-facing reply; keep meta on every interaction.
       const constitutionFinal = applyConstitutionToTurn({
@@ -2801,13 +2894,14 @@ export function createTravelAgentService(
         ...(conciergeState ? { concierge: toMetaConcierge(conciergeState) } : {}),
       }
 
-      return {
-        reply: displayReply,
-        memory,
-        tripPlan: memory.tripPlan,
-        meta: attachTurnMeta(meta, spoken.spokenText),
-        toolBatch,
-      }
+        return {
+          reply: displayReply,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta: attachTurnMeta(meta, spoken.spokenText),
+          toolBatch,
+        }
+      })
     },
 
     async regeneratePlan({ conversationId, memory, signal }) {
