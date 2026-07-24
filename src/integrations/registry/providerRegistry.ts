@@ -80,10 +80,14 @@ function createAdapter(domain: ProviderDomain | 'currency', adapterType: Provide
       if (adapterType === 'mock') return new MockHotelAdapter()
       if (adapterType === 'booking') {
         const cfg = config.hotel
-        if (!cfg.apiKey) return null
+        const hasDirect = Boolean(cfg.apiKey)
+        const hasProxy = Boolean(cfg.proxyUrl && cfg.invokeApiKey)
+        if (!hasDirect && !hasProxy) return null
         const rapidApiHost = cfg.host || 'booking-com15.p.rapidapi.com'
         return new BookingComAdapter({
           apiKey: cfg.apiKey,
+          proxyUrl: cfg.proxyUrl,
+          invokeApiKey: cfg.invokeApiKey,
           baseUrl: cfg.baseUrl || `https://${rapidApiHost}/api/v1`,
           rapidApiHost,
           timeout: cfg.timeout,

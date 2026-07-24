@@ -9,17 +9,12 @@
  * and orders when a payment is paid. Updates are idempotent.
  */
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, x-moyasar-signature, x-rahhal-webhook-secret',
-}
+import { buildCorsHeaders, corsPreflightResponse, jsonEdgeResponse } from '../_shared/edgeSecurity.ts'
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
+const WEBHOOK_EXTRA_HEADERS = ['x-moyasar-signature', 'x-rahhal-webhook-secret']
+
+function jsonResponse(body: unknown, status: number, cors: Record<string, string>): Response {
+  return jsonEdgeResponse(body, status, cors)
 }
 
 function mapMoyasarStatus(status: string | undefined): string {
@@ -72,16 +67,24 @@ function verifyWebhookSecret(req: Request): boolean {
 }
 
 Deno.serve(async (req) => {
+  const cors = buildCorsHeaders(req, {
+    methods: ['POST', 'OPTIONS'],
+    extraHeaders: WEBHOOK_EXTRA_HEADERS,
+  })
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return corsPreflightResponse(req, {
+      methods: ['POST', 'OPTIONS'],
+      extraHeaders: WEBHOOK_EXTRA_HEADERS,
+    })
   }
 
   if (req.method !== 'POST') {
-    return jsonResponse({ error: 'Method not allowed' }, 405)
+    return jsonResponse({ error: 'Method not allowed' }, 405, cors)
   }
 
   if (!verifyWebhookSecret(req)) {
-    return jsonResponse({ error: 'Unauthorized webhook', code: 'MOYASAR_WEBHOOK_UNAUTHORIZED' }, 401)
+    return jsonResponse({ error: 'Unauthorized webhook', code: 'MOYASAR_WEBHOOK_UNAUTHORIZED' }, 401, cors)
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
@@ -90,20 +93,20 @@ Deno.serve(async (req) => {
     return jsonResponse({
       error: 'Supabase service credentials not configured',
       code: 'MOYASAR_WEBHOOK_MISCONFIGURED',
-    }, 503)
+    }, 503, cors)
   }
 
   let payload: Record<string, unknown>
   try {
     payload = await req.json() as Record<string, unknown>
   } catch {
-    return jsonResponse({ error: 'Invalid JSON body' }, 400)
+    return jsonResponse({ error: 'Invalid JSON body' }, 400, cors)
   }
 
   const data = (payload.data ?? payload.payment ?? payload) as Record<string, unknown>
   const paymentId = String(data.id ?? payload.id ?? '')
   if (!paymentId) {
-    return jsonResponse({ error: 'Missing payment id', code: 'MOYASAR_WEBHOOK_BAD_PAYLOAD' }, 400)
+    return jsonResponse({ error: 'Missing payment id', code: 'MOYASAR_WEBHOOK_BAD_PAYLOAD' }, 400, cors)
   }
 
   const mappedStatus = mapMoyasarStatus(
@@ -132,7 +135,7 @@ Deno.serve(async (req) => {
         reason: 'payment_session_not_found',
         paymentId,
         status: mappedStatus,
-      })
+      }, 200, cors)
     }
 
     const session = sessions[0]
@@ -148,7 +151,7 @@ Deno.serve(async (req) => {
         reason: 'already_applied',
         paymentSessionId: sessionId,
         status: previousStatus,
-      })
+      }, 200, cors)
     }
 
     const sessionPatch: Record<string, unknown> = {
@@ -173,7 +176,7 @@ Deno.serve(async (req) => {
       return jsonResponse({
         error: 'Failed to update payment_sessions',
         details: errText,
-      }, 502)
+      }, 502, cors)
     }
 
     if (mappedStatus === 'paid' && orderId) {
@@ -246,11 +249,11 @@ Deno.serve(async (req) => {
       paymentSessionId: sessionId,
       orderId,
       status: mappedStatus,
-    })
+    }, 200, cors)
   } catch (err) {
     return jsonResponse({
       error: err instanceof Error ? err.message : 'Webhook processing failed',
       code: 'MOYASAR_WEBHOOK_ERROR',
-    }, 502)
+    }, 502, cors)
   }
 })

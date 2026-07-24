@@ -54,7 +54,7 @@ function detectAmadeusLive(): boolean {
 function detectBookingLive(): boolean {
   const hotelAdapter = readEnv('VITE_HOTEL_ADAPTER') ?? readEnv('VITE_BOOKING_PROVIDER')
   if (hotelAdapter === 'mock') return false
-  return parseBool(readEnv('PROVIDER_BOOKING_LIVE'), hotelAdapter === 'booking' || Boolean(readEnv('VITE_RAPIDAPI_KEY') || readEnv('RAPIDAPI_KEY')))
+  return parseBool(readEnv('PROVIDER_BOOKING_LIVE'), hotelAdapter === 'booking' || Boolean(readEnv('RAPIDAPI_KEY') || readEnv('BOOKING_API_KEY') || readEnv('VITE_BOOKING_PROXY_URL')))
 }
 
 function detectMapsLive(): boolean {

@@ -422,7 +422,7 @@ describe('RentalCarService Fallback', () => {
 
   it('falls back to mock when auth fails', async () => {
     vi.stubEnv('VITE_RENTAL_PROVIDER', 'rentalcars')
-    vi.stubEnv('VITE_RENTAL_API_KEY', 'bad-key')
+    vi.stubEnv('RENTAL_API_KEY', 'bad-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -438,7 +438,7 @@ describe('RentalCarService Fallback', () => {
 
   it('falls back to mock on network failure', async () => {
     vi.stubEnv('VITE_RENTAL_PROVIDER', 'rentalcars')
-    vi.stubEnv('VITE_RENTAL_API_KEY', 'test-key')
+    vi.stubEnv('RENTAL_API_KEY', 'test-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -453,7 +453,7 @@ describe('RentalCarService Fallback', () => {
 
   it('falls back to mock on quota exceeded', async () => {
     vi.stubEnv('VITE_RENTAL_PROVIDER', 'rentalcars')
-    vi.stubEnv('VITE_RENTAL_API_KEY', 'test-key')
+    vi.stubEnv('RENTAL_API_KEY', 'test-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -477,7 +477,7 @@ describe('RentalCarService Fallback', () => {
 
   it('returns real data when Rental Cars succeeds', async () => {
     vi.stubEnv('VITE_RENTAL_PROVIDER', 'rentalcars')
-    vi.stubEnv('VITE_RENTAL_API_KEY', 'valid-key')
+    vi.stubEnv('RENTAL_API_KEY', 'valid-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -514,7 +514,7 @@ describe('Provider Registry — Rental Car', () => {
 
   it('returns RentalCarsComAdapter when rentalcars is configured', () => {
     vi.stubEnv('VITE_RENTAL_PROVIDER', 'rentalcars')
-    vi.stubEnv('VITE_RENTAL_API_KEY', 'test-key')
+    vi.stubEnv('RENTAL_API_KEY', 'test-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -526,7 +526,7 @@ describe('Provider Registry — Rental Car', () => {
 
   it('returns null for rentalcars when API key missing', () => {
     vi.stubEnv('VITE_RENTAL_PROVIDER', 'rentalcars')
-    vi.stubEnv('VITE_RENTAL_API_KEY', '')
+    vi.stubEnv('RENTAL_API_KEY', '')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -572,7 +572,7 @@ describe('Diagnostics — Rental Car', () => {
 
   it('reports real mode for RentalCars.com', () => {
     vi.stubEnv('VITE_RENTAL_PROVIDER', 'rentalcars')
-    vi.stubEnv('VITE_RENTAL_API_KEY', 'test-key')
+    vi.stubEnv('RENTAL_API_KEY', 'test-key')
     resetProviderRegistry()
     clearConfigCache()
     resetHealthService()
@@ -587,7 +587,7 @@ describe('Diagnostics — Rental Car', () => {
 
   it('reports missing API key error when not configured', () => {
     vi.stubEnv('VITE_RENTAL_PROVIDER', 'rentalcars')
-    vi.stubEnv('VITE_RENTAL_API_KEY', '')
+    vi.stubEnv('RENTAL_API_KEY', '')
     resetProviderRegistry()
     clearConfigCache()
     resetHealthService()

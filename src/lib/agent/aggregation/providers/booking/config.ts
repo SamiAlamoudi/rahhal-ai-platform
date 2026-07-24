@@ -2,7 +2,12 @@ import { getIntegrationConfig } from '../../../../../integrations/config/environ
 
 export interface BookingComProviderConfig {
   enabled: boolean
+  /** Server-side RapidAPI key (Node/tests). Never from VITE_*. */
   apiKey: string | null
+  /** Edge Function / proxy URL for SPA requests. */
+  proxyUrl: string | null
+  /** Bearer token for invoking the proxy (typically Supabase anon key). */
+  invokeApiKey: string | null
   rapidApiHost: string
   baseUrl: string
   timeoutMs: number
@@ -33,8 +38,11 @@ function readProcessEnv(key: string): string | null {
 }
 
 /**
- * Resolve Booking.com adapter config from RapidAPI / hotel integration settings.
- * Prefers server-side RAPIDAPI_KEY / BOOKING_RAPIDAPI_KEY over VITE_* when present.
+ * Resolve Booking.com adapter config.
+ *
+ * Secrets stay server-side:
+ *   BOOKING_API_KEY / RAPIDAPI_KEY / BOOKING_RAPIDAPI_KEY (process / Edge)
+ * Browser path uses booking-proxy + anon invoke key — never VITE_RAPIDAPI_KEY.
  */
 export function resolveBookingComProviderConfig(
   overrides: Partial<BookingComProviderConfig> = {},
@@ -45,9 +53,27 @@ export function resolveBookingComProviderConfig(
     : (readProcessEnv('BOOKING_API_KEY')
       ?? readProcessEnv('RAPIDAPI_KEY')
       ?? readProcessEnv('BOOKING_RAPIDAPI_KEY')
-      ?? integration.apiKey
-      ?? readViteEnv('VITE_RAPIDAPI_KEY')
-      ?? readViteEnv('VITE_BOOKING_API_KEY'))
+      ?? null)
+
+  const supabaseUrl = readViteEnv('VITE_SUPABASE_URL')
+
+  const proxyUrl = overrides.proxyUrl !== undefined
+    ? overrides.proxyUrl
+    : (readProcessEnv('BOOKING_PROXY_URL')
+      || readViteEnv('VITE_BOOKING_PROXY_URL')
+      || (
+        // Default Edge path only when hotel adapter is explicitly booking.
+        (integration.adapter === 'booking' || readViteEnv('VITE_BOOKING_PROVIDER') === 'booking')
+        && supabaseUrl
+          ? `${supabaseUrl.replace(/\/$/, '')}/functions/v1/booking-proxy`
+          : null
+      ))
+
+  const invokeApiKey = overrides.invokeApiKey !== undefined
+    ? overrides.invokeApiKey
+    : (readProcessEnv('BOOKING_INVOKE_KEY')
+      || readViteEnv('VITE_SUPABASE_ANON_KEY')
+      || readViteEnv('VITE_SUPABASE_PUBLISHABLE_KEY'))
 
   const rapidApiHost = overrides.rapidApiHost
     ?? integration.host
@@ -59,13 +85,16 @@ export function resolveBookingComProviderConfig(
     ?? readViteEnv('VITE_HOTEL_BASE_URL')
     ?? `https://${rapidApiHost}/api/v1`
 
+  const hasCredentials = Boolean(apiKey || (proxyUrl && invokeApiKey))
   const providerSelected = integration.adapter === 'booking'
     || readViteEnv('VITE_BOOKING_PROVIDER') === 'booking'
-    || Boolean(apiKey && integration.adapter !== 'mock')
+    || (hasCredentials && integration.adapter !== 'mock')
 
   return {
     enabled: overrides.enabled ?? (integration.enabled && providerSelected),
     apiKey: apiKey ?? null,
+    proxyUrl: proxyUrl ?? null,
+    invokeApiKey: invokeApiKey ?? null,
     rapidApiHost,
     baseUrl,
     timeoutMs: overrides.timeoutMs ?? integration.timeout ?? 5_000,
@@ -74,5 +103,8 @@ export function resolveBookingComProviderConfig(
 }
 
 export function isBookingComConfigured(config: BookingComProviderConfig): boolean {
-  return Boolean(config.enabled && config.apiKey)
+  return Boolean(
+    config.enabled
+    && (config.apiKey || (config.proxyUrl && config.invokeApiKey)),
+  )
 }

@@ -1,20 +1,23 @@
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import { copyTextToClipboard } from '../../lib/chat/chatHelpers'
 import { tripPlanFromMeta } from '../../lib/agent/memory'
 import type { TripPlan } from '../../lib/agent/types'
-import { isConversationExperienceEnabled } from '../../lib/chat/conversationExperienceUi'
+import { isConversationExperienceEnabled } from '../../lib/chat/conversationExperienceUi/feature'
 import MarkdownContent from './MarkdownContent'
 import ItineraryActions from './ItineraryActions'
-import ConversationExperiencePanel from './experience/ConversationExperiencePanel'
 import AlphaJourneyPanel from './AlphaJourneyPanel'
 import TypingIndicator from './experience/TypingIndicator'
 import type {
   ConversationBookingAction,
   ConversationBookingState,
-  ConversationTimelineEvent,
-} from '../../lib/chat/conversationExperienceUi'
+} from '../../lib/chat/conversationExperienceUi/bookingBridge'
+import type { ConversationTimelineEvent } from '../../lib/chat/conversationExperienceUi/timelineView'
 import { safeMediaUrl } from '../../lib/ops/security/safeMediaUrl'
+
+const ConversationExperiencePanel = lazy(
+  () => import('./experience/ConversationExperiencePanel'),
+)
 
 interface MessageBubbleProps {
   message: ChatMessage
@@ -128,17 +131,19 @@ export default function MessageBubble({
           </div>
         ) : experienceOn ? (
           <>
-            <ConversationExperiencePanel
-              message={message}
-              isStreaming={isStreaming}
-              busy={busy}
-              locale={locale}
-              bookingState={bookingState}
-              timelineEvents={timelineEvents}
-              onSmartAction={onSmartAction}
-              onBookingAction={onBookingAction}
-              onOpenTimelineEvent={onOpenTimelineEvent}
-            />
+            <Suspense fallback={<MarkdownContent content={message.content || (isStreaming ? '…' : '')} />}>
+              <ConversationExperiencePanel
+                message={message}
+                isStreaming={isStreaming}
+                busy={busy}
+                locale={locale}
+                bookingState={bookingState}
+                timelineEvents={timelineEvents}
+                onSmartAction={onSmartAction}
+                onBookingAction={onBookingAction}
+                onOpenTimelineEvent={onOpenTimelineEvent}
+              />
+            </Suspense>
             {isStreaming && (
               <div className="mt-2">
                 <TypingIndicator />

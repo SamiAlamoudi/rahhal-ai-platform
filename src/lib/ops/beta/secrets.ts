@@ -79,7 +79,7 @@ export function hasProviderCredentials(providerId: string): boolean {
         && (isSet('AMADEUS_API_SECRET') || isSet('AMADEUS_CLIENT_SECRET'))
     case 'booking':
       return isSet('BOOKING_API_KEY') || isSet('RAPIDAPI_KEY') || isSet('BOOKING_RAPIDAPI_KEY')
-        || isSet('VITE_RAPIDAPI_KEY')
+        || isSet('VITE_BOOKING_PROXY_URL')
     case 'duffel':
       return isSet('DUFFEL_API_TOKEN')
     default:

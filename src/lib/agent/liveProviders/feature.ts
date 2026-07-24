@@ -104,18 +104,26 @@ export function hasDuffelCredentials(): boolean {
 
 /**
  * Sprint 60 — Booking.com / RapidAPI hotel credentials (server preferred).
- * Order: BOOKING_API_KEY → RAPIDAPI_KEY → BOOKING_RAPIDAPI_KEY → VITE_RAPIDAPI_KEY
+ * Order: BOOKING_API_KEY → RAPIDAPI_KEY → BOOKING_RAPIDAPI_KEY
+ * Never reads VITE_RAPIDAPI_KEY / VITE_BOOKING_API_KEY (forbidden client secrets).
  */
 export function readBookingApiKey(): string | null {
   return (
     readLiveProviderSecret('BOOKING_API_KEY')
     ?? readLiveProviderSecret('RAPIDAPI_KEY')
     ?? readLiveProviderSecret('BOOKING_RAPIDAPI_KEY')
-    ?? readEnv('VITE_RAPIDAPI_KEY')
-    ?? readEnv('VITE_BOOKING_API_KEY')
   )
 }
 
 export function hasBookingCredentials(): boolean {
-  return Boolean(readBookingApiKey())
+  if (readBookingApiKey()) return true
+  // Browser: only an explicit booking proxy URL counts (secret stays on Edge).
+  try {
+    const vite = (import.meta as { env?: Record<string, unknown> }).env ?? {}
+    const proxy = vite.VITE_BOOKING_PROXY_URL
+    const anon = vite.VITE_SUPABASE_ANON_KEY || vite.VITE_SUPABASE_PUBLISHABLE_KEY
+    return Boolean(proxy && anon)
+  } catch {
+    return false
+  }
 }

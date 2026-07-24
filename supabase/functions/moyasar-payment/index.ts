@@ -14,18 +14,18 @@
  * POST body: { action: 'create_session' | 'authorize' | 'capture' | 'status' | 'cancel', ... }
  */
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import {
+  buildCorsHeaders,
+  corsPreflightResponse,
+  jsonEdgeResponse,
+  requireEdgeInvokeAuth,
+} from '../_shared/edgeSecurity.ts'
 
 const DEFAULT_MOYASAR_HOST = 'https://api.moyasar.com'
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
+/** Per-request CORS + JSON helper (allowlist-aware). */
+function jsonResponse(body: unknown, status: number, cors: Record<string, string>): Response {
+  return jsonEdgeResponse(body, status, cors)
 }
 
 function basicAuthHeader(secretKey: string): string {
@@ -97,20 +97,25 @@ function paymentIdFromBody(body: SessionActionBody): string | null {
 }
 
 Deno.serve(async (req) => {
+  const cors = buildCorsHeaders(req, { methods: ['POST', 'OPTIONS'] })
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return corsPreflightResponse(req, { methods: ['POST', 'OPTIONS'] })
   }
 
   if (req.method !== 'POST') {
-    return jsonResponse({ error: 'Method not allowed' }, 405)
+    return jsonResponse({ error: 'Method not allowed' }, 405, cors)
   }
+
+  const authError = requireEdgeInvokeAuth(req, cors)
+  if (authError) return authError
 
   const secretKey = Deno.env.get('MOYASAR_SECRET_KEY')
   if (!secretKey) {
     return jsonResponse({
       error: 'Moyasar secret key is not configured on the server',
       code: 'MOYASAR_SERVER_NOT_CONFIGURED',
-    }, 503)
+    }, 503, cors)
   }
 
   const host = (Deno.env.get('MOYASAR_BASE_URL') || DEFAULT_MOYASAR_HOST).replace(/\/+$/, '')
@@ -118,12 +123,12 @@ Deno.serve(async (req) => {
   try {
     body = await req.json() as RequestBody
   } catch {
-    return jsonResponse({ error: 'Invalid JSON body', code: 'MOYASAR_BAD_REQUEST' }, 400)
+    return jsonResponse({ error: 'Invalid JSON body', code: 'MOYASAR_BAD_REQUEST' }, 400, cors)
   }
 
   const action = body.action
   if (!action) {
-    return jsonResponse({ error: 'Missing action', code: 'MOYASAR_BAD_REQUEST' }, 400)
+    return jsonResponse({ error: 'Missing action', code: 'MOYASAR_BAD_REQUEST' }, 400, cors)
   }
 
   try {
@@ -131,7 +136,7 @@ Deno.serve(async (req) => {
       const createBody = body as CreateSessionBody
       const amount = Number(createBody.amount)
       if (!Number.isFinite(amount) || amount <= 0) {
-        return jsonResponse({ error: 'Invalid amount', code: 'MOYASAR_BAD_REQUEST' }, 400)
+        return jsonResponse({ error: 'Invalid amount', code: 'MOYASAR_BAD_REQUEST' }, 400, cors)
       }
 
       const currency = (createBody.currency || 'SAR').toUpperCase()
@@ -193,7 +198,7 @@ Deno.serve(async (req) => {
             code: 'MOYASAR_CREATE_FAILED',
             status: response.status,
             details: data,
-          }, response.status >= 400 && response.status < 500 ? response.status : 502)
+          }, response.status >= 400 && response.status < 500 ? response.status : 502, cors)
         }
 
         const invoiceId = String(data.id ?? '')
@@ -208,7 +213,7 @@ Deno.serve(async (req) => {
             code: 'MOYASAR_MISSING_PAYMENT_URL',
             paymentSessionId: invoiceId,
             details: data,
-          }, 502)
+          }, 502, cors)
         }
 
         return jsonResponse({
@@ -219,7 +224,7 @@ Deno.serve(async (req) => {
           redirectUrl,
           message: 'Moyasar hosted payment session created',
           kind: 'invoice',
-        })
+        }, 200, cors)
       }
 
       // Optional tokenized / advanced payment create (no hosted URL required).
@@ -248,7 +253,7 @@ Deno.serve(async (req) => {
           code: 'MOYASAR_CREATE_FAILED',
           status: response.status,
           details: data,
-        }, response.status >= 400 && response.status < 500 ? response.status : 502)
+        }, response.status >= 400 && response.status < 500 ? response.status : 502, cors)
       }
 
       const paymentId = String(data.id ?? '')
@@ -266,14 +271,14 @@ Deno.serve(async (req) => {
         redirectUrl,
         message: 'Moyasar payment session created',
         kind: 'payment',
-      })
+      }, 200, cors)
     }
 
     if (action === 'authorize' || action === 'capture' || action === 'status' || action === 'cancel') {
       const sessionBody = body as SessionActionBody
       const paymentId = paymentIdFromBody(sessionBody)
       if (!paymentId) {
-        return jsonResponse({ error: 'Missing paymentSessionId', code: 'MOYASAR_BAD_REQUEST' }, 400)
+        return jsonResponse({ error: 'Missing paymentSessionId', code: 'MOYASAR_BAD_REQUEST' }, 400, cors)
       }
 
       // Prefer invoice lookup (hosted checkout), then fall back to payment.
@@ -298,7 +303,7 @@ Deno.serve(async (req) => {
             code: 'MOYASAR_STATUS_FAILED',
             status: entity.status,
             details: entity.data,
-          }, entity.status === 404 ? 404 : 502)
+          }, entity.status === 404 ? 404 : 502, cors)
         }
 
         let status = mapMoyasarStatus(
@@ -339,7 +344,7 @@ Deno.serve(async (req) => {
                 ? 'Payment cancel reconciled'
                 : 'Payment status fetched',
           kind,
-        })
+        }, 200, cors)
       }
 
       if (action === 'capture') {
@@ -362,7 +367,7 @@ Deno.serve(async (req) => {
             providerReference: paymentId,
             redirectUrl: null,
             message: 'Payment captured',
-          })
+          }, 200, cors)
         }
         // Fall through to status if already captured
         const entity = await fetchEntity('payments')
@@ -372,7 +377,7 @@ Deno.serve(async (req) => {
             code: 'MOYASAR_CAPTURE_FAILED',
             status: captureRes.status,
             details: captureData,
-          }, 502)
+          }, 502, cors)
         }
         return jsonResponse({
           paymentSessionId: paymentId,
@@ -383,15 +388,15 @@ Deno.serve(async (req) => {
           providerReference: paymentId,
           redirectUrl: null,
           message: 'Payment capture reconciled',
-        })
+        }, 200, cors)
       }
     }
 
-    return jsonResponse({ error: `Unknown action: ${action}`, code: 'MOYASAR_BAD_REQUEST' }, 400)
+    return jsonResponse({ error: `Unknown action: ${action}`, code: 'MOYASAR_BAD_REQUEST' }, 400, cors)
   } catch (err) {
     return jsonResponse({
       error: err instanceof Error ? err.message : 'Moyasar request failed',
       code: 'MOYASAR_NETWORK',
-    }, 502)
+    }, 502, cors)
   }
 })

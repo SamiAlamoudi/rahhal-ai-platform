@@ -283,7 +283,7 @@ describe('WeatherService', () => {
   it('falls back to mock when real adapter throws', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
     vi.stubEnv('VITE_WEATHER_PROVIDER', 'openweather')
-    vi.stubEnv('VITE_OPENWEATHER_API_KEY', 'test-key')
+    vi.stubEnv('OPENWEATHER_API_KEY', 'test-key')
     resetProviderRegistry(); clearConfigCache()
 
     const service = createWeatherService()
@@ -300,7 +300,7 @@ describe('WeatherService', () => {
       json: async () => ({}), text: async () => 'Invalid key',
     }))
     vi.stubEnv('VITE_WEATHER_PROVIDER', 'openweather')
-    vi.stubEnv('VITE_OPENWEATHER_API_KEY', 'bad-key')
+    vi.stubEnv('OPENWEATHER_API_KEY', 'bad-key')
     resetProviderRegistry(); clearConfigCache()
 
     const service = createWeatherService()
@@ -317,7 +317,7 @@ describe('WeatherService', () => {
       text: async () => '',
     }))
     vi.stubEnv('VITE_WEATHER_PROVIDER', 'openweather')
-    vi.stubEnv('VITE_OPENWEATHER_API_KEY', 'valid-key')
+    vi.stubEnv('OPENWEATHER_API_KEY', 'valid-key')
     resetProviderRegistry(); clearConfigCache()
 
     const service = createWeatherService()
@@ -352,7 +352,7 @@ describe('Provider Registry — Weather', () => {
 
   it('returns RealWeatherAdapter when openweather is configured', () => {
     vi.stubEnv('VITE_WEATHER_PROVIDER', 'openweather')
-    vi.stubEnv('VITE_OPENWEATHER_API_KEY', 'test-key')
+    vi.stubEnv('OPENWEATHER_API_KEY', 'test-key')
     resetProviderRegistry(); clearConfigCache()
     const registry = getProviderRegistry()
     const weather = registry.getWeather()
@@ -362,7 +362,7 @@ describe('Provider Registry — Weather', () => {
 
   it('returns null for openweather when no API key', () => {
     vi.stubEnv('VITE_WEATHER_PROVIDER', 'openweather')
-    vi.stubEnv('VITE_OPENWEATHER_API_KEY', '')
+    vi.stubEnv('OPENWEATHER_API_KEY', '')
     resetProviderRegistry(); clearConfigCache()
     const registry = getProviderRegistry()
     expect(registry.getWeather()).toBeNull()

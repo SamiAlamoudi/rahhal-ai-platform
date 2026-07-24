@@ -19,7 +19,8 @@ import {
   EXPERIENCE_STATE_LABELS,
   createExperienceStateMachine,
 } from '../chat/chatgptExperience'
-import { getDefaultChatProviderType, createChatProvider } from '../chat/chatProviderFactory'
+import { getDefaultChatProviderType } from '../chat/chatProviderFactory'
+import { createQuarantinedChatProvider } from '../chat/chatProviderFactory.quarantined'
 import type { ChatMessage, ChatProvider, ChatStreamChunk } from '../chat/chatTypes'
 
 function userMessage(conversationId: string, content: string): ChatMessage {
@@ -105,7 +106,7 @@ describe('Sprint 44 — ChatGPT experience', () => {
 
   it('creates chatgpt-experience provider when flag chain is on', () => {
     enableChatGptExperienceChain()
-    const provider = createChatProvider('chatgpt-experience')
+    const provider = createQuarantinedChatProvider('chatgpt-experience')
     expect(provider.providerId).toBe('chatgpt-experience')
     // Default selection prefers chatgpt when env does not force mock/conversation-ui.
     const forced = (import.meta.env.VITE_CHAT_PROVIDER as string | undefined)?.trim().toLowerCase()

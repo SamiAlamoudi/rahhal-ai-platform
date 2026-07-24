@@ -471,7 +471,7 @@ describe('HotelService Fallback', () => {
 
   it('falls back to mock when Booking auth fails', async () => {
     vi.stubEnv('VITE_BOOKING_PROVIDER', 'booking')
-    vi.stubEnv('VITE_BOOKING_API_KEY', 'bad-key')
+    vi.stubEnv('BOOKING_API_KEY', 'bad-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -487,7 +487,7 @@ describe('HotelService Fallback', () => {
 
   it('falls back to mock on network failure', async () => {
     vi.stubEnv('VITE_BOOKING_PROVIDER', 'booking')
-    vi.stubEnv('VITE_BOOKING_API_KEY', 'test-key')
+    vi.stubEnv('BOOKING_API_KEY', 'test-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -502,7 +502,7 @@ describe('HotelService Fallback', () => {
 
   it('falls back to mock on quota exceeded', async () => {
     vi.stubEnv('VITE_BOOKING_PROVIDER', 'booking')
-    vi.stubEnv('VITE_BOOKING_API_KEY', 'test-key')
+    vi.stubEnv('BOOKING_API_KEY', 'test-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -526,7 +526,7 @@ describe('HotelService Fallback', () => {
 
   it('returns real data when Booking succeeds', async () => {
     vi.stubEnv('VITE_BOOKING_PROVIDER', 'booking')
-    vi.stubEnv('VITE_BOOKING_API_KEY', 'valid-key')
+    vi.stubEnv('BOOKING_API_KEY', 'valid-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -563,7 +563,7 @@ describe('Provider Registry — Hotel', () => {
 
   it('returns BookingComAdapter when booking is configured', () => {
     vi.stubEnv('VITE_BOOKING_PROVIDER', 'booking')
-    vi.stubEnv('VITE_BOOKING_API_KEY', 'test-key')
+    vi.stubEnv('BOOKING_API_KEY', 'test-key')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -573,8 +573,9 @@ describe('Provider Registry — Hotel', () => {
     expect(hotel!.metadata.id).toBe('booking-hotel-001')
   })
 
-  it('auto-enables BookingComAdapter when VITE_RAPIDAPI_KEY is set (no explicit adapter)', () => {
-    vi.stubEnv('VITE_RAPIDAPI_KEY', 'rapid-test-key')
+  it('auto-enables BookingComAdapter when VITE_BOOKING_PROXY_URL is set (no explicit adapter)', () => {
+    vi.stubEnv('VITE_BOOKING_PROXY_URL', 'https://example.supabase.co/functions/v1/booking-proxy')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon')
     vi.stubEnv('VITE_BOOKING_HOST', 'booking-com15.p.rapidapi.com')
     resetProviderRegistry()
     clearConfigCache()
@@ -585,10 +586,27 @@ describe('Provider Registry — Hotel', () => {
     expect(hotel!.metadata.id).toBe('booking-hotel-001')
   })
 
-  it('returns null for booking when API key missing', () => {
+  it('creates BookingComAdapter via Edge proxy when server RapidAPI key is absent', () => {
     vi.stubEnv('VITE_BOOKING_PROVIDER', 'booking')
-    vi.stubEnv('VITE_BOOKING_API_KEY', '')
-    vi.stubEnv('VITE_RAPIDAPI_KEY', '')
+    vi.stubEnv('BOOKING_API_KEY', '')
+    vi.stubEnv('RAPIDAPI_KEY', '')
+    resetProviderRegistry()
+    clearConfigCache()
+
+    const registry = getProviderRegistry()
+    const hotel = registry.getHotel()
+    // Vitest supplies Supabase URL + anon → default booking-proxy path.
+    expect(hotel).not.toBeNull()
+    expect(hotel!.metadata.id).toBe('booking-hotel-001')
+  })
+
+  it('returns null for booking when proxy and server keys are both missing', () => {
+    vi.stubEnv('VITE_BOOKING_PROVIDER', 'booking')
+    vi.stubEnv('BOOKING_API_KEY', '')
+    vi.stubEnv('RAPIDAPI_KEY', '')
+    vi.stubEnv('VITE_SUPABASE_URL', '')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', '')
+    vi.stubEnv('VITE_BOOKING_PROXY_URL', '')
     resetProviderRegistry()
     clearConfigCache()
 
@@ -634,7 +652,7 @@ describe('Diagnostics — Hotel', () => {
 
   it('reports real mode for Booking.com', () => {
     vi.stubEnv('VITE_BOOKING_PROVIDER', 'booking')
-    vi.stubEnv('VITE_BOOKING_API_KEY', 'test-key')
+    vi.stubEnv('BOOKING_API_KEY', 'test-key')
     resetProviderRegistry()
     clearConfigCache()
     resetHealthService()
@@ -648,9 +666,12 @@ describe('Diagnostics — Hotel', () => {
     expect(hotel!.lastRequestAt).toBeNull()
   })
 
-  it('reports missing API key error when not configured', () => {
+  it('reports missing credentials when booking is selected without proxy or server key', () => {
     vi.stubEnv('VITE_BOOKING_PROVIDER', 'booking')
-    vi.stubEnv('VITE_BOOKING_API_KEY', '')
+    vi.stubEnv('BOOKING_API_KEY', '')
+    vi.stubEnv('VITE_SUPABASE_URL', '')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', '')
+    vi.stubEnv('VITE_BOOKING_PROXY_URL', '')
     resetProviderRegistry()
     clearConfigCache()
     resetHealthService()

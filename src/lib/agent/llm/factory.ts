@@ -1,6 +1,6 @@
 import type { AgentLlmProvider, AgentLlmProviderId, AgentLlmRegistry } from './types'
 import { createLocalAgentLlmAdapter } from './localLlmAdapter'
-import { createOpenAiAgentLlmAdapter } from './openaiLlmAdapter'
+import { createOpenAiAgentLlmAdapter, isOpenAiAdapterAvailable } from './openaiLlmAdapter'
 import {
   createAnthropicAgentLlmAdapter,
   createDeepSeekAgentLlmAdapter,
@@ -12,12 +12,9 @@ export function getDefaultAgentLlmProviderId(): AgentLlmProviderId {
   if (raw === 'openai' || raw === 'anthropic' || raw === 'gemini' || raw === 'deepseek' || raw === 'local') {
     return raw
   }
-  // Prefer OpenAI automatically when a key is present.
-  const key = (
-    (import.meta.env.VITE_AGENT_OPENAI_API_KEY as string | undefined)
-    ?? (import.meta.env.VITE_OPENAI_API_KEY as string | undefined)
-  )?.trim()
-  if (key) return 'openai'
+  // Prefer OpenAI automatically when the Edge proxy (or server key) is available.
+  // Never inspect VITE_OPENAI_API_KEY — those are forbidden client secrets.
+  if (isOpenAiAdapterAvailable()) return 'openai'
   return 'local'
 }
 

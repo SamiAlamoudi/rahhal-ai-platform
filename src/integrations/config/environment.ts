@@ -19,6 +19,8 @@ export interface ProviderConfig {
   tokenUrl: string | null
   /** Key used to invoke the token proxy (Supabase anon key) — not an Amadeus secret. */
   invokeApiKey: string | null
+  /** Privileged provider proxy URL (booking / weather) — SPA path only. */
+  proxyUrl: string | null
   timeout: number
   maxRetries: number
 }
@@ -107,10 +109,19 @@ function readHotelAdapter(defaultAdapter: ProviderAdapterType): ProviderAdapterT
   if (hotelAdapter !== null) {
     return readAdapter('VITE_HOTEL_ADAPTER', defaultAdapter)
   }
-  // Auto-enable Booking.com when a RapidAPI (or legacy Booking) key is present.
-  const rapidKey = readEnv('VITE_RAPIDAPI_KEY') ?? readEnv('VITE_BOOKING_API_KEY')
-  if (rapidKey) return 'booking'
+  // Auto-enable Booking.com when the Edge booking proxy is reachable (no client secrets).
+  if (hasBookingProxy()) return 'booking'
   return defaultAdapter
+}
+
+function resolveBookingProxyUrl(): string | null {
+  return readEnv('VITE_BOOKING_PROXY_URL')
+}
+
+function hasBookingProxy(): boolean {
+  const proxyUrl = resolveBookingProxyUrl()
+  if (!proxyUrl) return false
+  return Boolean(readEnv('VITE_SUPABASE_ANON_KEY') || readEnv('VITE_SUPABASE_PUBLISHABLE_KEY'))
 }
 
 function readFlightAdapter(defaultAdapter: ProviderAdapterType): ProviderAdapterType {
@@ -130,6 +141,17 @@ function readFlightAdapter(defaultAdapter: ProviderAdapterType): ProviderAdapter
   return defaultAdapter
 }
 
+function readProcessEnv(key: string): string | null {
+  try {
+    const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    const value = proc?.env?.[key]
+    if (value === undefined || value === null || value === '') return null
+    return String(value)
+  } catch {
+    return null
+  }
+}
+
 function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType): ProviderConfig {
   const adapterOverride = prefix === 'WEATHER'
     ? readAdapter('VITE_WEATHER_PROVIDER', readAdapter(`VITE_${prefix}_ADAPTER`, defaultAdapter))
@@ -141,13 +163,17 @@ function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType)
           ? readAdapter('VITE_RENTAL_PROVIDER', readAdapter(`VITE_${prefix}_ADAPTER`, defaultAdapter))
           : readAdapter(`VITE_${prefix}_ADAPTER`, defaultAdapter)
 
+  // Never read VITE_* provider secrets. Server/tests may use process env keys.
   const apiKey = prefix === 'WEATHER'
-    ? readEnv(`VITE_OPENWEATHER_API_KEY`) ?? readEnv(`VITE_${prefix}_API_KEY`)
+    ? readProcessEnv('OPENWEATHER_API_KEY')
     : prefix === 'HOTEL'
-      // Prefer shared RapidAPI key; keep VITE_BOOKING_API_KEY as a legacy alias.
-      ? readEnv('VITE_RAPIDAPI_KEY') ?? readEnv('VITE_BOOKING_API_KEY') ?? readEnv(`VITE_${prefix}_API_KEY`)
+      ? (
+        readProcessEnv('BOOKING_API_KEY')
+        ?? readProcessEnv('RAPIDAPI_KEY')
+        ?? readProcessEnv('BOOKING_RAPIDAPI_KEY')
+      )
       : prefix === 'RENTAL_CAR'
-        ? readEnv('VITE_RAPIDAPI_KEY') ?? readEnv(`VITE_RENTAL_API_KEY`) ?? readEnv(`VITE_${prefix}_API_KEY`)
+        ? readProcessEnv('RAPIDAPI_KEY') ?? readProcessEnv('RENTAL_API_KEY')
         : readEnv(`VITE_${prefix}_API_KEY`)
 
   // Amadeus client_id / client_secret must never be loaded into the SPA.
@@ -166,12 +192,23 @@ function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType)
       : readEnv(`VITE_${prefix}_BASE_URL`)
 
   const tokenUrl = prefix === 'FLIGHT' ? resolveAmadeusTokenUrl() : null
+  const hotelProxyUrl = prefix === 'HOTEL'
+    ? (readEnv('VITE_BOOKING_PROXY_URL')
+      || (
+        adapterOverride === 'booking' && readEnv('VITE_SUPABASE_URL')
+          ? `${readEnv('VITE_SUPABASE_URL')!.replace(/\/+$/, '')}/functions/v1/booking-proxy`
+          : null
+      ))
+    : null
+
   // Supabase Edge requires anon key; same-origin Vercel proxy does not.
   const invokeApiKey = prefix === 'FLIGHT'
     ? (tokenUrl && isRelativeTokenUrl(tokenUrl)
         ? ''
         : readEnv('VITE_SUPABASE_ANON_KEY'))
-    : null
+    : prefix === 'HOTEL'
+      ? readEnv('VITE_SUPABASE_ANON_KEY')
+      : null
 
   return {
     enabled: readBool(`VITE_${prefix}_ENABLED`, true),
@@ -184,6 +221,7 @@ function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType)
     host: bookingHost,
     tokenUrl,
     invokeApiKey,
+    proxyUrl: hotelProxyUrl,
     timeout: readInt(`VITE_${prefix}_TIMEOUT`, 5000),
     maxRetries: readInt(`VITE_${prefix}_MAX_RETRIES`, 2),
   }

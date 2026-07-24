@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
 import VoiceComposer from '../components/chat/VoiceComposer'
-import LiveNotificationsBanner from '../components/chat/experience/LiveNotificationsBanner'
 import VirtualizedMessageList from '../components/chat/experience/VirtualizedMessageList'
 import { travelAgentService } from '../lib/agent/travelAgentService'
 import { detectAgentLocale } from '../lib/agent/locale'
@@ -20,35 +19,44 @@ import {
 } from '../lib/chat/chatRecovery'
 import { createDeltaCoalescer } from '../lib/chat/streamUi'
 import type { ChatConversation, ChatMessage } from '../lib/chat/chatTypes'
+import { isConversationExperienceEnabled } from '../lib/chat/conversationExperienceUi/feature'
 import {
-  buildConversationTimeline,
   chatThemeClassName,
-  createConversationBookingBridge,
-  enrichPlanForBooking,
-  extractConversationUiMeta,
-  getConversationLiveNotificationBus,
-  isConversationExperienceEnabled,
   readStoredChatTheme,
   resolveChatTheme,
   writeStoredChatTheme,
   type ChatThemeMode,
-  type ConversationBookingAction,
-  type ConversationBookingState,
-  type ConversationLiveEvent,
-  type ConversationTimelineEvent,
-} from '../lib/chat/conversationExperienceUi'
+} from '../lib/chat/conversationExperienceUi/theme'
+import type {
+  ConversationBookingAction,
+  ConversationBookingBridge,
+  ConversationBookingState,
+} from '../lib/chat/conversationExperienceUi/bookingBridge'
+import type { ConversationLiveEvent } from '../lib/chat/conversationExperienceUi/liveNotifications'
+import type { ConversationTimelineEvent } from '../lib/chat/conversationExperienceUi/timelineView'
+import { extractConversationUiMeta } from '../lib/chat/conversationExperienceUi/structuredMeta'
 import { createSpeechToTextProvider, createTextToSpeechProvider } from '../lib/chat/voice/voiceProviderFactory'
 import { createVoiceSession, type CreateVoiceSessionOptions, type VoiceSession } from '../lib/chat/voice/voiceSession'
 import { subscribeMicrophonePermission } from '../lib/chat/voice/microphonePermission'
 import type { VoiceInputMode, VoiceLocale, VoiceSessionStatus } from '../lib/chat/voice/voiceTypes'
+import { EXPERIENCE_STATE_LABELS, type ChatGptExperienceState } from '../lib/chat/chatgptExperience/types'
+import { isChatGptExperienceEnabled } from '../lib/chat/chatgptExperience/feature'
 import {
-  EXPERIENCE_STATE_LABELS,
-  isChatGptExperienceEnabled,
   readSessionUiRecovery,
   togglePinnedConversation,
   writeSessionUiRecovery,
-  type ChatGptExperienceState,
-} from '../lib/chat/chatgptExperience'
+} from '../lib/chat/chatgptExperience/contextRecovery'
+
+/** Quarantined experience banner — not on the default ChatPage chunk. */
+const LiveNotificationsBanner = lazy(
+  () => import('../components/chat/experience/LiveNotificationsBanner'),
+)
+
+type ExperienceModules = {
+  buildConversationTimeline: typeof import('../lib/chat/conversationExperienceUi/timelineView').buildConversationTimeline
+  enrichPlanForBooking: typeof import('../lib/chat/conversationExperienceUi/cardModels').enrichPlanForBooking
+  getConversationLiveNotificationBus: typeof import('../lib/chat/conversationExperienceUi/liveNotifications').getConversationLiveNotificationBus
+}
 
 /**
  * Recovery Phase 1 — ONE Chat UI.
@@ -106,12 +114,40 @@ function LegacyChatPage() {
   const activeIdRef = useRef<string | null>(null)
   const streamingRef = useRef(false)
   const detailRequestRef = useRef(0)
-  const bookingBridgeRef = useRef(createConversationBookingBridge())
+  const bookingBridgeRef = useRef<ConversationBookingBridge | null>(null)
   const experienceEnabled = isConversationExperienceEnabled()
   const chatgptOn = isChatGptExperienceEnabled()
   const [experienceState, setExperienceState] = useState<ChatGptExperienceState>('idle')
   const [pinnedIds, setPinnedIds] = useState<string[]>(() => readSessionUiRecovery()?.pinnedIds ?? [])
   const stickToBottomRef = useRef(true)
+  const [experienceModules, setExperienceModules] = useState<ExperienceModules | null>(null)
+
+  // Production Authority — quarantine booking/timeline/live modules off the default graph.
+  useEffect(() => {
+    if (!experienceEnabled) {
+      setExperienceModules(null)
+      bookingBridgeRef.current = null
+      return
+    }
+    let cancelled = false
+    void Promise.all([
+      import('../lib/chat/conversationExperienceUi/bookingBridge'),
+      import('../lib/chat/conversationExperienceUi/timelineView'),
+      import('../lib/chat/conversationExperienceUi/cardModels'),
+      import('../lib/chat/conversationExperienceUi/liveNotifications'),
+    ]).then(([booking, timeline, cards, live]) => {
+      if (cancelled) return
+      bookingBridgeRef.current = booking.createConversationBookingBridge()
+      setExperienceModules({
+        buildConversationTimeline: timeline.buildConversationTimeline,
+        enrichPlanForBooking: cards.enrichPlanForBooking,
+        getConversationLiveNotificationBus: live.getConversationLiveNotificationBus,
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [experienceEnabled])
 
   const filtered = useMemo(
     () => chatEngine.searchConversations(conversations, query),
@@ -609,19 +645,19 @@ function LegacyChatPage() {
   }, [themePreference])
 
   useEffect(() => {
-    if (!experienceEnabled) return
-    return getConversationLiveNotificationBus().subscribe(setLiveEvents)
-  }, [experienceEnabled])
+    if (!experienceEnabled || !experienceModules) return
+    return experienceModules.getConversationLiveNotificationBus().subscribe(setLiveEvents)
+  }, [experienceEnabled, experienceModules])
 
   const timelineEvents = useMemo<ConversationTimelineEvent[]>(() => {
-    if (!experienceEnabled) return []
-    return buildConversationTimeline({
+    if (!experienceEnabled || !experienceModules) return []
+    return experienceModules.buildConversationTimeline({
       trips: bookingState?.trip ? [bookingState.trip] : [],
       executionTimeline: bookingState?.execution?.session.timeline ?? [],
       bookingReference: bookingState?.execution?.summary.references.bookingReference ?? null,
       paid: Boolean(bookingState?.paymentResult?.success),
     })
-  }, [experienceEnabled, bookingState])
+  }, [experienceEnabled, experienceModules, bookingState])
 
   const latestStructuredMessage = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
@@ -637,8 +673,12 @@ function LegacyChatPage() {
     setActionError(null)
     try {
       const bridge = bookingBridgeRef.current
+      if (!bridge || !experienceModules) {
+        setActionError('Experience modules are still loading')
+        return
+      }
       if (action === 'reserve') {
-        const plan = enrichPlanForBooking(
+        const plan = experienceModules.enrichPlanForBooking(
           extractConversationUiMeta(latestStructuredMessage?.providerMeta).structured,
         )
         if (!plan) {
@@ -652,7 +692,7 @@ function LegacyChatPage() {
         })
         setBookingState(next)
         if (next.execution?.summary.success) {
-          getConversationLiveNotificationBus().publish({
+          experienceModules.getConversationLiveNotificationBus().publish({
             kind: 'supplier_confirmed',
             title: 'Supplier confirmed',
             body: next.message,
@@ -677,7 +717,7 @@ function LegacyChatPage() {
         const next = await bridge.pay(current)
         setBookingState(next)
         if (next.paymentResult?.success) {
-          getConversationLiveNotificationBus().publish({
+          experienceModules.getConversationLiveNotificationBus().publish({
             kind: 'documents_issued',
             title: 'Payment received',
             body: next.message,
@@ -694,7 +734,7 @@ function LegacyChatPage() {
         const next = await bridge.refund(current)
         setBookingState(next)
         if (next.lastAction === 'refund') {
-          getConversationLiveNotificationBus().publish({
+          experienceModules.getConversationLiveNotificationBus().publish({
             kind: 'refund_processed',
             title: 'Refund update',
             body: next.message,
@@ -958,13 +998,15 @@ function LegacyChatPage() {
         </div>
 
         <section className="flex min-w-0 flex-1 flex-col" aria-busy={listLoading || detailLoading}>
-          {experienceEnabled && liveEvents.some((e) => e.unread) && (
+          {experienceEnabled && liveEvents.some((e) => e.unread) && experienceModules && (
             <div className="mx-4 mt-4">
-              <LiveNotificationsBanner
-                events={liveEvents}
-                onDismiss={(id) => getConversationLiveNotificationBus().markRead(id)}
-                onOpenTrip={() => navigate('/my-trips')}
-              />
+              <Suspense fallback={null}>
+                <LiveNotificationsBanner
+                  events={liveEvents}
+                  onDismiss={(id) => experienceModules.getConversationLiveNotificationBus().markRead(id)}
+                  onOpenTrip={() => navigate('/my-trips')}
+                />
+              </Suspense>
             </div>
           )}
 

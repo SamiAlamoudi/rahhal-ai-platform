@@ -8,42 +8,44 @@
  *   AMADEUS_CLIENT_ID
  *   AMADEUS_CLIENT_SECRET
  *   AMADEUS_BASE_URL (optional, default https://test.api.amadeus.com)
+ *   EDGE_ALLOWED_ORIGINS
+ *   SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY
  */
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import {
+  buildCorsHeaders,
+  corsPreflightResponse,
+  jsonEdgeResponse,
+  requireEdgeInvokeAuth,
+} from '../_shared/edgeSecurity.ts'
 
 const DEFAULT_AMADEUS_HOST = 'https://test.api.amadeus.com'
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
-}
 
 function normalizeAmadeusHost(raw: string): string {
   return raw.replace(/\/+$/, '').replace(/\/v1$/i, '')
 }
 
 Deno.serve(async (req) => {
+  const cors = buildCorsHeaders(req, { methods: ['GET', 'POST', 'OPTIONS'] })
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return corsPreflightResponse(req, { methods: ['GET', 'POST', 'OPTIONS'] })
   }
 
   if (req.method !== 'POST' && req.method !== 'GET') {
-    return jsonResponse({ error: 'Method not allowed' }, 405)
+    return jsonEdgeResponse({ error: 'Method not allowed' }, 405, cors)
   }
+
+  const authError = requireEdgeInvokeAuth(req, cors)
+  if (authError) return authError
 
   const clientId = Deno.env.get('AMADEUS_CLIENT_ID')
   const clientSecret = Deno.env.get('AMADEUS_CLIENT_SECRET')
   if (!clientId || !clientSecret) {
-    return jsonResponse({
+    return jsonEdgeResponse({
       error: 'Amadeus credentials are not configured on the server',
       code: 'AMADEUS_SERVER_NOT_CONFIGURED',
-    }, 503)
+    }, 503, cors)
   }
 
   const host = normalizeAmadeusHost(Deno.env.get('AMADEUS_BASE_URL') || DEFAULT_AMADEUS_HOST)
@@ -64,7 +66,7 @@ Deno.serve(async (req) => {
 
     const text = await response.text()
     if (!response.ok) {
-      return jsonResponse({
+      return jsonEdgeResponse({
         error: 'Amadeus token exchange failed',
         code: response.status === 401
           ? 'AMADEUS_INVALID_CREDENTIALS'
@@ -72,22 +74,20 @@ Deno.serve(async (req) => {
             ? 'AMADEUS_QUOTA_EXCEEDED'
             : 'AMADEUS_AUTH_ERROR',
         status: response.status,
-      }, response.status === 401 || response.status === 429 ? response.status : 502)
+      }, response.status === 401 || response.status === 429 ? response.status : 502, cors)
     }
 
-    // Forward Amadeus token payload (access_token, token_type, expires_in, scope).
-    // Never include client_secret in the response.
     const data = JSON.parse(text) as Record<string, unknown>
-    return jsonResponse({
+    return jsonEdgeResponse({
       access_token: data.access_token,
       token_type: data.token_type ?? 'Bearer',
       expires_in: data.expires_in,
       scope: data.scope ?? null,
-    })
+    }, 200, cors)
   } catch (err) {
-    return jsonResponse({
+    return jsonEdgeResponse({
       error: err instanceof Error ? err.message : 'Token exchange failed',
       code: 'AMADEUS_AUTH_NETWORK',
-    }, 502)
+    }, 502, cors)
   }
 })
