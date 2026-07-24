@@ -144,6 +144,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: destination_intelligence. Default OFF. Zero production impact until wired.',
   },
   {
+    id: 'ai.travel_strategy',
+    name: 'Travel Strategy Intelligence Layer (Evolution Sprint 8)',
+    description:
+      'Additive offline travel strategy optimization (timing, budget, comfort, route). Does not choose destinations. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.destination_intelligence'],
+    notes: 'Product alias: travel_strategy. Default OFF. Zero production impact until wired.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:

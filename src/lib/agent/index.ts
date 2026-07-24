@@ -521,6 +521,19 @@ export type {
   DestinationKnowledgeRecord,
 } from './destination'
 export {
+  runTravelStrategyEngine,
+  tryRunTravelStrategyEngine,
+  isTravelStrategyEnabled,
+  TRAVEL_STRATEGY_FEATURE_ID,
+  TravelStrategyEngine,
+} from './travelStrategy'
+export type {
+  TravelStrategyContext,
+  TravelStrategyResult,
+  TravelStrategyOption,
+  StrategyKind,
+} from './travelStrategy'
+export {
   createAgentLlmProvider,
   createAgentLlmRegistry,
   getDefaultAgentLlmProviderId,

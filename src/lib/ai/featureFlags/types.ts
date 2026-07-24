@@ -21,6 +21,7 @@ export type FeatureId =
   | 'ai.traveler_intelligence'
   | 'ai.recommendation_intelligence'
   | 'ai.destination_intelligence'
+  | 'ai.travel_strategy'
   | 'ai.smart_clarification'
   | 'ai.persistent_memory'
   | 'ai.rahhal_brain'
