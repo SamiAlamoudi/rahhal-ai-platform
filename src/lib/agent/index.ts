@@ -498,13 +498,13 @@ export {
   tryRunRecommendationEngine,
   isRecommendationIntelligenceEnabled,
   RECOMMENDATION_INTELLIGENCE_FEATURE_ID,
-  RecommendationEngine,
+  RecommendationEngine as ConsultantRecommendationEngine,
 } from './recommendation'
 export type {
   RecommendationPackage,
   RecommendationEngineResult,
   RecommendationEngineInput,
-  RecommendationCandidate,
+  RecommendationCandidate as ConsultantRecommendationCandidate,
 } from './recommendation'
 export {
   createAgentLlmProvider,

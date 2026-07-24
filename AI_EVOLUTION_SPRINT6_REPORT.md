@@ -78,7 +78,7 @@ Modules: RecommendationEngine, RecommendationBuilder, RecommendationNarrative, R
 | `src/lib/ai/featureFlags/types.ts` | `FeatureId` += `ai.recommendation_intelligence` |
 | `src/lib/ai/featureFlags/featureRegistry.ts` | Register flag default **OFF** |
 | `FEATURE_REGISTRY.md` | Document new flag |
-| `src/lib/agent/index.ts` | Additive re-exports |
+| `src/lib/agent/index.ts` | Additive re-exports (`ConsultantRecommendationEngine` / `ConsultantRecommendationCandidate` aliases to avoid clash with Phase AB `lib/ai` RecommendationEngine) |
 
 **Not modified:** any frozen layer sources listed in the mission.
 

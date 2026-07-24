@@ -12,7 +12,7 @@ import type {
 export function reviseRecommendation(
   previous: RecommendationPackage,
   input: Omit<RecommendationEngineInput, 'previous' | 'revisionReason'> & {
-    revisionReason?: string
+    revisionReason?: string | null
   },
 ): RecommendationPackage {
   return buildRecommendationPackage({
