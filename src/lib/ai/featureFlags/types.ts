@@ -24,6 +24,7 @@ export type FeatureId =
   | 'ai.travel_strategy'
   | 'ai.consultant_pipeline'
   | 'ai.consultant_response'
+  | 'ai.runtime_coordinator'
   | 'ai.smart_clarification'
   | 'ai.persistent_memory'
   | 'ai.rahhal_brain'

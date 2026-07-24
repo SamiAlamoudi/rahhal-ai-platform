@@ -212,3 +212,27 @@ export type {
   ConsultantResponsePackage,
   ConsultantEnrichTurnLike,
 } from './consultantResponseTypes'
+
+/* ── Phase 2 Stage 4: Runtime Coordinator ── */
+export {
+  RUNTIME_COORDINATOR_FEATURE_ID,
+  isRuntimeCoordinatorEnabled,
+  runRuntimeCoordinator,
+  tryRunRuntimeCoordinator,
+  enrichTurnWithRuntimeCoordinator,
+  RuntimeCoordinator,
+  RUNTIME_STAGE_ORDER,
+  resolveRuntimeExecutionOrder,
+  dependentsOf,
+  RuntimeCache,
+  getSharedRuntimeCache,
+  resetSharedRuntimeCache,
+  getRuntimeCoordinatorTelemetry,
+  resetRuntimeCoordinatorTelemetry,
+} from './runtime'
+export type {
+  RuntimeStageId,
+  RuntimeCoordinatorInput,
+  RuntimeCoordinatorResult,
+  RuntimeTelemetrySnapshot,
+} from './runtime'

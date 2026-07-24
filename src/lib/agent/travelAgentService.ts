@@ -390,6 +390,11 @@ export interface TravelAgentServiceOptions {
    */
   consultantResponseEnabled?: boolean
   /**
+   * Phase 2 Stage 4 — AI Runtime Coordinator (read-only orchestration).
+   * Default: FeatureRegistry `ai.runtime_coordinator` (OFF). Never mutates production planning.
+   */
+  runtimeCoordinatorEnabled?: boolean
+  /**
    * Phase 2 — AI Travel Executive intelligence.
    * Default: FeatureRegistry `ai.travel_executive` (ON).
    */
@@ -2913,13 +2918,18 @@ export function createTravelAgentService(
     },
   }
 
-  // Phase 2 Stage 2/3 — optional Consultant Pipeline + Unified Response (read-only).
-  // Flags OFF → identical production behavior (no pipeline/response import latency).
+  // Phase 2 Stage 2/3/4 — optional Consultant Pipeline / Response / Runtime Coordinator.
+  // Flags OFF → identical production behavior (no coordinator/pipeline import latency).
   const productionPlanTurn = service.planTurn.bind(service)
   service.planTurn = async (input) => {
     const result = await productionPlanTurn(input)
+    const runtimeForced = options.runtimeCoordinatorEnabled
     const pipelineForced = options.consultantPipelineEnabled
     const responseForced = options.consultantResponseEnabled
+    const runtimeOn =
+      runtimeForced === true
+      || (runtimeForced !== false
+        && getFeatureRegistry().isEnabled('ai.runtime_coordinator'))
     const pipelineOn =
       pipelineForced === true
       || (pipelineForced !== false
@@ -2928,12 +2938,26 @@ export function createTravelAgentService(
       responseForced === true
       || (responseForced !== false
         && getFeatureRegistry().isEnabled('ai.consultant_response'))
-    if (!pipelineOn && !responseOn) return result
 
     const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
+    const userText = lastUser?.content ?? ''
+
+    // Stage 4 — Runtime Coordinator path (preferred when ON; avoids duplicate work).
+    if (runtimeOn) {
+      const { enrichTurnWithRuntimeCoordinator } = await import('./orchestrator/runtime')
+      return enrichTurnWithRuntimeCoordinator(result, {
+        userText,
+        conversationId: input.conversationId,
+        enabled: true,
+        signal: input.signal,
+      }) as Promise<TravelAgentTurnResult>
+    }
+
+    if (!pipelineOn && !responseOn) return result
+
     const { finalizeConsultantTurnEnrichment } = await import('./orchestrator/consultantActivation')
     return finalizeConsultantTurnEnrichment(result, {
-      userText: lastUser?.content ?? '',
+      userText,
       conversationId: input.conversationId,
       attachPipelineMeta: pipelineOn,
       attachResponseMeta: responseOn,

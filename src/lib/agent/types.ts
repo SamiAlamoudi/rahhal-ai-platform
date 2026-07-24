@@ -861,6 +861,35 @@ export interface AgentProviderMeta {
     }
   }
   /**
+   * Phase 2 Stage 4 — AI Runtime Coordinator snapshot (read-only orchestration).
+   * Present only when `ai.runtime_coordinator` is ON. Never mutates tripPlan / reply.
+   */
+  runtimeCoordinator?: {
+    enabled: true
+    sessionId: string
+    executionOrder: string[]
+    success: boolean
+    cancelled: boolean
+    stageCount: number
+    telemetry: {
+      executionOrder: string[]
+      stageDurations: Record<string, number>
+      cacheHits: number
+      cacheMisses: number
+      retries: number
+      timeouts: number
+      failures: number
+      totalDurationMs: number
+    }
+    stages: Array<{
+      stageId: string
+      status: string
+      durationMs: number
+      cacheHit: boolean
+      errorCode: string | null
+    }>
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.

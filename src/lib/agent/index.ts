@@ -664,6 +664,14 @@ export {
   enrichTurnWithConsultantResponse,
   getConsultantResponseTelemetry,
   resetConsultantResponseTelemetry,
+  RUNTIME_COORDINATOR_FEATURE_ID,
+  isRuntimeCoordinatorEnabled,
+  runRuntimeCoordinator,
+  tryRunRuntimeCoordinator,
+  enrichTurnWithRuntimeCoordinator,
+  getRuntimeCoordinatorTelemetry,
+  resetRuntimeCoordinatorTelemetry,
+  resetSharedRuntimeCache,
 } from './orchestrator'
 export type {
   ConsultantPipelineInput,
@@ -676,6 +684,8 @@ export type {
   ConsultantResponsePackage,
   ConsultantResponseBody,
   ConsultantResponseTelemetrySnapshot,
+  RuntimeCoordinatorResult,
+  RuntimeStageId,
 } from './orchestrator'
 
 /** Sprint 114 — Intelligent Itinerary Engine */

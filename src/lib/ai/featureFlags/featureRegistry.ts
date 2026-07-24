@@ -174,6 +174,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: consultant_response. Default OFF. Formats: executive / short / detailed / consultant.',
   },
   {
+    id: 'ai.runtime_coordinator',
+    name: 'AI Runtime Coordinator (AI Integration Stage 4)',
+    description:
+      'Additive offline runtime coordinator for consultant intelligence: ordering, deps, cache, timeout, retry, error isolation. Read-only; never mutates production planning.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_response'],
+    notes: 'Product alias: runtime_coordinator. Default OFF. Coordinates execution only.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:
