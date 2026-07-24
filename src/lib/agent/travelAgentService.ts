@@ -400,6 +400,11 @@ export interface TravelAgentServiceOptions {
    */
   conversationOrchestratorEnabled?: boolean
   /**
+   * Phase 3 Stage 2 — Multi-Turn Conversation Manager (dialogue continuity).
+   * Default: FeatureRegistry `ai.multi_turn_conversation` (OFF). Never mutates production planning.
+   */
+  multiTurnConversationEnabled?: boolean
+  /**
    * Phase 2 — AI Travel Executive intelligence.
    * Default: FeatureRegistry `ai.travel_executive` (ON).
    */
@@ -2923,15 +2928,20 @@ export function createTravelAgentService(
     },
   }
 
-  // Phase 2 Stage 2/3/4 + Phase 3 Stage 1 — optional enrichment layers.
+  // Phase 2 Stage 2/3/4 + Phase 3 Stage 1/2 — optional enrichment layers.
   // Flags OFF → identical production behavior (no coordinator/pipeline import latency).
   const productionPlanTurn = service.planTurn.bind(service)
   service.planTurn = async (input) => {
     const result = await productionPlanTurn(input)
+    const multiTurnForced = options.multiTurnConversationEnabled
     const conversationForced = options.conversationOrchestratorEnabled
     const runtimeForced = options.runtimeCoordinatorEnabled
     const pipelineForced = options.consultantPipelineEnabled
     const responseForced = options.consultantResponseEnabled
+    const multiTurnOn =
+      multiTurnForced === true
+      || (multiTurnForced !== false
+        && getFeatureRegistry().isEnabled('ai.multi_turn_conversation'))
     const conversationOn =
       conversationForced === true
       || (conversationForced !== false
@@ -2951,6 +2961,18 @@ export function createTravelAgentService(
 
     const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
     const userText = lastUser?.content ?? ''
+
+    // Phase 3 Stage 2 — Multi-Turn Conversation Manager (continuity entry when ON).
+    if (multiTurnOn) {
+      const { enrichTurnWithMultiTurnManager } = await import('./conversation')
+      return enrichTurnWithMultiTurnManager(result, {
+        userText,
+        conversationId: input.conversationId,
+        enabled: true,
+        conversationOrchestratorEnabled: conversationOn,
+        signal: input.signal,
+      }) as Promise<TravelAgentTurnResult>
+    }
 
     // Phase 3 Stage 1 — Conversation Orchestrator (entry when ON; invokes Runtime Coordinator).
     if (conversationOn) {

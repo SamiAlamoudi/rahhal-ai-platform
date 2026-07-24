@@ -194,6 +194,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: conversation_orchestrator. Default OFF. Coordinates conversation only.',
   },
   {
+    id: 'ai.multi_turn_conversation',
+    name: 'Multi-Turn Conversation Manager (AI Evolution Phase 3 Stage 2)',
+    description:
+      'Additive persistent multi-turn dialogue continuity: session memory, topic detection, clarification discipline, summarization, and recovery. Never plans trips or scores destinations.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.conversation_orchestrator'],
+    notes: 'Product alias: multi_turn_conversation. Default OFF. Conversation continuity only.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:

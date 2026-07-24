@@ -688,7 +688,7 @@ export type {
   RuntimeStageId,
 } from './orchestrator'
 
-/** Phase 3 Stage 1 — Conversation Orchestrator (additive; default OFF) */
+/** Phase 3 Stage 1–2 — Conversation Orchestrator + Multi-Turn Manager (additive; default OFF) */
 export {
   CONVERSATION_ORCHESTRATOR_FEATURE_ID,
   isConversationOrchestratorEnabled,
@@ -701,6 +701,17 @@ export {
   enrichTurnWithConversationOrchestrator,
   resetConversationMemory,
   ConversationOrchestrator,
+  MULTI_TURN_CONVERSATION_FEATURE_ID,
+  isMultiTurnConversationEnabled,
+  runMultiTurnManager,
+  tryRunMultiTurnManager,
+  enrichTurnWithMultiTurnManager,
+  resetMultiTurnSessions,
+  detectConversationTopic,
+  trackConversationTurn,
+  decideClarification,
+  summarizeConversation,
+  MultiTurnManager,
 } from './conversation'
 export type {
   ConversationIntent,
@@ -709,6 +720,10 @@ export type {
   ConversationOrchestratorResult,
   ConversationReplyFormat,
   ConfidenceBand,
+  ConversationTopic,
+  ConversationTurnEvent,
+  MultiTurnConversationSession,
+  MultiTurnManagerResult,
 } from './conversation'
 
 /** Sprint 114 — Intelligent Itinerary Engine */

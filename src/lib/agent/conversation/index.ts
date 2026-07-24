@@ -88,3 +88,90 @@ export type {
   ConversationOrchestratorTurnOptions,
   ConversationTurnLike,
 } from './conversationOrchestrator'
+
+/** Phase 3 Stage 2 — Multi-Turn Conversation Manager */
+export type {
+  ConversationTopic,
+  ConversationTurnEvent,
+  TravelerFacts,
+  DestinationFacts,
+  StrategyFacts,
+  UserCorrectionRecord,
+  MultiTurnHistoryEntry,
+  ShortTermMemory,
+  WorkingMemory,
+  LongTermMemory,
+  MultiTurnConversationSession,
+  MultiTurnManagerInput,
+  MultiTurnManagerResult,
+} from './memoryTypes'
+
+export {
+  createEmptyMultiTurnSession,
+  cloneMultiTurnSession,
+  syncWorkingFromSession,
+} from './memoryTypes'
+
+export {
+  loadMultiTurnSession,
+  saveMultiTurnSession,
+  resetMultiTurnSessions,
+  ConversationMemoryStore,
+} from './conversationMemoryStore'
+
+export {
+  getOrCreateConversationSession,
+  appendSessionTurn,
+  setSessionTopicGoal,
+  ConversationSession,
+} from './conversationSession'
+
+export {
+  detectConversationTopic,
+  TopicDetector,
+} from './topicDetector'
+
+export {
+  trackConversationTurn,
+  ConversationTracker,
+} from './conversationTracker'
+export type { TrackedTurn } from './conversationTracker'
+
+export {
+  decideClarification,
+  computeSessionMissing,
+  scoreMultiTurnConfidence,
+  applyClarificationToSession,
+  resolvePendingClarification,
+  ClarificationManager,
+} from './clarificationManager'
+export type { ClarificationDecision } from './clarificationManager'
+
+export {
+  shouldSummarizeConversation,
+  summarizeConversation,
+  ConversationSummarizer,
+  SUMMARY_TURN_THRESHOLD,
+  SHORT_TERM_KEEP,
+} from './conversationSummarizer'
+
+export {
+  planConversationRecovery,
+  applyRecoveryToSession,
+  withRecoveryPreamble,
+  ConversationRecovery,
+} from './conversationRecovery'
+export type { RecoveryPlan } from './conversationRecovery'
+
+export {
+  MULTI_TURN_CONVERSATION_FEATURE_ID,
+  isMultiTurnConversationEnabled,
+  runMultiTurnManager,
+  tryRunMultiTurnManager,
+  enrichTurnWithMultiTurnManager,
+  MultiTurnManager,
+} from './multiTurnManager'
+export type {
+  MultiTurnTurnOptions,
+  MultiTurnTurnLike,
+} from './multiTurnManager'

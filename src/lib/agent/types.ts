@@ -905,6 +905,26 @@ export interface AgentProviderMeta {
     turnNumber: number
   }
   /**
+   * Phase 3 Stage 2 — Multi-Turn Conversation Manager snapshot (dialogue continuity only).
+   * Present only when `ai.multi_turn_conversation` is ON. Never mutates tripPlan.
+   */
+  multiTurnConversation?: {
+    enabled: true
+    conversationId: string
+    sessionId: string
+    turnNumber: number
+    topic: string
+    event: string
+    activeGoal: string | null
+    tripGoal: string | null
+    confidence: number
+    confidenceBand: 'high' | 'medium' | 'low'
+    pendingClarification: string | null
+    missingInformation: string[]
+    summarized: boolean
+    recovered: boolean
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.

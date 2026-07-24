@@ -38,6 +38,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ai.consultant_response` | experimental | **no** | Phase 2 Stage 3 unified consultant response — aggregates pipeline layers into executive/short/detailed/consultant formats (alias: consultant_response) |
 | `ai.runtime_coordinator` | experimental | **no** | Phase 2 Stage 4 AI Runtime Coordinator — ordering/deps/cache/timeout/retry/isolation for consultant layers (alias: runtime_coordinator) |
 | `ai.conversation_orchestrator` | experimental | **no** | Phase 3 Stage 1 Conversation Orchestrator — intent/memory/stage plan/reply above Runtime Coordinator (alias: conversation_orchestrator) |
+| `ai.multi_turn_conversation` | experimental | **no** | Phase 3 Stage 2 Multi-Turn Conversation Manager — persistent dialogue continuity/memory/clarification/recovery (alias: multi_turn_conversation) |
 | `ai.smart_clarification` | beta | yes | Sprint 46 never-ask-twice soft preference inference (alias: smart_clarification) |
 | `ai.persistent_memory` | beta | yes | Sprint 48 durable preference profiles via localStorage (alias: persistent_memory) |
 | `ai.rahhal_brain` | beta | yes | Sprint 50 Rahhal Brain Core orchestration on production agent path (alias: rahhal_brain) |
