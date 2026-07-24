@@ -466,6 +466,19 @@ export type {
   ReflectionTurnInput,
 } from './reflection'
 export {
+  createPlanningGraph,
+  tryCreatePlanningGraph,
+  isPlanningGraphEnabled,
+  PLANNING_GRAPH_FEATURE_ID,
+  PlanningGraph,
+} from './planningGraph'
+export type {
+  PlanningGraphState,
+  PlanNodeData,
+  CreatePlanInput,
+  PlanComparisonResult,
+} from './planningGraph'
+export {
   createAgentLlmProvider,
   createAgentLlmRegistry,
   getDefaultAgentLlmProviderId,

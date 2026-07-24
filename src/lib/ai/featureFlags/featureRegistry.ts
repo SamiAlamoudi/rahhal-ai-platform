@@ -104,6 +104,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: consultant_reflection. Default OFF. Zero production impact until wired.',
   },
   {
+    id: 'ai.planning_graph',
+    name: 'Planning Graph Layer (Evolution Sprint 4)',
+    description:
+      'Additive offline multi-plan DAG: branch, merge, compare, reject, restore, clone, score. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_reflection'],
+    notes: 'Product alias: planning_graph. Default OFF. Zero production impact until wired.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:
