@@ -84,6 +84,156 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: travel_reasoning',
   },
   {
+    id: 'ai.consultant_reasoning',
+    name: 'Consultant Reasoning Layer (Evolution Sprint 1)',
+    description:
+      'Additive offline consultant reasoning (intent, profile, constraints, destination/budget/risk/value, recommendation, explanation). Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes: 'Product alias: consultant_reasoning. Default OFF until a later wiring sprint.',
+  },
+  {
+    id: 'ai.consultant_reflection',
+    name: 'Consultant Reflection Layer (Evolution Sprint 2)',
+    description:
+      'Additive offline reflection: conversation memory, confidence evolution, incremental node refresh, recommendation revision. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_reasoning'],
+    notes: 'Product alias: consultant_reflection. Default OFF. Zero production impact until wired.',
+  },
+  {
+    id: 'ai.planning_graph',
+    name: 'Planning Graph Layer (Evolution Sprint 4)',
+    description:
+      'Additive offline multi-plan DAG: branch, merge, compare, reject, restore, clone, score. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_reflection'],
+    notes: 'Product alias: planning_graph. Default OFF. Zero production impact until wired.',
+  },
+  {
+    id: 'ai.traveler_intelligence',
+    name: 'Traveler Intelligence Layer (Evolution Sprint 5)',
+    description:
+      'Additive offline evolving behavioral traveler model (preferences, DNA, biases). Not a CRM profile. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_reasoning'],
+    notes: 'Product alias: traveler_intelligence. Default OFF. Zero production impact until wired.',
+  },
+  {
+    id: 'ai.recommendation_intelligence',
+    name: 'Recommendation Intelligence Layer (Evolution Sprint 6)',
+    description:
+      'Additive offline expert consultant recommendations: explain, compare, justify, challenge assumptions. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.planning_graph'],
+    notes: 'Product alias: recommendation_intelligence. Default OFF. Zero production impact until wired.',
+  },
+  {
+    id: 'ai.destination_intelligence',
+    name: 'Destination Intelligence Layer (Evolution Sprint 7)',
+    description:
+      'Additive offline consultant-grade destination knowledge, seasonality, traveler matching, and comparisons. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_reasoning'],
+    notes: 'Product alias: destination_intelligence. Default OFF. Zero production impact until wired.',
+  },
+  {
+    id: 'ai.travel_strategy',
+    name: 'Travel Strategy Intelligence Layer (Evolution Sprint 8)',
+    description:
+      'Additive offline travel strategy optimization (timing, budget, comfort, route). Does not choose destinations. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.destination_intelligence'],
+    notes: 'Product alias: travel_strategy. Default OFF. Zero production impact until wired.',
+  },
+  {
+    id: 'ai.consultant_pipeline',
+    name: 'Consultant Pipeline Orchestration (AI Integration Stage 1)',
+    description:
+      'Additive offline orchestration of existing consultant intelligence layers into one pipeline. Enrich-only context; not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.travel_strategy'],
+    notes: 'Product alias: consultant_pipeline. Default OFF. Stage 2 may attach read-only enrichment after planTurn when enabled; never mutates planning.',
+  },
+  {
+    id: 'ai.consultant_response',
+    name: 'Unified Consultant Response (AI Integration Stage 3)',
+    description:
+      'Additive offline aggregation of consultant pipeline stage outputs into one multi-format consultant response. Read-only; never mutates production planning.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_pipeline'],
+    notes: 'Product alias: consultant_response. Default OFF. Formats: executive / short / detailed / consultant.',
+  },
+  {
+    id: 'ai.runtime_coordinator',
+    name: 'AI Runtime Coordinator (AI Integration Stage 4)',
+    description:
+      'Additive offline runtime coordinator for consultant intelligence: ordering, deps, cache, timeout, retry, error isolation. Read-only; never mutates production planning.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_response'],
+    notes: 'Product alias: runtime_coordinator. Default OFF. Coordinates execution only.',
+  },
+  {
+    id: 'ai.conversation_orchestrator',
+    name: 'Conversation Orchestrator (AI Evolution Phase 3 Stage 1)',
+    description:
+      'Additive conversation management layer above the Runtime Coordinator: intent detection, memory, stage planning, and conversational reply. Never plans trips or scores destinations.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.runtime_coordinator'],
+    notes: 'Product alias: conversation_orchestrator. Default OFF. Coordinates conversation only.',
+  },
+  {
+    id: 'ai.multi_turn_conversation',
+    name: 'Multi-Turn Conversation Manager (AI Evolution Phase 3 Stage 2)',
+    description:
+      'Additive persistent multi-turn dialogue continuity: session memory, topic detection, clarification discipline, summarization, and recovery. Never plans trips or scores destinations.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.conversation_orchestrator'],
+    notes: 'Product alias: multi_turn_conversation. Default OFF. Conversation continuity only.',
+  },
+  {
+    id: 'ai.proactive_advisor',
+    name: 'Proactive Travel Advisor (AI Evolution Phase 3 Stage 3)',
+    description:
+      'Additive proactive opportunity recommendations (visa, weather, family, business, budget tips). Metadata-only; never mutates planning, itineraries, pricing, or conversation text.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.multi_turn_conversation'],
+    notes: 'Product alias: proactive_advisor. Default OFF. Recommendations only via meta.proactiveAdvisor.',
+  },
+  {
+    id: 'ai.travel_intelligence',
+    name: 'Travel Intelligence Layer (AI Evolution Phase 3 Stage 4)',
+    description:
+      'Additive isolated intelligence layer: compare alternatives, trade-offs, confidence, ranking, and justifications. Metadata-only (meta.travelIntelligence). Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.proactive_advisor'],
+    notes: 'Product alias: travel_intelligence. Default OFF. Evaluation only; never mutates planning.',
+  },
+  {
+    id: 'ai.experience_layer',
+    name: 'Experience Intelligence Layer (AI Evolution Phase 3 Stage 5)',
+    description:
+      'Additive isolated UI-ready experience composition from existing AI outputs. Metadata-only (meta.experience). Not wired into planTurn. No external APIs.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.travel_intelligence'],
+    notes: 'Product alias: experience_layer. Default OFF. Presentation models only; never mutates planning.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:
@@ -1202,6 +1352,82 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     dependsOn: ['ui.production_integration'],
     notes:
       'Product alias: premium_home. Presentation only — composes existing production home data. Does not change navigation, engines, or APIs. When OFF, ProductionHomeScreen still renders the premium sections while gated by ui.production_integration. Recovery Phase 1 FREEZE: quarantined parallel stack.',
+  },
+  {
+    id: 'ui.application_shell',
+    name: 'Premium Application Shell (Phase 4 Stage 1)',
+    description:
+      'Additive isolated application shell: navigation graphs, design system, theme, localization, responsive layout foundation. Not wired into production routes. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: application_shell. Framework only — no booking, search, payment, maps, or AI changes. Production unchanged when OFF.',
+  },
+  {
+    id: 'ui.conversation_center',
+    name: 'Premium AI Conversation Center (Phase 4 Stage 2)',
+    description:
+      'Additive isolated Conversation Center UI architecture: sidebar history, message types/cards, floating composer. Not wired into production routes, Runtime Coordinator, or Conversation Orchestrator. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: conversation_center. UI only — no AI calls, networking, speech, knowledge loading, booking, payments, or maps. Voice/Knowledge/Books are external nav placeholders only.',
+  },
+  {
+    id: 'ui.voice_center',
+    name: 'Premium Voice Conversation Center (Phase 4 Stage 3)',
+    description:
+      'Additive isolated Voice Center UI architecture: immersive mic stage, session states/controls, transcript, personality/settings placeholders. Own destination — not inside Chat. Not wired to AI, TTS, STT, Runtime Coordinator, or Orchestrator. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: voice_center. UI only — no Whisper/ElevenLabs/OpenAI Voice/Azure/Google Speech, no APIs, no streaming realtime. Placeholders only.',
+  },
+  {
+    id: 'ui.knowledge_center',
+    name: 'Knowledge Center (Phase 4 Stage 4)',
+    description:
+      'Additive isolated Knowledge Center UI architecture: guides library, dedicated books section, search/filters, reader placeholders. Own destination — not inside Chat or Voice. Not wired to AI, RAG, embeddings, search APIs, Runtime Coordinator, Orchestrator, or Voice Center. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: knowledge_center. UI only — no knowledge loading, vector DB, OCR, cloud storage, or backend. Books live only here.',
+  },
+  {
+    id: 'ui.travel_workspace',
+    name: 'Premium Travel Workspace (Phase 4 Stage 5)',
+    description:
+      'Additive isolated Travel Workspace UI architecture: executive dashboard, timeline, travel cards, documents, progress, quick actions. Presentation models only — not wired to production routes, AI, planning, booking, Amadeus, payments, or prior Conversation/Voice/Knowledge centers. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: travel_workspace. UI only — no APIs, backend, booking providers, or AI execution.',
+  },
+  {
+    id: 'ui.executive_dashboard',
+    name: 'Executive Dashboard + Notification Center (Phase 4 Stage 6)',
+    description:
+      'Additive isolated Executive Dashboard and Notification Center UI: metrics, filters, widgets, calendar placeholder, notification timeline. Presentation only — not wired to production, AI, Runtime Coordinator, Chat, Voice, Knowledge, Booking, push, realtime, or Firebase. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: executive_dashboard. UI only — no API calls, calendar sync, AI decisions, or booking.',
+  },
+  {
+    id: 'ui.command_palette',
+    name: 'Universal Search & Command Palette (Phase 4 Stage 8)',
+    description:
+      'Additive isolated Universal Search and Command Palette UI: global search domains, command destinations, filters, result layouts, shortcut placeholders. Presentation only — not wired to production, AI, Runtime Coordinator, Booking, Chat, Voice, Knowledge, backend search, or indexing. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: command_palette. UI only — navigation labels and local filtering; no API calls, realtime search, or AI search.',
   },
 ]
 
