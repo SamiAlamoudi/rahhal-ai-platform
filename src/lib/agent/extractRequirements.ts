@@ -585,8 +585,9 @@ function matchBudget(lower: string, original: string): { amount: number; currenc
   }
 
   // Allow fillers: "budget is only 1500", "change budget to just 2000 SAR"
+  // Note: do not use bare `spend \d` — that steals day counts from "spend 5 days".
   const underEn = lowerN.match(
-    /(?:under|below|max(?:imum)?|less than|budget(?:\s+(?:is|to|of))?|my budget is|keep(?:\s+\w+)?\s+under|spend(?:\s+up\s+to)?)\s*(?:of\s*)?(?:only|just|about|around|approx(?:imately)?)?\s*(?:sar|usd|aed|eur|\$)?\s*\$?\s*(\d+(?:[.,]\d+)?)/,
+    /(?:under|below|max(?:imum)?|less than|budget(?:\s+(?:is|to|of))?|my budget is|keep(?:\s+\w+)?\s+under|spend\s+up\s+to)\s*(?:of\s*)?(?:only|just|about|around|approx(?:imately)?)?\s*(?:sar|usd|aed|eur|\$)?\s*\$?\s*(\d+(?:[.,]\d+)?)/,
   )
   const underAr = originalN.match(
     /(?:أقل من|اقل من|تحت|ميزانية|بميزانية|ميزانيتي|غير الميزانية إلى|إلى فقط)\s*(?:ريال|دولار|درهم)?\s*\$?\s*(\d+(?:[.,]\d+)?)/,

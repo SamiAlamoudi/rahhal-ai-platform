@@ -1,9 +1,16 @@
 /**
  * Concierge turn policy — decides ask / advise / confirm / execute.
  * Speaks only in agent terms. Never selects providers or search engines.
+ *
+ * Intelligence rule: Concierge Decision Engine asks
+ * "Can I already provide value?" before "Which field is missing?"
  */
 
 import type { TripRequirements } from '../agent/types'
+import {
+  isBroadDestination,
+  shouldLeadWithValue,
+} from './decisionEngine'
 import {
   advanceConciergeState,
   hardMissingCount,
@@ -44,10 +51,36 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
   const hasPlan = Boolean(ctx.memory.tripPlan)
   const heardSummary = buildHeardSummary(ctx, softSignals.mustHaves)
 
-  let action: ConciergeAction
+  let action: ConciergeAction = 'ask'
   let askFields: Array<keyof TripRequirements> = []
   let shouldExecuteAgent = false
-  let rationale: string
+  let rationale = 'Default discovery ask.'
+  let valueBrief: string[] | undefined
+  let framingNote: string | null | undefined
+  let preferenceQuestion: string | null | undefined
+
+  const valueGate = shouldLeadWithValue({
+    requirements: ctx.requirements,
+    locale: ctx.locale,
+    userText: ctx.userText,
+    previous,
+    hardMissing,
+  })
+
+  const applyValueLead = (prefix: string): void => {
+    action = valueGate.action
+    askFields = []
+    shouldExecuteAgent = false
+    valueBrief = valueGate.valueBrief
+    framingNote = valueGate.framingNote
+    preferenceQuestion = valueGate.preferenceQuestion
+    rationale = `${prefix}${valueGate.rationale}`
+  }
+
+  const broadDest = isBroadDestination(
+    ctx.requirements.destination || ctx.requirements.destinations[0],
+  )
+  const explicitPlanCue = isExplicitPlanCue(ctx.userText, ctx.intent)
 
   // Sprint 45 — open-ended discovery: propose reasoned options instead of asking "where?".
   if (
@@ -55,12 +88,13 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
     && !ctx.requirements.destination
     && (ctx.intent === 'discover' || ctx.requirements.weatherPreference)
   ) {
-    action = previous.turnCount === 0 ? 'greet' : 'propose_options'
-    askFields = pickAskFields(
-      ctx.missingFields.filter((field) => field !== 'destination'),
-      1,
-    )
-    rationale = 'Open-ended discovery — propose destinations; ask only remaining hard slots.'
+    if (valueGate.leadWithValue) {
+      applyValueLead('Open-ended discovery — ')
+    } else {
+      action = previous.turnCount === 0 ? 'greet' : 'propose_options'
+      askFields = []
+      rationale = 'Open-ended discovery — propose directions; no census fields.'
+    }
     const nextPhase = 'advising'
     const state = advanceConciergeState({
       previous,
@@ -76,13 +110,44 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
       askFields,
       shouldExecuteAgent: false,
       rationale,
+      valueBrief,
+      framingNote,
+      preferenceQuestion,
     }
   }
 
-  if (phase === 'greeting' && previous.turnCount === 0 && !intakeComplete) {
+  // Ready for TripPlan handoff — distinct from Planning Draft (estimate) readiness.
+  const readyToDraftPlan = intakeComplete
+    && (ctx.requirements.durationDays != null || explicitPlanCue || hasPlan)
+  // Deliberate trip shaping (not soft-seeded midrange/central defaults).
+  const hasDeliberateStyle = Boolean(
+    ctx.requirements.interests.length > 0
+    || ctx.requirements.packageScope
+    || ctx.requirements.tripPurpose,
+  )
+  // Broad countries stay on Planning Draft + city compare until the traveler
+  // locks a city direction, confirms, or provides deliberate style/purpose.
+  const mayExecuteItinerary = readyToDraftPlan
+    && (!broadDest || explicitPlanCue || hasPlan || hasDeliberateStyle)
+
+  // Value-first / Planning Draft: recommend before form fields or itinerary build.
+  if (
+    valueGate.leadWithValue
+    && !mayExecuteItinerary
+    && (
+      hardMissing > 0
+      || (intakeComplete && broadDest && !explicitPlanCue && !hasPlan)
+      || (readyToDraftPlan && broadDest && !explicitPlanCue)
+    )
+  ) {
+    applyValueLead('Decision Engine — ')
+  } else if (phase === 'greeting' && previous.turnCount === 0 && !intakeComplete && !valueGate.leadWithValue) {
     action = 'greet'
-    askFields = pickAskFields(ctx.missingFields, 1)
-    rationale = 'First turn — greet and open discovery with one blocking question.'
+    // Inspire with destination/vibe — never open on budget/travelers.
+    askFields = ctx.missingFields.includes('destination')
+      ? ['destination']
+      : pickAskFields(ctx.missingFields, 1)
+    rationale = 'First turn — greet and open with a discovery cue.'
   } else if (phase === 'refining' && hasPlan) {
     if (EXECUTE_INTENTS.has(ctx.intent) || ctx.intent === 'save') {
       action = 'refine'
@@ -95,29 +160,35 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
   } else if (
     intakeComplete
     && previous.lastAction === 'propose_options'
-    && (isAffirmative(ctx.userText) || ctx.intent === 'plan')
+    && (isAffirmative(ctx.userText) || ctx.intent === 'plan' || explicitPlanCue)
   ) {
     action = 'plan'
     shouldExecuteAgent = true
     rationale = 'Traveler confirmed options — hand off to agent plan path.'
-  } else if (intakeComplete && EXECUTE_INTENTS.has(ctx.intent)) {
-    // Full agent intake satisfied — Concierge yields to the travel engine.
+  } else if (mayExecuteItinerary && EXECUTE_INTENTS.has(ctx.intent)) {
+    // City-specific / deliberate style / explicit plan — build TripPlan.
     action = 'plan'
     shouldExecuteAgent = true
     rationale = 'Intake complete — hand off to agent plan path.'
+  } else if (intakeComplete && broadDest && !explicitPlanCue && valueGate.canProvideValue) {
+    applyValueLead('Broad destination — Planning Draft before itinerary. ')
   } else if (intakeComplete && ctx.intent === 'unknown' && hasSoftDepth(softSignals)) {
     action = previous.lastAction === 'propose_options' ? 'confirm' : 'propose_options'
     rationale = 'Advisory beat — propose conversational options without executing.'
   } else if (hardMissing > 0) {
+    // Fallback only when Decision Engine cannot yet help — still one discovery cue.
     action = previous.turnCount === 0 ? 'greet' : (hardMissing >= 3 ? 'ask' : 'clarify')
-    // One blocking question only — never a form checklist.
-    askFields = pickAskFields(ctx.missingFields, 1)
-    rationale = 'Hard requirements incomplete — ask one consultant question.'
+    askFields = ctx.missingFields.includes('destination')
+      ? ['destination']
+      : pickAskFields(ctx.missingFields, 1)
+    rationale = 'Insufficient signal for recommendations — one discovery question.'
   } else if (!intakeComplete && (phase === 'deepening' || phase === 'advising' || phase === 'discovery')) {
     if (hasSoftDepth(softSignals) && softAskRemaining(ctx.missingFields).length <= 2) {
       action = 'propose_options'
-      askFields = softAskRemaining(ctx.missingFields).slice(0, 1)
+      askFields = []
       rationale = 'Hard intake ready — propose directions while soft slots remain.'
+    } else if (valueGate.canProvideValue) {
+      applyValueLead('Soft deepening — ')
     } else {
       action = 'ask'
       askFields = pickSoftAskFields(ctx.missingFields)
@@ -135,6 +206,8 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
       action = 'confirm'
       rationale = 'Awaiting explicit confirmation.'
     }
+  } else if (valueGate.canProvideValue) {
+    applyValueLead('Default value beat — ')
   } else {
     action = 'ask'
     askFields = pickAskFields(ctx.missingFields, 1)
@@ -171,7 +244,17 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
     askFields,
     shouldExecuteAgent,
     rationale,
+    valueBrief,
+    framingNote,
+    preferenceQuestion,
   }
+}
+
+function isExplicitPlanCue(text: string, intent: ConciergeTurnContext['intent']): boolean {
+  if (intent === 'plan' || intent === 'regenerate') return true
+  const lower = text.trim().toLowerCase()
+  return /\b(build (the )?plan|generate (the )?plan|full (itinerary|plan)|go ahead and plan)\b/i.test(lower)
+    || /(ابني|ولّد|ولد|جهّز).*(خطة|الرحلة)|خطة كاملة/.test(text)
 }
 
 function pickAskFields(

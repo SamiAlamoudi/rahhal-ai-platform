@@ -80,6 +80,15 @@ export interface ConciergeTurnDecision {
   shouldExecuteAgent: boolean
   /** Optional consultant rationale (for tests / meta; not provider-related). */
   rationale: string
+  /**
+   * Concierge Decision Engine — value-first brief for Conversation Brain.
+   * When present, the reply should educate/recommend/compare before any ask.
+   */
+  valueBrief?: string[]
+  /** Short education / framing line ahead of options. */
+  framingNote?: string | null
+  /** Preference closer (beach vs city…), never a form census label. */
+  preferenceQuestion?: string | null
 }
 
 export function emptySoftSignals(): ConciergeSoftSignals {
