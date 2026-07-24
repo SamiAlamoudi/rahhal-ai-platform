@@ -35,15 +35,17 @@ function detectIntent(text: string, knownDest: string | null | undefined): Trave
   if (!t) return 'unclear'
   if (/أكد|احجز|ادفع|book\b|confirm|pay\b|checkout/i.test(t)) return 'book_ready'
   if (/compare|versus|vs\.?|أيهما|قارن|أفضل من/i.test(t)) return 'compare'
-  if (/budget|ميزانية|كم يكلف|afford|رخيص|غالي/i.test(t)) return 'budget'
-  if (/instead|change|بدل|غير|refine|تعديل|أضف/i.test(t)) return 'refine'
-  if (/hello|hi\b|مرحبا|السلام|thanks|شكرا/i.test(t) && t.length < 40) return 'small_talk'
+  // Discovery / recommendation language wins over a bare budget mention.
   if (
     /where\s+should|suggest|recommend|ideas?|أين|اقترح|وش تنصح|وين أروح|destination/i.test(t)
-    || (!knownDest && /travel|trip|سفر|رحلة|holiday|vacation/i.test(t))
+    || (!knownDest && /travel|trip|سفر|رحلة|holiday|vacation/i.test(t) && /ideas?|suggest|تنصح|اقترح/i.test(t))
   ) {
     return 'discover'
   }
+  if (/budget|ميزانية|كم يكلف|afford|رخيص|غالي/i.test(t)) return 'budget'
+  if (/instead|change|بدل|غير|refine|تعديل|أضف/i.test(t)) return 'refine'
+  if (/hello|hi\b|مرحبا|السلام|thanks|شكرا/i.test(t) && t.length < 40) return 'small_talk'
+  if (!knownDest && /travel|trip|سفر|رحلة|holiday|vacation/i.test(t)) return 'discover'
   if (knownDest || /plan|itinerary|جدول|خطة|أيام/i.test(t)) return 'plan'
   if (t.length < 12) return 'unclear'
   return 'plan'

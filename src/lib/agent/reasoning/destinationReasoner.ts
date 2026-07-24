@@ -5,7 +5,6 @@
  */
 
 import { analyzeConstraints } from './constraintAnalyzer'
-import { analyzeTravelerIntent } from './travelerIntentAnalyzer'
 import { buildTravelerProfile } from './travelerProfileBuilder'
 import {
   clamp01,
@@ -33,7 +32,6 @@ function looksOpenEnded(text: string, stated: string | null): boolean {
 }
 
 export function reasonAboutDestination(input: ConsultantReasoningInput): DestinationReasonerResult {
-  const intent = analyzeTravelerIntent(input)
   const profile = buildTravelerProfile(input)
   const constraints = analyzeConstraints(input)
   const stated = input.known?.destination?.trim() || null

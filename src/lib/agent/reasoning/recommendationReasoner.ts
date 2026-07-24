@@ -56,8 +56,6 @@ export function reasonAboutRecommendation(
 
   if (intent.intent === 'small_talk') {
     primaryAction = 'defer'
-  } else if (intent.intent === 'unclear' || missingInformation.length >= 4) {
-    primaryAction = 'clarify'
   } else if (intent.intent === 'compare') {
     primaryAction = 'compare_options'
   } else if (
@@ -67,7 +65,9 @@ export function reasonAboutRecommendation(
     && typeof input.known?.durationDays === 'number'
   ) {
     primaryAction = 'proceed_planning'
-  } else if (!hasDirection && intent.intent !== 'discover') {
+  } else if (intent.intent === 'unclear' || (missingInformation.length >= 4 && intent.intent !== 'discover')) {
+    primaryAction = 'clarify'
+  } else if (!hasDirection && intent.intent !== 'discover' && intent.intent !== 'budget') {
     primaryAction = 'clarify'
   }
 
