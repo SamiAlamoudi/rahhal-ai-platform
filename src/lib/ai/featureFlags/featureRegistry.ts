@@ -1484,6 +1484,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: memory_center. UI only — edit/delete/search are placeholders; no persistence or AI memory engine.',
   },
+  {
+    id: 'ui.booking_hub',
+    name: 'Booking Hub (Phase 5 Stage 6)',
+    description:
+      'Additive isolated Booking Hub UI: trips, flights/hotels/services, documents, payments summary, timeline, calendar, map placeholder. Presentation only — not wired to AI, Booking APIs, Amadeus, Payments, Maps, Realtime, Notifications, Runtime, Database, or Firebase. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: booking_hub. UI only — search/map/payment are placeholders; no live booking.',
+  },
 ]
 
 export class FeatureRegistry {
