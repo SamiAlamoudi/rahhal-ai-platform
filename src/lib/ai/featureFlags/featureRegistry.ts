@@ -1451,6 +1451,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: decision_center. UI only — placeholders for charts and recommendation copy; no backend or actual AI.',
   },
+  {
+    id: 'ui.insights_center',
+    name: 'AI Insights Center (Phase 5 Stage 3)',
+    description:
+      'Additive isolated Insights Center UI: travel overview, statistics, budget breakdown, places, health score, badges, placeholders. Presentation only — not wired to AI, Runtime, Booking, Maps, Weather, Notifications, or analytics engines. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: insights_center. UI only — charts/heatmaps/passport/visa/loyalty/carbon are placeholders; no backend.',
+  },
 ]
 
 export class FeatureRegistry {
