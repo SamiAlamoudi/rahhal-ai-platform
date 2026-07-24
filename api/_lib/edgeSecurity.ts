@@ -1,6 +1,7 @@
 /**
  * Shared security helpers for Vercel Edge API routes.
  * Mirrors supabase/functions/_shared/edgeSecurity.ts.
+ * Allowlist resolution matches src/lib/ops/security/edgeCorsAllowlist.ts.
  */
 
 export type CorsMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS'
@@ -10,12 +11,53 @@ export interface EdgeCorsOptions {
   extraHeaders?: string[]
 }
 
-function readAllowlist(env: NodeJS.ProcessEnv = process.env): string[] {
-  const raw = env.EDGE_ALLOWED_ORIGINS ?? env.OPS_ALLOWED_ORIGINS ?? ''
+type EdgeDeployTarget = 'local' | 'development' | 'preview' | 'staging' | 'production'
+
+function resolveDeployTarget(env: NodeJS.ProcessEnv): EdgeDeployTarget {
+  const raw = (
+    env.EDGE_DEPLOY_TARGET
+    ?? env.DEPLOY_TARGET
+    ?? env.VITE_DEPLOY_TARGET
+    ?? 'local'
+  ).trim().toLowerCase()
+  if (raw === 'production' || raw === 'prod') return 'production'
+  if (raw === 'staging' || raw === 'stage') return 'staging'
+  if (raw === 'preview') return 'preview'
+  if (raw === 'development' || raw === 'dev') return 'development'
+  return 'local'
+}
+
+function parseList(raw: string): string[] {
   return raw
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
+}
+
+function resolveAllowlist(env: NodeJS.ProcessEnv): {
+  origins: string[]
+  permissiveEmpty: boolean
+} {
+  const target = resolveDeployTarget(env)
+  const targetKey =
+    target === 'production'
+      ? 'EDGE_ALLOWED_ORIGINS_PRODUCTION'
+      : target === 'staging' || target === 'preview'
+        ? 'EDGE_ALLOWED_ORIGINS_STAGING'
+        : 'EDGE_ALLOWED_ORIGINS_LOCAL'
+
+  const raw = env[targetKey]
+    ?? env.EDGE_ALLOWED_ORIGINS
+    ?? env.OPS_ALLOWED_ORIGINS
+    ?? ''
+  const origins = parseList(raw)
+  const permissiveFlag = ['1', 'true', 'yes', 'on'].includes(
+    (env.EDGE_CORS_PERMISSIVE ?? '').trim().toLowerCase(),
+  )
+  const permissiveEmpty = permissiveFlag
+    || target === 'local'
+    || target === 'development'
+  return { origins, permissiveEmpty }
 }
 
 export function buildCorsHeaders(
@@ -23,15 +65,15 @@ export function buildCorsHeaders(
   options: EdgeCorsOptions = {},
   env: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> {
-  const allowlist = readAllowlist(env)
+  const { origins, permissiveEmpty } = resolveAllowlist(env)
   const origin = req.headers.get('Origin')
   let allowOrigin: string
-  if (allowlist.length === 0) {
-    allowOrigin = '*'
-  } else if (origin && allowlist.includes(origin)) {
+  if (origins.length === 0) {
+    allowOrigin = permissiveEmpty ? '*' : 'null'
+  } else if (origin && origins.includes(origin)) {
     allowOrigin = origin
   } else {
-    allowOrigin = allowlist[0] ?? 'null'
+    allowOrigin = origins[0] ?? 'null'
   }
 
   const methods = (options.methods ?? ['GET', 'POST', 'OPTIONS']).join(', ')
@@ -82,15 +124,6 @@ function timingSafeEqual(a: string, b: string): boolean {
   return out === 0
 }
 
-/**
- * For same-origin Vercel routes, browser requests typically send cookies /
- * no apikey. Accept:
- *   - Matching SUPABASE_ANON_KEY / SERVICE_ROLE (SPA invoke style), OR
- *   - Same-origin requests without Origin when VERCEL_EDGE_ALLOW_SAME_ORIGIN=true, OR
- *   - Requests with no Origin (server-to-server) when EDGE_ALLOW_NO_ORIGIN=true (default true for Amadeus token)
- *
- * Privileged OpenAI/Booking proxies should require invoke keys strictly.
- */
 export function requireEdgeInvokeAuth(
   req: Request,
   cors: Record<string, string>,
@@ -101,7 +134,7 @@ export function requireEdgeInvokeAuth(
   const accepted = [
     env.SUPABASE_ANON_KEY,
     env.SUPABASE_SERVICE_ROLE_KEY,
-    env.VITE_SUPABASE_ANON_KEY, // never preferred; only for misconfigured local vercel
+    env.VITE_SUPABASE_ANON_KEY,
     env.ANON_KEY,
     env.SERVICE_ROLE_KEY,
   ].filter((v): v is string => Boolean(v && String(v).trim()))
@@ -124,7 +157,6 @@ export function requireEdgeInvokeAuth(
   }
 
   if (options.allowMissingWhenNoOrigin !== false && !req.headers.get('Origin')) {
-    // Server-to-server / same-origin fetch without CORS Origin.
     return null
   }
 

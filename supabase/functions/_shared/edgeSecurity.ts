@@ -3,6 +3,9 @@
  *
  * Deploy secrets (never VITE_*):
  *   EDGE_ALLOWED_ORIGINS / OPS_ALLOWED_ORIGINS — comma-separated browser origins
+ *   EDGE_ALLOWED_ORIGINS_PRODUCTION / _STAGING / _LOCAL — per-target overrides
+ *   EDGE_DEPLOY_TARGET | DEPLOY_TARGET | VITE_DEPLOY_TARGET — select target
+ *   EDGE_CORS_PERMISSIVE=true — allow `*` when allowlist empty on staging/prod
  *   SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY — accepted invoke credentials
  *
  * Every privileged Edge endpoint must:
@@ -18,37 +21,77 @@ export interface EdgeCorsOptions {
   extraHeaders?: string[]
 }
 
-function readAllowlist(): string[] {
-  const raw = Deno.env.get('EDGE_ALLOWED_ORIGINS')
-    ?? Deno.env.get('OPS_ALLOWED_ORIGINS')
-    ?? ''
+type EdgeDeployTarget = 'local' | 'development' | 'preview' | 'staging' | 'production'
+
+function resolveDeployTarget(): EdgeDeployTarget {
+  const raw = (
+    Deno.env.get('EDGE_DEPLOY_TARGET')
+    ?? Deno.env.get('DEPLOY_TARGET')
+    ?? Deno.env.get('VITE_DEPLOY_TARGET')
+    ?? 'local'
+  ).trim().toLowerCase()
+  if (raw === 'production' || raw === 'prod') return 'production'
+  if (raw === 'staging' || raw === 'stage') return 'staging'
+  if (raw === 'preview') return 'preview'
+  if (raw === 'development' || raw === 'dev') return 'development'
+  return 'local'
+}
+
+function parseList(raw: string): string[] {
   return raw
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
 }
 
+/** Fully configurable allowlist for Production / Staging / Local. */
+export function resolveEdgeAllowlist(): {
+  origins: string[]
+  permissiveEmpty: boolean
+  target: EdgeDeployTarget
+} {
+  const target = resolveDeployTarget()
+  const targetKey =
+    target === 'production'
+      ? 'EDGE_ALLOWED_ORIGINS_PRODUCTION'
+      : target === 'staging' || target === 'preview'
+        ? 'EDGE_ALLOWED_ORIGINS_STAGING'
+        : 'EDGE_ALLOWED_ORIGINS_LOCAL'
+
+  const raw = Deno.env.get(targetKey)
+    ?? Deno.env.get('EDGE_ALLOWED_ORIGINS')
+    ?? Deno.env.get('OPS_ALLOWED_ORIGINS')
+    ?? ''
+  const origins = parseList(raw)
+  const permissiveFlag = ['1', 'true', 'yes', 'on'].includes(
+    (Deno.env.get('EDGE_CORS_PERMISSIVE') ?? '').trim().toLowerCase(),
+  )
+  const permissiveEmpty = permissiveFlag
+    || target === 'local'
+    || target === 'development'
+  return { origins, permissiveEmpty, target }
+}
+
+function pickAllowOrigin(req: Request): string {
+  const { origins, permissiveEmpty } = resolveEdgeAllowlist()
+  const origin = req.headers.get('Origin')
+  if (origins.length === 0) {
+    return permissiveEmpty ? '*' : 'null'
+  }
+  if (origin && origins.includes(origin)) return origin
+  return origins[0] ?? 'null'
+}
+
 /**
  * Build CORS headers for an Edge response.
- * When an allowlist is configured, only listed Origins are reflected.
- * When empty (local/dev), `*` is used so tooling still works — production
- * MUST set EDGE_ALLOWED_ORIGINS / OPS_ALLOWED_ORIGINS.
+ * Local/development: empty allowlist → `*`.
+ * Staging/production: empty allowlist → `null` (fail closed) unless EDGE_CORS_PERMISSIVE.
  */
 export function buildCorsHeaders(
   req: Request,
   options: EdgeCorsOptions = {},
 ): Record<string, string> {
-  const allowlist = readAllowlist()
-  const origin = req.headers.get('Origin')
-  let allowOrigin: string
-  if (allowlist.length === 0) {
-    allowOrigin = '*'
-  } else if (origin && allowlist.includes(origin)) {
-    allowOrigin = origin
-  } else {
-    // Do not reflect unlisted browser origins.
-    allowOrigin = allowlist[0] ?? 'null'
-  }
+  const allowOrigin = pickAllowOrigin(req)
 
   const methods = (options.methods ?? ['GET', 'POST', 'OPTIONS']).join(', ')
   const baseHeaders = [
@@ -121,13 +164,11 @@ export function requireEdgeInvokeAuth(
   const accepted = [
     Deno.env.get('SUPABASE_ANON_KEY'),
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
-    // Local `supabase start` also exposes these aliases in some stacks.
     Deno.env.get('ANON_KEY'),
     Deno.env.get('SERVICE_ROLE_KEY'),
   ].filter((v): v is string => Boolean(v && v.trim()))
 
   if (accepted.length === 0) {
-    // Misconfigured Edge runtime — fail closed for privileged proxies.
     return new Response(JSON.stringify({
       error: 'Edge invoke keys are not configured on the server',
       code: 'EDGE_AUTH_NOT_CONFIGURED',

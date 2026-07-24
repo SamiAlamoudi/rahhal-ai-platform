@@ -111,6 +111,8 @@ export function validateEnvironment(
     'VITE_AGENT_OPENAI_API_KEY',
     'VITE_RAPIDAPI_KEY',
     'VITE_BOOKING_API_KEY',
+    'VITE_RENTAL_API_KEY',
+    'VITE_HOTEL_API_KEY',
   ]
   for (const key of forbiddenVite) {
     if (isSet(env[key])) {

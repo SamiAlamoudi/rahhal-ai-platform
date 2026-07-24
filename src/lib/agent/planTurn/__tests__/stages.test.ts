@@ -130,6 +130,45 @@ describe('planTurn stage modules', () => {
     await expect(earlyIntentRouters(ctx, deps())).resolves.toBeNull()
   })
 
+  it('rahhalBrain returns null when brain core is off (typed continue path)', async () => {
+    const ctx = initMemory({
+      conversationId: 'stage-c1',
+      messages: [user('Hello')],
+    }, deps({ isBrainCoreEnabled: () => false }))
+
+    await expect(rahhalBrain(ctx, deps({ isBrainCoreEnabled: () => false }))).resolves.toBeNull()
+  })
+
+  it('brainPipeline is a no-op when brain integration is off', async () => {
+    const ctx = initMemory({
+      conversationId: 'stage-c1',
+      messages: [user('Hello')],
+    }, deps())
+    const before = ctx.memory
+    await brainPipeline(ctx, deps({ isBrainEnabled: () => false }))
+    expect(ctx.memory).toBe(before)
+    expect(ctx.brainMeta).toBeUndefined()
+  })
+
+  it('concierge returns null when disabled (typed continue path)', async () => {
+    const ctx = initMemory({
+      conversationId: 'stage-c1',
+      messages: [user('Hello')],
+    }, deps({ isConciergeEnabled: () => false }))
+
+    await expect(concierge(ctx, deps({ isConciergeEnabled: () => false }))).resolves.toBeNull()
+  })
+
+  it('autonomous leaves snapshot unchanged when autonomous agent is off', () => {
+    const ctx = initMemory({
+      conversationId: 'stage-c1',
+      messages: [user('Hello')],
+    }, deps({ isAutonomousEnabled: () => false }))
+    const before = ctx.autonomousSnapshot
+    autonomous(ctx, deps({ isAutonomousEnabled: () => false }))
+    expect(ctx.autonomousSnapshot).toBe(before)
+  })
+
   it('presentation returns a typed final-speak handoff without invoking an LLM', () => {
     const ctx = initMemory({
       conversationId: 'stage-c1',
@@ -142,5 +181,10 @@ describe('planTurn stage modules', () => {
     expect(handoff.toolHadNoResults).toBe(false)
     expect(handoff.decisionConfidence).toBe(0.78)
     expect(handoff.constitutionPreview.meta).toBeTruthy()
+  })
+
+  it('llmAndTools and finalSpeak export typed async stage runners', () => {
+    expect(llmAndTools.length).toBeGreaterThanOrEqual(2)
+    expect(finalSpeak.length).toBeGreaterThanOrEqual(2)
   })
 })
