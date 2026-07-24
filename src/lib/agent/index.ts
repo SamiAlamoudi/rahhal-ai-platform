@@ -507,6 +507,20 @@ export type {
   RecommendationCandidate as ConsultantRecommendationCandidate,
 } from './recommendation'
 export {
+  runDestinationIntelligence,
+  tryRunDestinationIntelligence,
+  isDestinationIntelligenceEnabled,
+  DESTINATION_INTELLIGENCE_FEATURE_ID,
+  DestinationIntelligence,
+  compareDestinations,
+} from './destination'
+export type {
+  DestinationSnapshot,
+  DestinationComparisonResult,
+  DestinationEngineInput,
+  DestinationKnowledgeRecord,
+} from './destination'
+export {
   createAgentLlmProvider,
   createAgentLlmRegistry,
   getDefaultAgentLlmProviderId,
