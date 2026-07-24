@@ -84,6 +84,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: travel_reasoning',
   },
   {
+    id: 'ai.consultant_reasoning',
+    name: 'Consultant Reasoning Layer (Evolution Sprint 1)',
+    description:
+      'Additive offline consultant reasoning (intent, profile, constraints, destination/budget/risk/value, recommendation, explanation). Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes: 'Product alias: consultant_reasoning. Default OFF until a later wiring sprint.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:
