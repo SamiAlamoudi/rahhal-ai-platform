@@ -380,6 +380,36 @@ export interface TravelAgentServiceOptions {
    */
   paymentsEnabled?: boolean
   /**
+   * Phase 2 Stage 2 — Consultant Pipeline activation (read-only enrichment after planTurn).
+   * Default: FeatureRegistry `ai.consultant_pipeline` (OFF). Never mutates production planning.
+   */
+  consultantPipelineEnabled?: boolean
+  /**
+   * Phase 2 Stage 3 — Unified Consultant Response aggregation (read-only).
+   * Default: FeatureRegistry `ai.consultant_response` (OFF). Never mutates production planning.
+   */
+  consultantResponseEnabled?: boolean
+  /**
+   * Phase 2 Stage 4 — AI Runtime Coordinator (read-only orchestration).
+   * Default: FeatureRegistry `ai.runtime_coordinator` (OFF). Never mutates production planning.
+   */
+  runtimeCoordinatorEnabled?: boolean
+  /**
+   * Phase 3 Stage 1 — Conversation Orchestrator (conversation management above Runtime Coordinator).
+   * Default: FeatureRegistry `ai.conversation_orchestrator` (OFF). Never mutates production planning.
+   */
+  conversationOrchestratorEnabled?: boolean
+  /**
+   * Phase 3 Stage 2 — Multi-Turn Conversation Manager (dialogue continuity).
+   * Default: FeatureRegistry `ai.multi_turn_conversation` (OFF). Never mutates production planning.
+   */
+  multiTurnConversationEnabled?: boolean
+  /**
+   * Phase 3 Stage 3 — Proactive Travel Advisor (metadata-only opportunity tips).
+   * Default: FeatureRegistry `ai.proactive_advisor` (OFF). Never mutates production planning or reply.
+   */
+  proactiveAdvisorEnabled?: boolean
+  /**
    * Phase 2 — AI Travel Executive intelligence.
    * Default: FeatureRegistry `ai.travel_executive` (ON).
    */
@@ -2901,6 +2931,98 @@ export function createTravelAgentService(
       })
       return { id: saved.id, title: saved.title }
     },
+  }
+
+  // Phase 2 Stage 2/3/4 + Phase 3 Stage 1/2/3 — optional enrichment layers.
+  // Flags OFF → identical production behavior (no coordinator/pipeline import latency).
+  const productionPlanTurn = service.planTurn.bind(service)
+  service.planTurn = async (input) => {
+    const result = await productionPlanTurn(input)
+    const proactiveForced = options.proactiveAdvisorEnabled
+    const multiTurnForced = options.multiTurnConversationEnabled
+    const conversationForced = options.conversationOrchestratorEnabled
+    const runtimeForced = options.runtimeCoordinatorEnabled
+    const pipelineForced = options.consultantPipelineEnabled
+    const responseForced = options.consultantResponseEnabled
+    const proactiveOn =
+      proactiveForced === true
+      || (proactiveForced !== false
+        && getFeatureRegistry().isEnabled('ai.proactive_advisor'))
+    const multiTurnOn =
+      multiTurnForced === true
+      || (multiTurnForced !== false
+        && getFeatureRegistry().isEnabled('ai.multi_turn_conversation'))
+    const conversationOn =
+      conversationForced === true
+      || (conversationForced !== false
+        && getFeatureRegistry().isEnabled('ai.conversation_orchestrator'))
+    const runtimeOn =
+      runtimeForced === true
+      || (runtimeForced !== false
+        && getFeatureRegistry().isEnabled('ai.runtime_coordinator'))
+    const pipelineOn =
+      pipelineForced === true
+      || (pipelineForced !== false
+        && getFeatureRegistry().isEnabled('ai.consultant_pipeline'))
+    const responseOn =
+      responseForced === true
+      || (responseForced !== false
+        && getFeatureRegistry().isEnabled('ai.consultant_response'))
+
+    const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
+    const userText = lastUser?.content ?? ''
+
+    let enriched: TravelAgentTurnResult = result
+
+    // Phase 3 Stage 2 — Multi-Turn Conversation Manager (continuity entry when ON).
+    if (multiTurnOn) {
+      const { enrichTurnWithMultiTurnManager } = await import('./conversation')
+      enriched = await enrichTurnWithMultiTurnManager(result, {
+        userText,
+        conversationId: input.conversationId,
+        enabled: true,
+        conversationOrchestratorEnabled: conversationOn,
+        signal: input.signal,
+      }) as TravelAgentTurnResult
+    } else if (conversationOn) {
+      // Phase 3 Stage 1 — Conversation Orchestrator (entry when ON; invokes Runtime Coordinator).
+      const { enrichTurnWithConversationOrchestrator } = await import('./conversation')
+      enriched = await enrichTurnWithConversationOrchestrator(result, {
+        userText,
+        conversationId: input.conversationId,
+        enabled: true,
+        signal: input.signal,
+      }) as TravelAgentTurnResult
+    } else if (runtimeOn) {
+      // Stage 4 — Runtime Coordinator path (preferred when ON; avoids duplicate work).
+      const { enrichTurnWithRuntimeCoordinator } = await import('./orchestrator/runtime')
+      enriched = await enrichTurnWithRuntimeCoordinator(result, {
+        userText,
+        conversationId: input.conversationId,
+        enabled: true,
+        signal: input.signal,
+      }) as TravelAgentTurnResult
+    } else if (pipelineOn || responseOn) {
+      const { finalizeConsultantTurnEnrichment } = await import('./orchestrator/consultantActivation')
+      enriched = await finalizeConsultantTurnEnrichment(result, {
+        userText,
+        conversationId: input.conversationId,
+        attachPipelineMeta: pipelineOn,
+        attachResponseMeta: responseOn,
+      })
+    }
+
+    // Phase 3 Stage 3 — Proactive Advisor (metadata-only; never mutates reply/tripPlan).
+    if (proactiveOn) {
+      const { enrichTurnWithProactiveAdvisor } = await import('./proactive')
+      enriched = enrichTurnWithProactiveAdvisor(enriched, {
+        userText,
+        conversationId: input.conversationId,
+        enabled: true,
+      })
+    }
+
+    return enriched
   }
 
   return service
