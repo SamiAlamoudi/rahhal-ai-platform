@@ -380,6 +380,26 @@ export interface TravelAgentServiceOptions {
    */
   paymentsEnabled?: boolean
   /**
+   * Phase 2 Stage 2 — Consultant Pipeline activation (read-only enrichment after planTurn).
+   * Default: FeatureRegistry `ai.consultant_pipeline` (OFF). Never mutates production planning.
+   */
+  consultantPipelineEnabled?: boolean
+  /**
+   * Phase 2 Stage 3 — Unified Consultant Response aggregation (read-only).
+   * Default: FeatureRegistry `ai.consultant_response` (OFF). Never mutates production planning.
+   */
+  consultantResponseEnabled?: boolean
+  /**
+   * Phase 2 Stage 4 — AI Runtime Coordinator (read-only orchestration).
+   * Default: FeatureRegistry `ai.runtime_coordinator` (OFF). Never mutates production planning.
+   */
+  runtimeCoordinatorEnabled?: boolean
+  /**
+   * Phase 3 Stage 1 — Conversation Orchestrator (conversation management above Runtime Coordinator).
+   * Default: FeatureRegistry `ai.conversation_orchestrator` (OFF). Never mutates production planning.
+   */
+  conversationOrchestratorEnabled?: boolean
+  /**
    * Phase 2 — AI Travel Executive intelligence.
    * Default: FeatureRegistry `ai.travel_executive` (ON).
    */
@@ -2901,6 +2921,68 @@ export function createTravelAgentService(
       })
       return { id: saved.id, title: saved.title }
     },
+  }
+
+  // Phase 2 Stage 2/3/4 + Phase 3 Stage 1 — optional enrichment layers.
+  // Flags OFF → identical production behavior (no coordinator/pipeline import latency).
+  const productionPlanTurn = service.planTurn.bind(service)
+  service.planTurn = async (input) => {
+    const result = await productionPlanTurn(input)
+    const conversationForced = options.conversationOrchestratorEnabled
+    const runtimeForced = options.runtimeCoordinatorEnabled
+    const pipelineForced = options.consultantPipelineEnabled
+    const responseForced = options.consultantResponseEnabled
+    const conversationOn =
+      conversationForced === true
+      || (conversationForced !== false
+        && getFeatureRegistry().isEnabled('ai.conversation_orchestrator'))
+    const runtimeOn =
+      runtimeForced === true
+      || (runtimeForced !== false
+        && getFeatureRegistry().isEnabled('ai.runtime_coordinator'))
+    const pipelineOn =
+      pipelineForced === true
+      || (pipelineForced !== false
+        && getFeatureRegistry().isEnabled('ai.consultant_pipeline'))
+    const responseOn =
+      responseForced === true
+      || (responseForced !== false
+        && getFeatureRegistry().isEnabled('ai.consultant_response'))
+
+    const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
+    const userText = lastUser?.content ?? ''
+
+    // Phase 3 Stage 1 — Conversation Orchestrator (entry when ON; invokes Runtime Coordinator).
+    if (conversationOn) {
+      const { enrichTurnWithConversationOrchestrator } = await import('./conversation')
+      return enrichTurnWithConversationOrchestrator(result, {
+        userText,
+        conversationId: input.conversationId,
+        enabled: true,
+        signal: input.signal,
+      }) as Promise<TravelAgentTurnResult>
+    }
+
+    // Stage 4 — Runtime Coordinator path (preferred when ON; avoids duplicate work).
+    if (runtimeOn) {
+      const { enrichTurnWithRuntimeCoordinator } = await import('./orchestrator/runtime')
+      return enrichTurnWithRuntimeCoordinator(result, {
+        userText,
+        conversationId: input.conversationId,
+        enabled: true,
+        signal: input.signal,
+      }) as Promise<TravelAgentTurnResult>
+    }
+
+    if (!pipelineOn && !responseOn) return result
+
+    const { finalizeConsultantTurnEnrichment } = await import('./orchestrator/consultantActivation')
+    return finalizeConsultantTurnEnrichment(result, {
+      userText,
+      conversationId: input.conversationId,
+      attachPipelineMeta: pipelineOn,
+      attachResponseMeta: responseOn,
+    })
   }
 
   return service
