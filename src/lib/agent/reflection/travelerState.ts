@@ -53,7 +53,7 @@ export function derivePriorities(slots: KnownSlots, latestText: string): string[
     priorities.push('destination_discovery')
   }
   if (typeof slots.durationDays === 'number') priorities.push('duration_set')
-  if (/safe|آمن|kids|أطفال|family|عائلة/i.test(latestText) || slots.tripPurpose === 'family') {
+  if (/safe|آمن|kids|أطفال|family|عائلة|عائلية/i.test(latestText) || slots.tripPurpose === 'family') {
     priorities.push('low_friction')
   }
   if (/luxury|فخم|comfort|راحة/i.test(latestText)) priorities.push('comfort')

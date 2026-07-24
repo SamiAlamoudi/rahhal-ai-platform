@@ -104,7 +104,7 @@ export function extractSlotDeltaFromText(text: string): {
   if (/honeymoon|شهر\s*عسل/i.test(t)) {
     delta.tripPurpose = 'honeymoon'
     evidence.push('tripPurpose:honeymoon')
-  } else if (/\bfamily\b|عائلة|أطفال/i.test(t)) {
+  } else if (/\bfamily\b|عائلة|عائلية|أطفال/i.test(t)) {
     delta.tripPurpose = 'family'
     evidence.push('tripPurpose:family')
   } else if (/\bbusiness\b|عمل|مؤتمر/i.test(t)) {
@@ -146,7 +146,7 @@ export function appendUserTurn(
   const extracted = extractSlotDeltaFromText(text)
   const slotDelta: Partial<KnownSlots> = {
     ...extracted.delta,
-    ...(knownDelta ?? {}),
+    ...knownDelta,
   }
   const evidence = [
     ...extracted.evidence,
