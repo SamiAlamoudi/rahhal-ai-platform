@@ -16,6 +16,7 @@ export type FeatureId =
   | 'ai.concierge'
   | 'ai.travel_reasoning'
   | 'ai.consultant_reasoning'
+  | 'ai.consultant_reflection'
   | 'ai.smart_clarification'
   | 'ai.persistent_memory'
   | 'ai.rahhal_brain'

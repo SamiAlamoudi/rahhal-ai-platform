@@ -452,6 +452,20 @@ export type {
   ReasoningSlice,
 } from './reasoning'
 export {
+  createReflectionSession,
+  reflectTurn,
+  tryReflectTurn,
+  isConsultantReflectionEnabled,
+  CONSULTANT_REFLECTION_FEATURE_ID,
+  ReflectionPipeline,
+} from './reflection'
+export type {
+  ReflectionSession,
+  ReflectionPipelineResult,
+  RecommendationRecord,
+  ReflectionTurnInput,
+} from './reflection'
+export {
   createAgentLlmProvider,
   createAgentLlmRegistry,
   getDefaultAgentLlmProviderId,
