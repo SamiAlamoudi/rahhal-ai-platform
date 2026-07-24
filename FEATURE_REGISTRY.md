@@ -106,6 +106,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ui.knowledge_center` | experimental | **no** | Phase 4 Stage 4 Knowledge Center — own knowledge destination UI only; depends on `ui.application_shell`; books dedicated here (not Chat/Voice); no RAG/embeddings/search APIs (alias: knowledge_center) |
 | `ui.travel_workspace` | experimental | **no** | Phase 4 Stage 5 Premium Travel Workspace — operational journey UI only; depends on `ui.application_shell`; no booking/Amadeus/payments/AI/APIs; not wired to Chat/Voice/Knowledge (alias: travel_workspace) |
 | `ui.executive_dashboard` | experimental | **no** | Phase 4 Stage 6 Executive Dashboard + Notification Center — presentation only; depends on `ui.application_shell`; no push/realtime/Firebase/APIs/booking/AI (alias: executive_dashboard) |
+| `ui.command_palette` | experimental | **no** | Phase 4 Stage 8 Universal Search & Command Palette — presentation only; depends on `ui.application_shell`; no backend/realtime/AI search/indexing/APIs (alias: command_palette) |
 | `providers.hotel_foundation` | experimental | **no** | Sprint 30 Hotel Provider Foundation — sandbox Hotelbeds / Expedia Rapid / Booking Connectivity (alias: hotel_provider_foundation) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |

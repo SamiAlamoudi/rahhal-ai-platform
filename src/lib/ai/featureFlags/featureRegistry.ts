@@ -1418,6 +1418,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: executive_dashboard. UI only — no API calls, calendar sync, AI decisions, or booking.',
   },
+  {
+    id: 'ui.command_palette',
+    name: 'Universal Search & Command Palette (Phase 4 Stage 8)',
+    description:
+      'Additive isolated Universal Search and Command Palette UI: global search domains, command destinations, filters, result layouts, shortcut placeholders. Presentation only — not wired to production, AI, Runtime Coordinator, Booking, Chat, Voice, Knowledge, backend search, or indexing. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: command_palette. UI only — navigation labels and local filtering; no API calls, realtime search, or AI search.',
+  },
 ]
 
 export class FeatureRegistry {
