@@ -494,6 +494,19 @@ export type {
   StoredPreference,
 } from './traveler'
 export {
+  runRecommendationEngine,
+  tryRunRecommendationEngine,
+  isRecommendationIntelligenceEnabled,
+  RECOMMENDATION_INTELLIGENCE_FEATURE_ID,
+  RecommendationEngine,
+} from './recommendation'
+export type {
+  RecommendationPackage,
+  RecommendationEngineResult,
+  RecommendationEngineInput,
+  RecommendationCandidate,
+} from './recommendation'
+export {
   createAgentLlmProvider,
   createAgentLlmRegistry,
   getDefaultAgentLlmProviderId,

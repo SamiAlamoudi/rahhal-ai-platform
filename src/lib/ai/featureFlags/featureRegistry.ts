@@ -124,6 +124,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: traveler_intelligence. Default OFF. Zero production impact until wired.',
   },
   {
+    id: 'ai.recommendation_intelligence',
+    name: 'Recommendation Intelligence Layer (Evolution Sprint 6)',
+    description:
+      'Additive offline expert consultant recommendations: explain, compare, justify, challenge assumptions. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.planning_graph'],
+    notes: 'Product alias: recommendation_intelligence. Default OFF. Zero production impact until wired.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:
