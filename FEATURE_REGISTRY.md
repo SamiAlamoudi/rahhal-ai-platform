@@ -108,6 +108,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ui.executive_dashboard` | experimental | **no** | Phase 4 Stage 6 Executive Dashboard + Notification Center — presentation only; depends on `ui.application_shell`; no push/realtime/Firebase/APIs/booking/AI (alias: executive_dashboard) |
 | `ui.command_palette` | experimental | **no** | Phase 4 Stage 8 Universal Search & Command Palette — presentation only; depends on `ui.application_shell`; no backend/realtime/AI search/indexing/APIs (alias: command_palette) |
 | `ui.journey_timeline` | experimental | **no** | Phase 5 Stage 1 AI Journey Timeline — presentation only; depends on `ui.application_shell`; no realtime/maps/weather/booking/AI/backend (alias: journey_timeline) |
+| `ui.decision_center` | experimental | **no** | Phase 5 Stage 2 AI Decision Center — presentation only; depends on `ui.application_shell`; no AI reasoning/runtime/booking/maps/weather/notifications (alias: decision_center) |
 | `providers.hotel_foundation` | experimental | **no** | Sprint 30 Hotel Provider Foundation — sandbox Hotelbeds / Expedia Rapid / Booking Connectivity (alias: hotel_provider_foundation) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |

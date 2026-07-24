@@ -143,6 +143,7 @@ export type FeatureId =
   | 'ui.executive_dashboard'
   | 'ui.command_palette'
   | 'ui.journey_timeline'
+  | 'ui.decision_center'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

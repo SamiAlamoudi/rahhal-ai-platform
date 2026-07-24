@@ -1440,6 +1440,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: journey_timeline. UI only — weather/currency/maps are placeholders; no backend or booking.',
   },
+  {
+    id: 'ui.decision_center',
+    name: 'AI Decision Center (Phase 5 Stage 2)',
+    description:
+      'Additive isolated Decision Center UI: summary, alternatives, confidence, comparisons, decision tree. Presentation only — not wired to AI reasoning, Runtime, Booking, Maps, Weather, or Notifications. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: decision_center. UI only — placeholders for charts and recommendation copy; no backend or actual AI.',
+  },
 ]
 
 export class FeatureRegistry {
