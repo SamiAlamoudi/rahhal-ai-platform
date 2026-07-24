@@ -224,6 +224,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: travel_intelligence. Default OFF. Evaluation only; never mutates planning.',
   },
   {
+    id: 'ai.experience_layer',
+    name: 'Experience Intelligence Layer (AI Evolution Phase 3 Stage 5)',
+    description:
+      'Additive isolated UI-ready experience composition from existing AI outputs. Metadata-only (meta.experience). Not wired into planTurn. No external APIs.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.travel_intelligence'],
+    notes: 'Product alias: experience_layer. Default OFF. Presentation models only; never mutates planning.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:

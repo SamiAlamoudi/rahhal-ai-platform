@@ -925,6 +925,46 @@ export interface AgentProviderMeta {
     recovered: boolean
   }
   /**
+   * Phase 3 Stage 5 — Experience Intelligence Layer snapshot (presentation only).
+   * Present when consumers attach via enrichTurnWithExperienceLayer.
+   * Flag `ai.experience_layer` default OFF. Not wired into planTurn.
+   * Never mutates tripPlan / reply / planning / pricing / destinations.
+   */
+  experience?: {
+    enabled: true
+    conversationId: string
+    experience: {
+      executiveSummary: unknown
+      tripHighlights: unknown[]
+      destinationHighlights: unknown[]
+      timeline: unknown[]
+      recommendedActions: unknown[]
+      importantAlerts: unknown[]
+      placeholders: Record<string, unknown>
+      recommendedAlternatives: unknown[]
+      quickFacts: unknown[]
+      sections: unknown[]
+      summary: {
+        headline: string
+        destination: string | null
+        durationDays: number | null
+        budgetLabel: string | null
+        travelerLabel: string | null
+        purpose: string | null
+        confidence: number
+        missingInformation: string[]
+        nextQuestions: string[]
+      }
+      confidence: number
+      missingInformation: string[]
+      nextQuestions: string[]
+    }
+    voicePrepared: true
+    knowledgePrepared: true
+    futureModuleIds: string[]
+    durationMs: number
+  }
+  /**
    * Phase 3 Stage 4 — Travel Intelligence Layer snapshot (evaluation only).
    * Present when consumers attach via enrichTurnWithTravelIntelligence.
    * Flag `ai.travel_intelligence` default OFF. Not wired into planTurn.

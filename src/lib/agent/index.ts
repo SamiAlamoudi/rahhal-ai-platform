@@ -769,6 +769,26 @@ export type {
   KnowledgeReference,
 } from './intelligence'
 
+/** Phase 3 Stage 5 — Experience Intelligence Layer (additive; default OFF; not wired into planTurn) */
+export {
+  EXPERIENCE_LAYER_FEATURE_ID,
+  isExperienceLayerEnabled,
+  composeExperience,
+  tryComposeExperience,
+  enrichTurnWithExperienceLayer,
+  ExperienceComposer,
+} from './experience'
+export type {
+  ExperienceModel,
+  ExperienceMetaSnapshot,
+  ExperienceComposerResult,
+  ExperienceCard,
+  ExperienceVoiceSession,
+  ExperienceVoiceContext,
+  ExperienceKnowledgeSurface,
+  ExperienceFutureModuleId,
+} from './experience'
+
 /** Sprint 114 — Intelligent Itinerary Engine */
 export {
   isItineraryEngineEnabled,
