@@ -851,7 +851,16 @@ async function speakTravelFacts(input: {
   facts: TravelFacts
   signal?: AbortSignal
 }): Promise<{ displayText: string; spokenText: string; providerId: string }> {
+  assertTurnNotAborted(input.signal)
   return runConversationBrain(input)
+}
+
+/** Cooperative cancel for long planTurn stages (does not change happy-path behavior). */
+function assertTurnNotAborted(signal: AbortSignal | undefined): void {
+  if (!signal?.aborted) return
+  const error = new Error('Travel agent turn aborted')
+  error.name = 'AbortError'
+  throw error
 }
 
 function mapConciergeObjective(action: string): ConversationObjective {
@@ -1393,6 +1402,7 @@ export function createTravelAgentService(
 
   const service: TravelAgentService = {
     async planTurn(input) {
+      assertTurnNotAborted(input.signal)
       const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
       const userText = lastUser?.content ?? ''
       // Alpha — booking / payment / confirmation cues must reach Execution + Payments.
@@ -1416,6 +1426,7 @@ export function createTravelAgentService(
         }),
       }
       memory.missingFields = missingRequirementFields(memory.requirements)
+      assertTurnNotAborted(input.signal)
 
       // Alpha — confirm/pay turns must keep prior trip context even if the last
       // user line has no destination text (CTAs like "أكد الحجز" / "ادفع الآن").
@@ -2239,6 +2250,7 @@ export function createTravelAgentService(
       // Concierge sits above the agent: consultant dialogue or agent handoff.
       // It never selects providers — only whether the agent should execute.
       if (isConciergeEnabled() && conciergeService) {
+        assertTurnNotAborted(input.signal)
         const conciergeResult = conciergeService.runTurn({
           locale: memory.locale,
           memory,
@@ -2355,6 +2367,7 @@ export function createTravelAgentService(
         }
       }
 
+      assertTurnNotAborted(input.signal)
       const llm = llms.getActive()
       const llmResult = await llm.complete({
         conversationId: input.conversationId,
