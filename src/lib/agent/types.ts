@@ -770,6 +770,233 @@ export interface AgentProviderMeta {
     idempotentReplay: boolean
   }
   /**
+   * Phase 2 Stage 2 — Consultant Pipeline activation snapshot (read-only enrichment).
+   * Present only when `ai.consultant_pipeline` is ON. Never mutates tripPlan / reply.
+   */
+  consultantPipeline?: {
+    enabled: true
+    travelerUnderstanding: string[]
+    destinationUnderstanding: string[]
+    travelStrategy: string[]
+    recommendationSummary: string[]
+    alternative: string[]
+    tradeoffs: string[]
+    risks: string[]
+    confidence: number
+    missingInformation: string[]
+    clarificationQuestions: string[]
+    needsClarification: boolean
+    stoppedEarly: boolean
+    stopReason: string | null
+    telemetry: {
+      totalDurationMs: number
+      stageTimings: Record<string, number>
+      clarificationCount: number
+      success: boolean
+      stageCount: number
+    }
+  }
+  /**
+   * Phase 2 Stage 3 — Unified Consultant Response package (read-only aggregation).
+   * Present only when `ai.consultant_response` is ON. Never mutates tripPlan / reply.
+   */
+  consultantResponse?: {
+    enabled: true
+    locale: 'ar' | 'en'
+    body: {
+      executiveSummary: string[]
+      travelerUnderstanding: string[]
+      destinationUnderstanding: string[]
+      recommendedStrategy: string[]
+      primaryRecommendation: string[]
+      alternativeRecommendation: string[]
+      tradeoffs: string[]
+      benefits: string[]
+      risks: string[]
+      opportunityCost: string[]
+      confidenceScore: number
+      evidenceSummary: string[]
+      missingInformation: string[]
+      clarificationQuestions: string[]
+    }
+    formats: {
+      executive: {
+        kind: 'executive'
+        locale: 'ar' | 'en'
+        headline: string
+        oneLiner: string
+        confidencePct: number
+        nextStep: string | null
+      }
+      short: {
+        kind: 'short'
+        locale: 'ar' | 'en'
+        title: string
+        why: string
+        whyNot: string
+        confidencePct: number
+        missing: string[]
+      }
+      detailed: {
+        kind: 'detailed'
+        locale: 'ar' | 'en'
+        sections: Array<{ title: string; bullets: string[] }>
+      }
+      consultant: {
+        kind: 'consultant'
+        locale: 'ar' | 'en'
+        voice: string[]
+        justification: string[]
+        assumptionsNoted: string[]
+      }
+    }
+    sources: string[]
+    lowConfidence: boolean
+    telemetry: {
+      responseGenerationMs: number
+      aggregationMs: number
+      confidence: number
+      questionCount: number
+      success: boolean
+    }
+  }
+  /**
+   * Phase 2 Stage 4 — AI Runtime Coordinator snapshot (read-only orchestration).
+   * Present only when `ai.runtime_coordinator` is ON. Never mutates tripPlan / reply.
+   */
+  runtimeCoordinator?: {
+    enabled: true
+    sessionId: string
+    executionOrder: string[]
+    success: boolean
+    cancelled: boolean
+    stageCount: number
+    telemetry: {
+      executionOrder: string[]
+      stageDurations: Record<string, number>
+      cacheHits: number
+      cacheMisses: number
+      retries: number
+      timeouts: number
+      failures: number
+      totalDurationMs: number
+    }
+    stages: Array<{
+      stageId: string
+      status: string
+      durationMs: number
+      cacheHit: boolean
+      errorCode: string | null
+    }>
+  }
+  /**
+   * Phase 3 Stage 1 — Conversation Orchestrator snapshot (conversation management only).
+   * Present only when `ai.conversation_orchestrator` is ON. Never mutates tripPlan.
+   */
+  conversationOrchestrator?: {
+    enabled: true
+    conversationId: string
+    intent: string
+    confidence: number
+    confidenceBand: 'high' | 'medium' | 'low'
+    stagesRequested: string[]
+    format: 'executive' | 'short' | 'detailed' | 'consultant'
+    clarificationQuestion: string | null
+    turnNumber: number
+  }
+  /**
+   * Phase 3 Stage 2 — Multi-Turn Conversation Manager snapshot (dialogue continuity only).
+   * Present only when `ai.multi_turn_conversation` is ON. Never mutates tripPlan.
+   */
+  multiTurnConversation?: {
+    enabled: true
+    conversationId: string
+    sessionId: string
+    turnNumber: number
+    topic: string
+    event: string
+    activeGoal: string | null
+    tripGoal: string | null
+    confidence: number
+    confidenceBand: 'high' | 'medium' | 'low'
+    pendingClarification: string | null
+    missingInformation: string[]
+    summarized: boolean
+    recovered: boolean
+  }
+  /**
+   * Phase 3 Stage 4 — Travel Intelligence Layer snapshot (evaluation only).
+   * Present when consumers attach via enrichTurnWithTravelIntelligence.
+   * Flag `ai.travel_intelligence` default OFF. Not wired into planTurn.
+   * Never mutates tripPlan / reply / planning / strategy / recommendations engines.
+   */
+  travelIntelligence?: {
+    enabled: true
+    conversationId: string
+    alternativeCount: number
+    rankedCount: number
+    primaryId: string | null
+    overallConfidence: number
+    explanation: string
+    ranked: Array<{
+      rank: number
+      alternativeId: string
+      label: string
+      destination: string
+      score: number
+      confidence: number
+      justification: string
+      tradeoffs: string[]
+    }>
+    tradeoffs: Array<{
+      id: string
+      between: [string, string]
+      dimension: string
+      summary: string
+      winnerId: string | null
+      confidence: number
+    }>
+    voiceSummary: {
+      speakableSummary: string
+      locale: 'ar' | 'en'
+      tone: 'neutral' | 'consultative'
+    } | null
+    knowledgeRefs: Array<{ entryId: string; topic: string; optional: true }>
+    memoryAppend: Array<{ key: string; value: string; mode: 'append' }>
+    durationMs: number
+  }
+  /**
+   * Phase 3 Stage 3 — Proactive Travel Advisor snapshot (recommendations only).
+   * Present only when `ai.proactive_advisor` is ON.
+   * Never mutates tripPlan / reply / planning / strategy / recommendations engines.
+   */
+  proactiveAdvisor?: {
+    enabled: true
+    conversationId: string
+    recommendationCount: number
+    recommendations: Array<{
+      id: string
+      signal: string
+      title: string
+      message: string
+      reason: string
+      confidence: number
+      supportingEvidence: Array<{ kind: string; detail: string; source: string }>
+      missingEvidence: string[]
+      clarificationRequired: boolean
+      priority: number
+      voiceHint: {
+        speakableSummary: string
+        locale: 'ar' | 'en'
+        urgency: 'low' | 'medium' | 'high'
+      } | null
+      knowledgeRefs: Array<{ entryId: string; topic: string; optional: true }>
+      memoryAppend: Array<{ key: string; value: string; mode: 'append' }>
+    }>
+    signalsDetected: string[]
+    durationMs: number
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.
