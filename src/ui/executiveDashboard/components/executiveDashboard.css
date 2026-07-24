@@ -1,0 +1,295 @@
+/**
+ * Executive Dashboard styles — Material 3–inspired premium chrome.
+ */
+
+.rahhal-ed {
+  min-height: 100vh;
+  color: var(--rahhal-ed-ink);
+  background: var(--rahhal-ed-bg);
+  font-family: "IBM Plex Sans Arabic", "SF Pro Display", "Segoe UI", sans-serif;
+  padding: 1.15rem clamp(1rem, 3vw, 2rem) 2rem;
+}
+
+.rahhal-ed-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.rahhal-ed-header,
+.rahhal-ed-search,
+.rahhal-ed-filters,
+.rahhal-ed-metrics,
+.rahhal-ed-actions,
+.rahhal-ed-layout {
+  max-width: var(--rahhal-ed-max, 76rem);
+  margin-inline: auto;
+  margin-bottom: 0.85rem;
+}
+
+.rahhal-ed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rahhal-ed-brand {
+  margin: 0;
+  font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+  font-weight: 800;
+}
+
+.rahhal-ed-header h1 {
+  margin: 0.1rem 0 0;
+  font-size: 1.15rem;
+  color: var(--rahhal-ed-accent);
+}
+
+.rahhal-ed-header button,
+.rahhal-ed-filters button,
+.rahhal-ed-actions button,
+.rahhal-ed-calendar__views button,
+.rahhal-ed-notifications button {
+  border: 1px solid var(--rahhal-ed-line);
+  background: var(--rahhal-ed-panel);
+  color: inherit;
+  border-radius: 0.75rem;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  transition: transform var(--rahhal-ed-transition, 180ms ease),
+    background var(--rahhal-ed-transition, 180ms ease);
+}
+
+.rahhal-ed-header button:hover,
+.rahhal-ed-filters button:hover,
+.rahhal-ed-actions button:hover {
+  transform: translateY(-1px);
+}
+
+.rahhal-ed-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.rahhal-ed-search input[type='search'],
+.rahhal-ed-search select,
+.rahhal-ed-notifications select {
+  border-radius: 0.75rem;
+  border: 1px solid var(--rahhal-ed-line);
+  background: var(--rahhal-ed-panel);
+  color: inherit;
+  padding: 0.5rem 0.7rem;
+}
+
+.rahhal-ed-search input[type='search'] {
+  min-width: min(100%, 18rem);
+  flex: 1;
+}
+
+.rahhal-ed-filters,
+.rahhal-ed-actions,
+.rahhal-ed-calendar__views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.rahhal-ed-filters button.is-active,
+.rahhal-ed-calendar__views button.is-active {
+  background: color-mix(in srgb, var(--rahhal-ed-accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--rahhal-ed-accent) 45%, transparent);
+}
+
+.rahhal-ed-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: var(--rahhal-ed-gap, 0.85rem);
+}
+
+.rahhal-ed-metric,
+.rahhal-ed-panels section,
+.rahhal-ed-widgets article,
+.rahhal-ed-calendar,
+.rahhal-ed-notifications,
+.rahhal-ed-summary-card {
+  background: var(--rahhal-ed-panel);
+  border: 1px solid var(--rahhal-ed-line);
+  border-radius: var(--rahhal-ed-radius, 1.15rem);
+  padding: 0.85rem 1rem;
+  animation: rahhal-ed-enter var(--rahhal-ed-anim-enter, 220ms) ease both;
+  backdrop-filter: blur(10px);
+}
+
+@keyframes rahhal-ed-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rahhal-ed-metric {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.rahhal-ed-metric strong {
+  font-size: 1.45rem;
+}
+
+.rahhal-ed-metric span,
+.rahhal-ed-panels span,
+.rahhal-ed-widgets p,
+.rahhal-ed-calendar__canvas {
+  color: var(--rahhal-ed-muted);
+  font-size: 0.85rem;
+}
+
+.rahhal-ed-layout {
+  display: grid;
+  grid-template-columns: 1.55fr 0.9fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.rahhal-ed-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.rahhal-ed-panels,
+.rahhal-ed-widgets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+
+.rahhal-ed-panels h2,
+.rahhal-ed-widgets h3,
+.rahhal-ed-calendar h2,
+.rahhal-ed-notifications h2 {
+  margin: 0 0 0.45rem;
+  font-size: 0.98rem;
+}
+
+.rahhal-ed-panels ul,
+.rahhal-ed-panels ol,
+.rahhal-ed-widgets ul,
+.rahhal-ed-notifications__timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.rahhal-ed-progress {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rahhal-ed-muted) 25%, transparent);
+  overflow: hidden;
+}
+
+.rahhal-ed-progress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--rahhal-ed-accent), #38bdf8);
+}
+
+.rahhal-ed-ring__visual {
+  width: 5.5rem;
+  height: 5.5rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, var(--rahhal-ed-panel) 58%, transparent 59%),
+    conic-gradient(var(--rahhal-ed-accent) var(--ring, 0%), color-mix(in srgb, var(--rahhal-ed-muted) 30%, transparent) 0);
+  animation: rahhal-ed-ring var(--rahhal-ed-anim-ring, 700ms) ease both;
+}
+
+@keyframes rahhal-ed-ring {
+  from { filter: saturate(0.7); }
+  to { filter: saturate(1); }
+}
+
+.rahhal-ed-status-list li[data-status='ok'] { color: #15803d; }
+.rahhal-ed-status-list li[data-status='warn'] { color: #b45309; }
+
+.rahhal-ed-calendar header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.65rem;
+}
+
+.rahhal-ed-calendar__canvas {
+  min-height: 9rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.85rem;
+  border: 1px dashed var(--rahhal-ed-line);
+}
+
+.rahhal-ed-notifications {
+  position: sticky;
+  top: 0.75rem;
+}
+
+.rahhal-ed-notifications__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+
+.rahhal-ed-notifications__timeline li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-top: 1px solid var(--rahhal-ed-line);
+  padding-top: 0.55rem;
+}
+
+.rahhal-ed-notifications__timeline li.is-critical {
+  border-inline-start: 3px solid var(--rahhal-ed-critical);
+  padding-inline-start: 0.5rem;
+}
+
+.rahhal-ed-notifications__timeline li.is-unread strong {
+  color: var(--rahhal-ed-accent);
+}
+
+.rahhal-ed-notifications p,
+.rahhal-ed-notifications time {
+  margin: 0.15rem 0 0;
+  color: var(--rahhal-ed-muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 980px) {
+  .rahhal-ed-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .rahhal-ed-notifications {
+    position: static;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rahhal-ed-metric,
+  .rahhal-ed-panels section,
+  .rahhal-ed-widgets article,
+  .rahhal-ed-calendar,
+  .rahhal-ed-notifications,
+  .rahhal-ed-ring__visual {
+    animation: none;
+  }
+}

@@ -1,0 +1,304 @@
+/**
+ * Travel Workspace styles — premium executive presentation.
+ * Light / dark via data-theme + CSS variables.
+ */
+
+.rahhal-tw {
+  min-height: 100vh;
+  color: var(--rahhal-tw-ink);
+  background: var(--rahhal-tw-bg);
+  font-family: "IBM Plex Sans Arabic", "SF Pro Display", "Segoe UI", sans-serif;
+  padding: 1.25rem clamp(1rem, 3vw, 2rem) 2.5rem;
+}
+
+.rahhal-tw-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: var(--rahhal-tw-content-max, 72rem);
+  margin-inline: auto;
+  margin-bottom: 1rem;
+}
+
+.rahhal-tw-toolbar button,
+.rahhal-tw-quick__row button {
+  border: 1px solid var(--rahhal-tw-line);
+  background: var(--rahhal-tw-panel);
+  color: inherit;
+  border-radius: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  transition: transform var(--rahhal-tw-transition, 200ms ease),
+    background var(--rahhal-tw-transition, 200ms ease);
+}
+
+.rahhal-tw-toolbar button:hover,
+.rahhal-tw-quick__row button:hover {
+  transform: translateY(-1px);
+}
+
+.rahhal-tw-overview,
+.rahhal-tw-dashboard,
+.rahhal-tw-section,
+.rahhal-tw-panel-card,
+.rahhal-tw-timeline,
+.rahhal-tw-progress,
+.rahhal-tw-quick,
+.rahhal-tw-map,
+.rahhal-tw-status {
+  max-width: var(--rahhal-tw-content-max, 72rem);
+  margin-inline: auto;
+  margin-bottom: 1rem;
+}
+
+.rahhal-tw-brand {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.rahhal-tw-overview h1 {
+  margin: 0.15rem 0 0.85rem;
+  font-size: 1.25rem;
+  color: var(--rahhal-tw-accent);
+}
+
+.rahhal-tw-overview__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.rahhal-tw-overview__grid div,
+.rahhal-tw-panel-card,
+.rahhal-tw-card,
+.rahhal-tw-section,
+.rahhal-tw-timeline,
+.rahhal-tw-progress,
+.rahhal-tw-map,
+.rahhal-tw-dashboard {
+  background: var(--rahhal-tw-panel);
+  border: 1px solid var(--rahhal-tw-line);
+  border-radius: var(--rahhal-tw-card-radius, 1.1rem);
+  padding: 0.9rem 1rem;
+  backdrop-filter: blur(10px);
+  animation: rahhal-tw-enter var(--rahhal-tw-anim-card, 240ms) ease both;
+}
+
+@keyframes rahhal-tw-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rahhal-tw-overview__grid dt {
+  font-size: 0.75rem;
+  color: var(--rahhal-tw-muted);
+}
+
+.rahhal-tw-overview__grid dd {
+  margin: 0.15rem 0 0;
+  font-weight: 650;
+}
+
+.rahhal-tw-status {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0.7rem;
+}
+
+.rahhal-tw-quick__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.rahhal-tw-dashboard__grid,
+.rahhal-tw-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.75rem;
+}
+
+.rahhal-tw-card__kind {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--rahhal-tw-accent);
+}
+
+.rahhal-tw-card h3,
+.rahhal-tw-section h2,
+.rahhal-tw-panel-card h2,
+.rahhal-tw-timeline h2,
+.rahhal-tw-progress h2,
+.rahhal-tw-quick h2,
+.rahhal-tw-map h2,
+.rahhal-tw-dashboard__header h2 {
+  margin: 0.2rem 0 0.45rem;
+  font-size: 1rem;
+}
+
+.rahhal-tw-card p,
+.rahhal-tw-muted,
+.rahhal-tw-map__canvas {
+  color: var(--rahhal-tw-muted);
+}
+
+.rahhal-tw-card footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+  font-size: 0.8rem;
+  color: var(--rahhal-tw-muted);
+}
+
+.rahhal-tw-columns {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 1rem;
+  max-width: var(--rahhal-tw-content-max, 72rem);
+  margin: 0 auto 1rem;
+}
+
+.rahhal-tw-columns__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rahhal-tw-timeline ol,
+.rahhal-tw-section ul,
+.rahhal-tw-docs,
+.rahhal-tw-travelers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.rahhal-tw-timeline__item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  position: relative;
+}
+
+.rahhal-tw-timeline__dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: var(--rahhal-tw-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--rahhal-tw-accent) 20%, transparent);
+}
+
+.rahhal-tw-timeline__item.is-completed .rahhal-tw-timeline__dot {
+  background: #22c55e;
+}
+
+.rahhal-tw-timeline__item.is-delayed .rahhal-tw-timeline__dot {
+  background: #f59e0b;
+}
+
+.rahhal-tw-timeline__item.is-cancelled .rahhal-tw-timeline__dot {
+  background: #ef4444;
+}
+
+.rahhal-tw-timeline__item p {
+  margin: 0.1rem 0 0;
+  color: var(--rahhal-tw-muted);
+  font-size: 0.85rem;
+}
+
+.rahhal-tw-progress__bar {
+  height: 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rahhal-tw-muted) 25%, transparent);
+  overflow: hidden;
+  margin-bottom: 0.65rem;
+}
+
+.rahhal-tw-progress__bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--rahhal-tw-accent), #38bdf8);
+  transition: width var(--rahhal-tw-anim-progress, 500ms) ease;
+}
+
+.rahhal-tw-progress__phases {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.rahhal-tw-progress__phases li {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--rahhal-tw-line);
+  color: var(--rahhal-tw-muted);
+}
+
+.rahhal-tw-progress__phases li.is-active {
+  color: var(--rahhal-tw-ink);
+  border-color: color-mix(in srgb, var(--rahhal-tw-accent) 50%, transparent);
+  background: color-mix(in srgb, var(--rahhal-tw-accent) 16%, transparent);
+}
+
+.rahhal-tw-travelers li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  align-items: start;
+}
+
+.rahhal-tw-avatar {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #0f766e, #0e7490);
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.rahhal-tw-map__canvas {
+  min-height: 10rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.85rem;
+  border: 1px dashed var(--rahhal-tw-line);
+  background: color-mix(in srgb, var(--rahhal-tw-accent) 8%, transparent);
+}
+
+@media (max-width: 960px) {
+  .rahhal-tw-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rahhal-tw-overview__grid div,
+  .rahhal-tw-panel-card,
+  .rahhal-tw-card,
+  .rahhal-tw-section,
+  .rahhal-tw-timeline,
+  .rahhal-tw-progress,
+  .rahhal-tw-map,
+  .rahhal-tw-dashboard,
+  .rahhal-tw-progress__bar i {
+    animation: none;
+    transition: none;
+  }
+}

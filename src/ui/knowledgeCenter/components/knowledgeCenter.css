@@ -1,0 +1,280 @@
+/**
+ * Knowledge Center styles — scoped under .rahhal-kc
+ * Premium library UI; no cloud/OCR/RAG.
+ */
+
+.rahhal-kc {
+  --kc-ink: #0f172a;
+  --kc-muted: #64748b;
+  --kc-accent: #0e7490;
+  --kc-panel: rgba(255, 255, 255, 0.92);
+  display: grid;
+  grid-template-columns: var(--rahhal-kc-sidebar-width, 17rem) 1fr;
+  min-height: 100vh;
+  color: var(--kc-ink);
+  background:
+    radial-gradient(900px 420px at 85% 0%, rgba(14, 116, 144, 0.16), transparent 55%),
+    linear-gradient(160deg, #ecfeff 0%, #f8fafc 42%, #e2e8f0 100%);
+  font-family: "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
+}
+
+.rahhal-kc-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.rahhal-kc-sidebar {
+  background: linear-gradient(180deg, #0f172a, #164e63);
+  color: #e2e8f0;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rahhal-kc-sidebar__name {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+}
+
+.rahhal-kc-sidebar h2 {
+  margin: 0.15rem 0 0;
+  font-size: 1rem;
+  color: #67e8f9;
+}
+
+.rahhal-kc-sidebar__nav,
+.rahhal-kc-sidebar__sections,
+.rahhal-kc-smart,
+.rahhal-kc-org,
+.rahhal-kc-doc__actions,
+.rahhal-kc-library__filters,
+.rahhal-kc-reader__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.rahhal-kc-sidebar button,
+.rahhal-kc-smart button,
+.rahhal-kc-org button,
+.rahhal-kc-doc__actions button,
+.rahhal-kc-reader__tools button,
+.rahhal-kc-books__slot button {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  border-radius: 0.65rem;
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+  transition: transform var(--rahhal-kc-transition, 180ms ease),
+    background var(--rahhal-kc-transition, 180ms ease);
+}
+
+.rahhal-kc-smart button,
+.rahhal-kc-org button,
+.rahhal-kc-doc__actions button,
+.rahhal-kc-reader__tools button,
+.rahhal-kc-books__slot button {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: #fff;
+  color: var(--kc-ink);
+}
+
+.rahhal-kc-sidebar button.is-active,
+.rahhal-kc-smart button.is-active,
+.rahhal-kc-org button.is-active {
+  background: rgba(34, 211, 238, 0.28);
+  border-color: rgba(34, 211, 238, 0.55);
+}
+
+.rahhal-kc-sidebar__search input,
+.rahhal-kc-library__filters select {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(2, 6, 23, 0.35);
+  color: #f8fafc;
+  padding: 0.55rem 0.75rem;
+}
+
+.rahhal-kc-library__filters select {
+  width: auto;
+  min-width: 8rem;
+  border-color: rgba(15, 23, 42, 0.12);
+  background: #fff;
+  color: var(--kc-ink);
+}
+
+.rahhal-kc-sidebar__sections {
+  overflow: auto;
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+.rahhal-kc-sidebar__sections button {
+  text-align: start;
+}
+
+.rahhal-kc-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem 1.15rem 1.5rem;
+  min-width: 0;
+}
+
+.rahhal-kc-library__filters label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--kc-muted);
+}
+
+.rahhal-kc-library__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: var(--rahhal-kc-card-gap, 0.75rem);
+}
+
+.rahhal-kc-doc,
+.rahhal-kc-books__slot,
+.rahhal-kc-reader {
+  background: var(--kc-panel);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 1rem;
+  padding: 0.85rem;
+  animation: rahhal-kc-enter var(--rahhal-kc-anim-panel, 220ms) ease both;
+}
+
+@keyframes rahhal-kc-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rahhal-kc-doc__type {
+  font-size: 0.72rem;
+  color: var(--kc-accent);
+}
+
+.rahhal-kc-doc h3,
+.rahhal-kc-books__slot h3 {
+  margin: 0.2rem 0;
+  font-size: 1rem;
+}
+
+.rahhal-kc-doc p,
+.rahhal-kc-books__slot p,
+.rahhal-kc-reader--empty p {
+  margin: 0;
+  color: var(--kc-muted);
+  font-size: 0.9rem;
+}
+
+.rahhal-kc-doc__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.4rem;
+}
+
+.rahhal-kc-doc__tags span {
+  font-size: 0.7rem;
+  background: #ecfeff;
+  color: #0e7490;
+  border-radius: 0.4rem;
+  padding: 0.1rem 0.35rem;
+}
+
+.rahhal-kc-doc__actions {
+  margin-top: 0.55rem;
+}
+
+.rahhal-kc-books header h2 {
+  margin: 0;
+}
+
+.rahhal-kc-books header p {
+  margin: 0.25rem 0 0.75rem;
+  color: var(--kc-muted);
+}
+
+.rahhal-kc-books__shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+
+.rahhal-kc-reader {
+  max-width: var(--rahhal-kc-reader-max, 56rem);
+}
+
+.rahhal-kc-reader.is-fullscreen {
+  position: fixed;
+  inset: 1rem;
+  z-index: 40;
+  max-width: none;
+}
+
+.rahhal-kc-reader__toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.rahhal-kc-reader__viewport {
+  min-height: 12rem;
+  transform-origin: top center;
+  transition: transform var(--rahhal-kc-anim-zoom, 160ms) ease;
+}
+
+.rahhal-kc-reader__placeholder {
+  min-height: 12rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.85rem;
+  background:
+    linear-gradient(135deg, rgba(14, 116, 144, 0.08), rgba(15, 23, 42, 0.04));
+  border: 1px dashed rgba(14, 116, 144, 0.35);
+  color: var(--kc-muted);
+}
+
+.rahhal-kc-reader__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--kc-muted);
+}
+
+.rahhal-kc-reader__footer label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+@media (max-width: 960px) {
+  .rahhal-kc {
+    grid-template-columns: 1fr;
+  }
+
+  .rahhal-kc-sidebar {
+    max-height: 40vh;
+    overflow: auto;
+  }
+}
