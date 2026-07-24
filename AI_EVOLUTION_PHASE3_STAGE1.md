@@ -64,3 +64,13 @@ npm run test:run
 - Changing Runtime Coordinator source behavior  
 - Merging PRs / rebasing prior evolution branches  
 - Enabling the flag in production by default  
+
+## Validation (Phase 3 Stage 1)
+
+| Check | Result |
+|-------|--------|
+| `npm run lint` | pass |
+| `npm run typecheck` | pass |
+| `npm run arch:circular` | pass |
+| `npm run test:run` | **2747** passed |
+
