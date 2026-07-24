@@ -31,8 +31,13 @@ export {
   shouldLeadWithValue,
   isBroadDestination,
   type ConciergeValueAssessment,
+  type ConciergeValueConfidence,
   type ConciergeValueMode,
 } from './decisionEngine'
+export {
+  recommendDestinationsForBudgetSeason,
+  type BudgetSeasonRecommendation,
+} from './budgetSeasonRecommendations'
 export { buildConsultantReply, type ConsultantVoiceInput } from './consultantVoice'
 export {
   buildConciergeRecommendations,

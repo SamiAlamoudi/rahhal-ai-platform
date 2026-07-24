@@ -26,7 +26,6 @@ import {
 import {
   buildPlanningDraft,
   canBuildPlanningDraft,
-  planningDraftToInsightLines,
 } from './planningDraft'
 import {
   applySmartClarification,
@@ -2276,25 +2275,38 @@ export function createTravelAgentService(
             })
             : null
 
+          // Sprint 1: always keep Decision Engine framing; enrich with draft city lines
+          // without overwriting valueBrief or dropping framingNote.
           const valueNotes: string[] = []
+          if (conciergeResult.decision.framingNote?.trim()) {
+            valueNotes.push(conciergeResult.decision.framingNote.trim())
+          }
           if (planningDraft) {
-            const insightLines = planningDraftToInsightLines(planningDraft, memory.locale)
-            // Prefer draft ranking + city why-lines as option hints when we have estimates.
-            optionHints = [
-              ...planningDraft.cities.slice(0, 3).map((city) => `${city.name} — ${city.why}`),
-              ...insightLines.slice(1, 3),
-            ]
-            valueNotes.push(planningDraft.rankingNote)
-            if (conciergeResult.decision.preferenceQuestion) {
-              valueNotes.push(conciergeResult.decision.preferenceQuestion)
+            const draftCityHints = planningDraft.cities
+              .slice(0, 3)
+              .map((city) => `${city.name} — ${city.why}`)
+            if (!optionHints?.length) {
+              optionHints = draftCityHints
             }
-          } else {
-            for (const row of [
-              conciergeResult.decision.framingNote,
-              conciergeResult.decision.preferenceQuestion,
-            ]) {
-              if (row && row.trim()) valueNotes.push(row)
+            // Soft budget realism (ranges only) — never dump missingAssumptions labels.
+            const flights = planningDraft.breakdown.flights
+            const hotels = planningDraft.breakdown.hotels
+            const rangeLine = memory.locale === 'ar'
+              ? `تقدير أوّلي: طيران ${flights.low}–${flights.high} ${flights.currency} · فنادق ${hotels.low}–${hotels.high} ${hotels.currency}`
+              : `First-pass ranges: flights ${flights.low}–${flights.high} ${flights.currency} · hotels ${hotels.low}–${hotels.high} ${hotels.currency}`
+            valueNotes.push(rangeLine)
+            if (
+              planningDraft.rankingNote
+              && !valueNotes.some((row) => row === planningDraft.rankingNote)
+            ) {
+              // Prefer Decision Engine framing as the lead; ranking is supporting insight.
+              if (!conciergeResult.decision.framingNote?.trim()) {
+                valueNotes.unshift(planningDraft.rankingNote)
+              }
             }
+          }
+          if (conciergeResult.decision.preferenceQuestion?.trim()) {
+            valueNotes.push(conciergeResult.decision.preferenceQuestion.trim())
           }
 
           const facts = buildTravelFacts({
