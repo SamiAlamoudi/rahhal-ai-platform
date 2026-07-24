@@ -26,6 +26,13 @@ export {
 
 export { extractSoftSignals } from './softSignals'
 export { decideConciergeTurn } from './turnPolicy'
+export {
+  evaluateConciergeValueOpportunity,
+  shouldLeadWithValue,
+  isBroadDestination,
+  type ConciergeValueAssessment,
+  type ConciergeValueMode,
+} from './decisionEngine'
 export { buildConsultantReply, type ConsultantVoiceInput } from './consultantVoice'
 export {
   buildConciergeRecommendations,

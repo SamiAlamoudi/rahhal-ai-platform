@@ -101,7 +101,7 @@ describe('Concierge Phase 2 — turn policy', () => {
     expect(decision.state.turnCount).toBe(1)
   })
 
-  it('asks/clarifies while hard requirements are missing', () => {
+  it('leads with value when a destination is known (not a duration census)', () => {
     const memory = emptyMemory('en')
     memory.requirements = {
       ...emptyRequirements(),
@@ -123,9 +123,10 @@ describe('Concierge Phase 2 — turn policy', () => {
       missingFields: memory.missingFields,
       previous,
     })
-    expect(['ask', 'clarify']).toContain(decision.action)
+    expect(['propose_options', 'advise']).toContain(decision.action)
     expect(decision.shouldExecuteAgent).toBe(false)
-    expect(decision.askFields).toEqual(['durationDays'])
+    expect(decision.askFields).toEqual([])
+    expect(decision.valueBrief?.length).toBeGreaterThan(0)
   })
 
   it('proposes options on an advisory beat when intake is complete', () => {

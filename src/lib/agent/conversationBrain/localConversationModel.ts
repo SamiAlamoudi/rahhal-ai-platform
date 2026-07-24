@@ -60,48 +60,52 @@ function askForSlot(slot: string, facts: TravelFacts, seed: number, ar: boolean)
   const variants: Record<string, { ar: string[]; en: string[] }> = {
     destination: {
       ar: [
-        'أي وجهة نخطط لها؟',
-        'وين الوجهة؟',
-        'سمّ لي الوجهة ونبني عليها.',
+        'تميل لبحر وهدوء، ولا مدينة وثقافة — أو عندك وجهة معيّنة؟',
+        'وش نوع الرحلة اللي في بالك: استرخاء، معالم، ولا مغامرة؟',
+        'لو تختار إحساساً للرحلة، أقدر أضيّق الوجهات بسرعة.',
       ],
       en: [
-        'Which destination should we plan for?',
-        'Where are you headed?',
-        'Name the destination and I will build from there.',
+        'Are you imagining beach and calm, city and culture — or do you already have a place in mind?',
+        'What kind of trip is taking shape: recovery, landmarks, or a bit of adventure?',
+        'Give me the feeling of the trip and I will narrow destinations quickly.',
       ],
     },
     durationDays: {
       ar: [
-        dest ? `متى تقريباً تقصد ${dest}، وكم يوم؟` : 'متى تقريباً، وكم يوم؟',
-        dest ? `ما الإطار الزمني لـ${dest}؟` : 'ما الإطار الزمني للرحلة؟',
-        'أحتاج توقيتاً تقريباً أو عدد الأيام فقط.',
+        dest
+          ? `لـ${dest}، هل تفكّر في عطلة قصيرة، ولا أسبوع كامل تقريباً؟`
+          : 'هل تميل لعطلة قصيرة، ولا أسبوع كامل تقريباً؟',
+        dest
+          ? `إيقاع ${dest}: أيام قليلة مركّزة، ولا إقامة أطول بهدوء؟`
+          : 'إيقاع الرحلة: أيام قليلة مركّزة، ولا إقامة أطول؟',
       ],
       en: [
-        dest ? `When roughly for ${dest}, and for how many days?` : 'When roughly, and for how many days?',
-        dest ? `What timing window works for ${dest}?` : 'What timing window works?',
-        'I only need an approximate period or a day count.',
+        dest
+          ? `For ${dest}, are you thinking a short break, or closer to a full week?`
+          : 'Are you thinking a short break, or closer to a full week?',
+        dest
+          ? `Pace for ${dest}: a few focused days, or a longer, slower stay?`
+          : 'A few focused days, or a longer, slower stay?',
       ],
     },
     budgetAmount: {
       ar: [
-        'ما سقف الميزانية، أو نتركها مرنة؟',
-        'هل عندك ميزانية محددة، أم مرنة؟',
-        'أضبط الخيارات على ميزانية معيّنة، أو بلا سقف؟',
+        'نضبط الخيارات على سقف واضح، ولا نتركها مرنة ونقارن مستويات؟',
+        'تحب أريك شريحة مريحة، ولا أقصى قيمة مقابل السعر؟',
       ],
       en: [
-        'What budget ceiling should I use — or keep it flexible?',
-        'Do you have a budget in mind, or shall we keep it open?',
-        'Should I constrain options to a budget, or leave it flexible?',
+        'Shall I shape options around a clear ceiling, or keep it flexible and compare tiers?',
+        'Would you rather see a comfortable band, or stretch for maximum value?',
       ],
     },
     travelers: {
       ar: [
-        'كم شخص يسافر؟',
-        'الرحلة فردية، لاثنين، أم أكثر؟',
+        'الرحلة فردية، لاثنين، ولا أجواء عائلية؟',
+        'تميل لتجربة هادئة لشخصين، ولا مجموعة؟',
       ],
       en: [
-        'How many people are traveling?',
-        'Solo, for two, or a larger party?',
+        'Is this solo, for two, or a family-style trip?',
+        'Are you imagining a quiet trip for two, or a larger group?',
       ],
     },
     origin: {
@@ -284,14 +288,63 @@ export function generateLocalConversation(input: {
     case 'propose_options':
     case 'advise': {
       const ack = acknowledge(input.facts, seed, ar)
-      const hints = input.facts.optionHints?.length
-        ? input.facts.optionHints.map((h, i) => `${i + 1}. ${h}`).join('\n')
-        : ''
-      const closer = pick(seed + 1, ar
-        ? ['أي اتجاه نكمّل عليه؟', 'وش الأنسب لك من هالخيارات؟']
-        : ['Which direction should we take?', 'Which of these fits you best?'])
-      const displayText = [ack, hints, closer].filter(Boolean).join('\n\n')
-      return { displayText, spokenText: `${ack} ${closer}` }
+      const draft = input.facts.planningDraft
+      const framing = draft?.rankingNote
+        || input.facts.recommendations?.[0]
+        || pick(seed + 2, ar
+          ? ['هذه قراءة مستشار على ما عندنا الآن.', 'خلّيني أضيّق لك الاتجاه قبل ما نسأل تفاصيل إضافية.']
+          : ['Here is a consultant read on what we already know.', 'Let me narrow direction before asking for more detail.'])
+
+      let hints = ''
+      if (draft && draft.cities.length > 0) {
+        const cityLines = draft.cities.slice(0, 3).map((city) => `• ${city.name} — ${city.why}`)
+        const b = draft.breakdown
+        const fmt = (est: { low: number; high: number; mid: number; currency: string }) =>
+          est.low === est.high ? `≈${est.mid} ${est.currency}` : `${est.low}–${est.high} ${est.currency}`
+        const split = ar
+          ? [
+            `تقدير أوّلي (ثقة ${draft.confidence}):`,
+            `• طيران ${fmt(b.flights)} — ${b.flights.reason}`,
+            `• فنادق ${fmt(b.hotels)} — ${b.hotels.reason}`,
+            `• طعام ${fmt(b.food)} — ${b.food.reason}`,
+            `• تنقل ${fmt(b.transportation)} — ${b.transportation.reason}`,
+            `• أنشطة ${fmt(b.activities)} — ${b.activities.reason}`,
+          ].join('\n')
+          : [
+            `First-pass ranges (${draft.confidence} confidence):`,
+            `• Flights ${fmt(b.flights)} — ${b.flights.reason}`,
+            `• Hotels ${fmt(b.hotels)} — ${b.hotels.reason}`,
+            `• Food ${fmt(b.food)} — ${b.food.reason}`,
+            `• Transport ${fmt(b.transportation)} — ${b.transportation.reason}`,
+            `• Activities ${fmt(b.activities)} — ${b.activities.reason}`,
+          ].join('\n')
+        const trade = draft.tradeoffs[0] ? `• ${draft.tradeoffs[0]}` : ''
+        const partyNote = draft.travelerCount == null
+          ? (ar
+            ? '• عدد المسافرين غير محدد — لذلك المبالغ كمديات.'
+            : '• Party size unknown — amounts are ranges, not point figures.')
+          : ''
+        hints = [...cityLines, '', split, trade, partyNote].filter(Boolean).join('\n')
+      } else if (input.facts.optionHints?.length) {
+        hints = input.facts.optionHints.map((h) => `• ${h}`).join('\n')
+      }
+
+      const beachCity = draft?.cities.some((c) =>
+        /agadir|antalya|bali|beach|شاطئ|أكادير|أنطاليا|بالي/i.test(`${c.name} ${c.why}`),
+      )
+      const styleCloser = beachCity
+        ? (ar
+          ? 'تميل لرحلة شاطئ واسترخاء، ولا تجربة مدينة وثقافة؟'
+          : 'Would you like a relaxing beach trip or a city experience?')
+        : null
+      const questionFromFacts = input.facts.recommendations?.find((row) => /[?؟]\s*$/.test(row.trim()))
+      const closer = styleCloser
+        || questionFromFacts
+        || pick(seed + 1, ar
+          ? ['من هذه الاتجاهات، أيّها يشدّك أكثر؟', 'بحر وهدوء، ولا مدينة وثقافة؟']
+          : ['From these directions, which interests you most?', 'Beach and calm, or city and culture?'])
+      const displayText = [ack, framing, hints, closer].filter(Boolean).join('\n\n')
+      return { displayText, spokenText: `${ack} ${framing} ${closer}` }
     }
     case 'confirm_understanding': {
       const heard = input.facts.heardSummary?.join(ar ? ' · ' : ' · ') || acknowledge(input.facts, seed, ar)

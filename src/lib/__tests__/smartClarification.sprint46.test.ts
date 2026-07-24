@@ -42,29 +42,26 @@ describe('Sprint 46 feature flag', () => {
 })
 
 describe('inferSoftRequirements', () => {
-  it('infers traveler type, interests, weather, style, hotel, and package', () => {
-    const base = mergeRequirements(emptyRequirements(), {
+  it('bridges traveler type from party size only — does not invent soft form fields', () => {
+    // Bypass mergeRequirements (which already bridges travelerType) to exercise soft inference.
+    const base = {
+      ...emptyRequirements(),
       destination: 'Japan',
       destinations: ['Japan'],
       durationDays: 5,
       budgetAmount: 3000,
       budgetCurrency: 'USD',
       travelers: 2,
-    })
+    }
     const result = inferSoftRequirements(base, { locale: 'en' })
     expect(result.requirements.travelerType).toBe('couple')
-    expect(result.requirements.interests).toEqual(['any'])
-    expect(result.requirements.weatherPreference).toBe('flexible')
-    expect(result.requirements.budgetStyle).toBeTruthy()
-    expect(result.requirements.hotelPreference).toBeTruthy()
-    expect(result.requirements.packageScope).toBe('full_package')
-    expect(result.inferred).toEqual(expect.arrayContaining([
-      'interests',
-      'weatherPreference',
-      'budgetStyle',
-      'hotelPreference',
-      'packageScope',
-    ]))
+    expect(result.requirements.interests).toEqual([])
+    expect(result.requirements.weatherPreference).toBeNull()
+    expect(result.requirements.budgetStyle).toBeNull()
+    expect(result.requirements.hotelPreference).toBeNull()
+    expect(result.requirements.packageScope).toBeNull()
+    expect(result.requirements.tripPurpose).toBeNull()
+    expect(result.inferred).toEqual(['travelerType'])
   })
 
   it('never overwrites explicit soft preferences', () => {
@@ -88,7 +85,7 @@ describe('inferSoftRequirements', () => {
     expect(result.requirements.budgetStyle).toBe('luxury')
   })
 
-  it('infers business flights_only and central hotel', () => {
+  it('does not invent package/hotel from tripPurpose alone', () => {
     const base = mergeRequirements(emptyRequirements(), {
       destination: 'London',
       destinations: ['London'],
@@ -100,8 +97,9 @@ describe('inferSoftRequirements', () => {
       tripPurpose: 'business',
     })
     const result = inferSoftRequirements(base, { locale: 'en' })
-    expect(result.requirements.packageScope).toBe('flights_only')
-    expect(result.requirements.hotelPreference).toBe('central')
+    expect(result.requirements.packageScope).toBeNull()
+    expect(result.requirements.hotelPreference).toBeNull()
+    expect(result.inferred).toEqual([])
   })
 })
 
@@ -164,9 +162,10 @@ describe('travelAgentService never-ask-twice', () => {
     expect(turn.tripPlan).toBeTruthy()
     expect(turn.tripPlan?.destinations).toContain('Japan')
     expect(turn.tripPlan?.durationDays).toBe(5)
-    expect(turn.memory.requirements.interests.length).toBeGreaterThan(0)
-    expect(turn.memory.requirements.packageScope).toBeTruthy()
-    expect(turn.meta.clarification?.inferredFields.length).toBeGreaterThan(0)
+    // Soft form fields are not invented by inferSoftRequirements for this intake.
+    expect(turn.memory.requirements.interests).toEqual([])
+    expect(turn.memory.requirements.packageScope).toBeNull()
+    expect(turn.memory.requirements.weatherPreference).toBeNull()
     expect(turn.reply.toLowerCase()).not.toMatch(/preferred weather\?|ما الطقس المفضل/)
     expect(turn.reply.toLowerCase()).not.toMatch(/hotel preference\?|تفضيل الفندق/)
   })
