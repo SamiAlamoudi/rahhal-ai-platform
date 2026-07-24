@@ -119,7 +119,7 @@ console.log('SPA flags:', spaFlags)
 
 if (!creds.hasCredentials) {
   console.log('\n❌ Amadeus credentials are MISSING.')
-  console.log('Complete setup guide: documentation/AMADEUS_SETUP.md')
+  console.log('Complete setup guide: docs/AMADEUS_SETUP.md')
   console.log('\nQuick fix (Vercel):')
   console.log('  vercel env add AMADEUS_CLIENT_ID')
   console.log('  vercel env add AMADEUS_CLIENT_SECRET')
@@ -138,5 +138,5 @@ if (health.amadeus === 'connected') {
 }
 
 console.log('\n⚠ Credentials present but provider not connected:', health.amadeus)
-console.log('See documentation/AMADEUS_SETUP.md')
+console.log('See docs/AMADEUS_SETUP.md')
 process.exit(1)

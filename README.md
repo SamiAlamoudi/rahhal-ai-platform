@@ -4,7 +4,7 @@ Arabic RTL travel planning SPA: conversation-driven requirements → live flight
 
 > Marketing says “AI”; the conversation/scoring layer is **rule-based** (not LLM). LLM assistance is optional and flag-gated.
 
-**Current package version:** `1.1.0-rc.1` — see [`RELEASE_NOTES_v1.md`](RELEASE_NOTES_v1.md) and [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md).
+**Current package version:** `1.1.0-rc.1` — see [`docs/history/RELEASE_NOTES_v1.md`](docs/history/RELEASE_NOTES_v1.md) and [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md).
 
 ## Stack
 
@@ -42,9 +42,9 @@ npm run dev
 
 | Route | Role |
 |-------|------|
-| `/chat` | Primary AI conversation (streaming + voice) |
+| `/chat` | Primary AI conversation (sole conversation SoT) |
 | `/search` | Legacy planning workspace + mock ranked search |
-| `/travel-conversation` | Legacy conversational intake |
+| `/travel-conversation` | Redirects to `/chat` (legacy intake removed) |
 | `/my-trips`, `/checkout/*` | Booking lifecycle (mock payment) |
 
 Experimental Sprint 42–44 UX/orchestrator flags default **OFF** — see `FEATURE_REGISTRY.md`.
@@ -58,15 +58,16 @@ Experimental Sprint 42–44 UX/orchestrator flags default **OFF** — see `FEATU
 | AA | Post-launch monitoring & stabilization | Done |
 | AB | v1.1 AI enhancement foundation | Done (library) |
 | Sprint 42–44 | Conversation UX / AI orchestrator / ChatGPT-like shell | Merged; flags default OFF |
-| **v1.1.0-rc.1** | Repository cleanup + production readiness | **Active** — `RELEASE_NOTES_v1.md` |
+| **v1.1.0-rc.1** | Repository cleanup + production readiness | **Active** — `docs/history/RELEASE_NOTES_v1.md` |
 | D (payments) | Moyasar production enablement | **Frozen** pending business verification |
 | AC+ | Recommendation / itinerary AI | Deferred |
 
 Branding rename remains deferred — see [docs/BRANDING_TODO.md](docs/BRANDING_TODO.md).
 
-v1 docs: `RELEASE_NOTES_v1.md`, `PRODUCTION_CHECKLIST.md`, `FEATURE_REGISTRY.md`, `AI_ARCHITECTURE.md`, `V1_1_ROADMAP.md`, `RC_STABILIZATION_REPORT.md`.  
-Architecture: `ARCHITECTURE_GUIDE.md`, `MODULE_MAP.md`, `DEPENDENCY_GRAPH.md`, `SYSTEM_OVERVIEW.md`, `ROADMAP_TECHNICAL.md`, `TECHNICAL_DEBT.md`, `ARCHITECTURE_METRICS.md`, `src/domains/README.md`.  
+v1 docs: `docs/history/RELEASE_NOTES_v1.md`, `PRODUCTION_CHECKLIST.md`, `FEATURE_REGISTRY.md`, `AI_ARCHITECTURE.md`, `V1_1_ROADMAP.md`, `docs/history/RC_STABILIZATION_REPORT.md`.  
+Architecture: `ARCHITECTURE_GUIDE.md`, `MODULE_MAP.md`, `DEPENDENCY_GRAPH.md`, `SYSTEM_OVERVIEW.md`, `ROADMAP_TECHNICAL.md`, `TECHNICAL_DEBT.md`, `ARCHITECTURE_METRICS.md`, `ENGINEERING_AUDIT_REPORT.md`.  
 Ops runbooks: `MONITORING_RUNBOOK.md`, `ALERTING_MATRIX.md`, `HOTFIX_PROCESS.md`, `POST_RELEASE_CHECKLIST.md`, `INCIDENT_TEMPLATE.md`, `CUSTOMER_SUPPORT_RUNBOOK.md`.
+Amadeus setup: `docs/AMADEUS_SETUP.md`.
 
 | Script | Purpose |
 |--------|---------|
