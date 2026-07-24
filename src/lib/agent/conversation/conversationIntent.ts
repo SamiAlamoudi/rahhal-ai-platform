@@ -26,37 +26,37 @@ export function detectConversationIntent(
     /^(continue|go on|yes|ok|okay|sure|please|نعم|أكمل|كمل|تمام|حسنا|متابعة)/i.test(text)
     || /continue (the |my )?(trip|plan|conversation)|أكمل|كمل المحادثة|تابع/i.test(lower)
   ) {
-    return options?.lastIntent && options.lastIntent !== 'clarification_reply'
-      ? 'continue_previous'
-      : 'continue_previous'
+    return 'continue_previous'
   }
 
   // Compare destinations
   if (
-    /\b(compare|versus|vs\.?|or)\b/i.test(lower)
-    || /قارن|مقارنة|ولا|أو/.test(text)
+    /\b(compare|versus|vs\.?)\b/i.test(lower)
+    || /قارن|مقارنة/.test(text)
+    || (
+      /\b or \b/i.test(lower)
+      && (
+        /\b(japan|paris|bali|dubai|london|italy|spain|turkey|korea|thailand|morocco)\b/i.test(lower)
+        || /اليابان|باريس|بالي|دبي|لندن|إيطاليا|إسبانيا|تركيا|كوريا|تايلند|المغرب/.test(text)
+      )
+    )
   ) {
     if (
       /\b(japan|paris|bali|dubai|london|italy|spain|turkey|korea|thailand|morocco)\b/i.test(lower)
       || /اليابان|باريس|بالي|دبي|لندن|إيطاليا|إسبانيا|تركيا|كوريا|تايلند|المغرب/.test(text)
+      || /\b(destinations?|places?|cities)\b/i.test(lower)
+      || /وجهات|أماكن/.test(text)
     ) {
       return 'compare_destinations'
     }
   }
 
-  // Budget optimization
+  // Destination discovery — before trip planning (avoids "vacation ideas" → plan)
   if (
-    /\b(budget|cheaper|cost|save money|affordable|price)\b/i.test(lower)
-    || /ميزانية|أرخص|تكلفة|وفر|سعر/.test(text)
+    /\b(where (should|to)|ideas?|discover|suggest a (place|destination)|open[- ]ended)\b/i.test(lower)
+    || /إلى أين|وين أروح|اقتراحات|اكتشف|وجهة جديدة|أفكار سفر/.test(text)
   ) {
-    if (
-      /\b(optim|reduce|lower|cut|adjust)\b/i.test(lower)
-      || /حسّن|خفض|قلل|عدّل/.test(text)
-      || /\bbudget\b/i.test(lower)
-      || /ميزانية/.test(text)
-    ) {
-      return 'budget_optimization'
-    }
+    return 'destination_discovery'
   }
 
   // Itinerary refinement
@@ -75,17 +75,24 @@ export function detectConversationIntent(
     return 'recommendation'
   }
 
-  // Destination discovery
+  // Budget optimization — requires an optimize/reduce cue (not mere budget mention)
   if (
-    /\b(where (should|to)|ideas?|discover|suggest a (place|destination)|open[- ]ended)\b/i.test(lower)
-    || /إلى أين|وين أروح|اقتراحات|اكتشف|وجهة جديدة|أفكار سفر/.test(text)
+    /\b(cheaper|save money|affordable|cut cost|lower (the )?price)\b/i.test(lower)
+    || /أرخص|وفر|خفض التكلفة|قلل السعر/.test(text)
+    || (
+      (/\bbudget\b/i.test(lower) || /ميزانية/.test(text))
+      && (
+        /\b(optim\w*|reduce|lower|cut|adjust|stretch)\b/i.test(lower)
+        || /حسّن|خفض|قلل|عدّل/.test(text)
+      )
+    )
   ) {
-    return 'destination_discovery'
+    return 'budget_optimization'
   }
 
   // Trip planning
   if (
-    /\b(plan|trip to|book|travel to|vacation|honeymoon|family trip)\b/i.test(lower)
+    /\b(plan|trip to|book|travel to|honeymoon|family trip)\b/i.test(lower)
     || /خط[طّ]ة|رحلة إلى|سفر إلى|شهر عسل|رحلة عائلية|خطط/.test(text)
   ) {
     return 'trip_planning'
