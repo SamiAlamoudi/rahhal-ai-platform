@@ -91,7 +91,7 @@ Telemetry fields (no PII):
 - `npm run lint` — pass
 - `npm run typecheck` — pass
 - `npm run arch:circular` — pass
-- `npm run test:run` — full suite + 8 Stage 2 activation tests
+- `npm run test:run` — **2708** passed (232 files), including 8 Stage 2 activation tests
 
 ---
 
