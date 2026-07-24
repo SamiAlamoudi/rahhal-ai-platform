@@ -154,6 +154,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: travel_strategy. Default OFF. Zero production impact until wired.',
   },
   {
+    id: 'ai.consultant_pipeline',
+    name: 'Consultant Pipeline Orchestration (AI Integration Stage 1)',
+    description:
+      'Additive offline orchestration of existing consultant intelligence layers into one pipeline. Enrich-only context; not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.travel_strategy'],
+    notes: 'Product alias: consultant_pipeline. Default OFF. Zero production impact until wired.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:

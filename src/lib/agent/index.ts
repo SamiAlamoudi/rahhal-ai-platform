@@ -644,6 +644,24 @@ export type {
   OrchestratorFinalResponse,
 } from './orchestrator'
 
+/** Phase 2 Stage 1 — Consultant Pipeline orchestration (additive; default OFF) */
+export {
+  CONSULTANT_PIPELINE_FEATURE_ID,
+  isConsultantPipelineEnabled,
+  runConsultantPipeline,
+  tryRunConsultantPipeline,
+  ConsultantPipeline,
+  CONSULTANT_STAGE_ORDER,
+  INTEGRATION_REGISTRY,
+} from './orchestrator'
+export type {
+  ConsultantPipelineInput,
+  ConsultantPipelineResult,
+  UnifiedConsultantResponse,
+  ConsultantStageId,
+  StageIOContext,
+} from './orchestrator'
+
 /** Sprint 114 — Intelligent Itinerary Engine */
 export {
   isItineraryEngineEnabled,
