@@ -75,7 +75,7 @@ export const PROVIDER_SECRET_KEYS = {
   },
   booking: {
     required: ['BOOKING_API_KEY'],
-    optional: ['BOOKING_API_HOST', 'VITE_RAPIDAPI_KEY'],
+    optional: ['BOOKING_API_HOST', 'RAPIDAPI_KEY', 'BOOKING_PROXY_URL'],
   },
   mock: {
     required: [] as string[],

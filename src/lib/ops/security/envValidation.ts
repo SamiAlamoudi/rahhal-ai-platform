@@ -107,21 +107,14 @@ export function validateEnvironment(
     'VITE_GOOGLE_MAPS_API_KEY',
     'VITE_MOYASAR_SECRET_KEY',
     'VITE_MOYASAR_SECRET',
+    'VITE_OPENAI_API_KEY',
+    'VITE_AGENT_OPENAI_API_KEY',
+    'VITE_RAPIDAPI_KEY',
+    'VITE_BOOKING_API_KEY',
   ]
   for (const key of forbiddenVite) {
     if (isSet(env[key])) {
       errors.push(`${key} must not be set (provider secrets are server-only)`)
-    }
-  }
-
-  // RapidAPI hotel keys are still read by the SPA adapter today — warn on hardened targets
-  // until a server proxy replaces VITE_* shipping (do not hard-fail; would remove live hotel path).
-  const clientBundledApiKeys = ['VITE_RAPIDAPI_KEY', 'VITE_BOOKING_API_KEY']
-  if (target === 'preview' || target === 'staging' || target === 'production') {
-    for (const key of clientBundledApiKeys) {
-      if (isSet(env[key])) {
-        warnings.push(`${key} is bundled into the client — prefer a server proxy before production live hotels`)
-      }
     }
   }
 

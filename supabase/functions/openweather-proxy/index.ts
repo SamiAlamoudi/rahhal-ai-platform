@@ -6,22 +6,19 @@
  *
  * Deploy secrets (Supabase Edge Function secrets, not VITE_*):
  *   OPENWEATHER_API_KEY=...
+ *   EDGE_ALLOWED_ORIGINS=...
+ *   SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY
  *
  * Request body:
  *   { operation: 'current' | 'forecast' | 'onecall' | 'uvi', params: { ... } }
  */
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
-}
+import {
+  buildCorsHeaders,
+  corsPreflightResponse,
+  jsonEdgeResponse,
+  requireEdgeInvokeAuth,
+} from '../_shared/edgeSecurity.ts'
 
 function endpointFor(operation: string): string | null {
   switch (operation) {
@@ -39,36 +36,41 @@ function endpointFor(operation: string): string | null {
 }
 
 Deno.serve(async (req) => {
+  const cors = buildCorsHeaders(req, { methods: ['POST', 'OPTIONS'] })
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return corsPreflightResponse(req, { methods: ['POST', 'OPTIONS'] })
   }
 
   if (req.method !== 'POST') {
-    return jsonResponse({ error: 'Method not allowed' }, 405)
+    return jsonEdgeResponse({ error: 'Method not allowed' }, 405, cors)
   }
+
+  const authError = requireEdgeInvokeAuth(req, cors)
+  if (authError) return authError
 
   const apiKey = Deno.env.get('OPENWEATHER_API_KEY')
   if (!apiKey) {
-    return jsonResponse({
+    return jsonEdgeResponse({
       error: 'OpenWeather API key is not configured on the server',
       code: 'OPENWEATHER_SERVER_NOT_CONFIGURED',
-    }, 503)
+    }, 503, cors)
   }
 
   let payload: { operation?: string; params?: Record<string, string | number> }
   try {
     payload = await req.json()
   } catch {
-    return jsonResponse({ error: 'Invalid JSON body', code: 'INVALID_BODY' }, 400)
+    return jsonEdgeResponse({ error: 'Invalid JSON body', code: 'INVALID_BODY' }, 400, cors)
   }
 
   const operation = String(payload.operation ?? '')
   const endpoint = endpointFor(operation)
   if (!endpoint) {
-    return jsonResponse({
+    return jsonEdgeResponse({
       error: `Unsupported operation: ${operation}`,
       code: 'UNSUPPORTED_OPERATION',
-    }, 400)
+    }, 400, cors)
   }
 
   const params = payload.params ?? {}
@@ -82,16 +84,16 @@ Deno.serve(async (req) => {
     const response = await fetch(`${endpoint}?${search.toString()}`)
     const text = await response.text()
     if (response.status === 429) {
-      return jsonResponse({ error: 'rate_limited', cod: 429 }, 429)
+      return jsonEdgeResponse({ error: 'rate_limited', cod: 429 }, 429, cors)
     }
     return new Response(text, {
       status: response.ok ? 200 : response.status === 401 ? 502 : response.status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    return jsonResponse({
+    return jsonEdgeResponse({
       error: error instanceof Error ? error.message : 'Upstream request failed',
       code: 'OPENWEATHER_UPSTREAM_ERROR',
-    }, 502)
+    }, 502, cors)
   }
 })

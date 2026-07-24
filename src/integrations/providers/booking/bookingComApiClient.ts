@@ -77,9 +77,17 @@ export interface HotelSearchQuery {
 }
 
 export interface ApiClientConfig {
-  apiKey: string
+  /**
+   * Server-side RapidAPI key for direct upstream calls (Node/tests).
+   * Optional when `proxyUrl` + `invokeApiKey` are set (browser path).
+   */
+  apiKey?: string | null
+  /** Edge Function / proxy URL — SPA must use this instead of shipping RapidAPI keys. */
+  proxyUrl?: string | null
+  /** Bearer / apikey for invoking the proxy (typically Supabase anon key). */
+  invokeApiKey?: string | null
   baseUrl: string
-  /** Value for the X-RapidAPI-Host header. */
+  /** Value for the X-RapidAPI-Host header (direct mode only). */
   rapidApiHost: string
   timeout: number
   maxRetries: number
@@ -141,11 +149,44 @@ export class BookingComApiClient {
     this.config = config
   }
 
+  private useProxy(): boolean {
+    return Boolean(this.config.proxyUrl && this.config.invokeApiKey)
+  }
+
   private headers(): Record<string, string> {
+    if (!this.config.apiKey) {
+      throw new Error('Booking.com API key is not configured for direct mode')
+    }
     return {
       'X-RapidAPI-Key': this.config.apiKey,
       'X-RapidAPI-Host': this.config.rapidApiHost,
     }
+  }
+
+  private async fetchPath(
+    path: string,
+    query: Record<string, string>,
+    signal: AbortSignal,
+  ): Promise<Response> {
+    if (this.useProxy()) {
+      return fetch(this.config.proxyUrl!, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.invokeApiKey}`,
+          apikey: this.config.invokeApiKey!,
+        },
+        body: JSON.stringify({ path, method: 'GET', query }),
+        signal,
+      })
+    }
+    const params = new URLSearchParams(query)
+    const url = `${this.config.baseUrl}${path}?${params.toString()}`
+    return fetch(url, {
+      method: 'GET',
+      headers: this.headers(),
+      signal,
+    })
   }
 
   /**
@@ -179,15 +220,13 @@ export class BookingComApiClient {
       const timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
 
       try {
-        const params = new URLSearchParams({ query: trimmed })
-        const url = `${this.config.baseUrl}/hotels/searchDestination?${params.toString()}`
         log('info', `Searching destination (attempt ${attempt})`, { query: trimmed })
 
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: this.headers(),
-          signal: controller.signal,
-        })
+        const response = await this.fetchPath(
+          '/hotels/searchDestination',
+          { query: trimmed },
+          controller.signal,
+        )
         clearTimeout(timeoutId)
         const latency = Date.now() - start
 
@@ -229,7 +268,7 @@ export class BookingComApiClient {
       const timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
 
       try {
-        const params = new URLSearchParams({
+        const queryParams: Record<string, string> = {
           dest_type: query.destType.trim(),
           dest_id: String(query.destId),
           checkin: query.checkIn,
@@ -242,16 +281,11 @@ export class BookingComApiClient {
           units: 'metric',
           temperature_unit: 'c',
           order_by: 'popularity',
-        })
+        }
 
-        const url = `${this.config.baseUrl}/hotels/search?${params.toString()}`
         log('info', `Searching hotels (attempt ${attempt})`, { destId: query.destId, checkIn: query.checkIn })
 
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: this.headers(),
-          signal: controller.signal,
-        })
+        const response = await this.fetchPath('/hotels/search', queryParams, controller.signal)
         clearTimeout(timeoutId)
         const latency = Date.now() - start
 

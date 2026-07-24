@@ -25,7 +25,9 @@ const CAPABILITIES: ProviderCapabilities = {
 }
 
 export interface BookingComAdapterConfig {
-  apiKey: string
+  apiKey?: string | null
+  proxyUrl?: string | null
+  invokeApiKey?: string | null
   baseUrl: string
   rapidApiHost: string
   timeout: number
@@ -56,7 +58,9 @@ export class BookingComAdapter implements HotelProvider {
   constructor(config: BookingComAdapterConfig) {
     const rapidApiHost = config.rapidApiHost || 'booking-com15.p.rapidapi.com'
     const apiConfig: ApiClientConfig = {
-      apiKey: config.apiKey,
+      apiKey: config.apiKey ?? null,
+      proxyUrl: config.proxyUrl ?? null,
+      invokeApiKey: config.invokeApiKey ?? null,
       baseUrl: config.baseUrl || `https://${rapidApiHost}/api/v1`,
       rapidApiHost,
       timeout: config.timeout,
