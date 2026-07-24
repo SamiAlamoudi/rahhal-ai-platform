@@ -1385,6 +1385,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: voice_center. UI only — no Whisper/ElevenLabs/OpenAI Voice/Azure/Google Speech, no APIs, no streaming realtime. Placeholders only.',
   },
+  {
+    id: 'ui.knowledge_center',
+    name: 'Knowledge Center (Phase 4 Stage 4)',
+    description:
+      'Additive isolated Knowledge Center UI architecture: guides library, dedicated books section, search/filters, reader placeholders. Own destination — not inside Chat or Voice. Not wired to AI, RAG, embeddings, search APIs, Runtime Coordinator, Orchestrator, or Voice Center. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: knowledge_center. UI only — no knowledge loading, vector DB, OCR, cloud storage, or backend. Books live only here.',
+  },
 ]
 
 export class FeatureRegistry {

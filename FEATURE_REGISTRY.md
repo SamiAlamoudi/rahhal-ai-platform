@@ -103,6 +103,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ui.application_shell` | experimental | **no** | Phase 4 Stage 1 Premium Application Shell — navigation/design/theme/localization foundation; not wired into production routes (alias: application_shell) |
 | `ui.conversation_center` | experimental | **no** | Phase 4 Stage 2 Premium AI Conversation Center — chat UI architecture only; depends on `ui.application_shell`; not wired into production / Runtime Coordinator / Orchestrator (alias: conversation_center) |
 | `ui.voice_center` | experimental | **no** | Phase 4 Stage 3 Premium Voice Conversation Center — own voice destination UI only; depends on `ui.application_shell`; not inside Chat; no TTS/STT/AI/APIs (alias: voice_center) |
+| `ui.knowledge_center` | experimental | **no** | Phase 4 Stage 4 Knowledge Center — own knowledge destination UI only; depends on `ui.application_shell`; books dedicated here (not Chat/Voice); no RAG/embeddings/search APIs (alias: knowledge_center) |
 | `providers.hotel_foundation` | experimental | **no** | Sprint 30 Hotel Provider Foundation — sandbox Hotelbeds / Expedia Rapid / Booking Connectivity (alias: hotel_provider_foundation) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |
