@@ -92,3 +92,13 @@ npm run test:run
 - AI / Runtime / Conversation / Experience modifications  
 - Mounting shell routes in production `main.tsx`  
 - Merging or modifying previous PRs  
+
+## Validation (Phase 4 Stage 1)
+
+| Check | Result |
+|-------|--------|
+| `npm run lint` | pass |
+| `npm run typecheck` | pass |
+| `npm run arch:circular` | pass |
+| `npm run test:run` | **2799** passed |
+
