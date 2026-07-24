@@ -65,3 +65,13 @@ npm run test:run
 - Changing Runtime Coordinator or Consultant Pipeline sources  
 - Merging PRs / rebasing prior evolution branches  
 - Enabling the flag in production by default  
+
+## Validation (Phase 3 Stage 2)
+
+| Check | Result |
+|-------|--------|
+| `npm run lint` | pass |
+| `npm run typecheck` | pass |
+| `npm run arch:circular` | pass |
+| `npm run test:run` | **2760** passed |
+
