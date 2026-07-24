@@ -437,12 +437,102 @@ export {
   learnPreferencesFromRequirements,
   isTravelReasoningEnabled,
   DESTINATION_CATALOG,
+  runConsultantReasoningPipeline,
+  tryRunConsultantReasoningPipeline,
+  isConsultantReasoningEnabled,
+  CONSULTANT_REASONING_FEATURE_ID,
+  ReasoningPipeline,
 } from './reasoning'
 export type {
   TravelReasoningResult,
   DestinationCandidate,
   TravelReasoningSnapshot,
+  ConsultantReasoningPipelineResult,
+  ConsultantReasoningInput,
+  ReasoningSlice,
 } from './reasoning'
+export {
+  createReflectionSession,
+  reflectTurn,
+  tryReflectTurn,
+  isConsultantReflectionEnabled,
+  CONSULTANT_REFLECTION_FEATURE_ID,
+  ReflectionPipeline,
+} from './reflection'
+export type {
+  ReflectionSession,
+  ReflectionPipelineResult,
+  RecommendationRecord,
+  ReflectionTurnInput,
+} from './reflection'
+export {
+  createPlanningGraph,
+  tryCreatePlanningGraph,
+  isPlanningGraphEnabled,
+  PLANNING_GRAPH_FEATURE_ID,
+  PlanningGraph,
+} from './planningGraph'
+export type {
+  PlanningGraphState,
+  PlanNodeData,
+  CreatePlanInput,
+  PlanComparisonResult,
+} from './planningGraph'
+export {
+  createTravelerModel,
+  tryCreateTravelerModel,
+  observeTraveler,
+  tryObserveTraveler,
+  isTravelerIntelligenceEnabled,
+  TRAVELER_INTELLIGENCE_FEATURE_ID,
+  TravelerModel,
+} from './traveler'
+export type {
+  TravelerModelState,
+  TravelerSnapshot,
+  TravelerObserveInput,
+  StoredPreference,
+} from './traveler'
+export {
+  runRecommendationEngine,
+  tryRunRecommendationEngine,
+  isRecommendationIntelligenceEnabled,
+  RECOMMENDATION_INTELLIGENCE_FEATURE_ID,
+  RecommendationEngine as ConsultantRecommendationEngine,
+} from './recommendation'
+export type {
+  RecommendationPackage,
+  RecommendationEngineResult,
+  RecommendationEngineInput,
+  RecommendationCandidate as ConsultantRecommendationCandidate,
+} from './recommendation'
+export {
+  runDestinationIntelligence,
+  tryRunDestinationIntelligence,
+  isDestinationIntelligenceEnabled,
+  DESTINATION_INTELLIGENCE_FEATURE_ID,
+  DestinationIntelligence,
+  compareDestinations,
+} from './destination'
+export type {
+  DestinationSnapshot,
+  DestinationComparisonResult,
+  DestinationEngineInput,
+  DestinationKnowledgeRecord,
+} from './destination'
+export {
+  runTravelStrategyEngine,
+  tryRunTravelStrategyEngine,
+  isTravelStrategyEnabled,
+  TRAVEL_STRATEGY_FEATURE_ID,
+  TravelStrategyEngine,
+} from './travelStrategy'
+export type {
+  TravelStrategyContext,
+  TravelStrategyResult,
+  TravelStrategyOption,
+  StrategyKind,
+} from './travelStrategy'
 export {
   createAgentLlmProvider,
   createAgentLlmRegistry,
@@ -553,6 +643,151 @@ export type {
   ExecutionMetrics,
   OrchestratorFinalResponse,
 } from './orchestrator'
+
+/** Phase 2 Stage 1–3 — Consultant Pipeline + Unified Response (additive; default OFF) */
+export {
+  CONSULTANT_PIPELINE_FEATURE_ID,
+  isConsultantPipelineEnabled,
+  runConsultantPipeline,
+  tryRunConsultantPipeline,
+  ConsultantPipeline,
+  CONSULTANT_STAGE_ORDER,
+  INTEGRATION_REGISTRY,
+  enrichTurnWithConsultantPipeline,
+  finalizeConsultantTurnEnrichment,
+  getConsultantPipelineTelemetry,
+  resetConsultantPipelineTelemetry,
+  CONSULTANT_RESPONSE_FEATURE_ID,
+  isConsultantResponseEnabled,
+  buildConsultantResponsePackage,
+  tryBuildConsultantResponsePackage,
+  enrichTurnWithConsultantResponse,
+  getConsultantResponseTelemetry,
+  resetConsultantResponseTelemetry,
+  RUNTIME_COORDINATOR_FEATURE_ID,
+  isRuntimeCoordinatorEnabled,
+  runRuntimeCoordinator,
+  tryRunRuntimeCoordinator,
+  enrichTurnWithRuntimeCoordinator,
+  getRuntimeCoordinatorTelemetry,
+  resetRuntimeCoordinatorTelemetry,
+  resetSharedRuntimeCache,
+} from './orchestrator'
+export type {
+  ConsultantPipelineInput,
+  ConsultantPipelineResult,
+  UnifiedConsultantResponse,
+  ConsultantStageId,
+  StageIOContext,
+  ConsultantPipelineActivationSnapshot,
+  ConsultantPipelineTelemetrySnapshot,
+  ConsultantResponsePackage,
+  ConsultantResponseBody,
+  ConsultantResponseTelemetrySnapshot,
+  RuntimeCoordinatorResult,
+  RuntimeStageId,
+} from './orchestrator'
+
+/** Phase 3 Stage 1–2 — Conversation Orchestrator + Multi-Turn Manager (additive; default OFF) */
+export {
+  CONVERSATION_ORCHESTRATOR_FEATURE_ID,
+  isConversationOrchestratorEnabled,
+  INTENT_STAGE_MAP,
+  detectConversationIntent,
+  planConversationStages,
+  buildConversationReply,
+  runConversationOrchestrator,
+  tryRunConversationOrchestrator,
+  enrichTurnWithConversationOrchestrator,
+  resetConversationMemory,
+  ConversationOrchestrator,
+  MULTI_TURN_CONVERSATION_FEATURE_ID,
+  isMultiTurnConversationEnabled,
+  runMultiTurnManager,
+  tryRunMultiTurnManager,
+  enrichTurnWithMultiTurnManager,
+  resetMultiTurnSessions,
+  detectConversationTopic,
+  trackConversationTurn,
+  decideClarification,
+  summarizeConversation,
+  MultiTurnManager,
+} from './conversation'
+export type {
+  ConversationIntent,
+  ConversationState,
+  ConversationOrchestratorInput,
+  ConversationOrchestratorResult,
+  ConversationReplyFormat,
+  ConfidenceBand,
+  ConversationTopic,
+  ConversationTurnEvent,
+  MultiTurnConversationSession,
+  MultiTurnManagerResult,
+} from './conversation'
+
+/** Phase 3 Stage 3 — Proactive Travel Advisor (additive; default OFF; meta-only) */
+export {
+  PROACTIVE_ADVISOR_FEATURE_ID,
+  isProactiveAdvisorEnabled,
+  runProactiveAdvisor,
+  tryRunProactiveAdvisor,
+  enrichTurnWithProactiveAdvisor,
+  detectProactiveSignals,
+  buildProactiveContext,
+  ProactiveAdvisor,
+} from './proactive'
+export type {
+  ProactiveSignalKind,
+  ProactiveRecommendation,
+  ProactiveAdvisorResult,
+  ProactiveAdvisorMetaSnapshot,
+  ProactiveVoiceHint,
+  ProactiveKnowledgeRef,
+  ProactiveMemoryAppend,
+} from './proactive'
+
+/** Phase 3 Stage 4 — Travel Intelligence Layer (additive; default OFF; not wired into planTurn) */
+export {
+  TRAVEL_INTELLIGENCE_FEATURE_ID,
+  isTravelIntelligenceEnabled,
+  runTravelIntelligence,
+  tryRunTravelIntelligence,
+  enrichTurnWithTravelIntelligence,
+  compareTravelAlternatives,
+  analyzeTravelTradeoffs,
+  rankTravelAlternatives,
+  TravelIntelligence,
+} from './intelligence'
+export type {
+  TravelIntelligenceResult,
+  TravelIntelligenceMetaSnapshot,
+  TravelAlternative,
+  IntelligenceRankedRecommendation,
+  TradeoffInsight,
+  TravelVoiceSummary,
+  KnowledgeReference,
+} from './intelligence'
+
+/** Phase 3 Stage 5 — Experience Intelligence Layer (additive; default OFF; not wired into planTurn) */
+export {
+  EXPERIENCE_LAYER_FEATURE_ID,
+  isExperienceLayerEnabled,
+  composeExperience,
+  tryComposeExperience,
+  enrichTurnWithExperienceLayer,
+  ExperienceComposer,
+} from './experience'
+export type {
+  ExperienceModel,
+  ExperienceMetaSnapshot,
+  ExperienceComposerResult,
+  ExperienceCard,
+  ExperienceVoiceSession,
+  ExperienceVoiceContext,
+  ExperienceKnowledgeSurface,
+  ExperienceFutureModuleId,
+} from './experience'
 
 /** Sprint 114 — Intelligent Itinerary Engine */
 export {
