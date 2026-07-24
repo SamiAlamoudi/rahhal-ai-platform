@@ -29,10 +29,10 @@ export function createPlanNode(
   const now = input.now
   const stamp = isoNow(now)
   const locale: PlanningLocale = input.locale ?? 'ar'
-  const profile = { ...emptyProfile(), ...(input.travelerProfile ?? {}) }
+  const profile = { ...emptyProfile(), ...input.travelerProfile }
   const constraints = {
     ...emptyConstraints(),
-    ...(input.constraints ?? {}),
+    ...input.constraints,
     hard: uniqueStrings(input.constraints?.hard ?? []),
     soft: uniqueStrings(input.constraints?.soft ?? []),
     flexibleDimensions: uniqueStrings(input.constraints?.flexibleDimensions ?? []),
@@ -50,8 +50,8 @@ export function createPlanNode(
       styleNotes: uniqueStrings(profile.styleNotes),
     },
     constraints,
-    budget: { ...emptyBudget(), ...(input.budget ?? {}) },
-    dates: { ...emptyDates(), ...(input.dates ?? {}) },
+    budget: { ...emptyBudget(), ...input.budget },
+    dates: { ...emptyDates(), ...input.dates },
     destinations: uniqueStrings(input.destinations ?? []),
     confidence: clamp01(input.confidence ?? 0.5),
     score: clampScore(input.score ?? 50),

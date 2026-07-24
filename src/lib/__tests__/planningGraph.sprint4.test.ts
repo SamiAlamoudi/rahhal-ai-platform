@@ -161,25 +161,30 @@ describe('Evolution Sprint 4 — Planning Graph Layer', () => {
         locale: 'en',
         label: 'A',
         destinations: ['Dubai'],
-        confidence: 0.8,
-        score: 80,
+        confidence: 0.85,
+        score: 60,
         budget: { amount: 10000, currency: 'SAR' },
         dates: { durationDays: 5 },
+        missingData: [],
       })
       const b = PlanningGraph.branch(graph, a.id, {
         locale: 'en',
         label: 'B',
-        destinations: ['Cairo'],
+        destinations: [],
         reason: 'Budget Cairo alternative',
-        confidence: 0.5,
-        score: 45,
+        confidence: 0.3,
+        score: 25,
+        missingData: ['destination', 'budget_amount', 'duration', 'party_size', 'trip_purpose'],
+        risks: ['r1', 'r2', 'r3', 'r4'],
       })
-      expect(PlanningGraph.score(graph, a.id)).toBeGreaterThan(PlanningGraph.score(graph, b.id))
+      const scoreA = PlanningGraph.score(graph, a.id)
+      const scoreB = PlanningGraph.score(graph, b.id)
+      expect(scoreA).toBeGreaterThan(scoreB)
       const best = PlanningGraph.selectBest(graph)
-      expect(best.nodeId).toBeTruthy()
+      expect(best.nodeId).toBe(a.id)
       expect(selectBestPlan(PlanningGraph.nodes(graph)).nodeId).toBe(best.nodeId)
       expect(findMergeCandidates(PlanningGraph.nodes(graph)).length).toBeGreaterThanOrEqual(0)
-      expect(comparePlans(graph.nodes[a.id]!, graph.nodes[b.id]!).winnerId).toBeTruthy()
+      expect(comparePlans(graph.nodes[a.id]!, graph.nodes[b.id]!).winnerId).toBe(a.id)
     })
   })
 
