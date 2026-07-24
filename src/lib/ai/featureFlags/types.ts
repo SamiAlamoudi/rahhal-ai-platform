@@ -135,6 +135,7 @@ export type FeatureId =
   | 'ui.experience_v1'
   | 'ui.production_integration'
   | 'ui.premium_home'
+  | 'ui.application_shell'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

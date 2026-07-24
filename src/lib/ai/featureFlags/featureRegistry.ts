@@ -1353,6 +1353,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: premium_home. Presentation only — composes existing production home data. Does not change navigation, engines, or APIs. When OFF, ProductionHomeScreen still renders the premium sections while gated by ui.production_integration. Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
+  {
+    id: 'ui.application_shell',
+    name: 'Premium Application Shell (Phase 4 Stage 1)',
+    description:
+      'Additive isolated application shell: navigation graphs, design system, theme, localization, responsive layout foundation. Not wired into production routes. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: application_shell. Framework only — no booking, search, payment, maps, or AI changes. Production unchanged when OFF.',
+  },
 ]
 
 export class FeatureRegistry {
