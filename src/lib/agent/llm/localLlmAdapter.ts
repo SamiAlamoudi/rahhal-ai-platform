@@ -84,13 +84,22 @@ function extractFactsFromPayload(payload: string): TravelFacts | null {
     '\nUser profile',
     '\nRecent conversation:',
     '\nLatest user message:',
+    '\n</travel_facts>',
   ]
   let end = after.length
   for (const m of endMarkers) {
     const at = after.indexOf(m)
     if (at >= 0 && at < end) end = at
   }
-  const json = after.slice(0, end).trim()
+  let json = after.slice(0, end).trim()
+  // Sprint excellence — optional untrusted-data fences around Travel Facts JSON.
+  if (json.startsWith('<travel_facts>')) {
+    json = json.replace(/^<travel_facts>\s*/i, '').replace(/\s*<\/travel_facts>\s*$/i, '').trim()
+  }
+  // If the closing tag was used as an end marker, strip any leftover opener.
+  if (json.startsWith('<travel_facts>')) {
+    json = json.slice('<travel_facts>'.length).trim()
+  }
   try {
     return JSON.parse(json) as TravelFacts
   } catch {
@@ -99,11 +108,14 @@ function extractFactsFromPayload(payload: string): TravelFacts | null {
 }
 
 function extractLatestUserMessage(payload: string): string {
+  const fenced = payload.match(/<user_message>\s*([\s\S]*?)\s*<\/user_message>/i)
+  if (fenced?.[1]) return fenced[1].trim()
+
   const marker = 'Latest user message:'
   const idx = payload.indexOf(marker)
   if (idx < 0) return ''
   const body = payload.slice(idx + marker.length).trim()
   // Drop trailing instruction line if present.
   const cut = body.split(/\nWrite the next advisor/i)[0] ?? body
-  return cut.trim()
+  return cut.replace(/^<user_message>\s*/i, '').replace(/\s*<\/user_message>\s*$/i, '').trim()
 }
