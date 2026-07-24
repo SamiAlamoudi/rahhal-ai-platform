@@ -1,13 +1,14 @@
 import type { ChatProvider } from './chatTypes'
 import { mockChatProvider } from './mockChatProvider'
 import { createTravelAgentProvider } from '../agent/travelAgentProvider'
-import { createConversationChatProvider } from './conversationExperience/conversationChatProvider'
-import { createChatGptExperienceProvider } from './chatgptExperience/chatgptChatProvider'
 
 /**
  * Recovery Phase 1 — ONE conversation system.
  * Product default is always `travel-agent` → `travelAgentService.planTurn`.
- * `conversation-ui` / `chatgpt-experience` remain creatable for quarantined tests only.
+ *
+ * Quarantined providers (`conversation-ui` / `chatgpt-experience`) live in
+ * `chatProviderFactory.quarantined.ts` so their finance/orchestrator graphs
+ * are not pulled into the default chat chunk.
  */
 export type ChatProviderType = 'travel-agent' | 'mock' | 'conversation-ui' | 'chatgpt-experience'
 
@@ -24,11 +25,11 @@ export function createChatProvider(type: ChatProviderType = getDefaultChatProvid
     case 'mock':
       return mockChatProvider
     case 'chatgpt-experience':
-      // @deprecated Recovery Phase 1 — disconnected from default selection.
-      return createChatGptExperienceProvider()
     case 'conversation-ui':
-      // @deprecated Recovery Phase 1 — disconnected from default selection.
-      return createConversationChatProvider()
+      throw new Error(
+        `Deprecated chat provider "${type}" is quarantined. `
+        + `Use createQuarantinedChatProvider from './chatProviderFactory.quarantined' in tests.`,
+      )
     case 'travel-agent':
     default:
       return createTravelAgentProvider()

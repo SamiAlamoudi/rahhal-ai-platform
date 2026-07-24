@@ -1,7 +1,8 @@
 /**
  * Local conversation model — generative fallback when no remote LLM key is set.
  * Produces unique wording from Travel Facts (seeded by context), not fixed script templates.
- * Production with VITE_OPENAI_API_KEY uses the real OpenAI adapter instead.
+ * Production with OPENAI_API_KEY (Edge) or VITE_AGENT_LLM_PROVIDER=openai +
+ * openai-proxy uses the real OpenAI adapter instead.
  */
 
 import type { TravelFacts } from './travelFacts'

@@ -29,12 +29,14 @@ export function createBookingComProviderAdapter(
   let client: BookingComAdapter | null = null
 
   const ensureClient = () => {
-    if (!isBookingComConfigured(config) || !config.apiKey) {
+    if (!isBookingComConfigured(config)) {
       throw new Error('Booking.com provider is not configured')
     }
     if (!client) {
       client = new BookingComAdapter({
         apiKey: config.apiKey,
+        proxyUrl: config.proxyUrl,
+        invokeApiKey: config.invokeApiKey,
         baseUrl: config.baseUrl,
         rapidApiHost: config.rapidApiHost,
         timeout: config.timeoutMs,

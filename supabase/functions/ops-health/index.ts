@@ -1,31 +1,14 @@
 /**
  * Phase X ops probes — health / readiness / liveness for staging gateways.
- * Secrets are never returned. CORS allowlist via OPS_ALLOWED_ORIGINS (comma-separated).
+ * Secrets are never returned. CORS allowlist via EDGE_ALLOWED_ORIGINS / OPS_ALLOWED_ORIGINS.
+ * Probes remain unauthenticated so load balancers can scrape them; privileged
+ * data is never returned.
  */
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
+import { buildCorsHeaders, corsPreflightResponse } from '../_shared/edgeSecurity.ts'
 
 type Probe = 'health' | 'ready' | 'live'
-
-function corsHeaders(req: Request): HeadersInit {
-  const allowlist = (Deno.env.get('OPS_ALLOWED_ORIGINS') ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-  const origin = req.headers.get('Origin')
-  const allowOrigin = allowlist.length === 0
-    ? '*'
-    : (origin && allowlist.includes(origin) ? origin : allowlist[0] ?? 'null')
-
-  return {
-    'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-correlation-id',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-store',
-    'X-Content-Type-Options': 'nosniff',
-  }
-}
 
 function parseProbe(url: URL): Probe {
   const path = url.pathname.toLowerCase()
@@ -37,9 +20,9 @@ function parseProbe(url: URL): Probe {
 }
 
 serve(async (req) => {
-  const headers = corsHeaders(req)
+  const headers = buildCorsHeaders(req, { methods: ['GET', 'OPTIONS'] })
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers })
+    return corsPreflightResponse(req, { methods: ['GET', 'OPTIONS'] })
   }
   if (req.method !== 'GET') {
     return new Response(JSON.stringify({ status: 'fail', error: 'method_not_allowed' }), {
@@ -70,6 +53,10 @@ serve(async (req) => {
     'VITE_GOOGLE_MAPS_API_KEY',
     'VITE_OPENWEATHER_API_KEY',
     'VITE_MOYASAR_SECRET_KEY',
+    'VITE_OPENAI_API_KEY',
+    'VITE_AGENT_OPENAI_API_KEY',
+    'VITE_RAPIDAPI_KEY',
+    'VITE_BOOKING_API_KEY',
   ].filter((k) => Boolean(Deno.env.get(k)))
 
   const checks = {
@@ -93,7 +80,6 @@ serve(async (req) => {
     probe: probe === 'ready' ? 'readiness' : 'health',
     ts: new Date().toISOString(),
     checks,
-    // Never include secret values
     summary: {
       paymentProvider,
       liveProvidersEnabled: liveEnabled,

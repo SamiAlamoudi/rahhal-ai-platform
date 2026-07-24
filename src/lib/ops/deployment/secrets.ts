@@ -17,6 +17,12 @@ const FORBIDDEN_CLIENT_SECRETS = [
   'VITE_HYPERPAY_SECRET',
   'VITE_DUFFEL_ACCESS_TOKEN',
   'VITE_BOOKING_COM_SECRET',
+  'VITE_OPENAI_API_KEY',
+  'VITE_AGENT_OPENAI_API_KEY',
+  'VITE_RAPIDAPI_KEY',
+  'VITE_BOOKING_API_KEY',
+  'VITE_RENTAL_API_KEY',
+  'VITE_HOTEL_API_KEY',
 ]
 
 /** Server-side / Edge secret names — presence checked only when explicitly supplied. */
