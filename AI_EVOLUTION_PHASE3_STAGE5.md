@@ -78,3 +78,13 @@ npm run test:run
 - Speech / TTS / Knowledge retrieval implementations  
 - Modifying or merging previous PRs  
 - Refactoring Stages 1–4  
+
+## Validation (Phase 3 Stage 5)
+
+| Check | Result |
+|-------|--------|
+| `npm run lint` | pass |
+| `npm run typecheck` | pass |
+| `npm run arch:circular` | pass |
+| `npm run test:run` | **2789** passed |
+
