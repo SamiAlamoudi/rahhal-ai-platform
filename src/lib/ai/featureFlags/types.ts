@@ -148,6 +148,7 @@ export type FeatureId =
   | 'ui.traveler_profile'
   | 'ui.memory_center'
   | 'ui.booking_hub'
+  | 'ui.operations_center'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

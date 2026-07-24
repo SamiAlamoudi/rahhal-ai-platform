@@ -1495,6 +1495,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: booking_hub. UI only — search/map/payment are placeholders; no live booking.',
   },
+  {
+    id: 'ui.operations_center',
+    name: 'Operations Center (Phase 5 Stage 7)',
+    description:
+      'Additive isolated Operations Center UI: active/delayed trips, queues, incidents, SLA, agent workload, audit timeline. Presentation only — not wired to AI, Runtime, Realtime, Database, Firebase, Notifications, Booking APIs, Maps, Payments, or Authentication. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: operations_center. UI only — map/charts/notifications queue are placeholders; no Runtime connection.',
+  },
 ]
 
 export class FeatureRegistry {
