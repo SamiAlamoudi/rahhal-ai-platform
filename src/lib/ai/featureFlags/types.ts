@@ -145,6 +145,7 @@ export type FeatureId =
   | 'ui.journey_timeline'
   | 'ui.decision_center'
   | 'ui.insights_center'
+  | 'ui.traveler_profile'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

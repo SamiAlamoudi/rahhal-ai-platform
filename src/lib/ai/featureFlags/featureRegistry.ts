@@ -1462,6 +1462,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: insights_center. UI only — charts/heatmaps/passport/visa/loyalty/carbon are placeholders; no backend.',
   },
+  {
+    id: 'ui.traveler_profile',
+    name: 'Traveler Profile Center (Phase 5 Stage 4)',
+    description:
+      'Additive isolated Traveler Profile Center UI: personal info, preferences, documents, loyalty, privacy/security placeholders. Presentation only — not wired to Auth, AI, Runtime, Booking, Maps, Weather, Firebase, Notifications, payments, or storage. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: traveler_profile. UI only — visa/boarding/payment placeholders; no backend or authentication.',
+  },
 ]
 
 export class FeatureRegistry {

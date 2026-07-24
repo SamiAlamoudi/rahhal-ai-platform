@@ -110,6 +110,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ui.journey_timeline` | experimental | **no** | Phase 5 Stage 1 AI Journey Timeline — presentation only; depends on `ui.application_shell`; no realtime/maps/weather/booking/AI/backend (alias: journey_timeline) |
 | `ui.decision_center` | experimental | **no** | Phase 5 Stage 2 AI Decision Center — presentation only; depends on `ui.application_shell`; no AI reasoning/runtime/booking/maps/weather/notifications (alias: decision_center) |
 | `ui.insights_center` | experimental | **no** | Phase 5 Stage 3 AI Insights Center — presentation only; depends on `ui.application_shell`; no analytics engine/AI/runtime/booking/maps/weather/notifications (alias: insights_center) |
+| `ui.traveler_profile` | experimental | **no** | Phase 5 Stage 4 Traveler Profile Center — presentation only; depends on `ui.application_shell`; no auth/AI/runtime/booking/maps/weather/Firebase/notifications/payments/storage (alias: traveler_profile) |
 | `providers.hotel_foundation` | experimental | **no** | Sprint 30 Hotel Provider Foundation — sandbox Hotelbeds / Expedia Rapid / Booking Connectivity (alias: hotel_provider_foundation) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |
