@@ -214,6 +214,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: proactive_advisor. Default OFF. Recommendations only via meta.proactiveAdvisor.',
   },
   {
+    id: 'ai.travel_intelligence',
+    name: 'Travel Intelligence Layer (AI Evolution Phase 3 Stage 4)',
+    description:
+      'Additive isolated intelligence layer: compare alternatives, trade-offs, confidence, ranking, and justifications. Metadata-only (meta.travelIntelligence). Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.proactive_advisor'],
+    notes: 'Product alias: travel_intelligence. Default OFF. Evaluation only; never mutates planning.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:

@@ -747,6 +747,28 @@ export type {
   ProactiveMemoryAppend,
 } from './proactive'
 
+/** Phase 3 Stage 4 — Travel Intelligence Layer (additive; default OFF; not wired into planTurn) */
+export {
+  TRAVEL_INTELLIGENCE_FEATURE_ID,
+  isTravelIntelligenceEnabled,
+  runTravelIntelligence,
+  tryRunTravelIntelligence,
+  enrichTurnWithTravelIntelligence,
+  compareTravelAlternatives,
+  analyzeTravelTradeoffs,
+  rankTravelAlternatives,
+  TravelIntelligence,
+} from './intelligence'
+export type {
+  TravelIntelligenceResult,
+  TravelIntelligenceMetaSnapshot,
+  TravelAlternative,
+  IntelligenceRankedRecommendation,
+  TradeoffInsight,
+  TravelVoiceSummary,
+  KnowledgeReference,
+} from './intelligence'
+
 /** Sprint 114 — Intelligent Itinerary Engine */
 export {
   isItineraryEngineEnabled,

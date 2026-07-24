@@ -28,6 +28,7 @@ export type FeatureId =
   | 'ai.conversation_orchestrator'
   | 'ai.multi_turn_conversation'
   | 'ai.proactive_advisor'
+  | 'ai.travel_intelligence'
   | 'ai.smart_clarification'
   | 'ai.persistent_memory'
   | 'ai.rahhal_brain'

@@ -925,6 +925,47 @@ export interface AgentProviderMeta {
     recovered: boolean
   }
   /**
+   * Phase 3 Stage 4 — Travel Intelligence Layer snapshot (evaluation only).
+   * Present when consumers attach via enrichTurnWithTravelIntelligence.
+   * Flag `ai.travel_intelligence` default OFF. Not wired into planTurn.
+   * Never mutates tripPlan / reply / planning / strategy / recommendations engines.
+   */
+  travelIntelligence?: {
+    enabled: true
+    conversationId: string
+    alternativeCount: number
+    rankedCount: number
+    primaryId: string | null
+    overallConfidence: number
+    explanation: string
+    ranked: Array<{
+      rank: number
+      alternativeId: string
+      label: string
+      destination: string
+      score: number
+      confidence: number
+      justification: string
+      tradeoffs: string[]
+    }>
+    tradeoffs: Array<{
+      id: string
+      between: [string, string]
+      dimension: string
+      summary: string
+      winnerId: string | null
+      confidence: number
+    }>
+    voiceSummary: {
+      speakableSummary: string
+      locale: 'ar' | 'en'
+      tone: 'neutral' | 'consultative'
+    } | null
+    knowledgeRefs: Array<{ entryId: string; topic: string; optional: true }>
+    memoryAppend: Array<{ key: string; value: string; mode: 'append' }>
+    durationMs: number
+  }
+  /**
    * Phase 3 Stage 3 — Proactive Travel Advisor snapshot (recommendations only).
    * Present only when `ai.proactive_advisor` is ON.
    * Never mutates tripPlan / reply / planning / strategy / recommendations engines.
