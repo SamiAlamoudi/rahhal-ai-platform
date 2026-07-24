@@ -7,6 +7,8 @@
  * Gated by `ui.travel_workspace` (default OFF).
  */
 
+import { TRAVEL_WORKSPACE_ISOLATION as WORKSPACE_ISOLATION } from './types'
+
 export {
   TRAVEL_WORKSPACE_FEATURE_ID,
   isTravelWorkspaceEnabled,
@@ -92,7 +94,6 @@ export { SharedItems } from './sharedItems'
 export const TRAVEL_WORKSPACE_ARCHITECTURE = {
   version: '4.5.0-travel-workspace',
   featureId: 'ui.travel_workspace' as const,
-  wiredIntoProductionRoutes: false,
   presentationOnly: true,
   modules: [
     'dashboard',
@@ -123,5 +124,5 @@ export const TRAVEL_WORKSPACE_ARCHITECTURE = {
     'checklists',
     'sharedItems',
   ] as const,
-  ...TRAVEL_WORKSPACE_ISOLATION,
+  ...WORKSPACE_ISOLATION,
 } as const
