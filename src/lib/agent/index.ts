@@ -653,6 +653,9 @@ export {
   ConsultantPipeline,
   CONSULTANT_STAGE_ORDER,
   INTEGRATION_REGISTRY,
+  enrichTurnWithConsultantPipeline,
+  getConsultantPipelineTelemetry,
+  resetConsultantPipelineTelemetry,
 } from './orchestrator'
 export type {
   ConsultantPipelineInput,
@@ -660,6 +663,8 @@ export type {
   UnifiedConsultantResponse,
   ConsultantStageId,
   StageIOContext,
+  ConsultantPipelineActivationSnapshot,
+  ConsultantPipelineTelemetrySnapshot,
 } from './orchestrator'
 
 /** Sprint 114 — Intelligent Itinerary Engine */

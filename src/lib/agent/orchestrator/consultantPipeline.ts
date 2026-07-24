@@ -3,7 +3,8 @@
  *
  * Orchestrates existing AI modules in sequence. Enrich-only context.
  * Feature flag `ai.consultant_pipeline` default OFF.
- * Not wired into planTurn. CPU-only · no network · no LLM.
+ * Stage 2 may attach read-only enrichment after planTurn when the flag is ON.
+ * CPU-only · no network · no LLM. Never mutates production planning.
  */
 
 import { isConsultantPipelineEnabled } from './consultantStages'

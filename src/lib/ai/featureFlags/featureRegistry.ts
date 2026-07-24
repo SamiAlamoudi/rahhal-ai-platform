@@ -161,7 +161,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'experimental',
     enabled: false,
     dependsOn: ['ai.travel_strategy'],
-    notes: 'Product alias: consultant_pipeline. Default OFF. Zero production impact until wired.',
+    notes: 'Product alias: consultant_pipeline. Default OFF. Stage 2 may attach read-only enrichment after planTurn when enabled; never mutates planning.',
   },
   {
     id: 'ai.smart_clarification',

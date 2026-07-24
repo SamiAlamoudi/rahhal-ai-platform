@@ -770,6 +770,33 @@ export interface AgentProviderMeta {
     idempotentReplay: boolean
   }
   /**
+   * Phase 2 Stage 2 — Consultant Pipeline activation snapshot (read-only enrichment).
+   * Present only when `ai.consultant_pipeline` is ON. Never mutates tripPlan / reply.
+   */
+  consultantPipeline?: {
+    enabled: true
+    travelerUnderstanding: string[]
+    destinationUnderstanding: string[]
+    travelStrategy: string[]
+    recommendationSummary: string[]
+    alternative: string[]
+    tradeoffs: string[]
+    risks: string[]
+    confidence: number
+    missingInformation: string[]
+    clarificationQuestions: string[]
+    needsClarification: boolean
+    stoppedEarly: boolean
+    stopReason: string | null
+    telemetry: {
+      totalDurationMs: number
+      stageTimings: Record<string, number>
+      clarificationCount: number
+      success: boolean
+      stageCount: number
+    }
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.

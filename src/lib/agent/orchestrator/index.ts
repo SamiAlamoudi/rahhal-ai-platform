@@ -151,3 +151,20 @@ export {
   tryRunConsultantPipeline,
   ConsultantPipeline,
 } from './consultantPipeline'
+
+export {
+  enrichTurnWithConsultantPipeline,
+  ConsultantActivation,
+  type ConsultantPipelineActivationSnapshot,
+  type ConsultantActivationTurnLike,
+  type ConsultantActivationOptions,
+} from './consultantActivation'
+
+export {
+  recordConsultantPipelineTelemetry,
+  getConsultantPipelineTelemetry,
+  resetConsultantPipelineTelemetry,
+  ConsultantTelemetry,
+  type ConsultantPipelineTelemetryEvent,
+  type ConsultantPipelineTelemetrySnapshot,
+} from './consultantTelemetry'

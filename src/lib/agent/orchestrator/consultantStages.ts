@@ -1,6 +1,6 @@
 /**
  * Phase 2 Stage 1 — Consultant feature gate + stage order helpers.
- * Default OFF. Not wired into planTurn.
+ * Default OFF. Stage 2 may attach read-only enrichment after planTurn when ON.
  */
 
 import { getFeatureRegistry } from '../../ai/featureFlags'
