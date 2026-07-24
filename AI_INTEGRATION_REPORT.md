@@ -129,10 +129,10 @@ See `AI_INTEGRATION_STAGE1.md` §2 for the stage-by-stage flow and IO contract.
 
 ## Validation
 
-- `npm run lint`
-- `npm run typecheck`
-- `npm run arch:circular`
-- `npm run test:run`
+- `npm run lint` — pass
+- `npm run typecheck` — pass
+- `npm run arch:circular` — pass (no cycles)
+- `npm run test:run` — **2700** passed (231 files), including 9 new orchestration tests
 
 ---
 
