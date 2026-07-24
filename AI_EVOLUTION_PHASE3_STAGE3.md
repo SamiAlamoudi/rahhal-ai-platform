@@ -63,3 +63,13 @@ npm run test:run
 - Memory Center overwrite semantics  
 - Any planning / itinerary / pricing / recommendation engine changes  
 - Merging PRs / rebasing prior evolution branches  
+
+## Validation (Phase 3 Stage 3)
+
+| Check | Result |
+|-------|--------|
+| `npm run lint` | pass |
+| `npm run typecheck` | pass |
+| `npm run arch:circular` | pass |
+| `npm run test:run` | **2772** passed |
+
