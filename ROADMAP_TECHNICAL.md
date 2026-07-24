@@ -1,37 +1,28 @@
 # Technical Roadmap (Architecture)
 
-Ordered follow-ups after the DDD façade + zero-cycle pass. **No feature work** in these tracks.
+Ordered follow-ups after Recovery Phase 1 + engineering audit. **No feature work** in these tracks.
 
-## Near-term (architecture)
+## Near-term (cleanup / hardening)
 
-1. **Migrate UI imports** from deep `src/lib/...` to `src/domains/<domain>` barrels ( mechanize with codemod ).
-2. **Physical moves** of implementation packages under `src/domains/<domain>/internal/` (keep shims at old paths).
-3. **Collapse dual packages** after call-site audit:
+1. **Thin ChatPage static imports** so quarantined chatgpt/conversationExperience paths are not always linked.
+2. **Collapse dual packages** after call-site + test-isolation audit:
    - `payment` vs `payments`
    - `execution` vs `brain/execution`
    - `chat/voice` vs `voiceConversation` (archive Sprint 18 if unused)
-4. **Thin remaining fat barrels** (`lib/brain/index.ts`, `integrations/index.ts`) into `public` vs `internal` entrypoints.
-5. **Server-proxy RapidAPI** keys (remove client-bundled hotel secrets).
+3. **Thin remaining fat barrels** (`lib/brain/index.ts`, `integrations/index.ts`) into `public` vs `internal` entrypoints.
+4. **Server-proxy RapidAPI** keys (remove client-bundled hotel secrets).
+5. **Centralize money formatters** behind `lib/payment/money.ts` where formats already match.
+6. **Shared city catalog adapter** between Decision Engine packs and Planning Draft priors (no behavior change).
 
 ## Mid-term
 
-6. Authenticate + rate-limit Edge provider proxies; tighten CORS.
-7. Server-side admin authorization for sensitive mutations.
-8. Split ChatPage agent chunk (further route/domain code-splitting).
-9. Unify conversation SoT documentation into a single “active path” matrix enforced in CI (lint import paths).
-10. Contract registry bootstrap fully owned by infrastructure (no utils → integrations edges).
+7. Authenticate + rate-limit Edge provider proxies; tighten CORS.
+8. Server-side admin authorization for sensitive mutations.
+9. Split ChatPage agent chunk (further route/package code-splitting).
+10. Move remaining quarantined packages under `/archive` with opt-in vitest projects when tests no longer need them in `src/`.
 
-## Long-term (platform scale)
+## Related
 
-11. Extract domains into packages (`@rahhal/ai`, `@rahhal/booking`, …) if monorepo needed.
-12. Event bus / outbox for booking ↔ payments ↔ notifications at high QPS.
-13. Read replicas / caching tier for search aggregation.
-14. Multi-region Edge Functions + queue workers for provider fan-out.
-15. Agent evaluation harness + safety policy engine as first-class services.
-
-## Explicitly out of scope here
-
-- Enabling live payments or live providers by default
-- LLM vendor lock-in
-- Branding rename
-- UI redesign
+- [`ENGINEERING_AUDIT_REPORT.md`](ENGINEERING_AUDIT_REPORT.md)
+- [`TECHNICAL_DEBT.md`](TECHNICAL_DEBT.md)
+- [`RECOVERY_PHASE_1_REPORT.md`](RECOVERY_PHASE_1_REPORT.md)

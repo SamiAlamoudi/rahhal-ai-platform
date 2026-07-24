@@ -53,7 +53,7 @@ if (!clientId || !clientSecret) {
   report.health = { amadeus: 'missing_credentials', fallback: true }
   report.error = 'Missing AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET'
   console.log(JSON.stringify(report, null, 2))
-  console.error('\nSee documentation/AMADEUS_SETUP.md')
+  console.error('\nSee docs/AMADEUS_SETUP.md')
   writeFileSync(resolve(OUT_DIR, 'amadeus-live-search.json'), JSON.stringify(report, null, 2))
   process.exit(2)
 }
@@ -183,6 +183,6 @@ try {
   report.error = err instanceof Error ? err.message : String(err)
   console.log(JSON.stringify(report, null, 2))
   writeFileSync(resolve(OUT_DIR, 'amadeus-live-search.json'), JSON.stringify(report, null, 2))
-  console.error('\n⚠ Live Amadeus search could not complete. See documentation/AMADEUS_SETUP.md')
+  console.error('\n⚠ Live Amadeus search could not complete. See docs/AMADEUS_SETUP.md')
   process.exit(1)
 }

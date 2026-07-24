@@ -1,16 +1,16 @@
 # Architecture Guide — Rahhal AI Platform
 
-**Audience:** engineers extending Rahhal without breaking domain boundaries.  
-**Version:** aligned with `1.1.0-rc.1` + architecture DDD pass.  
-**Invariant:** no feature work in architecture PRs; behavior preserved via re-exports.
+**Audience:** engineers extending Rahhal without breaking ownership boundaries.  
+**Version:** aligned with `1.1.0-rc.1` + Recovery Phase 1 + engineering audit.  
+**Invariant:** no product behavior change in architecture/cleanup PRs.
 
 ## Goals
 
-1. Clear **domain ownership** (DDD-inspired).
+1. Clear **package ownership** under `src/lib` / `src/core`.
 2. **Acyclic** dependency graph (`npm run arch:circular`).
-3. **AI layer** isolatable into providers / memory / planning / tools / reasoning / safety / evaluation / conversation-state.
+3. **AI layer** isolatable (providers / memory / planning / tools / reasoning / safety).
 4. Features independently **flag-gated and removable**.
-5. Core never depends on UI.
+5. Core engines never depend on UI.
 
 ## Layered model
 
@@ -20,31 +20,26 @@
 └───────────────────┬─────────────────────────┘
                     │ depends on
 ┌───────────────────▼─────────────────────────┐
-│  Domains  (src/domains/*)  public façades   │
+│  Product packages (src/lib/*)               │
+│  agent · chat · concierge · payment · …     │
 └───────┬──────────────────────────┬──────────┘
         │                          │
 ┌───────▼────────┐        ┌────────▼──────────┐
-│ Feature domains│        │ shared / core /   │
-│ ai conversation│        │ infrastructure    │
-│ voice booking… │        └────────┬──────────┘
-└───────┬────────┘                 │
-        │                          │
-┌───────▼──────────────────────────▼──────────┐
-│  Implementations (src/lib, utils,           │
-│  integrations) — migrate behind domains     │
-└─────────────────────────────────────────────┘
+│ Sprint engines │        │ integrations /    │
+│ (src/core/*)   │        │ utils / repos     │
+└────────────────┘        └───────────────────┘
 ```
+
+Former `src/domains/*` façades were unused and removed (engineering audit). Do not reintroduce empty re-export trees without real consumers.
 
 ## Dependency rules
 
 | From → To | Allowed? |
 |-----------|----------|
-| UI → domains | Yes (preferred) |
-| UI → lib/utils (legacy) | Tolerated during migration |
-| Domain → shared/core/infrastructure | Yes |
-| Domain → other feature domain | Only via that domain’s `index.ts` |
-| core → pages/components | **Never** |
-| infrastructure → UI | **Never** |
+| UI → `lib` / `utils` / `integrations` | Yes |
+| `lib` → `core` / `integrations` / leaf utils | Yes |
+| `core` → pages/components | **Never** |
+| integrations → UI | **Never** |
 | utils leaf types → orchestrators | **Never** (types flow down) |
 
 Enforce cycles with:
@@ -53,28 +48,23 @@ Enforce cycles with:
 npm run arch:circular
 ```
 
-## Domain catalogue
+## Catalogue
 
-See [`src/domains/README.md`](src/domains/README.md) and [`MODULE_MAP.md`](MODULE_MAP.md).
+See [`MODULE_MAP.md`](MODULE_MAP.md).
 
-## AI sub-architecture
+## AI sub-architecture (active packages)
 
-Under `src/domains/ai/`:
-
-| Module | Responsibility |
-|--------|----------------|
-| `providers` | Provider adapters / aggregation ports |
-| `models` | TripPlan, requirements, LLM port types |
-| `memory` | Agent + brain conversation memory |
-| `planning` | Itinerary / trip planning helpers |
-| `tool-calling` | Tool registry + executor |
-| `reasoning` | Decision / scoring / explanations |
-| `prompt-engine` | Reply formatting / persona text |
-| `safety` | Security / env / media URL guards |
-| `evaluation` | Analytics / quality signals |
-| `conversation-state` | Chat/brain turn state shapes |
-
-Each module has `README.md` (Responsibilities, Public API, Dependencies, Rules) and `index.ts`.
+| Concern | Package |
+|---------|---------|
+| Turn owner | `lib/agent/travelAgentService` (`planTurn`) |
+| Memory | `lib/agent/memory.ts` |
+| Decision / concierge policy | `lib/concierge` |
+| Planning estimates | `lib/agent/planningDraft` |
+| Conversation language | `lib/agent/conversationBrain` |
+| Smart clarification | `lib/agent/clarification` |
+| Travel reasoning catalog | `lib/agent/reasoning` |
+| RahhalBrain enricher | `lib/brain` |
+| Feature flags | `lib/ai/featureFlags` |
 
 ## Feature isolation
 
@@ -82,32 +72,19 @@ Product features are gated by `FeatureRegistry` (`src/lib/ai/featureFlags`).
 Experimental Sprint engines default **OFF**. Removing a feature should mean:
 
 1. Disable/remove its flag.
-2. Stop importing its domain barrel from UI.
+2. Stop importing it from the production spine.
 3. Keep shared contracts intact.
-
-Do **not** reach into another feature’s private files.
-
-## Folder standardization
-
-**Canonical public entry:** `src/domains/<domain>/index.ts`  
-**Ownership docs:** every domain folder has `README.md`.  
-**Legacy paths** (`src/lib/*`, `src/utils/*`) remain as implementation homes until physical moves; they must not gain new cross-cycles.
 
 ## Adding code
 
-1. Place new logic in the owning domain’s implementation package (`lib/...`).
-2. Export only what UI needs through `src/domains/<domain>/index.ts`.
-3. Prefer leaf type modules over fat barrels for cross-package types.
-4. Run `npm run typecheck && npm run arch:circular && npm run test:run`.
+1. Place new logic in the owning `src/lib/<package>` (or `src/core` for shared engines).
+2. Prefer leaf type modules over fat barrels for cross-package types.
+3. Add/adjust tests under `src/lib/__tests__`.
+4. Run `npm run lint && npm run typecheck && npm run test:run && npm run arch:circular`.
 
-## Related docs
+## Related
 
 - [`MODULE_MAP.md`](MODULE_MAP.md)
 - [`DEPENDENCY_GRAPH.md`](DEPENDENCY_GRAPH.md)
-- [`SYSTEM_OVERVIEW.md`](SYSTEM_OVERVIEW.md)
-- [`ROADMAP_TECHNICAL.md`](ROADMAP_TECHNICAL.md)
-- [`TECHNICAL_DEBT.md`](TECHNICAL_DEBT.md)
-- [`ARCHITECTURE_METRICS.md`](ARCHITECTURE_METRICS.md)
-- [`AI_ARCHITECTURE.md`](AI_ARCHITECTURE.md)
-- [`FEATURE_REGISTRY.md`](FEATURE_REGISTRY.md)
-
+- [`RECOVERY_PHASE_1_REPORT.md`](RECOVERY_PHASE_1_REPORT.md)
+- [`ENGINEERING_AUDIT_REPORT.md`](ENGINEERING_AUDIT_REPORT.md)

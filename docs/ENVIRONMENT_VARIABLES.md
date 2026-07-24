@@ -37,7 +37,7 @@ Amadeus sandbox pilot: [AMADEUS_SANDBOX.md](./AMADEUS_SANDBOX.md)
 | `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET` | Amadeus OAuth (Vercel Edge / Supabase secrets) |
 | `AMADEUS_ENV` / `AMADEUS_BASE_URL` | sandbox \| production |
 
-Amadeus production setup: [../documentation/AMADEUS_SETUP.md](../documentation/AMADEUS_SETUP.md). Health: `GET /api/health/providers`.
+Amadeus production setup: [AMADEUS_SETUP.md](./AMADEUS_SETUP.md). Health: `GET /api/health/providers`.
 | `GOOGLE_MAPS_API_KEY` | Maps proxy |
 | `OPENWEATHER_API_KEY` | Weather proxy |
 | `RAPIDAPI_KEY` / `BOOKING_RAPIDAPI_KEY` | Booking.com |
