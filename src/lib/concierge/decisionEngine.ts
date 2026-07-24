@@ -6,6 +6,7 @@
  */
 
 import type { AgentLocale, TripRequirements } from '../agent/types'
+import { recommendDestinationsForBudgetSeason } from './budgetSeasonRecommendations'
 import type { ConciergeAction, ConciergeState } from './types'
 
 export type ConciergeValueMode =
@@ -13,8 +14,12 @@ export type ConciergeValueMode =
   | 'destination_cities'
   | 'season_guidance'
   | 'budget_framed_cities'
+  | 'budget_season_destinations'
   | 'style_narrow'
   | 'itinerary_ideas'
+
+/** Consultant confidence for this beat — drives recommend vs one clarification. */
+export type ConciergeValueConfidence = 'high' | 'medium' | 'low'
 
 export interface ConciergeValueAssessment {
   /** True when the consultant can educate / recommend / compare / inspire now. */
@@ -26,8 +31,13 @@ export interface ConciergeValueAssessment {
   valueBrief: string[]
   /** Optional short education line before options. */
   framingNote: string | null
-  /** Meaningful closer — preference, not field census. */
+  /**
+   * Meaningful closer — preference, not field census.
+   * Null when confidence is already high enough to recommend without asking.
+   */
   preferenceQuestion: string | null
+  /** high = recommend only; medium = recommend + one ask; low = explain then one ask. */
+  confidence: ConciergeValueConfidence
   rationale: string
 }
 
@@ -243,7 +253,29 @@ export function evaluateConciergeValueOpportunity(input: {
         ? 'خلّينا نضيّق الإحساس أولاً قبل ما نثبّت وجهة.'
         : 'Let us narrow the feeling of the trip before locking a place.',
       preferenceQuestion: preferenceQuestionFor('style_narrow', locale, null),
+      confidence: 'medium',
       rationale: 'Open preference — inspire with style choices before census fields.',
+    }
+  }
+
+  // Sprint 1: budget + timing without destination → recommend catalog destinations first.
+  if (!dest) {
+    const seasonRecs = recommendDestinationsForBudgetSeason({
+      requirements: req,
+      locale,
+      userText,
+    })
+    if (seasonRecs) {
+      return {
+        canProvideValue: true,
+        mode: 'budget_season_destinations',
+        action: 'propose_options',
+        valueBrief: seasonRecs.valueBrief,
+        framingNote: seasonRecs.framingNote,
+        preferenceQuestion: seasonRecs.preferenceQuestion,
+        confidence: seasonRecs.confidence,
+        rationale: seasonRecs.rationale,
+      }
     }
   }
 
@@ -258,6 +290,7 @@ export function evaluateConciergeValueOpportunity(input: {
         ? `${dest} خيار ممتاز — والتكلفة تختلف كثيراً حسب الموسم.`
         : `${dest} is a strong choice — and cost swings sharply by season.`,
       preferenceQuestion: seasons.question[ar ? 'ar' : 'en'],
+      confidence: 'medium',
       rationale: 'Destination known with vague future timing — educate on seasons before cost estimates.',
     }
   }
@@ -274,6 +307,7 @@ export function evaluateConciergeValueOpportunity(input: {
         : req.durationDays != null
           ? (ar ? `${req.durationDays} أيام` : `${req.durationDays} days`)
           : (ar ? 'في الفترة المذكورة' : 'in that window')
+      const partyKnown = req.travelers != null || req.travelerType != null
       return {
         canProvideValue: true,
         mode: 'budget_framed_cities',
@@ -286,7 +320,11 @@ export function evaluateConciergeValueOpportunity(input: {
           : (ar
             ? `مع مرونة بالميزانية والسفر ${when}، هذه اتجاهات ${dest} الأنسب للبداية.`
             : `With flexible budget and travel ${when}, these ${dest} directions are the strongest start.`),
-        preferenceQuestion: preferenceQuestionFor('budget_framed_cities', locale, dest),
+        // High confidence when party size is already known — recommend without a census closer.
+        preferenceQuestion: partyKnown
+          ? null
+          : preferenceQuestionFor('budget_framed_cities', locale, dest),
+        confidence: partyKnown ? 'high' : 'medium',
         rationale: 'Country + budget + timing — recommend cities before more intake.',
       }
     }
@@ -299,6 +337,7 @@ export function evaluateConciergeValueOpportunity(input: {
         ? `${dest} يتيح أنماطاً مختلفة جداً — هذه أبرز الاتجاهات.`
         : `${dest} supports very different trip styles — here are the strongest directions.`,
       preferenceQuestion: preferenceQuestionFor('destination_cities', locale, dest),
+      confidence: 'medium',
       rationale: 'Broad destination known — compare cities before asking census fields.',
     }
   }
@@ -316,6 +355,7 @@ export function evaluateConciergeValueOpportunity(input: {
         ? `ممتاز — ${dest} قاعدة قوية. خلّينا نضبط طابع الرحلة.`
         : `Strong base — ${dest}. Let us shape the character of the trip.`,
       preferenceQuestion: preferenceQuestionFor('style_narrow', locale, dest),
+      confidence: 'medium',
       rationale: 'Specific destination known — inspire with trip character before form fields.',
     }
   }
@@ -327,6 +367,7 @@ export function evaluateConciergeValueOpportunity(input: {
     valueBrief: [],
     framingNote: null,
     preferenceQuestion: null,
+    confidence: 'low',
     rationale: 'Not enough signal yet for a confident recommendation.',
   }
 }
@@ -359,6 +400,7 @@ export function shouldLeadWithValue(input: {
   // If hard intake is now complete enough to frame richer advice, lead with value again.
   if (
     assessment.mode === 'budget_framed_cities'
+    || assessment.mode === 'budget_season_destinations'
     || assessment.mode === 'season_guidance'
   ) {
     return { ...assessment, leadWithValue: true }
