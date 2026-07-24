@@ -204,6 +204,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: multi_turn_conversation. Default OFF. Conversation continuity only.',
   },
   {
+    id: 'ai.proactive_advisor',
+    name: 'Proactive Travel Advisor (AI Evolution Phase 3 Stage 3)',
+    description:
+      'Additive proactive opportunity recommendations (visa, weather, family, business, budget tips). Metadata-only; never mutates planning, itineraries, pricing, or conversation text.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.multi_turn_conversation'],
+    notes: 'Product alias: proactive_advisor. Default OFF. Recommendations only via meta.proactiveAdvisor.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:

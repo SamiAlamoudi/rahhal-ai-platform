@@ -405,6 +405,11 @@ export interface TravelAgentServiceOptions {
    */
   multiTurnConversationEnabled?: boolean
   /**
+   * Phase 3 Stage 3 — Proactive Travel Advisor (metadata-only opportunity tips).
+   * Default: FeatureRegistry `ai.proactive_advisor` (OFF). Never mutates production planning or reply.
+   */
+  proactiveAdvisorEnabled?: boolean
+  /**
    * Phase 2 — AI Travel Executive intelligence.
    * Default: FeatureRegistry `ai.travel_executive` (ON).
    */
@@ -2928,16 +2933,21 @@ export function createTravelAgentService(
     },
   }
 
-  // Phase 2 Stage 2/3/4 + Phase 3 Stage 1/2 — optional enrichment layers.
+  // Phase 2 Stage 2/3/4 + Phase 3 Stage 1/2/3 — optional enrichment layers.
   // Flags OFF → identical production behavior (no coordinator/pipeline import latency).
   const productionPlanTurn = service.planTurn.bind(service)
   service.planTurn = async (input) => {
     const result = await productionPlanTurn(input)
+    const proactiveForced = options.proactiveAdvisorEnabled
     const multiTurnForced = options.multiTurnConversationEnabled
     const conversationForced = options.conversationOrchestratorEnabled
     const runtimeForced = options.runtimeCoordinatorEnabled
     const pipelineForced = options.consultantPipelineEnabled
     const responseForced = options.consultantResponseEnabled
+    const proactiveOn =
+      proactiveForced === true
+      || (proactiveForced !== false
+        && getFeatureRegistry().isEnabled('ai.proactive_advisor'))
     const multiTurnOn =
       multiTurnForced === true
       || (multiTurnForced !== false
@@ -2962,49 +2972,57 @@ export function createTravelAgentService(
     const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
     const userText = lastUser?.content ?? ''
 
+    let enriched: TravelAgentTurnResult = result
+
     // Phase 3 Stage 2 — Multi-Turn Conversation Manager (continuity entry when ON).
     if (multiTurnOn) {
       const { enrichTurnWithMultiTurnManager } = await import('./conversation')
-      return enrichTurnWithMultiTurnManager(result, {
+      enriched = await enrichTurnWithMultiTurnManager(result, {
         userText,
         conversationId: input.conversationId,
         enabled: true,
         conversationOrchestratorEnabled: conversationOn,
         signal: input.signal,
-      }) as Promise<TravelAgentTurnResult>
-    }
-
-    // Phase 3 Stage 1 — Conversation Orchestrator (entry when ON; invokes Runtime Coordinator).
-    if (conversationOn) {
+      }) as TravelAgentTurnResult
+    } else if (conversationOn) {
+      // Phase 3 Stage 1 — Conversation Orchestrator (entry when ON; invokes Runtime Coordinator).
       const { enrichTurnWithConversationOrchestrator } = await import('./conversation')
-      return enrichTurnWithConversationOrchestrator(result, {
+      enriched = await enrichTurnWithConversationOrchestrator(result, {
         userText,
         conversationId: input.conversationId,
         enabled: true,
         signal: input.signal,
-      }) as Promise<TravelAgentTurnResult>
-    }
-
-    // Stage 4 — Runtime Coordinator path (preferred when ON; avoids duplicate work).
-    if (runtimeOn) {
+      }) as TravelAgentTurnResult
+    } else if (runtimeOn) {
+      // Stage 4 — Runtime Coordinator path (preferred when ON; avoids duplicate work).
       const { enrichTurnWithRuntimeCoordinator } = await import('./orchestrator/runtime')
-      return enrichTurnWithRuntimeCoordinator(result, {
+      enriched = await enrichTurnWithRuntimeCoordinator(result, {
         userText,
         conversationId: input.conversationId,
         enabled: true,
         signal: input.signal,
-      }) as Promise<TravelAgentTurnResult>
+      }) as TravelAgentTurnResult
+    } else if (pipelineOn || responseOn) {
+      const { finalizeConsultantTurnEnrichment } = await import('./orchestrator/consultantActivation')
+      enriched = await finalizeConsultantTurnEnrichment(result, {
+        userText,
+        conversationId: input.conversationId,
+        attachPipelineMeta: pipelineOn,
+        attachResponseMeta: responseOn,
+      })
     }
 
-    if (!pipelineOn && !responseOn) return result
+    // Phase 3 Stage 3 — Proactive Advisor (metadata-only; never mutates reply/tripPlan).
+    if (proactiveOn) {
+      const { enrichTurnWithProactiveAdvisor } = await import('./proactive')
+      enriched = enrichTurnWithProactiveAdvisor(enriched, {
+        userText,
+        conversationId: input.conversationId,
+        enabled: true,
+      })
+    }
 
-    const { finalizeConsultantTurnEnrichment } = await import('./orchestrator/consultantActivation')
-    return finalizeConsultantTurnEnrichment(result, {
-      userText,
-      conversationId: input.conversationId,
-      attachPipelineMeta: pipelineOn,
-      attachResponseMeta: responseOn,
-    })
+    return enriched
   }
 
   return service

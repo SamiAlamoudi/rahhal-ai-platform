@@ -27,6 +27,7 @@ export type FeatureId =
   | 'ai.runtime_coordinator'
   | 'ai.conversation_orchestrator'
   | 'ai.multi_turn_conversation'
+  | 'ai.proactive_advisor'
   | 'ai.smart_clarification'
   | 'ai.persistent_memory'
   | 'ai.rahhal_brain'

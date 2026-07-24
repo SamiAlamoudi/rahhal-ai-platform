@@ -925,6 +925,37 @@ export interface AgentProviderMeta {
     recovered: boolean
   }
   /**
+   * Phase 3 Stage 3 — Proactive Travel Advisor snapshot (recommendations only).
+   * Present only when `ai.proactive_advisor` is ON.
+   * Never mutates tripPlan / reply / planning / strategy / recommendations engines.
+   */
+  proactiveAdvisor?: {
+    enabled: true
+    conversationId: string
+    recommendationCount: number
+    recommendations: Array<{
+      id: string
+      signal: string
+      title: string
+      message: string
+      reason: string
+      confidence: number
+      supportingEvidence: Array<{ kind: string; detail: string; source: string }>
+      missingEvidence: string[]
+      clarificationRequired: boolean
+      priority: number
+      voiceHint: {
+        speakableSummary: string
+        locale: 'ar' | 'en'
+        urgency: 'low' | 'medium' | 'high'
+      } | null
+      knowledgeRefs: Array<{ entryId: string; topic: string; optional: true }>
+      memoryAppend: Array<{ key: string; value: string; mode: 'append' }>
+    }>
+    signalsDetected: string[]
+    durationMs: number
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.

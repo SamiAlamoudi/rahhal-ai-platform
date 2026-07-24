@@ -726,6 +726,27 @@ export type {
   MultiTurnManagerResult,
 } from './conversation'
 
+/** Phase 3 Stage 3 — Proactive Travel Advisor (additive; default OFF; meta-only) */
+export {
+  PROACTIVE_ADVISOR_FEATURE_ID,
+  isProactiveAdvisorEnabled,
+  runProactiveAdvisor,
+  tryRunProactiveAdvisor,
+  enrichTurnWithProactiveAdvisor,
+  detectProactiveSignals,
+  buildProactiveContext,
+  ProactiveAdvisor,
+} from './proactive'
+export type {
+  ProactiveSignalKind,
+  ProactiveRecommendation,
+  ProactiveAdvisorResult,
+  ProactiveAdvisorMetaSnapshot,
+  ProactiveVoiceHint,
+  ProactiveKnowledgeRef,
+  ProactiveMemoryAppend,
+} from './proactive'
+
 /** Sprint 114 — Intelligent Itinerary Engine */
 export {
   isItineraryEngineEnabled,
