@@ -288,14 +288,58 @@ export function generateLocalConversation(input: {
     case 'propose_options':
     case 'advise': {
       const ack = acknowledge(input.facts, seed, ar)
-      const framing = input.facts.recommendations?.[0]
+      const draft = input.facts.planningDraft
+      const framing = draft?.rankingNote
+        || input.facts.recommendations?.[0]
         || pick(seed + 2, ar
           ? ['هذه قراءة مستشار على ما عندنا الآن.', 'خلّيني أضيّق لك الاتجاه قبل ما نسأل تفاصيل إضافية.']
           : ['Here is a consultant read on what we already know.', 'Let me narrow direction before asking for more detail.'])
-      const hints = input.facts.optionHints?.length
-        ? input.facts.optionHints.map((h) => `• ${h}`).join('\n')
-        : ''
-      const closer = input.facts.recommendations?.[1]
+
+      let hints = ''
+      if (draft && draft.cities.length > 0) {
+        const cityLines = draft.cities.slice(0, 3).map((city) => `• ${city.name} — ${city.why}`)
+        const b = draft.breakdown
+        const fmt = (est: { low: number; high: number; mid: number; currency: string }) =>
+          est.low === est.high ? `≈${est.mid} ${est.currency}` : `${est.low}–${est.high} ${est.currency}`
+        const split = ar
+          ? [
+            `تقدير أوّلي (ثقة ${draft.confidence}):`,
+            `• طيران ${fmt(b.flights)} — ${b.flights.reason}`,
+            `• فنادق ${fmt(b.hotels)} — ${b.hotels.reason}`,
+            `• طعام ${fmt(b.food)} — ${b.food.reason}`,
+            `• تنقل ${fmt(b.transportation)} — ${b.transportation.reason}`,
+            `• أنشطة ${fmt(b.activities)} — ${b.activities.reason}`,
+          ].join('\n')
+          : [
+            `First-pass ranges (${draft.confidence} confidence):`,
+            `• Flights ${fmt(b.flights)} — ${b.flights.reason}`,
+            `• Hotels ${fmt(b.hotels)} — ${b.hotels.reason}`,
+            `• Food ${fmt(b.food)} — ${b.food.reason}`,
+            `• Transport ${fmt(b.transportation)} — ${b.transportation.reason}`,
+            `• Activities ${fmt(b.activities)} — ${b.activities.reason}`,
+          ].join('\n')
+        const trade = draft.tradeoffs[0] ? `• ${draft.tradeoffs[0]}` : ''
+        const partyNote = draft.travelerCount == null
+          ? (ar
+            ? '• عدد المسافرين غير محدد — لذلك المبالغ كمديات.'
+            : '• Party size unknown — amounts are ranges, not point figures.')
+          : ''
+        hints = [...cityLines, '', split, trade, partyNote].filter(Boolean).join('\n')
+      } else if (input.facts.optionHints?.length) {
+        hints = input.facts.optionHints.map((h) => `• ${h}`).join('\n')
+      }
+
+      const beachCity = draft?.cities.some((c) =>
+        /agadir|antalya|bali|beach|شاطئ|أكادير|أنطاليا|بالي/i.test(`${c.name} ${c.why}`),
+      )
+      const styleCloser = beachCity
+        ? (ar
+          ? 'تميل لرحلة شاطئ واسترخاء، ولا تجربة مدينة وثقافة؟'
+          : 'Would you like a relaxing beach trip or a city experience?')
+        : null
+      const questionFromFacts = input.facts.recommendations?.find((row) => /[?؟]\s*$/.test(row.trim()))
+      const closer = styleCloser
+        || questionFromFacts
         || pick(seed + 1, ar
           ? ['من هذه الاتجاهات، أيّها يشدّك أكثر؟', 'بحر وهدوء، ولا مدينة وثقافة؟']
           : ['From these directions, which interests you most?', 'Beach and calm, or city and culture?'])

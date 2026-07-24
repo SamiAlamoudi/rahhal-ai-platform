@@ -116,16 +116,29 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
     }
   }
 
-  // Ready to draft a full plan: destination + budget + explicit day count (or plan cue).
+  // Ready for TripPlan handoff — distinct from Planning Draft (estimate) readiness.
   const readyToDraftPlan = intakeComplete
     && (ctx.requirements.durationDays != null || explicitPlanCue || hasPlan)
+  // Deliberate trip shaping (not soft-seeded midrange/central defaults).
+  const hasDeliberateStyle = Boolean(
+    ctx.requirements.interests.length > 0
+    || ctx.requirements.packageScope
+    || ctx.requirements.tripPurpose,
+  )
+  // Broad countries stay on Planning Draft + city compare until the traveler
+  // locks a city direction, confirms, or provides deliberate style/purpose.
+  const mayExecuteItinerary = readyToDraftPlan
+    && (!broadDest || explicitPlanCue || hasPlan || hasDeliberateStyle)
 
-  // Value-first: if we can already help, never open with a form field.
-  // Broad countries with only a month+budget still get city compares (no day count yet).
+  // Value-first / Planning Draft: recommend before form fields or itinerary build.
   if (
     valueGate.leadWithValue
-    && !readyToDraftPlan
-    && (hardMissing > 0 || (intakeComplete && broadDest && !explicitPlanCue && !hasPlan))
+    && !mayExecuteItinerary
+    && (
+      hardMissing > 0
+      || (intakeComplete && broadDest && !explicitPlanCue && !hasPlan)
+      || (readyToDraftPlan && broadDest && !explicitPlanCue)
+    )
   ) {
     applyValueLead('Decision Engine — ')
   } else if (phase === 'greeting' && previous.turnCount === 0 && !intakeComplete && !valueGate.leadWithValue) {
@@ -152,13 +165,13 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
     action = 'plan'
     shouldExecuteAgent = true
     rationale = 'Traveler confirmed options — hand off to agent plan path.'
-  } else if (readyToDraftPlan && EXECUTE_INTENTS.has(ctx.intent)) {
-    // Full agent intake satisfied — Concierge yields to the travel engine.
+  } else if (mayExecuteItinerary && EXECUTE_INTENTS.has(ctx.intent)) {
+    // City-specific / deliberate style / explicit plan — build TripPlan.
     action = 'plan'
     shouldExecuteAgent = true
     rationale = 'Intake complete — hand off to agent plan path.'
-  } else if (intakeComplete && !readyToDraftPlan && broadDest && !explicitPlanCue && valueGate.canProvideValue) {
-    applyValueLead('Broad destination ready — ')
+  } else if (intakeComplete && broadDest && !explicitPlanCue && valueGate.canProvideValue) {
+    applyValueLead('Broad destination — Planning Draft before itinerary. ')
   } else if (intakeComplete && ctx.intent === 'unknown' && hasSoftDepth(softSignals)) {
     action = previous.lastAction === 'propose_options' ? 'confirm' : 'propose_options'
     rationale = 'Advisory beat — propose conversational options without executing.'
