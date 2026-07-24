@@ -2,12 +2,13 @@
 
 **Stage:** Phase 4 Stage 3 — Premium Voice Conversation Center  
 **Flag:** `ui.voice_center` (default OFF)  
-**Branch:** `cursor/phase4-stage3-voice-center-7518`
+**Branch:** `cursor/phase4-stage3-voice-center-7518`  
+**Draft PR:** https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/223
 
 ## Isolation checks
 
-| Check | Expected |
-|-------|----------|
+| Check | Result |
+|-------|--------|
 | Not mounted in `main.tsx` | Pass |
 | Returns `null` when flag OFF | Pass |
 | Not inside Chat | Pass |
@@ -17,13 +18,14 @@
 
 ## Commands
 
-| Command | Expected |
-|---------|----------|
+| Command | Result |
+|---------|--------|
 | `npm run lint` | Pass |
 | `npm run typecheck` | Pass |
-| `npm run arch:circular` | Pass |
-| `npm run test:run` | Pass |
+| `npm run arch:circular` | Pass (no circular deps under `src/`) |
+| `npm run test:run` | Pass — **2812** tests (242 files) |
 
 ## Notes
 
-Fill actual counts after local validation in this agent turn.
+- Additive UI only; production routes and `planTurn` unchanged.
+- Do not merge. Do not modify previous PRs.
