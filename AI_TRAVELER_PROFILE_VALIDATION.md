@@ -3,7 +3,7 @@
 **Stage:** Phase 5 Stage 4  
 **Flag:** `ui.traveler_profile` (default OFF)  
 **Branch:** `cursor/phase5-stage4-traveler-profile-7518`  
-**Draft PR:** _(pending)_
+**Draft PR:** https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/231
 
 ## Isolation
 
@@ -18,10 +18,10 @@
 
 | Command | Result |
 |---------|--------|
-| `npm run lint` | Pending |
-| `npm run typecheck` | Pending |
-| `npm run arch:circular` | Pending |
-| `npm run test:run` | Pending |
+| `npm run lint` | Pass |
+| `npm run typecheck` | Pass |
+| `npm run arch:circular` | Pass |
+| `npm run test:run` | Pass — **2851** tests (250 files) |
 
 ## Notes
 
