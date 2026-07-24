@@ -139,6 +139,7 @@ export type FeatureId =
   | 'ui.conversation_center'
   | 'ui.voice_center'
   | 'ui.knowledge_center'
+  | 'ui.travel_workspace'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

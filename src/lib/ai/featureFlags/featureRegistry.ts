@@ -1396,6 +1396,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: knowledge_center. UI only — no knowledge loading, vector DB, OCR, cloud storage, or backend. Books live only here.',
   },
+  {
+    id: 'ui.travel_workspace',
+    name: 'Premium Travel Workspace (Phase 4 Stage 5)',
+    description:
+      'Additive isolated Travel Workspace UI architecture: executive dashboard, timeline, travel cards, documents, progress, quick actions. Presentation models only — not wired to production routes, AI, planning, booking, Amadeus, payments, or prior Conversation/Voice/Knowledge centers. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: travel_workspace. UI only — no APIs, backend, booking providers, or AI execution.',
+  },
 ]
 
 export class FeatureRegistry {
