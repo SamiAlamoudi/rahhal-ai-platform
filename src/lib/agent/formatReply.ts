@@ -100,37 +100,6 @@ export function buildThinkingBridge(locale: AgentLocale): string {
   })
 }
 
-/** Prefer meta.spokenText; fall back to a safe short speech string. */
-export function resolveSpokenText(input: {
-  spokenText?: string | null
-  reply: string
-  tripPlan?: TripPlan | null
-  locale: AgentLocale
-}): string {
-  if (input.spokenText?.trim()) return input.spokenText.trim()
-  if (input.tripPlan) return buildSpokenPlanSummary(input.tripPlan, input.locale)
-  return shortenForSpeech(input.reply)
-}
-
-export function shortenForSpeech(text: string, maxChars = 320): string {
-  const plain = text
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/!\[[^\]]*]\([^)]+\)/g, ' ')
-    .replace(/\[[^\]]*]\([^)]+\)/g, ' ')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/^[-*•]\s+/gm, '')
-    .replace(/[#>*_~|]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  if (plain.length <= maxChars) return plain
-  const cut = plain.slice(0, maxChars)
-  const sentence = cut.match(/^[\s\S]*?[.!?؟。](?=\s|$)/)
-  if (sentence && sentence[0].length > 40) return sentence[0].trim()
-  const word = cut.lastIndexOf(' ')
-  return `${(word > 40 ? cut.slice(0, word) : cut).trim()}…`
-}
-
 function warmAck(requirements: TripRequirements, locale: AgentLocale): string {
   const dest = requirements.destination || requirements.destinations[0]
   const days = requirements.durationDays
@@ -412,20 +381,6 @@ function formatTripPlanDetails(plan: TripPlan, locale: AgentLocale): string {
 
 /** @deprecated Prefer formatTripPlanReply / composeTripPlanDisplay */
 export const formatItineraryReply = formatTripPlanReply
-
-export function buildSaveAck(locale: AgentLocale, title: string): string {
-  return t(locale, {
-    ar: `حفظت «${title}» لك. تقدر ترجع لها من المحفوظات في أي وقت، أو نكمّل التعديل هنا بهدوء.`,
-    en: `I saved “${title}” for you. You can reopen it anytime from Saved Trips, or we can keep refining it here.`,
-  })
-}
-
-export function buildEditAck(locale: AgentLocale): string {
-  return t(locale, {
-    ar: 'تمام — قل لي وش تبي نغيّر: الميزانية، الوجهة، التواريخ، أو عدد المسافرين، وأنا أعدّل الخطة مع الإبقاء على كل اللي اتفقنا عليه.',
-    en: 'Of course — tell me what to change: budget, destination, dates, or travelers, and I will reshape the plan while keeping what we already agreed.',
-  })
-}
 
 function formatDates(plan: TripPlan, locale: AgentLocale): string {
   if (plan.startDate && plan.endDate) return `${plan.startDate} → ${plan.endDate}`
