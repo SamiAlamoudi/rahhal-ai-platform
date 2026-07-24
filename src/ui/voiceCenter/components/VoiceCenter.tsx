@@ -62,6 +62,9 @@ export function VoiceCenter({
       transcript: initialState?.transcript,
       activeSessionId: initialState?.activeSessionId,
       sessionState: initialState?.sessionState,
+      currentTravelerText: initialState?.currentTravelerText,
+      currentAssistantText: initialState?.currentAssistantText,
+      showSettings: initialState?.showSettings,
     }),
   )
 

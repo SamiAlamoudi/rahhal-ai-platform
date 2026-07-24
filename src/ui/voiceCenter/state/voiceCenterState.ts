@@ -37,6 +37,9 @@ export function createInitialVoiceCenterState(options?: {
   transcript?: VoiceTranscriptEntry[]
   activeSessionId?: string | null
   sessionState?: VoiceSessionState
+  currentTravelerText?: string
+  currentAssistantText?: string
+  showSettings?: boolean
 }): VoiceCenterUiState {
   const locale = options?.locale ?? 'ar'
   return {
@@ -45,14 +48,14 @@ export function createInitialVoiceCenterState(options?: {
     speakerOn: true,
     headphonesOn: false,
     muted: false,
-    showSettings: false,
+    showSettings: options?.showSettings ?? false,
     searchQuery: '',
     historyBucket: 'recent',
     sessions: options?.sessions ?? [],
     activeSessionId: options?.activeSessionId ?? options?.sessions?.[0]?.id ?? null,
     transcript: options?.transcript ?? [],
-    currentTravelerText: '',
-    currentAssistantText: '',
+    currentTravelerText: options?.currentTravelerText ?? '',
+    currentAssistantText: options?.currentAssistantText ?? '',
     personality: createDefaultPersonality(locale),
     settings: createDefaultVoiceSettings(),
     featureEnabled: isVoiceCenterEnabled({ enabled: options?.enabled }),
