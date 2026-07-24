@@ -112,7 +112,7 @@ import { isRahhalBrainEnabled } from '../brain/core'
 import { isBookingFlowEnabled } from '../bookingFlow'
 import { isTravelReasoningEnabled } from './reasoning'
 import { runPlanTurn } from './planTurn/runPlanTurn'
-import type { RunToolsForPlanInput, RunToolsForPlanResult } from './planTurn/context'
+import type { PlanTurnDeps, RunToolsForPlanInput, RunToolsForPlanResult } from './planTurn/context'
 import { offersFromToolBatch } from './planTurn/helpers'
 
 export interface TravelAgentTurnInput {
@@ -802,36 +802,38 @@ export function createTravelAgentService(
     }
   }
 
+  const planTurnDeps: PlanTurnDeps = {
+    options,
+    llms,
+    savePlanHook,
+    conciergeService,
+    listBookingRecords,
+    runToolsForPlan,
+    isConciergeEnabled,
+    isBookingHistoryEnabled,
+    isBookingConfirmationEnabled,
+    isOrderManagementEnabled,
+    isSmartItineraryEnabled,
+    isBrainEnabled,
+    isBrainHandoffEnabled,
+    isTravelEngineEnabled,
+    isTripPlanningEnabled,
+    isExecutionEnabled,
+    isSearchEnabled,
+    isTripOrchestratorEnabled,
+    isReasoningEnabled,
+    isClarificationEnabled,
+    isBrainCoreEnabled,
+    isAutonomousEnabled,
+    isTravelerPersonalizationOn,
+    isTravelPlannerOn,
+    isAdaptiveLearningOn,
+    isFlowEnabled,
+  }
+
   const service: TravelAgentService = {
     async planTurn(input) {
-      return runPlanTurn(input, {
-        options,
-        llms,
-        savePlanHook,
-        conciergeService,
-        listBookingRecords,
-        runToolsForPlan,
-        isConciergeEnabled,
-        isBookingHistoryEnabled,
-        isBookingConfirmationEnabled,
-        isOrderManagementEnabled,
-        isSmartItineraryEnabled,
-        isBrainEnabled,
-        isBrainHandoffEnabled,
-        isTravelEngineEnabled,
-        isTripPlanningEnabled,
-        isExecutionEnabled,
-        isSearchEnabled,
-        isTripOrchestratorEnabled,
-        isReasoningEnabled,
-        isClarificationEnabled,
-        isBrainCoreEnabled,
-        isAutonomousEnabled,
-        isTravelerPersonalizationOn,
-        isTravelPlannerOn,
-        isAdaptiveLearningOn,
-        isFlowEnabled,
-      })
+      return runPlanTurn(input, planTurnDeps)
     },
 
     async regeneratePlan({ conversationId, memory, signal }) {
