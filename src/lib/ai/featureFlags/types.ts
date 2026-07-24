@@ -137,6 +137,7 @@ export type FeatureId =
   | 'ui.premium_home'
   | 'ui.application_shell'
   | 'ui.conversation_center'
+  | 'ui.voice_center'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

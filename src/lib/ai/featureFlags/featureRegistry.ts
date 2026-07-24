@@ -1374,6 +1374,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: conversation_center. UI only — no AI calls, networking, speech, knowledge loading, booking, payments, or maps. Voice/Knowledge/Books are external nav placeholders only.',
   },
+  {
+    id: 'ui.voice_center',
+    name: 'Premium Voice Conversation Center (Phase 4 Stage 3)',
+    description:
+      'Additive isolated Voice Center UI architecture: immersive mic stage, session states/controls, transcript, personality/settings placeholders. Own destination — not inside Chat. Not wired to AI, TTS, STT, Runtime Coordinator, or Orchestrator. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: voice_center. UI only — no Whisper/ElevenLabs/OpenAI Voice/Azure/Google Speech, no APIs, no streaming realtime. Placeholders only.',
+  },
 ]
 
 export class FeatureRegistry {
