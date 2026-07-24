@@ -20,8 +20,12 @@ export function isConsultantPipelineEnabled(options?: {
 }
 
 /** Execution stages before unified response composition. */
-export const EXECUTION_STAGE_ORDER: readonly ConsultantStageId[] =
-  CONSULTANT_STAGE_ORDER.filter((id) => id !== 'unified_response')
+export const EXECUTION_STAGE_ORDER: readonly Exclude<
+  ConsultantStageId,
+  'unified_response'
+>[] = CONSULTANT_STAGE_ORDER.filter(
+  (id): id is Exclude<ConsultantStageId, 'unified_response'> => id !== 'unified_response',
+)
 
 export function nextStage(
   current: ConsultantStageId | null,

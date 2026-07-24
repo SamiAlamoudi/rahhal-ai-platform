@@ -427,6 +427,7 @@ async function runTravelerIntelligenceStage(
 
   const conf = clamp01(snapshot.overallConfidence)
   const dna = snapshot.travelDna
+  const profileHints = nextModel.profile
 
   return timed('traveler_intelligence', start, {
     status: 'completed',
@@ -439,14 +440,14 @@ async function runTravelerIntelligenceStage(
     missingInformation: [],
     questions: [],
     travelerSnapshot: {
-      purpose: snapshot.profile.purposeHints[0] ?? ctx.travelerSnapshot.purpose,
+      purpose: profileHints.purposeHints[0] ?? ctx.travelerSnapshot.purpose,
       pace: dna.paceGene || ctx.travelerSnapshot.pace,
       budgetStance: dna.budgetGene || ctx.travelerSnapshot.budgetStance,
       riskTolerance: dna.riskGene || ctx.travelerSnapshot.riskTolerance,
       partySize: ctx.travelerSnapshot.partySize,
       interests: uniqueStrings([
         ...(ctx.travelerSnapshot.interests ?? []),
-        ...snapshot.profile.displayHints,
+        ...profileHints.displayHints,
       ]),
       summary: snapshot.summary,
       confidence: conf,

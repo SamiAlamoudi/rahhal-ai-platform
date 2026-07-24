@@ -92,7 +92,7 @@ export function enrichPlanningSnapshot(
 
 export function createInitialContext(input: ConsultantPipelineInput): StageIOContext {
   const locale: ConsultantPipelineLocale = input.locale === 'en' ? 'en' : 'ar'
-  const known = { ...(input.known ?? {}) }
+  const known: StageIOContext['known'] = input.known ? { ...input.known } : {}
   const destinations: string[] = []
   if (known.destination) destinations.push(known.destination)
 
