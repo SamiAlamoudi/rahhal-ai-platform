@@ -58,9 +58,16 @@ export function parseOptimizerIntent(text: string | null | undefined): ParsedOpt
     cues.push('business')
     if (priority === 'balanced') priority = 'business'
   }
-  if (/\bcheapest\b|\bbudget\b|\bsave\s+money\b|أرخص|ميزانية\s*محدودة/.test(lower) && !willingToPayMore) {
+  if (/\bcheapest\b|\bsave\s+money\b|أرخص|ميزانية\s*محدودة/.test(lower) && !willingToPayMore) {
     cues.push('budget')
     priority = 'budget'
+  } else if (/\bbudget\b/.test(lower) && !willingToPayMore) {
+    cues.push('budget')
+    // Stating a budget ceiling ("budget SAR 8000") is not a request to optimize for cheapest.
+    const statesBudgetCeiling =
+      /\bbudget\s*(?:of|:)?\s*(?:sar|usd|eur|aed|gbp)?\s*\d/i.test(lower)
+      || /\bbudget\s+(?:sar|usd|eur|aed|gbp)\b/i.test(lower)
+    if (!statesBudgetCeiling) priority = 'budget'
   }
   if (/\bfastest\b|\bquick(?:est)?\b|\bshortest\b|أسرع/.test(lower)) {
     cues.push('speed')

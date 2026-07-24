@@ -670,6 +670,22 @@ function matchDates(
   }
 
   const lower = text.toLowerCase()
+
+  // Weekend phrases → concrete Sat–Sun window (approx travel period).
+  const weekendNext =
+    /\bnext\s+weekend\b/.test(lower)
+    || /نهاية\s*الأسبوع\s*القادم|نهاية\s*الاسبوع\s*القادم|عطلة\s*نهاية\s*الأسبوع\s*القادمة|عطلة\s*نهاية\s*الاسبوع\s*القادمة/.test(text)
+  const weekendThis =
+    /\bthis\s+weekend\b/.test(lower)
+    || /نهاية\s*الأسبوع\s*هذي|نهاية\s*الاسبوع\s*هذي|نهاية\s*الأسبوع\s*هذه|نهاية\s*الاسبوع\s*هذه|عطلة\s*نهاية\s*الأسبوع|عطلة\s*نهاية\s*الاسبوع/.test(text)
+  const weekendBare =
+    /\bweekend\b/.test(lower)
+    || /نهاية\s*الأسبوع|نهاية\s*الاسبوع/.test(text)
+  if (weekendNext || weekendThis || weekendBare) {
+    const range = upcomingWeekendRange(now, { preferNext: weekendNext || (!weekendThis && weekendBare) })
+    return range
+  }
+
   if (/\btomorrow\b|غداً|غدا|بكره|بكرة/.test(lower) || /غدا/.test(text)) {
     return { start: formatUtcIso(addUtcDays(now, 1)), end: null }
   }
@@ -689,6 +705,26 @@ function matchDates(
   }
 
   return { start: null, end: null }
+}
+
+/** Upcoming Saturday–Sunday window used for "weekend" / "next weekend" inference. */
+function upcomingWeekendRange(
+  now: Date,
+  options: { preferNext: boolean },
+): { start: string; end: string } {
+  const day = now.getUTCDay() // 0 Sun … 6 Sat
+  let daysUntilSaturday: number
+  if (day === 6) {
+    daysUntilSaturday = options.preferNext ? 7 : 0
+  } else if (day === 0) {
+    // Sunday: "this weekend" started yesterday; "next" is the following Saturday.
+    daysUntilSaturday = options.preferNext ? 6 : -1
+  } else {
+    daysUntilSaturday = 6 - day
+  }
+  const saturday = addUtcDays(now, daysUntilSaturday)
+  const sunday = addUtcDays(saturday, 1)
+  return { start: formatUtcIso(saturday), end: formatUtcIso(sunday) }
 }
 
 /**

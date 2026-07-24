@@ -15,7 +15,6 @@ const HARD_INTAKE: Array<keyof TripRequirements> = [
   'destination',
   'durationDays',
   'budgetAmount',
-  'travelers',
 ]
 
 function isHardIntakeField(

@@ -39,7 +39,7 @@ describe('travelAgentProvider', () => {
   it('asks follow-up when duration is missing', async () => {
     const provider = createTravelAgentProvider()
     const { text, meta } = await collect(provider, [user('Plan a trip to Japan')])
-    expect(text.toLowerCase()).toMatch(/day|يوم|duration|مدة|when|متى/)
+    expect(text.toLowerCase()).toMatch(/day|يوم|duration|مدة|when|متى|timing|window|توقيت/)
     expect(meta?.kind).toBe('travel_agent')
     const memory = meta?.memory as { phase?: string; missingFields?: string[] }
     expect(memory.phase).toBe('collecting')

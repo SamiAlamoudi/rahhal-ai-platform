@@ -8,6 +8,7 @@ export {
   SOFT_CLARIFICATION_FIELDS,
   inferSoftRequirements,
   missingClarificationFields,
+  hasApproximateTravelDates,
   type ClarificationInference,
 } from './smartClarification'
 export { isSmartClarificationEnabled } from './feature'

@@ -85,7 +85,7 @@ describe('Concierge Phase 2 — soft signals', () => {
 describe('Concierge Phase 2 — turn policy', () => {
   it('greets and asks on the first turn', () => {
     const memory = emptyMemory('en')
-    memory.missingFields = ['destination', 'durationDays', 'budgetAmount', 'travelers']
+    memory.missingFields = ['destination', 'durationDays', 'budgetAmount']
     const decision = decideConciergeTurn({
       locale: 'en',
       memory,
@@ -97,7 +97,7 @@ describe('Concierge Phase 2 — turn policy', () => {
     })
     expect(decision.action).toBe('greet')
     expect(decision.shouldExecuteAgent).toBe(false)
-    expect(decision.askFields.length).toBeGreaterThan(0)
+    expect(decision.askFields).toEqual(['destination'])
     expect(decision.state.turnCount).toBe(1)
   })
 
@@ -108,7 +108,7 @@ describe('Concierge Phase 2 — turn policy', () => {
       destination: 'Tokyo',
       destinations: ['Tokyo'],
     }
-    memory.missingFields = ['durationDays', 'budgetAmount', 'travelers']
+    memory.missingFields = ['durationDays', 'budgetAmount']
     const previous = advanceConciergeState({
       previous: emptyConciergeState(),
       phase: 'discovery',
@@ -125,7 +125,7 @@ describe('Concierge Phase 2 — turn policy', () => {
     })
     expect(['ask', 'clarify']).toContain(decision.action)
     expect(decision.shouldExecuteAgent).toBe(false)
-    expect(decision.askFields[0]).toBe('durationDays')
+    expect(decision.askFields).toEqual(['durationDays'])
   })
 
   it('proposes options on an advisory beat when intake is complete', () => {

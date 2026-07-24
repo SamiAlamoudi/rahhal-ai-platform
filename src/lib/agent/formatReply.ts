@@ -22,8 +22,8 @@ export function buildFollowUpQuestion(
 
   if (!next) {
     return t(locale, {
-      ar: 'ممتاز — عندي ما يكفي لنبدأ. قل «ابني الخطة» وسأجهّز خيارات تناسبك.',
-      en: 'Perfect — I have enough to begin. Say “build the plan” and I will put options together for you.',
+      ar: 'عندي ما يكفي لنبدأ. قل «ابني الخطة» وسأجهّز الخيارات.',
+      en: 'I have enough to begin. Say “build the plan” and I will put options together.',
     })
   }
 
@@ -135,28 +135,41 @@ function warmAck(requirements: TripRequirements, locale: AgentLocale): string {
   const dest = requirements.destination || requirements.destinations[0]
   const days = requirements.durationDays
   const party = partyPhrase(requirements, locale)
+  const when = requirements.startDate && requirements.endDate
+    ? (locale === 'ar'
+      ? `من ${requirements.startDate} إلى ${requirements.endDate}`
+      : `${requirements.startDate} → ${requirements.endDate}`)
+    : requirements.startDate
+      ? (locale === 'ar' ? `حوالي ${requirements.startDate}` : `around ${requirements.startDate}`)
+      : null
 
-  if (dest && days != null && party) {
+  if (dest && (days != null || when) && party) {
+    const timing = when ?? (locale === 'ar'
+      ? `لمدة ${days} ${days === 1 ? 'يوم' : 'أيام'}`
+      : `for ${days} day${days === 1 ? '' : 's'}`)
     return t(locale, {
-      ar: `ممتاز — ${dest} لمدة ${days} ${days === 1 ? 'يوم' : 'أيام'} ${party} تبدو رحلة جميلة.`,
-      en: `Lovely — ${dest} for ${days} day${days === 1 ? '' : 's'}${party} already sounds like a great trip.`,
+      ar: `فهمت — ${dest} ${timing} ${party}.`,
+      en: `Understood — ${dest} ${timing}${party}.`,
     })
   }
-  if (dest && days != null) {
+  if (dest && (days != null || when)) {
+    const timing = when ?? (locale === 'ar'
+      ? `لمدة ${days} ${days === 1 ? 'يوم' : 'أيام'}`
+      : `for ${days} day${days === 1 ? '' : 's'}`)
     return t(locale, {
-      ar: `${dest} لمدة ${days} ${days === 1 ? 'يوم' : 'أيام'} — اختيار رائع.`,
-      en: `${dest} for ${days} day${days === 1 ? '' : 's'} — wonderful choice.`,
+      ar: `فهمت — ${dest} ${timing}.`,
+      en: `Understood — ${dest} ${timing}.`,
     })
   }
   if (dest) {
     return t(locale, {
-      ar: `${dest} تبدو ممتعة جداً.`,
-      en: `${dest} sounds wonderful.`,
+      ar: `فهمت — الوجهة ${dest}.`,
+      en: `Understood — destination ${dest}.`,
     })
   }
   return t(locale, {
-    ar: 'يبدو أن عندك رحلة جميلة في البال.',
-    en: 'That sounds exciting.',
+    ar: 'فهمت.',
+    en: 'Understood.',
   })
 }
 

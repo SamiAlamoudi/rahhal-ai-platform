@@ -58,7 +58,7 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
     action = previous.turnCount === 0 ? 'greet' : 'propose_options'
     askFields = pickAskFields(
       ctx.missingFields.filter((field) => field !== 'destination'),
-      2,
+      1,
     )
     rationale = 'Open-ended discovery — propose destinations; ask only remaining hard slots.'
     const nextPhase = 'advising'
@@ -81,8 +81,8 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
 
   if (phase === 'greeting' && previous.turnCount === 0 && !intakeComplete) {
     action = 'greet'
-    askFields = pickAskFields(ctx.missingFields, 2)
-    rationale = 'First turn — greet and open discovery.'
+    askFields = pickAskFields(ctx.missingFields, 1)
+    rationale = 'First turn — greet and open discovery with one blocking question.'
   } else if (phase === 'refining' && hasPlan) {
     if (EXECUTE_INTENTS.has(ctx.intent) || ctx.intent === 'save') {
       action = 'refine'
@@ -110,12 +110,13 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
     rationale = 'Advisory beat — propose conversational options without executing.'
   } else if (hardMissing > 0) {
     action = previous.turnCount === 0 ? 'greet' : (hardMissing >= 3 ? 'ask' : 'clarify')
-    askFields = pickAskFields(ctx.missingFields, action === 'greet' ? 2 : Math.min(2, hardMissing))
-    rationale = 'Hard requirements incomplete — ask/clarify as a consultant.'
+    // One blocking question only — never a form checklist.
+    askFields = pickAskFields(ctx.missingFields, 1)
+    rationale = 'Hard requirements incomplete — ask one consultant question.'
   } else if (!intakeComplete && (phase === 'deepening' || phase === 'advising' || phase === 'discovery')) {
     if (hasSoftDepth(softSignals) && softAskRemaining(ctx.missingFields).length <= 2) {
       action = 'propose_options'
-      askFields = softAskRemaining(ctx.missingFields).slice(0, 2)
+      askFields = softAskRemaining(ctx.missingFields).slice(0, 1)
       rationale = 'Hard intake ready — propose directions while soft slots remain.'
     } else {
       action = 'ask'
@@ -190,8 +191,8 @@ function pickSoftAskFields(
   missing: Array<keyof TripRequirements>,
 ): Array<keyof TripRequirements> {
   const fromMissing = softAskRemaining(missing)
-  if (fromMissing.length > 0) return fromMissing.slice(0, 2)
-  return ['interests', 'budgetStyle']
+  if (fromMissing.length > 0) return fromMissing.slice(0, 1)
+  return []
 }
 
 function isAffirmative(text: string): boolean {
