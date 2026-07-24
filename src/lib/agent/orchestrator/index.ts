@@ -78,3 +78,93 @@ export {
   runAIOrchestrator,
   type AIOrchestratorOptions,
 } from './AIOrchestrator'
+
+/* ── Phase 2 Stage 1: Consultant Pipeline (additive; default OFF) ── */
+
+export type {
+  ConsultantPipelineLocale,
+  ConsultantStageId,
+  ConsultantStageStatus,
+  TravelerSnapshotView,
+  PlanningSnapshotView,
+  StageIOContext,
+  StageResult,
+  ConsultantPipelineInput,
+  UnifiedConsultantResponse,
+  ConsultantPipelineResult,
+} from './pipelineTypes'
+
+export {
+  CONSULTANT_STAGE_ORDER,
+  DEFAULT_MIN_CONFIDENCE,
+  clamp01 as clampConsultant01,
+  uniqueStrings as uniqueConsultantStrings,
+} from './pipelineTypes'
+
+export {
+  CONSULTANT_PIPELINE_FEATURE_ID,
+  INTEGRATION_REGISTRY,
+  getIntegrationRef,
+  listIntegratedFeatureIds,
+} from './integrationRegistry'
+
+export {
+  isConsultantPipelineEnabled,
+  EXECUTION_STAGE_ORDER,
+  nextStage,
+  ConsultantStages,
+} from './consultantStages'
+
+export {
+  createInitialContext,
+  enrichContextFromStage,
+  enrichTravelerSnapshot,
+  enrichPlanningSnapshot,
+  hasStageOutput,
+  ConsultantContext,
+} from './consultantContext'
+
+export {
+  createPipelineState,
+  appendStageResult,
+  markRunning,
+  markStoppedForClarification,
+  markCompleted,
+  shouldStopForConfidence,
+  ConsultantState,
+  type PipelineRunStatus,
+  type ConsultantPipelineState,
+} from './consultantState'
+
+export {
+  executeConsultantStage,
+  ConsultantExecution,
+} from './consultantExecution'
+
+export {
+  buildUnifiedConsultantResponse,
+  ConsultantOutputs,
+} from './consultantOutputs'
+
+export {
+  runConsultantPipeline,
+  tryRunConsultantPipeline,
+  ConsultantPipeline,
+} from './consultantPipeline'
+
+export {
+  enrichTurnWithConsultantPipeline,
+  ConsultantActivation,
+  type ConsultantPipelineActivationSnapshot,
+  type ConsultantActivationTurnLike,
+  type ConsultantActivationOptions,
+} from './consultantActivation'
+
+export {
+  recordConsultantPipelineTelemetry,
+  getConsultantPipelineTelemetry,
+  resetConsultantPipelineTelemetry,
+  ConsultantTelemetry,
+  type ConsultantPipelineTelemetryEvent,
+  type ConsultantPipelineTelemetrySnapshot,
+} from './consultantTelemetry'

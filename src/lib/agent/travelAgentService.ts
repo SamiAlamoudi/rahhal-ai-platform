@@ -380,6 +380,11 @@ export interface TravelAgentServiceOptions {
    */
   paymentsEnabled?: boolean
   /**
+   * Phase 2 Stage 2 — Consultant Pipeline activation (read-only enrichment after planTurn).
+   * Default: FeatureRegistry `ai.consultant_pipeline` (OFF). Never mutates production planning.
+   */
+  consultantPipelineEnabled?: boolean
+  /**
    * Phase 2 — AI Travel Executive intelligence.
    * Default: FeatureRegistry `ai.travel_executive` (ON).
    */
@@ -2901,6 +2906,28 @@ export function createTravelAgentService(
       })
       return { id: saved.id, title: saved.title }
     },
+  }
+
+  // Phase 2 Stage 2 — optional Consultant Pipeline activation (read-only enrich).
+  // Flag OFF → identical production behavior (no pipeline import / latency).
+  const productionPlanTurn = service.planTurn.bind(service)
+  service.planTurn = async (input) => {
+    const result = await productionPlanTurn(input)
+    const forced = options.consultantPipelineEnabled
+    if (forced === false) return result
+    if (
+      forced !== true
+      && !getFeatureRegistry().isEnabled('ai.consultant_pipeline')
+    ) {
+      return result
+    }
+    const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
+    const { enrichTurnWithConsultantPipeline } = await import('./orchestrator/consultantActivation')
+    return enrichTurnWithConsultantPipeline(result, {
+      userText: lastUser?.content ?? '',
+      conversationId: input.conversationId,
+      enabled: true,
+    })
   }
 
   return service
