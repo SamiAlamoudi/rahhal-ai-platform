@@ -64,3 +64,13 @@ npm run test:run
 - Changing Runtime Coordinator / Consultant Pipeline / Unified Response  
 - Changing Conversation Orchestrator / Multi-Turn / Proactive Advisor  
 - Voice playback / Knowledge loading / Memory overwrite  
+
+## Validation (Phase 3 Stage 4)
+
+| Check | Result |
+|-------|--------|
+| `npm run lint` | pass |
+| `npm run typecheck` | pass |
+| `npm run arch:circular` | pass |
+| `npm run test:run` | **2782** passed |
+
