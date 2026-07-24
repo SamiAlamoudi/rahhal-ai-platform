@@ -1363,6 +1363,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: application_shell. Framework only — no booking, search, payment, maps, or AI changes. Production unchanged when OFF.',
   },
+  {
+    id: 'ui.conversation_center',
+    name: 'Premium AI Conversation Center (Phase 4 Stage 2)',
+    description:
+      'Additive isolated Conversation Center UI architecture: sidebar history, message types/cards, floating composer. Not wired into production routes, Runtime Coordinator, or Conversation Orchestrator. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: conversation_center. UI only — no AI calls, networking, speech, knowledge loading, booking, payments, or maps. Voice/Knowledge/Books are external nav placeholders only.',
+  },
 ]
 
 export class FeatureRegistry {
