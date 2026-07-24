@@ -1429,6 +1429,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: command_palette. UI only — navigation labels and local filtering; no API calls, realtime search, or AI search.',
   },
+  {
+    id: 'ui.journey_timeline',
+    name: 'AI Journey Timeline (Phase 5 Stage 1)',
+    description:
+      'Additive isolated Journey Timeline UI: departure-to-return steps, event cards, smart layouts, progress. Presentation only — not wired to production, AI, Runtime Coordinator, Booking/Maps/Weather APIs, realtime, or notifications. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: journey_timeline. UI only — weather/currency/maps are placeholders; no backend or booking.',
+  },
 ]
 
 export class FeatureRegistry {

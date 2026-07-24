@@ -142,6 +142,7 @@ export type FeatureId =
   | 'ui.travel_workspace'
   | 'ui.executive_dashboard'
   | 'ui.command_palette'
+  | 'ui.journey_timeline'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'
