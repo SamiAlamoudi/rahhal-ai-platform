@@ -208,3 +208,112 @@ export const ConsultantActivation = {
   enrichTurn: enrichTurnWithConsultantPipeline,
   isEnabled: isConsultantPipelineEnabled,
 }
+
+export interface ConsultantFinalizeOptions {
+  userText: string
+  conversationId: string
+  /** Attach Stage 2 meta.consultantPipeline */
+  attachPipelineMeta?: boolean
+  /** Attach Stage 3 meta.consultantResponse */
+  attachResponseMeta?: boolean
+  now?: Date
+}
+
+/**
+ * Run the Consultant Pipeline at most once and attach requested read-only metas.
+ * Used by planTurn when pipeline and/or response flags are ON.
+ */
+export async function finalizeConsultantTurnEnrichment<T extends ConsultantActivationTurnLike>(
+  turn: T,
+  options: ConsultantFinalizeOptions,
+): Promise<T> {
+  const wantPipeline = options.attachPipelineMeta === true
+  const wantResponse = options.attachResponseMeta === true
+  if (!wantPipeline && !wantResponse) return turn
+
+  const t0 = Date.now()
+  try {
+    const { runConsultantPipeline } = await import('./consultantPipeline')
+    const locale = turn.memory.locale === 'en' ? 'en' : 'ar'
+    const requirements = turn.memory.requirements
+    const toolResults =
+      turn.toolBatch &&
+      typeof turn.toolBatch === 'object' &&
+      Array.isArray((turn.toolBatch as { results?: unknown[] }).results)
+        ? (turn.toolBatch as { results: unknown[] }).results
+        : undefined
+
+    const pipeline = await runConsultantPipeline({
+      locale,
+      userText: options.userText,
+      conversationId: options.conversationId,
+      known: knownFromRequirements(requirements),
+      tripPlan: turn.tripPlan ?? undefined,
+      toolResults,
+      requirements,
+      enabled: true,
+      now: options.now,
+    })
+
+    let next: T = turn
+    let meta: AgentProviderMeta = { ...turn.meta }
+
+    if (wantPipeline) {
+      const clarificationCount = pipeline.response.questions.length
+      const telemetry = recordConsultantPipelineTelemetry({
+        success: true,
+        totalDurationMs: Math.max(0, Date.now() - t0),
+        stageTimings: stageTimingsFrom(pipeline),
+        confidence: pipeline.response.confidence,
+        clarificationCount,
+        stoppedEarly: pipeline.stoppedEarly,
+        stageCount: pipeline.stages.length,
+        failureCode: null,
+      })
+      meta = {
+        ...meta,
+        consultantPipeline: toActivationSnapshot(pipeline, telemetry),
+      }
+      next = { ...next, meta }
+    }
+
+    if (wantResponse) {
+      const { buildConsultantResponsePackage } = await import('./consultantResponse')
+      const { recordConsultantResponseTelemetry } = await import('./consultantResponseTelemetry')
+      const pkg = buildConsultantResponsePackage(pipeline)
+      recordConsultantResponseTelemetry({
+        success: true,
+        responseGenerationMs: pkg.telemetry.responseGenerationMs,
+        aggregationMs: pkg.telemetry.aggregationMs,
+        confidence: pkg.telemetry.confidence,
+        questionCount: pkg.telemetry.questionCount,
+        failureCode: null,
+      })
+      meta = {
+        ...meta,
+        consultantResponse: pkg,
+      }
+      next = { ...next, meta }
+    }
+
+    return next
+  } catch {
+    if (wantPipeline) {
+      recordConsultantPipelineTelemetry({
+        success: false,
+        totalDurationMs: Math.max(0, Date.now() - t0),
+        stageTimings: {},
+        confidence: 0,
+        clarificationCount: 0,
+        stoppedEarly: true,
+        stageCount: 0,
+        failureCode: 'pipeline_execution_error',
+      })
+    }
+    return turn
+  }
+}
+
+export const ConsultantFinalize = {
+  finalize: finalizeConsultantTurnEnrichment,
+}

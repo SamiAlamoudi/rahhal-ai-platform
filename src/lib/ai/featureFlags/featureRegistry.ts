@@ -164,6 +164,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: consultant_pipeline. Default OFF. Stage 2 may attach read-only enrichment after planTurn when enabled; never mutates planning.',
   },
   {
+    id: 'ai.consultant_response',
+    name: 'Unified Consultant Response (AI Integration Stage 3)',
+    description:
+      'Additive offline aggregation of consultant pipeline stage outputs into one multi-format consultant response. Read-only; never mutates production planning.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_pipeline'],
+    notes: 'Product alias: consultant_response. Default OFF. Formats: executive / short / detailed / consultant.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:

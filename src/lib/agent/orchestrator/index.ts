@@ -154,10 +154,13 @@ export {
 
 export {
   enrichTurnWithConsultantPipeline,
+  finalizeConsultantTurnEnrichment,
   ConsultantActivation,
+  ConsultantFinalize,
   type ConsultantPipelineActivationSnapshot,
   type ConsultantActivationTurnLike,
   type ConsultantActivationOptions,
+  type ConsultantFinalizeOptions,
 } from './consultantActivation'
 
 export {
@@ -168,3 +171,44 @@ export {
   type ConsultantPipelineTelemetryEvent,
   type ConsultantPipelineTelemetrySnapshot,
 } from './consultantTelemetry'
+
+export {
+  CONSULTANT_RESPONSE_FEATURE_ID,
+  isConsultantResponseEnabled,
+  buildConsultantResponsePackage,
+  tryBuildConsultantResponsePackage,
+  enrichTurnWithConsultantResponse,
+  ConsultantResponse,
+} from './consultantResponse'
+
+export {
+  aggregateConsultantResponse,
+  ConsultantResponseAggregator,
+} from './consultantResponseAggregator'
+
+export {
+  buildConsultantResponseFormats,
+  ConsultantResponseFormatsBuilder,
+} from './consultantResponseFormats'
+
+export {
+  recordConsultantResponseTelemetry,
+  getConsultantResponseTelemetry,
+  resetConsultantResponseTelemetry,
+  ConsultantResponseTelemetry,
+  type ConsultantResponseTelemetryEvent,
+  type ConsultantResponseTelemetrySnapshot,
+} from './consultantResponseTelemetry'
+
+export type {
+  ConsultantResponseLocale,
+  ConsultantResponseFormatKind,
+  ConsultantResponseBody,
+  ConsultantExecutiveFormat,
+  ConsultantShortFormat,
+  ConsultantDetailedFormat,
+  ConsultantVoiceFormat,
+  ConsultantResponseFormats,
+  ConsultantResponsePackage,
+  ConsultantEnrichTurnLike,
+} from './consultantResponseTypes'

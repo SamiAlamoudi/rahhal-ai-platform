@@ -644,7 +644,7 @@ export type {
   OrchestratorFinalResponse,
 } from './orchestrator'
 
-/** Phase 2 Stage 1 — Consultant Pipeline orchestration (additive; default OFF) */
+/** Phase 2 Stage 1–3 — Consultant Pipeline + Unified Response (additive; default OFF) */
 export {
   CONSULTANT_PIPELINE_FEATURE_ID,
   isConsultantPipelineEnabled,
@@ -654,8 +654,16 @@ export {
   CONSULTANT_STAGE_ORDER,
   INTEGRATION_REGISTRY,
   enrichTurnWithConsultantPipeline,
+  finalizeConsultantTurnEnrichment,
   getConsultantPipelineTelemetry,
   resetConsultantPipelineTelemetry,
+  CONSULTANT_RESPONSE_FEATURE_ID,
+  isConsultantResponseEnabled,
+  buildConsultantResponsePackage,
+  tryBuildConsultantResponsePackage,
+  enrichTurnWithConsultantResponse,
+  getConsultantResponseTelemetry,
+  resetConsultantResponseTelemetry,
 } from './orchestrator'
 export type {
   ConsultantPipelineInput,
@@ -665,6 +673,9 @@ export type {
   StageIOContext,
   ConsultantPipelineActivationSnapshot,
   ConsultantPipelineTelemetrySnapshot,
+  ConsultantResponsePackage,
+  ConsultantResponseBody,
+  ConsultantResponseTelemetrySnapshot,
 } from './orchestrator'
 
 /** Sprint 114 — Intelligent Itinerary Engine */

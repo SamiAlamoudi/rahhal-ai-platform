@@ -385,6 +385,11 @@ export interface TravelAgentServiceOptions {
    */
   consultantPipelineEnabled?: boolean
   /**
+   * Phase 2 Stage 3 — Unified Consultant Response aggregation (read-only).
+   * Default: FeatureRegistry `ai.consultant_response` (OFF). Never mutates production planning.
+   */
+  consultantResponseEnabled?: boolean
+  /**
    * Phase 2 — AI Travel Executive intelligence.
    * Default: FeatureRegistry `ai.travel_executive` (ON).
    */
@@ -2908,25 +2913,30 @@ export function createTravelAgentService(
     },
   }
 
-  // Phase 2 Stage 2 — optional Consultant Pipeline activation (read-only enrich).
-  // Flag OFF → identical production behavior (no pipeline import / latency).
+  // Phase 2 Stage 2/3 — optional Consultant Pipeline + Unified Response (read-only).
+  // Flags OFF → identical production behavior (no pipeline/response import latency).
   const productionPlanTurn = service.planTurn.bind(service)
   service.planTurn = async (input) => {
     const result = await productionPlanTurn(input)
-    const forced = options.consultantPipelineEnabled
-    if (forced === false) return result
-    if (
-      forced !== true
-      && !getFeatureRegistry().isEnabled('ai.consultant_pipeline')
-    ) {
-      return result
-    }
+    const pipelineForced = options.consultantPipelineEnabled
+    const responseForced = options.consultantResponseEnabled
+    const pipelineOn =
+      pipelineForced === true
+      || (pipelineForced !== false
+        && getFeatureRegistry().isEnabled('ai.consultant_pipeline'))
+    const responseOn =
+      responseForced === true
+      || (responseForced !== false
+        && getFeatureRegistry().isEnabled('ai.consultant_response'))
+    if (!pipelineOn && !responseOn) return result
+
     const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
-    const { enrichTurnWithConsultantPipeline } = await import('./orchestrator/consultantActivation')
-    return enrichTurnWithConsultantPipeline(result, {
+    const { finalizeConsultantTurnEnrichment } = await import('./orchestrator/consultantActivation')
+    return finalizeConsultantTurnEnrichment(result, {
       userText: lastUser?.content ?? '',
       conversationId: input.conversationId,
-      enabled: true,
+      attachPipelineMeta: pipelineOn,
+      attachResponseMeta: responseOn,
     })
   }
 
