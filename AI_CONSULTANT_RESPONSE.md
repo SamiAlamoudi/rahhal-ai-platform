@@ -86,10 +86,10 @@ Telemetry (no PII): `responseGenerationMs`, `aggregationMs`, `confidence`, `ques
 
 ## Validation
 
-- `npm run lint`
-- `npm run typecheck`
-- `npm run arch:circular`
-- `npm run test:run`
+- `npm run lint` — pass
+- `npm run typecheck` — pass
+- `npm run arch:circular` — pass
+- `npm run test:run` — **2717** passed (233 files), including Stage 3 aggregation tests
 
 ---
 
