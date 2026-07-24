@@ -150,6 +150,8 @@ export class BookingComApiClient {
   }
 
   private useProxy(): boolean {
+    // Prefer direct server key when present (Node / Edge tests); SPA uses proxy only.
+    if (this.config.apiKey) return false
     return Boolean(this.config.proxyUrl && this.config.invokeApiKey)
   }
 

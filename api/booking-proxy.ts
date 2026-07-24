@@ -65,7 +65,7 @@ export default async function handler(req: Request): Promise<Response> {
     body?: unknown
   }
   try {
-    payload = await req.json()
+    payload = await req.json() as typeof payload
   } catch {
     return jsonEdgeResponse({ error: 'Invalid JSON body', code: 'INVALID_BODY' }, 400, cors)
   }

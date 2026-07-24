@@ -14,7 +14,7 @@ import {
   buildCorsHeaders,
   corsPreflightResponse,
   jsonEdgeResponse,
-} from './_lib/edgeSecurity.js'
+} from '../_lib/edgeSecurity.js'
 
 export const config = {
   runtime: 'edge',
