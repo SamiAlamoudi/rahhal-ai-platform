@@ -3,7 +3,7 @@
 **Stage:** Phase 5 Stage 6  
 **Flag:** `ui.booking_hub` (default OFF)  
 **Branch:** `cursor/phase5-stage6-booking-hub-7518`  
-**Draft PR:** _(pending)_
+**Draft PR:** https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/233
 
 ## Isolation
 
@@ -18,10 +18,10 @@
 
 | Command | Result |
 |---------|--------|
-| `npm run lint` | Pending |
-| `npm run typecheck` | Pending |
-| `npm run arch:circular` | Pending |
-| `npm run test:run` | Pending |
+| `npm run lint` | Pass |
+| `npm run typecheck` | Pass |
+| `npm run arch:circular` | Pass |
+| `npm run test:run` | Pass — **2859** tests (252 files) |
 
 ## Notes
 
