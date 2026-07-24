@@ -25,6 +25,7 @@ export type FeatureId =
   | 'ai.consultant_pipeline'
   | 'ai.consultant_response'
   | 'ai.runtime_coordinator'
+  | 'ai.conversation_orchestrator'
   | 'ai.smart_clarification'
   | 'ai.persistent_memory'
   | 'ai.rahhal_brain'

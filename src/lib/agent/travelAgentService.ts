@@ -395,6 +395,11 @@ export interface TravelAgentServiceOptions {
    */
   runtimeCoordinatorEnabled?: boolean
   /**
+   * Phase 3 Stage 1 — Conversation Orchestrator (conversation management above Runtime Coordinator).
+   * Default: FeatureRegistry `ai.conversation_orchestrator` (OFF). Never mutates production planning.
+   */
+  conversationOrchestratorEnabled?: boolean
+  /**
    * Phase 2 — AI Travel Executive intelligence.
    * Default: FeatureRegistry `ai.travel_executive` (ON).
    */
@@ -2918,14 +2923,19 @@ export function createTravelAgentService(
     },
   }
 
-  // Phase 2 Stage 2/3/4 — optional Consultant Pipeline / Response / Runtime Coordinator.
+  // Phase 2 Stage 2/3/4 + Phase 3 Stage 1 — optional enrichment layers.
   // Flags OFF → identical production behavior (no coordinator/pipeline import latency).
   const productionPlanTurn = service.planTurn.bind(service)
   service.planTurn = async (input) => {
     const result = await productionPlanTurn(input)
+    const conversationForced = options.conversationOrchestratorEnabled
     const runtimeForced = options.runtimeCoordinatorEnabled
     const pipelineForced = options.consultantPipelineEnabled
     const responseForced = options.consultantResponseEnabled
+    const conversationOn =
+      conversationForced === true
+      || (conversationForced !== false
+        && getFeatureRegistry().isEnabled('ai.conversation_orchestrator'))
     const runtimeOn =
       runtimeForced === true
       || (runtimeForced !== false
@@ -2941,6 +2951,17 @@ export function createTravelAgentService(
 
     const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
     const userText = lastUser?.content ?? ''
+
+    // Phase 3 Stage 1 — Conversation Orchestrator (entry when ON; invokes Runtime Coordinator).
+    if (conversationOn) {
+      const { enrichTurnWithConversationOrchestrator } = await import('./conversation')
+      return enrichTurnWithConversationOrchestrator(result, {
+        userText,
+        conversationId: input.conversationId,
+        enabled: true,
+        signal: input.signal,
+      }) as Promise<TravelAgentTurnResult>
+    }
 
     // Stage 4 — Runtime Coordinator path (preferred when ON; avoids duplicate work).
     if (runtimeOn) {

@@ -184,6 +184,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: runtime_coordinator. Default OFF. Coordinates execution only.',
   },
   {
+    id: 'ai.conversation_orchestrator',
+    name: 'Conversation Orchestrator (AI Evolution Phase 3 Stage 1)',
+    description:
+      'Additive conversation management layer above the Runtime Coordinator: intent detection, memory, stage planning, and conversational reply. Never plans trips or scores destinations.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.runtime_coordinator'],
+    notes: 'Product alias: conversation_orchestrator. Default OFF. Coordinates conversation only.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:

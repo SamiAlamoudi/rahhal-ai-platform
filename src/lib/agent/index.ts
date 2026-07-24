@@ -688,6 +688,29 @@ export type {
   RuntimeStageId,
 } from './orchestrator'
 
+/** Phase 3 Stage 1 — Conversation Orchestrator (additive; default OFF) */
+export {
+  CONVERSATION_ORCHESTRATOR_FEATURE_ID,
+  isConversationOrchestratorEnabled,
+  INTENT_STAGE_MAP,
+  detectConversationIntent,
+  planConversationStages,
+  buildConversationReply,
+  runConversationOrchestrator,
+  tryRunConversationOrchestrator,
+  enrichTurnWithConversationOrchestrator,
+  resetConversationMemory,
+  ConversationOrchestrator,
+} from './conversation'
+export type {
+  ConversationIntent,
+  ConversationState,
+  ConversationOrchestratorInput,
+  ConversationOrchestratorResult,
+  ConversationReplyFormat,
+  ConfidenceBand,
+} from './conversation'
+
 /** Sprint 114 — Intelligent Itinerary Engine */
 export {
   isItineraryEngineEnabled,
