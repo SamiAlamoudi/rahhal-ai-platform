@@ -1473,6 +1473,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: traveler_profile. UI only — visa/boarding/payment placeholders; no backend or authentication.',
   },
+  {
+    id: 'ui.memory_center',
+    name: 'AI Memory & Knowledge Center (Phase 5 Stage 5)',
+    description:
+      'Additive isolated Memory & Knowledge Center UI: timeline, destinations, preferences, rules, conversation memories, confidence, search/filters placeholders. Presentation only — not wired to AI, Runtime, Database, Firebase, Chat, auth, sync, storage, or search backends. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: memory_center. UI only — edit/delete/search are placeholders; no persistence or AI memory engine.',
+  },
 ]
 
 export class FeatureRegistry {
