@@ -140,6 +140,7 @@ export type FeatureId =
   | 'ui.voice_center'
   | 'ui.knowledge_center'
   | 'ui.travel_workspace'
+  | 'ui.executive_dashboard'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

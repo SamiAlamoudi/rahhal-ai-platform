@@ -1407,6 +1407,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: travel_workspace. UI only — no APIs, backend, booking providers, or AI execution.',
   },
+  {
+    id: 'ui.executive_dashboard',
+    name: 'Executive Dashboard + Notification Center (Phase 4 Stage 6)',
+    description:
+      'Additive isolated Executive Dashboard and Notification Center UI: metrics, filters, widgets, calendar placeholder, notification timeline. Presentation only — not wired to production, AI, Runtime Coordinator, Chat, Voice, Knowledge, Booking, push, realtime, or Firebase. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: executive_dashboard. UI only — no API calls, calendar sync, AI decisions, or booking.',
+  },
 ]
 
 export class FeatureRegistry {
