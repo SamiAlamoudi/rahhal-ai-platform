@@ -84,6 +84,126 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: travel_reasoning',
   },
   {
+    id: 'ai.consultant_reasoning',
+    name: 'Consultant Reasoning Layer (Evolution Sprint 1)',
+    description:
+      'Additive offline consultant reasoning (intent, profile, constraints, destination/budget/risk/value, recommendation, explanation). Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes: 'Product alias: consultant_reasoning. Default OFF until a later wiring sprint.',
+  },
+  {
+    id: 'ai.consultant_reflection',
+    name: 'Consultant Reflection Layer (Evolution Sprint 2)',
+    description:
+      'Additive offline reflection: conversation memory, confidence evolution, incremental node refresh, recommendation revision. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_reasoning'],
+    notes: 'Product alias: consultant_reflection. Default OFF. Zero production impact until wired.',
+  },
+  {
+    id: 'ai.planning_graph',
+    name: 'Planning Graph Layer (Evolution Sprint 4)',
+    description:
+      'Additive offline multi-plan DAG: branch, merge, compare, reject, restore, clone, score. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_reflection'],
+    notes: 'Product alias: planning_graph. Default OFF. Zero production impact until wired.',
+  },
+  {
+    id: 'ai.traveler_intelligence',
+    name: 'Traveler Intelligence Layer (Evolution Sprint 5)',
+    description:
+      'Additive offline evolving behavioral traveler model (preferences, DNA, biases). Not a CRM profile. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_reasoning'],
+    notes: 'Product alias: traveler_intelligence. Default OFF. Zero production impact until wired.',
+  },
+  {
+    id: 'ai.recommendation_intelligence',
+    name: 'Recommendation Intelligence Layer (Evolution Sprint 6)',
+    description:
+      'Additive offline expert consultant recommendations: explain, compare, justify, challenge assumptions. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.planning_graph'],
+    notes: 'Product alias: recommendation_intelligence. Default OFF. Zero production impact until wired.',
+  },
+  {
+    id: 'ai.destination_intelligence',
+    name: 'Destination Intelligence Layer (Evolution Sprint 7)',
+    description:
+      'Additive offline consultant-grade destination knowledge, seasonality, traveler matching, and comparisons. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_reasoning'],
+    notes: 'Product alias: destination_intelligence. Default OFF. Zero production impact until wired.',
+  },
+  {
+    id: 'ai.travel_strategy',
+    name: 'Travel Strategy Intelligence Layer (Evolution Sprint 8)',
+    description:
+      'Additive offline travel strategy optimization (timing, budget, comfort, route). Does not choose destinations. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.destination_intelligence'],
+    notes: 'Product alias: travel_strategy. Default OFF. Zero production impact until wired.',
+  },
+  {
+    id: 'ai.consultant_pipeline',
+    name: 'Consultant Pipeline Orchestration (AI Integration Stage 1)',
+    description:
+      'Additive offline orchestration of existing consultant intelligence layers into one pipeline. Enrich-only context; not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.travel_strategy'],
+    notes: 'Product alias: consultant_pipeline. Default OFF. Stage 2 may attach read-only enrichment after planTurn when enabled; never mutates planning.',
+  },
+  {
+    id: 'ai.consultant_response',
+    name: 'Unified Consultant Response (AI Integration Stage 3)',
+    description:
+      'Additive offline aggregation of consultant pipeline stage outputs into one multi-format consultant response. Read-only; never mutates production planning.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_pipeline'],
+    notes: 'Product alias: consultant_response. Default OFF. Formats: executive / short / detailed / consultant.',
+  },
+  {
+    id: 'ai.runtime_coordinator',
+    name: 'AI Runtime Coordinator (AI Integration Stage 4)',
+    description:
+      'Additive offline runtime coordinator for consultant intelligence: ordering, deps, cache, timeout, retry, error isolation. Read-only; never mutates production planning.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_response'],
+    notes: 'Product alias: runtime_coordinator. Default OFF. Coordinates execution only.',
+  },
+  {
+    id: 'ai.conversation_orchestrator',
+    name: 'Conversation Orchestrator (AI Evolution Phase 3 Stage 1)',
+    description:
+      'Additive conversation management layer above the Runtime Coordinator: intent detection, memory, stage planning, and conversational reply. Never plans trips or scores destinations.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.runtime_coordinator'],
+    notes: 'Product alias: conversation_orchestrator. Default OFF. Coordinates conversation only.',
+  },
+  {
+    id: 'ai.multi_turn_conversation',
+    name: 'Multi-Turn Conversation Manager (AI Evolution Phase 3 Stage 2)',
+    description:
+      'Additive persistent multi-turn dialogue continuity: session memory, topic detection, clarification discipline, summarization, and recovery. Never plans trips or scores destinations.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.conversation_orchestrator'],
+    notes: 'Product alias: multi_turn_conversation. Default OFF. Conversation continuity only.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:
