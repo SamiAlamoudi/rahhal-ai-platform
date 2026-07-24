@@ -479,6 +479,21 @@ export type {
   PlanComparisonResult,
 } from './planningGraph'
 export {
+  createTravelerModel,
+  tryCreateTravelerModel,
+  observeTraveler,
+  tryObserveTraveler,
+  isTravelerIntelligenceEnabled,
+  TRAVELER_INTELLIGENCE_FEATURE_ID,
+  TravelerModel,
+} from './traveler'
+export type {
+  TravelerModelState,
+  TravelerSnapshot,
+  TravelerObserveInput,
+  StoredPreference,
+} from './traveler'
+export {
   createAgentLlmProvider,
   createAgentLlmRegistry,
   getDefaultAgentLlmProviderId,

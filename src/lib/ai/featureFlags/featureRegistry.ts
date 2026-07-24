@@ -114,6 +114,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: planning_graph. Default OFF. Zero production impact until wired.',
   },
   {
+    id: 'ai.traveler_intelligence',
+    name: 'Traveler Intelligence Layer (Evolution Sprint 5)',
+    description:
+      'Additive offline evolving behavioral traveler model (preferences, DNA, biases). Not a CRM profile. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_reasoning'],
+    notes: 'Product alias: traveler_intelligence. Default OFF. Zero production impact until wired.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:

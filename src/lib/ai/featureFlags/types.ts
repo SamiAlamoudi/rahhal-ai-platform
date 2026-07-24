@@ -18,6 +18,7 @@ export type FeatureId =
   | 'ai.consultant_reasoning'
   | 'ai.consultant_reflection'
   | 'ai.planning_graph'
+  | 'ai.traveler_intelligence'
   | 'ai.smart_clarification'
   | 'ai.persistent_memory'
   | 'ai.rahhal_brain'
