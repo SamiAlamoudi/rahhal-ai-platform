@@ -770,6 +770,97 @@ export interface AgentProviderMeta {
     idempotentReplay: boolean
   }
   /**
+   * Phase 2 Stage 2 — Consultant Pipeline activation snapshot (read-only enrichment).
+   * Present only when `ai.consultant_pipeline` is ON. Never mutates tripPlan / reply.
+   */
+  consultantPipeline?: {
+    enabled: true
+    travelerUnderstanding: string[]
+    destinationUnderstanding: string[]
+    travelStrategy: string[]
+    recommendationSummary: string[]
+    alternative: string[]
+    tradeoffs: string[]
+    risks: string[]
+    confidence: number
+    missingInformation: string[]
+    clarificationQuestions: string[]
+    needsClarification: boolean
+    stoppedEarly: boolean
+    stopReason: string | null
+    telemetry: {
+      totalDurationMs: number
+      stageTimings: Record<string, number>
+      clarificationCount: number
+      success: boolean
+      stageCount: number
+    }
+  }
+  /**
+   * Phase 2 Stage 3 — Unified Consultant Response package (read-only aggregation).
+   * Present only when `ai.consultant_response` is ON. Never mutates tripPlan / reply.
+   */
+  consultantResponse?: {
+    enabled: true
+    locale: 'ar' | 'en'
+    body: {
+      executiveSummary: string[]
+      travelerUnderstanding: string[]
+      destinationUnderstanding: string[]
+      recommendedStrategy: string[]
+      primaryRecommendation: string[]
+      alternativeRecommendation: string[]
+      tradeoffs: string[]
+      benefits: string[]
+      risks: string[]
+      opportunityCost: string[]
+      confidenceScore: number
+      evidenceSummary: string[]
+      missingInformation: string[]
+      clarificationQuestions: string[]
+    }
+    formats: {
+      executive: {
+        kind: 'executive'
+        locale: 'ar' | 'en'
+        headline: string
+        oneLiner: string
+        confidencePct: number
+        nextStep: string | null
+      }
+      short: {
+        kind: 'short'
+        locale: 'ar' | 'en'
+        title: string
+        why: string
+        whyNot: string
+        confidencePct: number
+        missing: string[]
+      }
+      detailed: {
+        kind: 'detailed'
+        locale: 'ar' | 'en'
+        sections: Array<{ title: string; bullets: string[] }>
+      }
+      consultant: {
+        kind: 'consultant'
+        locale: 'ar' | 'en'
+        voice: string[]
+        justification: string[]
+        assumptionsNoted: string[]
+      }
+    }
+    sources: string[]
+    lowConfidence: boolean
+    telemetry: {
+      responseGenerationMs: number
+      aggregationMs: number
+      confidence: number
+      questionCount: number
+      success: boolean
+    }
+  }
+  /**
    * Sprint 20 — structured BrainResponsePlan snapshot (additive, optional).
    * Present when `brain.concierge` integration is enabled; never replaces reply text
    * unless Sprint 21 `brain.travel_engine` supplies contextualReply.
