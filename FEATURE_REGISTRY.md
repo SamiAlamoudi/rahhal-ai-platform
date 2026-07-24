@@ -27,6 +27,21 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ai.analytics` | experimental | yes | Privacy-gated anonymous metrics |
 | `ai.concierge` | experimental | yes | Provider-agnostic consultant dialogue above the agent |
 | `ai.travel_reasoning` | beta | yes | Sprint 45 open-ended destination reasoning + preference bridge (alias: travel_reasoning) |
+| `ai.consultant_reasoning` | experimental | **no** | Evolution Sprint 1 consultant reasoning layer — offline, not wired to planTurn (alias: consultant_reasoning) |
+| `ai.consultant_reflection` | experimental | **no** | Evolution Sprint 2 reflection layer — memory, incremental re-score, recommendation revision (alias: consultant_reflection) |
+| `ai.planning_graph` | experimental | **no** | Evolution Sprint 4 multi-plan DAG — branch/merge/compare/reject/restore (alias: planning_graph) |
+| `ai.traveler_intelligence` | experimental | **no** | Evolution Sprint 5 evolving behavioral traveler model — preferences/DNA/biases (alias: traveler_intelligence) |
+| `ai.recommendation_intelligence` | experimental | **no** | Evolution Sprint 6 expert consultant recommendations — explain/compare/justify (alias: recommendation_intelligence) |
+| `ai.destination_intelligence` | experimental | **no** | Evolution Sprint 7 consultant-grade destination knowledge — seasonality/matching/compare (alias: destination_intelligence) |
+| `ai.travel_strategy` | experimental | **no** | Evolution Sprint 8 travel strategy optimization — timing/budget/comfort/route; does not pick destinations (alias: travel_strategy) |
+| `ai.consultant_pipeline` | experimental | **no** | Phase 2 Stage 1–2 consultant pipeline — orchestrates existing layers; Stage 2 read-only enrich after planTurn when ON (alias: consultant_pipeline) |
+| `ai.consultant_response` | experimental | **no** | Phase 2 Stage 3 unified consultant response — aggregates pipeline layers into executive/short/detailed/consultant formats (alias: consultant_response) |
+| `ai.runtime_coordinator` | experimental | **no** | Phase 2 Stage 4 AI Runtime Coordinator — ordering/deps/cache/timeout/retry/isolation for consultant layers (alias: runtime_coordinator) |
+| `ai.conversation_orchestrator` | experimental | **no** | Phase 3 Stage 1 Conversation Orchestrator — intent/memory/stage plan/reply above Runtime Coordinator (alias: conversation_orchestrator) |
+| `ai.multi_turn_conversation` | experimental | **no** | Phase 3 Stage 2 Multi-Turn Conversation Manager — persistent dialogue continuity/memory/clarification/recovery (alias: multi_turn_conversation) |
+| `ai.proactive_advisor` | experimental | **no** | Phase 3 Stage 3 Proactive Travel Advisor — opportunity tips via meta only (alias: proactive_advisor) |
+| `ai.travel_intelligence` | experimental | **no** | Phase 3 Stage 4 Travel Intelligence — alternative compare/trade-off/rank via meta only; not wired into planTurn (alias: travel_intelligence) |
+| `ai.experience_layer` | experimental | **no** | Phase 3 Stage 5 Experience Intelligence — UI-ready presentation models via meta.experience only; not wired into planTurn (alias: experience_layer) |
 | `ai.smart_clarification` | beta | yes | Sprint 46 never-ask-twice soft preference inference (alias: smart_clarification) |
 | `ai.persistent_memory` | beta | yes | Sprint 48 durable preference profiles via localStorage (alias: persistent_memory) |
 | `ai.rahhal_brain` | beta | yes | Sprint 50 Rahhal Brain Core orchestration on production agent path (alias: rahhal_brain) |
