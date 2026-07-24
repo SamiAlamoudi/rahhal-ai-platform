@@ -88,10 +88,10 @@ Telemetry fields (no PII):
 
 ## Validation commands
 
-- `npm run lint`
-- `npm run typecheck`
-- `npm run arch:circular`
-- `npm run test:run`
+- `npm run lint` — pass
+- `npm run typecheck` — pass
+- `npm run arch:circular` — pass
+- `npm run test:run` — full suite + 8 Stage 2 activation tests
 
 ---
 
