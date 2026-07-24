@@ -94,10 +94,10 @@ Telemetry fields (no PII):
 
 ## Validation
 
-- `npm run lint`
-- `npm run typecheck`
-- `npm run arch:circular`
-- `npm run test:run`
+- `npm run lint` — pass
+- `npm run typecheck` — pass
+- `npm run arch:circular` — pass
+- `npm run test:run` — **2730** passed (234 files), including 13 Stage 4 coordinator tests
 
 ---
 
