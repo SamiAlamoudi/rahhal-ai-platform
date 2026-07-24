@@ -9,7 +9,7 @@ export function analyzeFoodPreference(ctx: AnalyzerContext): PreferenceSignal[] 
   const t = ctx.text
   const out: PreferenceSignal[] = []
 
-  if (testAny(t, [/foodie|cuisine|مطعم|أكل|culinary|street food|طعام الشارع|gastro/i])) {
+  if (testAny(t, [/foodie|cuisine|مطعم|أكل|culinary|street food|طعام الشارع|gastro|\bfoods?\b|great food/i])) {
     out.push(signal(ctx, 'food_exploration', 'high', 0.85, 0.8, 'Food exploration interest'))
   }
   if (testAny(t, [/picky|أكل بسيط|familiar food only|ما نجرب أكل غريب|safe food/i])) {

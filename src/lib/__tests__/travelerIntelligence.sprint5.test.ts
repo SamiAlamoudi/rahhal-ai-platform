@@ -58,7 +58,7 @@ describe('Evolution Sprint 5 — Traveler Intelligence Layer', () => {
       expect(lux.evidence[0]?.reasoningRef).toBe('r1')
       expect(lux.evidence[0]?.reflectionRef).toBe('f1')
       expect(lux.evidence[0]?.conversationSource).toBe('chat:1')
-      expect(lux.timestamp || lux.updatedAt).toBeTruthy()
+      expect(lux.updatedAt).toBeTruthy()
     })
 
     it('infers family + low risk + city lean', () => {
