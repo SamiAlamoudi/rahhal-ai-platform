@@ -163,6 +163,7 @@ export type FeatureId =
   | 'brain.personalization_engine'
   | 'brain.preference_extraction'
   | 'brain.context_engine'
+  | 'brain.intent_engine'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

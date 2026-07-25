@@ -1660,6 +1660,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_context_engine. Blueprints only — never assembles live context or reads Memory stores.',
   },
+  {
+    id: 'brain.intent_engine',
+    name: 'Intent Recognition Engine Architecture (Phase 7 Stage 6)',
+    description:
+      'Additive architecture-only Intent Recognition Engine: registry/classifier/schema, confidence/validation/priority/resolution/transitions, conversation/travel/booking/support/multi-intent, history/snapshot, output contracts (TravelerIntent/IntentPrediction/IntentConfidence/IntentTransition/IntentValidation/MultiIntentResult). Blueprints only — no LLM, Runtime, DB, storage, HTTP, or APIs. Distinct from Sprint 19 brain.intent. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.context_engine'],
+    notes:
+      'Product alias: brain_intent_engine. Blueprints only — never classifies utterances or starts planning/booking. Does not replace brain.intent.',
+  },
 ]
 
 export class FeatureRegistry {
