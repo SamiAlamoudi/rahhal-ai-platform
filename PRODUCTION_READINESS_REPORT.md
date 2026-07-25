@@ -17,7 +17,7 @@ Rahhal is **staging / controlled-beta ready** with a strong additive production 
 | `npm run lint` | PASS |
 | `npm run arch:circular` | PASS (no cycles under `src/`) |
 | `npm run security:gate` | PASS |
-| `npm run test:run` | **2860** tests / **247** files PASS |
+| `npm run test:run` | **2866** tests / **248** files PASS |
 | `npm run build` | PASS · ChatPage **139.29 kB** |
 | `npm run audit` | **WARN** — 2 high (react-router / react-router-dom) |
 

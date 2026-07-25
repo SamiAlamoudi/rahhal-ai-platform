@@ -11,7 +11,7 @@
 | Performance | **95** | 0.12 | ChatPage 139.29 kB; lazy loading |
 | Security | **90** | 0.14 | SecretManager + CI gate; react-router advisory |
 | AI Quality | **93** | 0.12 | Engines present; experimental flags OFF |
-| Maintainability | **94** | 0.10 | Lint/typecheck/2860 tests/docs |
+| Maintainability | **94** | 0.10 | Lint/typecheck/2866 tests/docs |
 | Scalability | **91** | 0.10 | LoadTesting + capacity estimator |
 | Reliability | **92** | 0.10 | Resilience + continuity |
 | Developer Experience | **94** | 0.08 | Scripts, CI, AGENTS.md |
