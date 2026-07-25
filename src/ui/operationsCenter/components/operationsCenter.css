@@ -1,0 +1,258 @@
+/**
+ * Operations Center styles — Material 3–inspired premium motion.
+ */
+
+.rahhal-oc {
+  min-height: 100vh;
+  color: var(--rahhal-oc-ink);
+  background: var(--rahhal-oc-bg);
+  font-family: "IBM Plex Sans Arabic", "SF Pro Display", "Segoe UI", sans-serif;
+  padding: 1.15rem clamp(1rem, 3vw, 2rem) 2rem;
+}
+
+.rahhal-oc-header,
+.rahhal-oc-toolbar,
+.rahhal-oc-filters,
+.rahhal-oc-grid,
+.rahhal-oc-layout,
+.rahhal-oc-panel {
+  max-width: var(--rahhal-oc-max, 72rem);
+  margin-inline: auto;
+  margin-bottom: 0.85rem;
+}
+
+.rahhal-oc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rahhal-oc-brand {
+  margin: 0;
+  font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+  font-weight: 800;
+}
+
+.rahhal-oc-header h1 {
+  margin: 0.1rem 0 0;
+  font-size: 1.15rem;
+  color: var(--rahhal-oc-accent);
+}
+
+.rahhal-oc-header button,
+.rahhal-oc-filters button,
+.rahhal-oc-toolbar button {
+  border: 1px solid var(--rahhal-oc-line);
+  background: var(--rahhal-oc-panel);
+  color: inherit;
+  border-radius: 0.7rem;
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+  transition: transform var(--rahhal-oc-transition, 180ms ease),
+    background var(--rahhal-oc-transition, 180ms ease);
+}
+
+.rahhal-oc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.rahhal-oc-toolbar input {
+  flex: 1 1 14rem;
+  min-width: 12rem;
+  border: 1px solid var(--rahhal-oc-line);
+  background: var(--rahhal-oc-panel);
+  color: inherit;
+  border-radius: 0.7rem;
+  padding: 0.45rem 0.75rem;
+}
+
+.rahhal-oc-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.rahhal-oc-filters button.is-active {
+  background: color-mix(in srgb, var(--rahhal-oc-accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--rahhal-oc-accent) 45%, transparent);
+}
+
+.rahhal-oc-panel,
+.rahhal-oc-card {
+  background: var(--rahhal-oc-panel);
+  border: 1px solid var(--rahhal-oc-line);
+  border-radius: var(--rahhal-oc-radius, 1.1rem);
+  padding: 0.85rem 1rem;
+  animation: rahhal-oc-enter var(--rahhal-oc-anim-enter, 220ms) ease both;
+  backdrop-filter: blur(10px);
+}
+
+@keyframes rahhal-oc-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rahhal-oc-panel h2 {
+  margin: 0 0 0.45rem;
+  font-size: 1rem;
+}
+
+.rahhal-oc-panel p,
+.rahhal-oc-card span,
+.rahhal-oc-card em,
+.rahhal-oc-muted {
+  color: var(--rahhal-oc-muted);
+  margin: 0;
+}
+
+.rahhal-oc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+
+.rahhal-oc-layout {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 0.85rem;
+}
+
+.rahhal-oc-card {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.rahhal-oc-card strong {
+  font-size: 1.05rem;
+}
+
+.rahhal-oc-card em {
+  font-style: normal;
+  font-size: 0.8rem;
+  color: var(--rahhal-oc-accent);
+}
+
+.rahhal-oc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.rahhal-oc-chips span {
+  border: 1px solid var(--rahhal-oc-line);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--rahhal-oc-muted);
+}
+
+.rahhal-oc-chips span.is-high,
+.rahhal-oc-chips span.is-critical {
+  color: var(--rahhal-oc-danger);
+  border-color: color-mix(in srgb, var(--rahhal-oc-danger) 45%, transparent);
+}
+
+.rahhal-oc-bar {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rahhal-oc-muted) 25%, transparent);
+  overflow: hidden;
+  margin-top: 0.35rem;
+}
+
+.rahhal-oc-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--rahhal-oc-accent), #38bdf8);
+  animation: rahhal-oc-bar var(--rahhal-oc-anim-bar, 600ms) ease both;
+}
+
+@keyframes rahhal-oc-bar {
+  from { width: 0 !important; }
+}
+
+.rahhal-oc-timeline,
+.rahhal-oc-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.rahhal-oc-timeline li {
+  padding-inline-start: 0.85rem;
+  border-inline-start: 2px solid color-mix(in srgb, var(--rahhal-oc-accent) 55%, transparent);
+  display: grid;
+  gap: 0.15rem;
+}
+
+.rahhal-oc-feed li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--rahhal-oc-line);
+  padding-bottom: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--rahhal-oc-muted);
+}
+
+.rahhal-oc-feed li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.rahhal-oc-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.rahhal-oc-calendar span {
+  border: 1px solid var(--rahhal-oc-line);
+  border-radius: 0.55rem;
+  text-align: center;
+  padding: 0.4rem 0.2rem;
+  font-size: 0.8rem;
+  color: var(--rahhal-oc-muted);
+}
+
+.rahhal-oc-calendar span.is-active {
+  color: var(--rahhal-oc-accent);
+  border-color: color-mix(in srgb, var(--rahhal-oc-accent) 50%, transparent);
+  background: color-mix(in srgb, var(--rahhal-oc-accent) 14%, transparent);
+}
+
+.rahhal-oc-placeholder {
+  min-height: 5.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.85rem;
+  border: 1px dashed var(--rahhal-oc-line);
+  color: var(--rahhal-oc-muted);
+  text-align: center;
+  padding: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .rahhal-oc-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .rahhal-oc-calendar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rahhal-oc-panel,
+  .rahhal-oc-card,
+  .rahhal-oc-bar i {
+    animation: none;
+  }
+}
