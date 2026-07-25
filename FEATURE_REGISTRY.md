@@ -114,6 +114,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ui.memory_center` | experimental | **no** | Phase 5 Stage 5 AI Memory & Knowledge Center — presentation only; depends on `ui.application_shell`; no AI/runtime/database/Firebase/chat/auth/sync/storage/search backend (alias: memory_center) |
 | `ui.booking_hub` | experimental | **no** | Phase 5 Stage 6 Booking Hub — presentation only; depends on `ui.application_shell`; no AI/booking APIs/Amadeus/payments/maps/realtime/notifications/runtime/database/Firebase (alias: booking_hub) |
 | `ui.operations_center` | experimental | **no** | Phase 5 Stage 7 Operations Center — presentation only; depends on `ui.application_shell`; no AI/runtime/realtime/database/Firebase/notifications/booking APIs/maps/payments/auth (alias: operations_center) |
+| `ui.integration_foundation` | experimental | **no** | Phase 6 Stage 1 Integration Foundation — presentation architecture only; depends on `ui.application_shell`; unifies UI modules via registries/loaders; no AI/runtime/APIs/auth/database/booking/payments/maps/notifications (alias: integration_foundation) |
 | `providers.hotel_foundation` | experimental | **no** | Sprint 30 Hotel Provider Foundation — sandbox Hotelbeds / Expedia Rapid / Booking Connectivity (alias: hotel_provider_foundation) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |

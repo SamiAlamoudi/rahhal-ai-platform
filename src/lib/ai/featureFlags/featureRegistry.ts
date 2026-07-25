@@ -1506,6 +1506,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: operations_center. UI only — map/charts/notifications queue are placeholders; no Runtime connection.',
   },
+  {
+    id: 'ui.integration_foundation',
+    name: 'Integration Foundation (Phase 6 Stage 1)',
+    description:
+      'Additive presentation Integration Foundation: module/navigation/route registries, layout manager, module loader, shared states/tokens, developer/demo screens. Unifies UI modules without production wiring — not AI, Runtime, APIs, auth, database, booking, payments, maps, or notifications. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.application_shell'],
+    notes:
+      'Product alias: integration_foundation. Architecture-only — no service/API/business layers; virtual /dev routes only.',
+  },
 ]
 
 export class FeatureRegistry {
