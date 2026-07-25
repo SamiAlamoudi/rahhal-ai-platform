@@ -93,6 +93,10 @@ export function loadIntegrationDisruptionRecovery() {
   return loadOnce('integrationDisruptionRecovery', () => import('./integrationDisruptionRecovery'))
 }
 
+export function loadIntegrationActionExecution() {
+  return loadOnce('integrationActionExecution', () => import('./integrationActionExecution'))
+}
+
 export function loadTravelerPersonalization() {
   return loadOnce('travelerPersonalization', () => import('./travelerPersonalization'))
 }

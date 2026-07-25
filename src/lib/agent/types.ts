@@ -349,6 +349,21 @@ export interface AgentProviderMeta {
     latencyMs: number
   }
   /**
+   * Integration Sprint 11 — Action Execution Layer snapshot.
+   * Additive; present when `ai.integration_action_execution` ran for the turn.
+   */
+  actionExecution?: {
+    intent: string
+    action: string | null
+    mode: string
+    confirmed: boolean | null
+    pending: boolean
+    reference: string | null
+    liveBlocked: boolean
+    summary: string
+    latencyMs: number
+  }
+  /**
    * Sprint 46 — soft preference inference snapshot (never-ask-twice).
    */
   clarification?: {

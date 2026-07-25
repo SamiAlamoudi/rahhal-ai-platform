@@ -475,6 +475,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: integration_disruption_recovery. Additive under src/lib/agent/integrationDisruptionRecovery. Distinct from brain.travel_disruption_engine. When OFF, planTurn path is unchanged.',
   },
   {
+    id: 'ai.integration_action_execution',
+    name: 'Integration Action Execution Layer',
+    description:
+      'Integration Sprint 11 — ActionEngine, confirmation gate, dry-run/mock/preview execution, execution memory, Provider Runtime mock bridge. Live booking prepared but not enabled. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_action_execution. Additive under src/lib/agent/integrationActionExecution. Reuses Provider Runtime; does not rewrite providers. Distinct from ai.booking_execution. When OFF, planTurn path is unchanged.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:

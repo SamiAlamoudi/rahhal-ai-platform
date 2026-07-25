@@ -49,6 +49,7 @@ export type FeatureId =
   | 'ai.integration_maps_mobility'
   | 'ai.integration_budget_pricing'
   | 'ai.integration_disruption_recovery'
+  | 'ai.integration_action_execution'
   | 'ai.trip_builder'
   | 'ai.memory_engine'
   | 'ai.orchestrator'

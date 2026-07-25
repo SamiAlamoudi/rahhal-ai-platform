@@ -830,6 +830,20 @@ export {
   type DetectedLiveDisruption,
 } from './integrationDisruptionRecovery'
 
+/** Integration Sprint 11 — Action Execution Layer */
+export {
+  INTEGRATION_ACTION_EXECUTION_VERSION,
+  INTEGRATION_ACTION_EXECUTION_FEATURE_ID,
+  isIntegrationActionExecutionEnabled,
+  runActionExecution,
+  enrichWithIntegrationActionExecution,
+  createActionEngine,
+  detectActionKind,
+  type ActionExecutionResult,
+  type ActionKind,
+  type ActionExecutionMode,
+} from './integrationActionExecution'
+
 /** Sprint 73 — Hotel Search Engine */
 export {
   createHotelSearchEngine,

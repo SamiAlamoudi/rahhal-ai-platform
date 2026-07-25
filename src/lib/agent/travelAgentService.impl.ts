@@ -52,6 +52,8 @@ import { isIntegrationBudgetPricingEnabled } from './integrationBudgetPricing/fe
 import type { BudgetPricingResult } from './integrationBudgetPricing/types'
 import { isIntegrationDisruptionRecoveryEnabled } from './integrationDisruptionRecovery/feature'
 import type { DisruptionRecoveryResult } from './integrationDisruptionRecovery/types'
+import { isIntegrationActionExecutionEnabled } from './integrationActionExecution/feature'
+import type { ActionExecutionResult } from './integrationActionExecution/types'
 import { isConversationIntelligenceEnabled } from './conversationIntelligence/feature'
 import type { ConversationIntelligenceResult } from './conversationIntelligence'
 import { isLlmConversationBrainEnabled } from './llmBrain/feature'
@@ -137,6 +139,7 @@ import {
   loadIntegrationMapsMobility,
   loadIntegrationBudgetPricing,
   loadIntegrationDisruptionRecovery,
+  loadIntegrationActionExecution,
   loadConcierge,
   loadConciergeIntegration,
   loadConciergeMeta,
@@ -1036,6 +1039,9 @@ export function createTravelAgentService(
   const isIntegrationDisruptionRecoveryOn = (): boolean =>
     isIntegrationDisruptionRecoveryEnabled()
 
+  const isIntegrationActionExecutionOn = (): boolean =>
+    isIntegrationActionExecutionEnabled()
+
   const isTravelerPersonalizationOn = (): boolean =>
     isTravelerPersonalizationEnabled({ enabled: options.travelerPersonalizationEnabled })
 
@@ -1654,6 +1660,8 @@ export function createTravelAgentService(
       let budgetPricingMeta: AgentProviderMeta['budgetPricing'] | undefined
       let disruptionRecoveryResult: DisruptionRecoveryResult | null = null
       let disruptionRecoveryMeta: AgentProviderMeta['disruptionRecovery'] | undefined
+      let actionExecutionResult: ActionExecutionResult | null = null
+      let actionExecutionMeta: AgentProviderMeta['actionExecution'] | undefined
       let clarificationMeta: NonNullable<AgentProviderMeta['clarification']> | undefined
       let rahhalBrainMeta: RahhalBrainMetaSnapshot | undefined
       let travelExecutiveSnapshot: RahhalBrainTurnResult['executive']
@@ -2032,6 +2040,34 @@ export function createTravelAgentService(
             )
           }
         }
+
+        // Integration Sprint 11 — Action Execution Layer (safe prepare / confirm / mock).
+        if (isIntegrationActionExecutionOn() && userText.trim()) {
+          const __mod_actionExecution = await loadIntegrationActionExecution()
+          if (
+            __mod_actionExecution.shouldRunActionExecution({
+              userText,
+              memory,
+            })
+          ) {
+            const actionEnriched =
+              await __mod_actionExecution.enrichWithIntegrationActionExecution({
+                memory,
+                userText,
+                locale: memory.locale,
+                force: true,
+                deps: {
+                  enabled: true,
+                  userId: input.conversationId,
+                },
+              })
+            memory = actionEnriched.memory
+            actionExecutionResult = actionEnriched.actionExecution
+            actionExecutionMeta = __mod_actionExecution.toActionExecutionMeta(
+              actionEnriched.actionExecution,
+            )
+          }
+        }
         memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
       }
 
@@ -2262,12 +2298,15 @@ export function createTravelAgentService(
         const withDisruptionRecovery = disruptionRecoveryMeta
           ? { ...withBudgetPricing, disruptionRecovery: disruptionRecoveryMeta }
           : withBudgetPricing
+        const withActionExecution = actionExecutionMeta
+          ? { ...withDisruptionRecovery, actionExecution: actionExecutionMeta }
+          : withDisruptionRecovery
         const withBooking = bookingIntelligenceResult
           ? {
-            ...withDisruptionRecovery,
+            ...withActionExecution,
             bookingIntelligence: toMetaBookingIntelligence(bookingIntelligenceResult),
           }
-          : withDisruptionRecovery
+          : withActionExecution
         const withBudget = budgetIntelligenceResult
           ? { ...withBooking, budgetIntelligence: toMetaBudgetIntelligence(budgetIntelligenceResult) }
           : withBooking
@@ -2377,6 +2416,65 @@ export function createTravelAgentService(
           ...enriched,
           spokenText,
           voicePhase: enriched.voicePhase ?? 'final',
+        }
+      }
+
+      // Integration Sprint 11 — Action Execution owns book/reserve/cancel/modify/share asks.
+      if (
+        !isBrainCoreEnabled()
+        && actionExecutionResult?.enabled
+        && actionExecutionResult.ok
+        && actionExecutionResult.action != null
+      ) {
+        memory = withTripPlan({ ...memory, phase: memory.phase }, memory.tripPlan)
+        const actionSummary = memory.locale === 'en'
+          ? actionExecutionResult.consultantSummaryEn
+          : actionExecutionResult.consultantSummaryAr
+        const facts = buildTravelFacts({
+          memory,
+          objective: 'propose_options',
+          missingSlots: memory.missingFields.map(String),
+          optionHints: [
+            actionExecutionResult.action
+              ? `Action: ${actionExecutionResult.action}`
+              : null,
+            actionExecutionResult.execution?.reference
+              ? `Ref: ${actionExecutionResult.execution.reference}`
+              : null,
+            actionExecutionResult.confirmation?.required
+              && !actionExecutionResult.confirmation.confirmed
+              ? 'Awaiting confirmation'
+              : null,
+          ].filter(Boolean) as string[],
+          recommendations: [actionSummary].filter(Boolean),
+          warnings: actionExecutionResult.execution?.liveBlocked
+            ? ['Live execution blocked']
+            : [],
+        })
+        const spoken = await speakTravelFacts({
+          llms,
+          conversationId: input.conversationId,
+          messages: input.messages,
+          facts,
+          signal: input.signal,
+        })
+        const replyText = actionSummary || spoken.displayText
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          spokenText: (actionSummary || spoken.spokenText)?.slice(0, 360),
+          voicePhase: 'final',
+          toolResults: [],
+        }
+        return {
+          reply: replyText,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta: attachTurnMeta(meta, meta.spokenText),
+          toolBatch: null,
         }
       }
 
