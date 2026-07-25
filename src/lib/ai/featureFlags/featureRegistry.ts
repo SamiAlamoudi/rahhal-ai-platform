@@ -1517,6 +1517,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: integration_foundation. Architecture-only — no service/API/business layers; virtual /dev routes only.',
   },
+  {
+    id: 'brain.conversation_orchestrator',
+    name: 'AI Conversation Orchestrator Architecture (Phase 6 Stage 2)',
+    description:
+      'Additive architecture-only Conversation Orchestrator: intent/context/memory/reasoning/response contracts coordinating UI modules. No LLM execution, no API calls, no Runtime, no production wiring. Distinct from Phase 3 ai.conversation_orchestrator. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ui.integration_foundation'],
+    notes:
+      'Product alias: brain_conversation_orchestrator. Contracts/types/blueprints only — never calls OpenAI/Claude/Gemini or agent runtime.',
+  },
 ]
 
 export class FeatureRegistry {

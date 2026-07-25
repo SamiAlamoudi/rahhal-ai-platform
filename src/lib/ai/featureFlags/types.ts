@@ -150,6 +150,7 @@ export type FeatureId =
   | 'ui.booking_hub'
   | 'ui.operations_center'
   | 'ui.integration_foundation'
+  | 'brain.conversation_orchestrator'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'
