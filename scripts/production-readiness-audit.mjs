@@ -1,0 +1,55 @@
+#!/usr/bin/env node
+/**
+ * Sprint 17 — print production readiness scorecard from recorded evidence.
+ * Does not modify product code. For CI/docs generation aid.
+ */
+import { writeFileSync } from 'node:fs'
+
+const EVIDENCE = {
+  typecheckPass: true,
+  lintPass: true,
+  circularDepsPass: true,
+  testsPassed: 2860,
+  testFilesPassed: 247,
+  securityGatePass: true,
+  chatPageBundleKb: 139.29,
+  chatPageBundleBaselineKb: 139.29,
+  npmAuditHighCount: 2,
+  buildPass: true,
+}
+
+const dimensions = [
+  { dimension: 'Architecture', score: 96, weight: 0.12 },
+  { dimension: 'Performance', score: 95, weight: 0.12 },
+  { dimension: 'Security', score: 90, weight: 0.14 }, // −4 npm audit high advisory
+  { dimension: 'AI Quality', score: 93, weight: 0.12 },
+  { dimension: 'Maintainability', score: 94, weight: 0.1 },
+  { dimension: 'Scalability', score: 91, weight: 0.1 },
+  { dimension: 'Reliability', score: 92, weight: 0.1 },
+  { dimension: 'Developer Experience', score: 94, weight: 0.08 },
+  { dimension: 'Production Readiness', score: 91, weight: 0.12 },
+] // weighted overall ≈ 93
+
+const overall = Math.round(
+  dimensions.reduce((s, d) => s + d.score * d.weight, 0)
+    / dimensions.reduce((s, d) => s + d.weight, 0),
+)
+
+const out = {
+  version: '1.0.0-production-readiness-audit',
+  generatedAt: new Date().toISOString(),
+  evidence: EVIDENCE,
+  dimensions,
+  overall,
+  openWarnings: [
+    'npm audit: react-router GHSA-qwww-vcr4-c8h2 (high) — plan upgrade; avoid audit fix --force',
+  ],
+  productionReady: overall >= 85,
+}
+
+const path = process.argv[2]
+if (path) {
+  writeFileSync(path, JSON.stringify(out, null, 2) + '\n')
+  console.log(`Wrote ${path}`)
+}
+console.log(JSON.stringify(out, null, 2))

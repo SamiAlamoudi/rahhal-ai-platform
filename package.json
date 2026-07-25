@@ -20,6 +20,7 @@
     "security:env-check": "node scripts/check-direct-env-access.mjs",
     "security:validate": "vitest run src/lib/__tests__/securitySecretManager.sprint14.test.ts src/lib/__tests__/securitySecrets.sprint14.expanded.test.ts",
     "security:gate": "npm run security:scan && npm run security:env-check && npm run security:validate",
+    "audit:readiness": "node scripts/production-readiness-audit.mjs",
     "amadeus:check": "node scripts/amadeus-check.mjs",
     "amadeus:live-search": "node scripts/amadeus-live-search.mjs",
     "preview:verify": "vitest run src/lib/__tests__/previewEnvCheck.cli.test.ts",

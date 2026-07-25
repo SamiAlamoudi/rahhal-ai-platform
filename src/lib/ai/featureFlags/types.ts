@@ -54,6 +54,7 @@ export type FeatureId =
   | 'security.secret_manager'
   | 'observability.platform'
   | 'load_testing.platform'
+  | 'production_audit.platform'
   | 'ai.trip_builder'
   | 'ai.memory_engine'
   | 'ai.orchestrator'
