@@ -50,6 +50,7 @@ export type FeatureId =
   | 'ai.integration_budget_pricing'
   | 'ai.integration_disruption_recovery'
   | 'ai.integration_action_execution'
+  | 'ai.integration_journey'
   | 'ai.trip_builder'
   | 'ai.memory_engine'
   | 'ai.orchestrator'

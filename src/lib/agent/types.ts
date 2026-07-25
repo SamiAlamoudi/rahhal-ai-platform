@@ -364,6 +364,20 @@ export interface AgentProviderMeta {
     latencyMs: number
   }
   /**
+   * Integration Sprint 12 — End-to-End Journey coordinator snapshot.
+   * Additive; present when `ai.integration_journey` ran for the turn.
+   */
+  journey?: {
+    stage: string
+    scenario: string
+    overall: number
+    knownSlots: number
+    skippedModules: number
+    turn: number
+    summary: string
+    latencyMs: number
+  }
+  /**
    * Sprint 46 — soft preference inference snapshot (never-ask-twice).
    */
   clarification?: {

@@ -97,6 +97,10 @@ export function loadIntegrationActionExecution() {
   return loadOnce('integrationActionExecution', () => import('./integrationActionExecution'))
 }
 
+export function loadIntegrationJourney() {
+  return loadOnce('integrationJourney', () => import('./integrationJourney'))
+}
+
 export function loadTravelerPersonalization() {
   return loadOnce('travelerPersonalization', () => import('./travelerPersonalization'))
 }

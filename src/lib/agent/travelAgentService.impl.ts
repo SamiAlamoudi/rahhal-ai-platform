@@ -54,6 +54,8 @@ import { isIntegrationDisruptionRecoveryEnabled } from './integrationDisruptionR
 import type { DisruptionRecoveryResult } from './integrationDisruptionRecovery/types'
 import { isIntegrationActionExecutionEnabled } from './integrationActionExecution/feature'
 import type { ActionExecutionResult } from './integrationActionExecution/types'
+import { isIntegrationJourneyEnabled } from './integrationJourney/feature'
+import type { JourneyResult } from './integrationJourney/types'
 import { isConversationIntelligenceEnabled } from './conversationIntelligence/feature'
 import type { ConversationIntelligenceResult } from './conversationIntelligence'
 import { isLlmConversationBrainEnabled } from './llmBrain/feature'
@@ -140,6 +142,7 @@ import {
   loadIntegrationBudgetPricing,
   loadIntegrationDisruptionRecovery,
   loadIntegrationActionExecution,
+  loadIntegrationJourney,
   loadConcierge,
   loadConciergeIntegration,
   loadConciergeMeta,
@@ -1042,6 +1045,9 @@ export function createTravelAgentService(
   const isIntegrationActionExecutionOn = (): boolean =>
     isIntegrationActionExecutionEnabled()
 
+  const isIntegrationJourneyOn = (): boolean =>
+    isIntegrationJourneyEnabled()
+
   const isTravelerPersonalizationOn = (): boolean =>
     isTravelerPersonalizationEnabled({ enabled: options.travelerPersonalizationEnabled })
 
@@ -1662,6 +1668,8 @@ export function createTravelAgentService(
       let disruptionRecoveryMeta: AgentProviderMeta['disruptionRecovery'] | undefined
       let actionExecutionResult: ActionExecutionResult | null = null
       let actionExecutionMeta: AgentProviderMeta['actionExecution'] | undefined
+      let journeyResult: JourneyResult | null = null
+      let journeyMeta: AgentProviderMeta['journey'] | undefined
       let clarificationMeta: NonNullable<AgentProviderMeta['clarification']> | undefined
       let rahhalBrainMeta: RahhalBrainMetaSnapshot | undefined
       let travelExecutiveSnapshot: RahhalBrainTurnResult['executive']
@@ -2068,6 +2076,32 @@ export function createTravelAgentService(
             )
           }
         }
+
+        // Integration Sprint 12 — End-to-End Journey coordinator (shared handoff + traces).
+        if (isIntegrationJourneyOn() && userText.trim()) {
+          const __mod_journey = await loadIntegrationJourney()
+          if (
+            __mod_journey.shouldRunIntegrationJourney({
+              userText,
+              memory,
+            })
+          ) {
+            const journeyEnriched = await __mod_journey.enrichWithIntegrationJourney({
+              memory,
+              userText,
+              locale: memory.locale,
+              force: true,
+              deps: {
+                enabled: true,
+                userId: input.conversationId,
+                conversationId: input.conversationId,
+              },
+            })
+            memory = journeyEnriched.memory
+            journeyResult = journeyEnriched.journey
+            journeyMeta = __mod_journey.toJourneyMeta(journeyEnriched.journey)
+          }
+        }
         memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
       }
 
@@ -2301,12 +2335,15 @@ export function createTravelAgentService(
         const withActionExecution = actionExecutionMeta
           ? { ...withDisruptionRecovery, actionExecution: actionExecutionMeta }
           : withDisruptionRecovery
+        const withJourney = journeyMeta
+          ? { ...withActionExecution, journey: journeyMeta }
+          : withActionExecution
         const withBooking = bookingIntelligenceResult
           ? {
-            ...withActionExecution,
+            ...withJourney,
             bookingIntelligence: toMetaBookingIntelligence(bookingIntelligenceResult),
           }
-          : withActionExecution
+          : withJourney
         const withBudget = budgetIntelligenceResult
           ? { ...withBooking, budgetIntelligence: toMetaBudgetIntelligence(budgetIntelligenceResult) }
           : withBooking
@@ -2753,6 +2790,58 @@ export function createTravelAgentService(
           tripPlan: memory.tripPlan,
           itinerary: memory.tripPlan,
           spokenText: (diSummary || spoken.spokenText)?.slice(0, 360),
+          voicePhase: 'final',
+          toolResults: [],
+        }
+        return {
+          reply: replyText,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta: attachTurnMeta(meta, meta.spokenText),
+          toolBatch: null,
+        }
+      }
+
+      // Integration Sprint 12 — Journey coordinator unifies the turn when no specialist owned it.
+      if (
+        !isBrainCoreEnabled()
+        && journeyResult?.enabled
+        && journeyResult.ok
+      ) {
+        memory = withTripPlan({ ...memory, phase: memory.phase }, memory.tripPlan)
+        const journeySummary = memory.locale === 'en'
+          ? journeyResult.consultantSummaryEn
+          : journeyResult.consultantSummaryAr
+        const facts = buildTravelFacts({
+          memory,
+          objective: 'propose_options',
+          missingSlots: journeyResult.handoff.missingSlots,
+          optionHints: [
+            `Stage: ${journeyResult.stage}`,
+            `Score: ${journeyResult.decision.overall}`,
+            ...journeyResult.handoff.knownSlots.slice(0, 4).map((s) => `Known: ${s}`),
+          ],
+          recommendations: [journeySummary].filter(Boolean),
+          warnings: journeyResult.stages
+            .filter((s) => s.status === 'skipped')
+            .slice(0, 3)
+            .map((s) => s.note),
+        })
+        const spoken = await speakTravelFacts({
+          llms,
+          conversationId: input.conversationId,
+          messages: input.messages,
+          facts,
+          signal: input.signal,
+        })
+        const replyText = journeySummary || spoken.displayText
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          spokenText: (journeySummary || spoken.spokenText)?.slice(0, 360),
           voicePhase: 'final',
           toolResults: [],
         }

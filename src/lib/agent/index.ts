@@ -844,6 +844,20 @@ export {
   type ActionExecutionMode,
 } from './integrationActionExecution'
 
+/** Integration Sprint 12 — End-to-End Journey Integration */
+export {
+  INTEGRATION_JOURNEY_VERSION,
+  INTEGRATION_JOURNEY_FEATURE_ID,
+  JOURNEY_STAGE_ORDER,
+  isIntegrationJourneyEnabled,
+  runIntegrationJourney,
+  enrichWithIntegrationJourney,
+  createJourneyEngine,
+  type JourneyResult,
+  type JourneyStageId,
+  type JourneyScenario,
+} from './integrationJourney'
+
 /** Sprint 73 — Hotel Search Engine */
 export {
   createHotelSearchEngine,

@@ -485,6 +485,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: integration_action_execution. Additive under src/lib/agent/integrationActionExecution. Reuses Provider Runtime; does not rewrite providers. Distinct from ai.booking_execution. When OFF, planTurn path is unchanged.',
   },
   {
+    id: 'ai.integration_journey',
+    name: 'Integration End-to-End Journey',
+    description:
+      'Integration Sprint 12 — JourneyEngine coordinator: shared handoff, shared decision scoring, stage traces (conversation→completion), observability. Not a new standalone feature. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_journey. Additive under src/lib/agent/integrationJourney. Wraps existing integration modules via deferred soft-activate; child flags stay OFF unless enabled separately. When OFF, planTurn path is unchanged.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:
