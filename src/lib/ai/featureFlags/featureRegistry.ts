@@ -415,6 +415,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: live_hotel_search. Additive under src/lib/agent/liveHotelSearch + AmadeusHotelSearchProvider. Does not modify flight search, engines, or UI. Availability only — no booking.',
   },
   {
+    id: 'ai.integration_trip_orchestrator',
+    name: 'Integration Trip Orchestrator',
+    description:
+      'Integration Sprint 4 — coordinates flight + hotel providers (parallel search, budget split, conflicts, itinerary, consultant summary). Does not replace providers or planTurn ownership. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_trip_orchestrator. Additive under src/lib/agent/integrationTripOrchestrator. Distinct from quarantined ai.orchestrator and brain.trip_orchestrator. When OFF, legacy planTurn path is unchanged.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:

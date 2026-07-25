@@ -746,6 +746,19 @@ export {
   type RankedConversationHotel,
 } from './integrationHotelSearch'
 
+/** Integration Sprint 4 — AI Trip Orchestrator */
+export {
+  INTEGRATION_TRIP_ORCHESTRATOR_VERSION,
+  INTEGRATION_TRIP_ORCHESTRATOR_FEATURE_ID,
+  isIntegrationTripOrchestratorEnabled,
+  runTripOrchestrator,
+  enrichWithIntegrationTripOrchestrator,
+  buildOrchestratorBudget,
+  detectTripScenario,
+  type TripOrchestratorResult,
+  type OrchestratorExecutionPlan,
+} from './integrationTripOrchestrator'
+
 /** Sprint 73 — Hotel Search Engine */
 export {
   createHotelSearchEngine,

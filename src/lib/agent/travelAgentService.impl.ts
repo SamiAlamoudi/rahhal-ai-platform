@@ -41,6 +41,7 @@ import { isBookingIntelligenceEnabled } from './bookingIntelligence/feature'
 import type { BookingIntelligenceResult } from './bookingIntelligence'
 import { isBudgetIntelligenceEnabled } from './budgetIntelligence/feature'
 import type { BudgetIntelligenceResult } from './budgetIntelligence'
+import { isIntegrationTripOrchestratorEnabled } from './integrationTripOrchestrator/feature'
 import { isConversationIntelligenceEnabled } from './conversationIntelligence/feature'
 import type { ConversationIntelligenceResult } from './conversationIntelligence'
 import { isLlmConversationBrainEnabled } from './llmBrain/feature'
@@ -120,6 +121,7 @@ import {
   loadBrainIntegration,
   loadBrainOrchestrator,
   loadBudgetIntelligence,
+  loadIntegrationTripOrchestrator,
   loadConcierge,
   loadConciergeIntegration,
   loadConciergeMeta,
@@ -1001,6 +1003,9 @@ export function createTravelAgentService(
   const isBudgetIntelEnabled = (): boolean =>
     isBudgetIntelligenceEnabled({ enabled: options.budgetIntelligenceEnabled })
 
+  const isIntegrationTripOrchestratorOn = (): boolean =>
+    isIntegrationTripOrchestratorEnabled()
+
   const isTravelerPersonalizationOn = (): boolean =>
     isTravelerPersonalizationEnabled({ enabled: options.travelerPersonalizationEnabled })
 
@@ -1105,6 +1110,20 @@ export function createTravelAgentService(
       let dynamicPackages: PackageBuilderResult | undefined
       let itineraryRefinement: RefinementResult | undefined
       let { flightOffers, hotelStays } = offersFromToolBatch(batch)
+
+      // Integration Sprint 4 — coordinate flight/hotel results into a trip recommendation.
+      if (isIntegrationTripOrchestratorOn()) {
+        const __mod_tripOrchestrator = await loadIntegrationTripOrchestrator()
+        const orchestrated = await __mod_tripOrchestrator.enrichWithIntegrationTripOrchestrator({
+          memory,
+          tripPlan: nextPlan,
+          userId: input.conversationId,
+          userText: input.userText,
+          flightOffers: flightOffers.length ? flightOffers : undefined,
+          hotelStays: hotelStays.length ? hotelStays : undefined,
+        })
+        nextPlan = orchestrated.tripPlan
+      }
 
       if (isBudgetIntelEnabled()) {
         const __mod_enrichWithBudgetIntelligence = await loadBudgetIntelligence()

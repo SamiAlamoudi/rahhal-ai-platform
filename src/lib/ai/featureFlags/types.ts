@@ -43,6 +43,7 @@ export type FeatureId =
   | 'ai.live_flight_search'
   | 'ai.response_composer'
   | 'ai.live_hotel_search'
+  | 'ai.integration_trip_orchestrator'
   | 'ai.trip_builder'
   | 'ai.memory_engine'
   | 'ai.orchestrator'
