@@ -87,6 +87,12 @@ export function mergeRequirements(
     tripPurpose: patch.tripPurpose ?? base.tripPurpose,
     regenerateDay: patch.regenerateDay ?? null,
     regenerateScope: patch.regenerateScope ?? base.regenerateScope ?? null,
+    cabinPreference: patch.cabinPreference ?? base.cabinPreference ?? null,
+    children: patch.children ?? base.children ?? null,
+    preferredAirline: patch.preferredAirline ?? base.preferredAirline ?? null,
+    preferredDepartureTime: patch.preferredDepartureTime ?? base.preferredDepartureTime ?? null,
+    datesFlexible: patch.datesFlexible ?? base.datesFlexible ?? null,
+    travelerTimezone: patch.travelerTimezone ?? base.travelerTimezone ?? null,
   }
 
   // Locking a named destination clears flexible discovery.
@@ -226,6 +232,12 @@ export function normalizeRequirements(raw: TripRequirements): TripRequirements {
     weatherPreference: raw.weatherPreference ?? null,
     regenerateDay: raw.regenerateDay ?? null,
     regenerateScope: raw.regenerateScope ?? null,
+    cabinPreference: raw.cabinPreference ?? null,
+    children: raw.children ?? null,
+    preferredAirline: raw.preferredAirline ?? null,
+    preferredDepartureTime: raw.preferredDepartureTime ?? null,
+    datesFlexible: raw.datesFlexible ?? null,
+    travelerTimezone: raw.travelerTimezone ?? null,
   }
 }
 

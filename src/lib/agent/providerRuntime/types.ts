@@ -46,6 +46,10 @@ export interface ProviderRuntimeSearchRequest {
   checkIn?: string
   checkOut?: string | null
   adults?: number
+  /** Integration Sprint 2 — children count for live Amadeus/Duffel. */
+  children?: number
+  /** Integration Sprint 2 — cabin class hint (economy / business / …). */
+  cabin?: string | null
   currency?: string
   signal?: AbortSignal
 }

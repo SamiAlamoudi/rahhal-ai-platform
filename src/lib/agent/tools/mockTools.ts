@@ -12,8 +12,9 @@ import {
   getDefaultHotelSearchEngine,
   type HotelSearchEngine,
 } from '../hotelSearchEngine'
+import { runConversationAwareFlightSearch } from '../integrationFlightSearch'
 import type { AgentTool, AgentToolContext, AgentToolResult, ToolJsonSchema } from './types'
-import { runFlightSearchTool, runHotelSearchTool } from './searchEngineBridge'
+import { runHotelSearchTool } from './searchEngineBridge'
 
 const destinationSchemaProps = {
   destination: { type: 'string', description: 'Primary destination city or country' },
@@ -123,7 +124,7 @@ export function createMockFlightSearchTool(
     async execute(ctx) {
       const started = Date.now()
       try {
-        const { data, empty, gracefulMessage } = await runFlightSearchTool(flightEngine, ctx)
+        const { data, empty, gracefulMessage } = await runConversationAwareFlightSearch(flightEngine, ctx)
         const offers = Array.isArray(data.offers) ? data.offers : []
         const top = offers[0] as { airline?: string; price?: number; currency?: string } | undefined
         const highlights = data.highlights as {
@@ -150,9 +151,15 @@ export function createMockFlightSearchTool(
           highlights?.fastest ? `Fastest: ${highlights.fastest}` : null,
         ].filter(Boolean).join(' · ')
 
-        const summary = ctx.locale === 'ar'
-          ? `محرك الطيران: ${top?.airline ?? ''} ${top?.price ?? ''} ${top?.currency ?? ''} (${offers.length})`
-          : `Flight engine: ${top?.airline ?? ''} ${top?.price ?? ''} ${top?.currency ?? ''} (${offers.length} offers)${highlightLine ? ` · ${highlightLine}` : ''}`
+        const consultant =
+          ctx.locale === 'ar'
+            ? (typeof data.consultantSummaryAr === 'string' ? data.consultantSummaryAr : null)
+            : (typeof data.consultantSummaryEn === 'string' ? data.consultantSummaryEn : null)
+
+        const summary = consultant
+          ?? (ctx.locale === 'ar'
+            ? `محرك الطيران: ${top?.airline ?? ''} ${top?.price ?? ''} ${top?.currency ?? ''} (${offers.length})`
+            : `Flight engine: ${top?.airline ?? ''} ${top?.price ?? ''} ${top?.currency ?? ''} (${offers.length} offers)${highlightLine ? ` · ${highlightLine}` : ''}`)
 
         return {
           tool: 'flights',

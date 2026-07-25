@@ -716,6 +716,21 @@ export {
   type FlightSortMode,
 } from './flightSearchEngine'
 
+/** Integration Sprint 2 — conversation ↔ live flight search bridge */
+export {
+  INTEGRATION_LIVE_FLIGHT_SEARCH_VERSION,
+  tryConversationLiveFlightSearch,
+  conversationResultToToolData,
+  runConversationAwareFlightSearch,
+  rankConversationFlights,
+  buildConsultantFlightSummary,
+  resetConversationFlightSearchCache,
+  getConversationFlightSearchCache,
+  buildLiveCriteriaFromContext,
+  type ConversationFlightSearchResult,
+  type RankedConversationFlight,
+} from './integrationFlightSearch'
+
 /** Sprint 73 — Hotel Search Engine */
 export {
   createHotelSearchEngine,

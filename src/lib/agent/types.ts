@@ -78,6 +78,19 @@ export interface TripRequirements {
   regenerateDay: number | null
   /** Scoped regenerate: whole trip, day, flight, hotel, or activities. */
   regenerateScope: RegenerateScope | null
+  /**
+   * Integration Sprint 2 — optional flight preferences (additive).
+   * Never block intake when unset; used only when searching flights.
+   */
+  cabinPreference: string | null
+  /** Children count (separate from adults in travelers). */
+  children: number | null
+  preferredAirline: string | null
+  preferredDepartureTime: 'morning' | 'afternoon' | 'evening' | 'night' | null
+  /** Soft date flexibility ("around next week", "flexible dates"). */
+  datesFlexible: boolean | null
+  /** IANA timezone hint for departure-local interpretation (default Asia/Riyadh). */
+  travelerTimezone: string | null
 }
 
 export interface ItineraryActivity {
@@ -904,6 +917,12 @@ export function emptyRequirements(): TripRequirements {
     tripPurpose: null,
     regenerateDay: null,
     regenerateScope: null,
+    cabinPreference: null,
+    children: null,
+    preferredAirline: null,
+    preferredDepartureTime: null,
+    datesFlexible: null,
+    travelerTimezone: null,
   }
 }
 

@@ -81,6 +81,11 @@ function inferTripType(req: TripRequirements): FlightSearchRequest['tripType'] {
 }
 
 function cabinFrom(req: TripRequirements): FlightSearchRequest['cabin'] {
+  const explicit = (req.cabinPreference ?? '').toLowerCase()
+  if (explicit.includes('first')) return 'first'
+  if (explicit.includes('business')) return 'business'
+  if (explicit.includes('premium')) return 'premium_economy'
+  if (explicit.includes('economy')) return 'economy'
   const purpose = (req.tripPurpose ?? '').toLowerCase()
   const style = (req.budgetStyle ?? '').toLowerCase()
   if (req.travelerType === 'business' || purpose.includes('business')) return 'business'
@@ -97,8 +102,19 @@ export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchReq
     ? String(ctx.input?.endDate ?? req.endDate)
     : null
   const tripType = inferTripType(req)
-  const adults = travelersFrom(ctx)
+  const children =
+    typeof req.children === 'number' && req.children >= 0
+      ? Math.floor(req.children)
+      : Number.isFinite(Number(ctx.input?.children)) && Number(ctx.input?.children) >= 0
+        ? Math.floor(Number(ctx.input?.children))
+        : 0
+  const totalTravelers = travelersFrom(ctx)
+  const adults = Math.max(1, totalTravelers - children)
   const currency = currencyFrom(ctx)
+  const preferredAirline =
+    typeof ctx.input?.preferredAirline === 'string'
+      ? ctx.input.preferredAirline
+      : req.preferredAirline
 
   const request: FlightSearchRequest = {
     tripType,
@@ -107,8 +123,10 @@ export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchReq
     departureDate,
     returnDate: tripType === 'one_way' ? null : returnDate,
     adults,
+    children,
     currency,
     cabin: cabinFrom(req),
+    preferredAirlines: preferredAirline ? [preferredAirline] : undefined,
     sort: 'recommendation',
     pageSize: 20,
     signal: ctx.signal,
