@@ -1583,6 +1583,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_tool_engine. Blueprints only — never dispatches tools or calls external APIs.',
   },
+  {
+    id: 'brain.llm_adapter',
+    name: 'AI LLM Adapter Layer Architecture (Phase 6 Stage 8)',
+    description:
+      'Additive architecture-only LLM Adapter Layer: provider-agnostic registry/interface, request/response pipelines, prompt/context builders, tool/function call contracts, streaming/cost/token placeholders, provider selection/ranking, analytics/audit/state machine. Blueprints only — no SDKs, API keys, HTTP, Runtime, streaming, or production wiring. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.tool_engine'],
+    notes:
+      'Product alias: brain_llm_adapter. Blueprints only — never calls OpenAI/Claude/Gemini or any provider SDK.',
+  },
 ]
 
 export class FeatureRegistry {

@@ -121,6 +121,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `brain.memory_engine` | experimental | **no** | Phase 6 Stage 5 AI Memory Engine architecture — contracts/types only; depends on `brain.decision_engine`; no embeddings/vector DB/storage/Runtime/database (alias: brain_memory_engine) |
 | `brain.knowledge_engine` | experimental | **no** | Phase 6 Stage 6 AI Knowledge Engine architecture — contracts/types only; depends on `brain.memory_engine`; no LLM/APIs/DB/vector search/Runtime (alias: brain_knowledge_engine) |
 | `brain.tool_engine` | experimental | **no** | Phase 6 Stage 7 AI Tool Execution Engine architecture — contracts/types only; depends on `brain.knowledge_engine`; no tool execution/LLM/APIs/Runtime/Amadeus/Maps/Weather/Firebase/Supabase/Redis/DB (alias: brain_tool_engine) |
+| `brain.llm_adapter` | experimental | **no** | Phase 6 Stage 8 AI LLM Adapter Layer architecture — contracts/types only; depends on `brain.tool_engine`; no SDKs/API keys/HTTP/Runtime/streaming/auth/DB (alias: brain_llm_adapter) |
 | `providers.hotel_foundation` | experimental | **no** | Sprint 30 Hotel Provider Foundation — sandbox Hotelbeds / Expedia Rapid / Booking Connectivity (alias: hotel_provider_foundation) |
 | `payments.live` | deprecated | **no** | Keep mock payment until freeze lifts |
 | `providers.live_master` | stable | **no** | Mirrors safe default; Phase W still authoritative |
