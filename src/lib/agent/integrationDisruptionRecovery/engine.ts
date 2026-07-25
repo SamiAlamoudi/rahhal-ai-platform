@@ -32,7 +32,11 @@ export interface RunDisruptionRecoveryInput {
 }
 
 export class DisruptionEngine {
-  constructor(private readonly deps: DisruptionRecoveryDeps = {}) {}
+  private readonly deps: DisruptionRecoveryDeps
+
+  constructor(deps: DisruptionRecoveryDeps = {}) {
+    this.deps = deps
+  }
 
   isEnabled(): boolean {
     return isIntegrationDisruptionRecoveryEnabled({ enabled: this.deps.enabled })

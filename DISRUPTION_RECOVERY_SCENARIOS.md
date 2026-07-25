@@ -1,7 +1,7 @@
 # Disruption Recovery — Scenario Examples (Sprint 10)
 
 **Branch:** `cursor/live-disruption-recovery-7518`  
-**Draft PR:** _(pending)_  
+**Draft PR:** [#274](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/274)  
 **Flag:** `ai.integration_disruption_recovery` (default OFF)
 
 ---

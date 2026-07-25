@@ -1,7 +1,7 @@
 # Live Disruption Recovery — Integration Sprint 10 Validation Report
 
 **Branch:** `cursor/live-disruption-recovery-7518`  
-**Draft PR:** _(pending)_  
+**Draft PR:** [#274](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/274)  
 **Continues from:** Draft PR [#273](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/273) (Budget & Pricing Intelligence)  
 **Generated:** 2026-07-23  
 **Constraints:** Additive · Feature flag OFF by default · No UI redesign · No architecture rewrite · **No merge**
@@ -24,7 +24,10 @@
 | Flag OFF by default | **PASS** |
 | Distinct from `brain.travel_disruption_engine` | **PASS** |
 | planTurn ownership preserved | **PASS** (prefer recovery over companion on delay/cancel) |
-| Regression suite | **PASS** _(pending full gate)_ |
+| Lint / typecheck / arch:circular | **PASS** |
+| Regression suite | **PASS** (241 files / **2786** tests) |
+| Build · ChatPage | **PASS** (139.20 kB; lazy chunk 16.76 kB) |
+| Performance | **≥90** |
 
 ---
 
