@@ -1715,6 +1715,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_offer_decision_engine. Blueprints only — offer decision architecture only; never books, calls providers, or calculates payments. Does not replace brain.travel_recommendation.',
   },
+  {
+    id: 'brain.booking_orchestrator',
+    name: 'Travel Booking Orchestrator Architecture (Phase 7 Stage 11)',
+    description:
+      'Additive architecture-only Travel Booking Orchestrator: prepares booking workflows from offer decisions via pipeline/schema/lifecycle/strategy/validation/provider abstraction/rollback/retry/audit/snapshot/revision/confidence. Blueprints only — NEVER executes bookings, contacts providers, payments, reservations, emails, or notifications. Distinct from booking.orchestrator / src/lib/booking / src/core/booking. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.offer_decision_engine'],
+    notes:
+      'Product alias: brain_booking_orchestrator. Blueprints only — booking preparation architecture only; never executes bookings. Does not replace booking.orchestrator or existing booking engines.',
+  },
 ]
 
 export class FeatureRegistry {
