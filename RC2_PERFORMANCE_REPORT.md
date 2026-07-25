@@ -1,6 +1,7 @@
 # Rahhal AI Platform — Release Candidate 2 Performance Excellence
 
 **Branch:** `cursor/rc2-performance-7518`  
+**Draft PR:** [#264](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/264)  
 **Continues from:** Draft PR [#263](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/263) (RC-1 Audit)  
 **Scope:** Performance only — no new features, no AI modules, no architecture redesign, **no merge**  
 **Feature flags:** Unchanged (Phase 4–7 experimental remain **OFF**)  
