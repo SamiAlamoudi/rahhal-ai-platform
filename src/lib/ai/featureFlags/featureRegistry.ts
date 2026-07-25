@@ -535,6 +535,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: production_audit_platform. Additive under src/lib/productionAudit. Does not modify Conversation Brain, UI, providers, or architecture.',
   },
   {
+    id: 'rc1.validation',
+    name: 'RC1 Release Candidate Validation',
+    description:
+      'Sprint 18 — End-to-end journey, feature-flag matrix, provider/recovery/observability/security/performance validation and GO/NO-GO. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: rc1_validation. Additive under src/lib/rc1Validation. Does not rewrite engines or merge releases.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:

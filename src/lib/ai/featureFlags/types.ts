@@ -55,6 +55,7 @@ export type FeatureId =
   | 'observability.platform'
   | 'load_testing.platform'
   | 'production_audit.platform'
+  | 'rc1.validation'
   | 'ai.trip_builder'
   | 'ai.memory_engine'
   | 'ai.orchestrator'
