@@ -1,6 +1,7 @@
 # Live Hotel Search — Integration Sprint 3 Validation Report
 
 **Branch:** `cursor/live-hotel-search-7518`  
+**Draft PR:** [#268](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/268)  
 **Continues from:** Draft PR [#267](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/267) (Live Flight Search)  
 **Generated:** 2026-07-25  
 **Constraints:** Additive · Feature flag OFF by default · No UI redesign · No architecture rewrite · **No merge**

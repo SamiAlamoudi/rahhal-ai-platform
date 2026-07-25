@@ -1,6 +1,7 @@
 # Live Hotel Search — Performance Report (Sprint 3)
 
 **Branch:** `cursor/live-hotel-search-7518`  
+**Draft PR:** [#268](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/268)  
 **Generated:** 2026-07-25  
 
 ---
