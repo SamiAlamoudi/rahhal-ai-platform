@@ -1,5 +1,7 @@
 # Destination Intelligence — Recommendation Examples (Sprint 5)
 
+**Draft PR:** [#270](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/270)
+
 Illustrative outputs from the advisor engine (mock weather · curated knowledge).
 
 ---
