@@ -802,6 +802,20 @@ export {
   type MobilityRoute,
 } from './integrationMapsMobility'
 
+/** Integration Sprint 9 — Budget & Pricing Intelligence */
+export {
+  INTEGRATION_BUDGET_PRICING_VERSION,
+  INTEGRATION_BUDGET_PRICING_FEATURE_ID,
+  isIntegrationBudgetPricingEnabled,
+  runBudgetPricing,
+  enrichWithIntegrationBudgetPricing,
+  createBudgetEngine,
+  optimizeBudgetOptions,
+  type BudgetPricingResult,
+  type BudgetEnvelope,
+  type OptimizedBudgetOption,
+} from './integrationBudgetPricing'
+
 /** Sprint 73 — Hotel Search Engine */
 export {
   createHotelSearchEngine,

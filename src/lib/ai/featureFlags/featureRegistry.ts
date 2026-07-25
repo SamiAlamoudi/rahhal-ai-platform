@@ -455,6 +455,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: integration_maps_mobility. Additive under src/lib/agent/integrationMapsMobility. Reuses integrations/providers/googleMaps client when live is explicitly injected. When OFF, planTurn path is unchanged.',
   },
   {
+    id: 'ai.integration_budget_pricing',
+    name: 'Integration Budget & Pricing Intelligence',
+    description:
+      'Integration Sprint 9 — BudgetEngine, cost breakdown, trade-offs, tier optimizer, flexible alternatives, cost memory, conversational budget asks. Default OFF. Distinct from Sprint 75 ai.budget_intelligence.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_budget_pricing. Additive under src/lib/agent/integrationBudgetPricing. Reuses parseBudgetUtterance and offer price hints; does not rewrite live pricing providers. When OFF, planTurn path is unchanged.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:

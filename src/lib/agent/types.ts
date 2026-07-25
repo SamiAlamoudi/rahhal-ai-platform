@@ -320,6 +320,21 @@ export interface AgentProviderMeta {
     latencyMs: number
   }
   /**
+   * Integration Sprint 9 — Budget & Pricing Intelligence snapshot.
+   * Additive; present when `ai.integration_budget_pricing` ran for the turn.
+   */
+  budgetPricing?: {
+    intent: string
+    tier: string | null
+    total: number | null
+    currency: string | null
+    withinBudget: boolean | null
+    tradeoffCount: number
+    flexibleCount: number
+    summary: string
+    latencyMs: number
+  }
+  /**
    * Sprint 46 — soft preference inference snapshot (never-ask-twice).
    */
   clarification?: {

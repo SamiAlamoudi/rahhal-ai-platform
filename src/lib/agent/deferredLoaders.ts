@@ -85,6 +85,10 @@ export function loadIntegrationMapsMobility() {
   return loadOnce('integrationMapsMobility', () => import('./integrationMapsMobility'))
 }
 
+export function loadIntegrationBudgetPricing() {
+  return loadOnce('integrationBudgetPricing', () => import('./integrationBudgetPricing'))
+}
+
 export function loadTravelerPersonalization() {
   return loadOnce('travelerPersonalization', () => import('./travelerPersonalization'))
 }

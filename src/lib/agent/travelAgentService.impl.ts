@@ -48,6 +48,8 @@ import { isIntegrationTripCompanionEnabled } from './integrationTripCompanion/fe
 import type { TripCompanionResult } from './integrationTripCompanion/types'
 import { isIntegrationMapsMobilityEnabled } from './integrationMapsMobility/feature'
 import type { MapsMobilityResult } from './integrationMapsMobility/types'
+import { isIntegrationBudgetPricingEnabled } from './integrationBudgetPricing/feature'
+import type { BudgetPricingResult } from './integrationBudgetPricing/types'
 import { isConversationIntelligenceEnabled } from './conversationIntelligence/feature'
 import type { ConversationIntelligenceResult } from './conversationIntelligence'
 import { isLlmConversationBrainEnabled } from './llmBrain/feature'
@@ -131,6 +133,7 @@ import {
   loadIntegrationDestinationIntelligence,
   loadIntegrationTripCompanion,
   loadIntegrationMapsMobility,
+  loadIntegrationBudgetPricing,
   loadConcierge,
   loadConciergeIntegration,
   loadConciergeMeta,
@@ -1024,6 +1027,9 @@ export function createTravelAgentService(
   const isIntegrationMapsMobilityOn = (): boolean =>
     isIntegrationMapsMobilityEnabled()
 
+  const isIntegrationBudgetPricingOn = (): boolean =>
+    isIntegrationBudgetPricingEnabled()
+
   const isTravelerPersonalizationOn = (): boolean =>
     isTravelerPersonalizationEnabled({ enabled: options.travelerPersonalizationEnabled })
 
@@ -1638,6 +1644,8 @@ export function createTravelAgentService(
       let tripCompanionMeta: AgentProviderMeta['tripCompanion'] | undefined
       let mapsMobilityResult: MapsMobilityResult | null = null
       let mapsMobilityMeta: AgentProviderMeta['mapsMobility'] | undefined
+      let budgetPricingResult: BudgetPricingResult | null = null
+      let budgetPricingMeta: AgentProviderMeta['budgetPricing'] | undefined
       let clarificationMeta: NonNullable<AgentProviderMeta['clarification']> | undefined
       let rahhalBrainMeta: RahhalBrainMetaSnapshot | undefined
       let travelExecutiveSnapshot: RahhalBrainTurnResult['executive']
@@ -1964,6 +1972,33 @@ export function createTravelAgentService(
             )
           }
         }
+
+        // Integration Sprint 9 — Budget & Pricing Intelligence (financial value).
+        if (isIntegrationBudgetPricingOn() && userText.trim()) {
+          const __mod_budgetPricing = await loadIntegrationBudgetPricing()
+          if (
+            __mod_budgetPricing.shouldRunBudgetPricing({
+              userText,
+              memory,
+            })
+          ) {
+            const budgetEnriched = await __mod_budgetPricing.enrichWithIntegrationBudgetPricing({
+              memory,
+              userText,
+              locale: memory.locale,
+              force: true,
+              deps: {
+                enabled: true,
+                userId: input.conversationId,
+              },
+            })
+            memory = budgetEnriched.memory
+            budgetPricingResult = budgetEnriched.budgetPricing
+            budgetPricingMeta = __mod_budgetPricing.toBudgetPricingMeta(
+              budgetEnriched.budgetPricing,
+            )
+          }
+        }
         memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
       }
 
@@ -2188,12 +2223,15 @@ export function createTravelAgentService(
         const withMapsMobility = mapsMobilityMeta
           ? { ...withTripCompanion, mapsMobility: mapsMobilityMeta }
           : withTripCompanion
+        const withBudgetPricing = budgetPricingMeta
+          ? { ...withMapsMobility, budgetPricing: budgetPricingMeta }
+          : withMapsMobility
         const withBooking = bookingIntelligenceResult
           ? {
-            ...withMapsMobility,
+            ...withBudgetPricing,
             bookingIntelligence: toMetaBookingIntelligence(bookingIntelligenceResult),
           }
-          : withMapsMobility
+          : withBudgetPricing
         const withBudget = budgetIntelligenceResult
           ? { ...withBooking, budgetIntelligence: toMetaBudgetIntelligence(budgetIntelligenceResult) }
           : withBooking
@@ -2303,6 +2341,59 @@ export function createTravelAgentService(
           ...enriched,
           spokenText,
           voicePhase: enriched.voicePhase ?? 'final',
+        }
+      }
+
+      // Integration Sprint 9 — Budget & Pricing answers financial / value questions.
+      if (
+        !isBrainCoreEnabled()
+        && budgetPricingResult?.enabled
+        && budgetPricingResult.ok
+        && budgetPricingResult.intent !== 'unknown'
+      ) {
+        memory = withTripPlan({ ...memory, phase: memory.phase }, memory.tripPlan)
+        const budgetSummary = memory.locale === 'en'
+          ? budgetPricingResult.consultantSummaryEn
+          : budgetPricingResult.consultantSummaryAr
+        const facts = buildTravelFacts({
+          memory,
+          objective: 'propose_options',
+          missingSlots: memory.missingFields.map(String),
+          optionHints: [
+            budgetPricingResult.primary
+              ? `${budgetPricingResult.primary.labelEn}: ${budgetPricingResult.primary.whyEn}`
+              : null,
+            ...budgetPricingResult.flexible.slice(0, 2).map((f) => f.titleEn),
+          ].filter(Boolean) as string[],
+          recommendations: [budgetSummary].filter(Boolean),
+          warnings: budgetPricingResult.tradeoffs
+            .filter((t) => t.exceedsBudget)
+            .map((t) => t.detailEn),
+        })
+        const spoken = await speakTravelFacts({
+          llms,
+          conversationId: input.conversationId,
+          messages: input.messages,
+          facts,
+          signal: input.signal,
+        })
+        const replyText = budgetSummary || spoken.displayText
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          spokenText: (budgetSummary || spoken.spokenText)?.slice(0, 360),
+          voicePhase: 'final',
+          toolResults: [],
+        }
+        return {
+          reply: replyText,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta: attachTurnMeta(meta, meta.spokenText),
+          toolBatch: null,
         }
       }
 
