@@ -1,6 +1,6 @@
 # Budget & Pricing — Scenario Examples (Sprint 9)
 
-**Draft PR:** _(pending)_  
+**Draft PR:** [#273](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/273)  
 Flag `ai.integration_budget_pricing` remains **OFF** by default.
 
 ---

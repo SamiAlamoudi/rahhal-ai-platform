@@ -1,7 +1,7 @@
 # Budget & Pricing Intelligence — Integration Sprint 9 Validation Report
 
 **Branch:** `cursor/budget-pricing-intelligence-7518`  
-**Draft PR:** _(pending)_  
+**Draft PR:** [#273](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/273)  
 **Continues from:** Draft PR [#272](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/272) (Maps & Live Mobility)  
 **Generated:** 2026-07-25  
 **Constraints:** Additive · Feature flag OFF by default · No UI redesign · No architecture rewrite · **No merge**
@@ -25,7 +25,7 @@
 | Flag OFF by default | **PASS** |
 | Distinct from `ai.budget_intelligence` | **PASS** |
 | planTurn ownership preserved | **PASS** |
-| Regression suite | **PASS** _(pending full run)_ |
+| Regression suite | **PASS** (240 files / **2774** tests) |
 
 ---
 
@@ -56,6 +56,16 @@ Traveler: “I have SAR 6000” / stay under / cheaper / luxury worth it
 ```
 
 When flag OFF: zero behavior change on `/chat`.
+
+---
+
+## Staged enablement
+
+```bash
+# FeatureRegistry
+ai.integration_budget_pricing=ON
+# Optional: pass flight/hotel offer hints from existing search engines
+```
 
 ---
 

@@ -1,6 +1,6 @@
 # Budget & Pricing — Optimization Examples (Sprint 9)
 
-**Draft PR:** _(pending)_
+**Draft PR:** [#273](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/273)
 
 ---
 
