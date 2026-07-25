@@ -32,7 +32,7 @@ export default function SignUp() {
       setNeedsVerification(true)
       return
     }
-    navigate('/chat')
+    navigate('/')
   }
 
   const fieldError = (field: string) => errors.find(e => e.field === field)?.message

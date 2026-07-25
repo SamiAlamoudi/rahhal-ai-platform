@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
 import VoiceComposer from '../components/chat/VoiceComposer'
 import LiveNotificationsBanner from '../components/chat/experience/LiveNotificationsBanner'
 import VirtualizedMessageList from '../components/chat/experience/VirtualizedMessageList'
+import { ChatWelcome } from '../components/premium'
+
+const VoicePanel = lazy(() =>
+  import('../components/premium/VoicePanel').then((m) => ({ default: m.VoicePanel })),
+)
 import { travelAgentService } from '../lib/agent/travelAgentService'
 import { detectAgentLocale } from '../lib/agent/locale'
 import type { TripPlan } from '../lib/agent/types'
@@ -91,6 +96,7 @@ function LegacyChatPage() {
   const [voiceLocale, setVoiceLocale] = useState<VoiceLocale>('ar')
   const [partialTranscript, setPartialTranscript] = useState('')
   const [voiceLevel, setVoiceLevel] = useState(0)
+  const [voiceMuted, setVoiceMuted] = useState(false)
   const [micError, setMicError] = useState<string | null>(null)
   const [permissionState, setPermissionState] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null)
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine)
@@ -417,6 +423,27 @@ function LegacyChatPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [mobileSidebarOpen])
+
+  // Phase 3 — Esc stops speaking / cancels in-flight voice or streaming reply.
+  const voiceBusyRef = useRef(false)
+  const isStreamingRef = useRef(false)
+  voiceBusyRef.current = voiceBusy
+  isStreamingRef.current = isStreaming
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return
+      }
+      if (voiceBusyRef.current || isStreamingRef.current) {
+        e.preventDefault()
+        stopGeneration()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const handleCreate = async () => {
     setActionError(null)
@@ -1001,14 +1028,41 @@ function LegacyChatPage() {
           )}
 
           {!activeId && !listLoading && (
-            <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center">
-              <p className="text-sm text-slate-500">ابدأ محادثة ثم بدّل بين الكتابة والصوت في أي وقت</p>
+            <div className="flex flex-1 flex-col items-center justify-center px-4">
+              <ChatWelcome
+                locale={chatLocale}
+                disabled={!online || isStreaming}
+                onPrompt={(text) => {
+                  void (async () => {
+                    try {
+                      const created = await chatEngine.createConversation()
+                      setConversations((prev) => [created, ...prev])
+                      selectConversation(created.id)
+                      setMobileSidebarOpen(false)
+                      await runGeneration(async (handlers) => {
+                        const result = await chatEngine.sendMessage({
+                          conversationId: created.id,
+                          content: text,
+                          modality: 'text',
+                        }, handlers)
+                        setMessages((prev) => {
+                          const withoutAssistant = prev.filter((m) => m.id !== result.assistant.id)
+                          return [...withoutAssistant, result.user, result.assistant]
+                        })
+                      })
+                    } catch (e) {
+                      logChatError('chat.welcome', e)
+                      setActionError(userFacingErrorMessage(e, 'تعذر بدء المحادثة'))
+                    }
+                  })()
+                }}
+              />
               <button
                 type="button"
                 onClick={() => void handleCreate()}
-                className="mt-4 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-700"
+                className="mt-2 min-h-11 rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               >
-                إنشاء محادثة
+                إنشاء محادثة فارغة
               </button>
             </div>
           )}
@@ -1016,7 +1070,9 @@ function LegacyChatPage() {
           {activeId && (
             <>
               <div
-                className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"
+                className={`min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 ${
+                  composerMode === 'voice' ? 'pb-56' : ''
+                }`}
                 onScroll={(e) => {
                   const el = e.currentTarget
                   const distance = el.scrollHeight - el.scrollTop - el.clientHeight
@@ -1039,31 +1095,11 @@ function LegacyChatPage() {
                   </div>
                 )}
                 {!detailLoading && !detailError && messages.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center dark:border-slate-700">
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                      خطّط رحلتك مع رحّال
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      اكتب ما تحتاجه بلغة طبيعية — رحّال يسأل عن الناقص فقط ثم يبني الخطة والحجز والدفع داخل نفس المحادثة.
-                    </p>
-                    <div className="mx-auto mt-4 flex max-w-xl flex-wrap justify-center gap-2">
-                      {[
-                        'أريد السفر إلى المغرب مع زوجتي لمدة سبعة أيام في سبتمبر بميزانية 12000 ريال',
-                        'Weekend trip to Dubai for two under 5000 SAR',
-                        'Family trip to Istanbul with kids in October',
-                      ].map((prompt) => (
-                        <button
-                          key={prompt}
-                          type="button"
-                          disabled={!online || isStreaming}
-                          onClick={() => void sendAgentCommand(prompt)}
-                          className="rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-[11px] font-semibold text-primary-800 transition-colors hover:bg-primary-100 disabled:opacity-40 dark:border-primary-800 dark:bg-primary-950 dark:text-primary-100"
-                        >
-                          {prompt.length > 54 ? `${prompt.slice(0, 54)}…` : prompt}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <ChatWelcome
+                    locale={chatLocale}
+                    disabled={!online || isStreaming}
+                    onPrompt={(text) => void sendAgentCommand(text)}
+                  />
                 )}
                 <VirtualizedMessageList
                   messages={messages}
@@ -1099,10 +1135,35 @@ function LegacyChatPage() {
                 <div ref={bottomRef} />
               </div>
 
-              <div className="border-t border-slate-100 bg-white/90 px-4 py-3 backdrop-blur-md sm:px-6">
+              {composerMode === 'voice' && activeId ? (
+                <Suspense fallback={null}>
+                  <VoicePanel
+                    status={voiceStatus}
+                    level={voiceLevel}
+                    partialTranscript={partialTranscript}
+                    locale={voiceLocale === 'en' ? 'en' : 'ar'}
+                    muted={voiceMuted}
+                    online={online}
+                    visible
+                    onInterrupt={stopGeneration}
+                    onStopSpeaking={stopGeneration}
+                    onRestartListening={() => {
+                      if (voiceMode === 'hands_free') void handleToggleHandsFree()
+                      else void handlePushStart()
+                    }}
+                    onToggleMute={() => setVoiceMuted((v) => !v)}
+                  />
+                </Suspense>
+              ) : null}
+
+              <div
+                className={`border-t border-slate-100/80 bg-white/95 px-3 py-3 backdrop-blur-xl sm:px-6 ${
+                  composerMode === 'voice' ? 'pb-4' : ''
+                }`}
+              >
                 {composerMode === 'voice' ? (
                   <VoiceComposer
-                    enabled={!!activeId && !isStreaming}
+                    enabled={!!activeId && !isStreaming && !voiceMuted}
                     status={voiceStatus}
                     mode={voiceMode}
                     locale={voiceLocale}
@@ -1122,24 +1183,24 @@ function LegacyChatPage() {
                   />
                 ) : (
                   <form onSubmit={(e) => void handleSend(e)}>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                    <div className="rounded-[1.5rem] border border-slate-200/90 bg-white p-2 shadow-lg shadow-slate-900/5 sm:p-3">
                       <label className="sr-only" htmlFor="chat-draft">رسالتك</label>
                       <textarea
                         id="chat-draft"
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                         rows={2}
-                        placeholder="Plan a 7-day trip to Japan / خطط رحلة 7 أيام إلى اليابان..."
-                        className="min-h-[44px] w-full resize-none rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400/20"
+                        placeholder="حدّثني عن رحلة أحلامك…"
+                        className="min-h-11 w-full resize-none bg-transparent px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none sm:text-base"
                         disabled={!activeId || voiceBusy || !online}
                       />
-                      <div className="flex shrink-0 gap-2">
+                      <div className="mt-2 flex flex-wrap items-center justify-end gap-2 px-1">
                         <button
                           type="button"
                           onClick={() => void handleAttachImage()}
                           disabled={!activeId || isStreaming || voiceBusy}
                           title="مرفقات الصور (بنية جاهزة — التخزين لاحقاً)"
-                          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-40"
+                          className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-40"
                         >
                           صورة
                         </button>
@@ -1148,7 +1209,7 @@ function LegacyChatPage() {
                             type="button"
                             onClick={stopGeneration}
                             aria-label="إيقاف التوليد"
-                            className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-100"
+                            className="min-h-11 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700 hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
                           >
                             إيقاف
                           </button>
@@ -1157,7 +1218,7 @@ function LegacyChatPage() {
                           <button
                             type="button"
                             onClick={() => void handleContinueGenerating()}
-                            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                            className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                           >
                             متابعة
                           </button>
@@ -1165,7 +1226,7 @@ function LegacyChatPage() {
                         <button
                           type="submit"
                           disabled={!activeId || isStreaming || voiceBusy || !draft.trim() || !online}
-                          className="rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700 disabled:bg-slate-300"
+                          className="min-h-11 rounded-xl bg-primary-600 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:bg-slate-300"
                         >
                           {sending ? 'جاري الإرسال...' : 'إرسال'}
                         </button>

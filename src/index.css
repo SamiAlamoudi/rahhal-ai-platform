@@ -105,11 +105,50 @@ html {
 
 body {
   margin: 0;
-  background-color: #f7f9fc;
+  background-color: #f4f7fb;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 :root {
   color-scheme: light;
+  --rahhal-surface: #ffffff;
+  --rahhal-ink: #0f172a;
+  --rahhal-muted: #64748b;
+  --rahhal-glow: rgba(28, 128, 240, 0.18);
+  --rahhal-radius-xl: 1.75rem;
+}
+
+/* Recovery Phase 2 — premium chat surfaces */
+.premium-thinking-rail {
+  margin-block: 0.25rem;
+}
+
+/* Phase 3 — voice panel glow (GPU-friendly opacity pulses) */
+@keyframes voice-panel-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 28px 2px rgba(56, 189, 248, 0.28);
+  }
+}
+
+.voice-panel-idle {
+  animation: voice-panel-breathe 2.8s ease-in-out infinite;
+}
+
+.voice-panel-listening {
+  animation: voice-panel-breathe 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-mic-pulse,
+  .voice-panel-idle,
+  .voice-panel-listening {
+    animation: none;
+  }
 }
 
 /* Sprint 42 — conversation experience themes */

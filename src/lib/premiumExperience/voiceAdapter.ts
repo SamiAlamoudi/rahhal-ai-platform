@@ -1,0 +1,184 @@
+/**
+ * Phase 3 — reusable VoiceAdapter seam.
+ * Supports multiple providers; runtime always uses Mock unless explicitly prepared.
+ * No network / no real APIs / no business-logic changes.
+ */
+
+export type VoiceAdapterProviderId =
+  | 'mock'
+  | 'openai_realtime'
+  | 'gemini_live'
+  | 'azure_voice'
+  | 'deepgram'
+  | 'web_speech'
+
+export type VoiceUiPanelState =
+  | 'idle'
+  | 'listening'
+  | 'thinking'
+  | 'speaking'
+  | 'disconnected'
+  | 'muted'
+  | 'interrupted'
+
+export interface VoiceAdapterConnectResult {
+  connected: boolean
+  mock: boolean
+  providerId: VoiceAdapterProviderId
+}
+
+export interface VoiceAdapter {
+  id: VoiceAdapterProviderId
+  label: string
+  /** True when this adapter is presentation-only (no live duplex). */
+  mock: boolean
+  connect: () => Promise<VoiceAdapterConnectResult>
+  disconnect: () => Promise<void>
+  interrupt: () => void
+  mute: () => void
+  unmute: () => void
+  isMuted: () => boolean
+}
+
+const PROVIDER_LABELS: Record<VoiceAdapterProviderId, string> = {
+  mock: 'Mock Voice Adapter',
+  openai_realtime: 'OpenAI Realtime (prepared)',
+  gemini_live: 'Gemini Live (prepared)',
+  azure_voice: 'Azure Voice (prepared)',
+  deepgram: 'Deepgram (prepared)',
+  web_speech: 'Web Speech API (prepared)',
+}
+
+function envFlag(name: string): boolean {
+  try {
+    const value = (import.meta.env as Record<string, unknown>)[name]
+    return value === true || value === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function listVoiceAdapterProviders(): readonly VoiceAdapterProviderId[] {
+  return [
+    'mock',
+    'openai_realtime',
+    'gemini_live',
+    'azure_voice',
+    'deepgram',
+    'web_speech',
+  ] as const
+}
+
+/** Prefer mock unless a future key is present (still non-executing). */
+export function resolveVoiceAdapterProviderId(): VoiceAdapterProviderId {
+  if (envFlag('VITE_OPENAI_REALTIME_KEY')) return 'openai_realtime'
+  if (envFlag('VITE_GEMINI_LIVE_KEY')) return 'gemini_live'
+  if (envFlag('VITE_AZURE_VOICE_KEY')) return 'azure_voice'
+  if (envFlag('VITE_DEEPGRAM_KEY')) return 'deepgram'
+  if (envFlag('VITE_VOICE_WEB_SPEECH')) return 'web_speech'
+  return 'mock'
+}
+
+export function createMockVoiceAdapter(): VoiceAdapter {
+  let muted = false
+  return {
+    id: 'mock',
+    label: PROVIDER_LABELS.mock,
+    mock: true,
+    async connect() {
+      return { connected: true, mock: true, providerId: 'mock' }
+    },
+    async disconnect() {},
+    interrupt() {},
+    mute() {
+      muted = true
+    },
+    unmute() {
+      muted = false
+    },
+    isMuted() {
+      return muted
+    },
+  }
+}
+
+/** Prepared adapter — never opens sockets; always mock-backed. */
+export function createPreparedVoiceAdapter(id: VoiceAdapterProviderId): VoiceAdapter {
+  if (id === 'mock') return createMockVoiceAdapter()
+  const inner = createMockVoiceAdapter()
+  return {
+    id,
+    label: PROVIDER_LABELS[id],
+    mock: true,
+    async connect() {
+      const result = await inner.connect()
+      return { ...result, providerId: id, mock: true, connected: false }
+    },
+    disconnect: () => inner.disconnect(),
+    interrupt: () => inner.interrupt(),
+    mute: () => inner.mute(),
+    unmute: () => inner.unmute(),
+    isMuted: () => inner.isMuted(),
+  }
+}
+
+/**
+ * Factory — Phase 3 always returns a safe non-network adapter.
+ * Live providers are labeled for future wiring only.
+ */
+export function createVoiceAdapter(preferred?: VoiceAdapterProviderId): VoiceAdapter {
+  const id = preferred ?? resolveVoiceAdapterProviderId()
+  if (id === 'mock') return createMockVoiceAdapter()
+  return createPreparedVoiceAdapter(id)
+}
+
+/** Map chat VoiceSessionStatus → panel UI state. */
+export function mapSessionStatusToPanelState(
+  status: string,
+  opts?: { muted?: boolean; disconnected?: boolean },
+): VoiceUiPanelState {
+  if (opts?.disconnected) return 'disconnected'
+  if (opts?.muted) return 'muted'
+  switch (status) {
+    case 'listening':
+    case 'requesting_permission':
+      return 'listening'
+    case 'thinking':
+    case 'processing':
+    case 'responding':
+      return 'thinking'
+    case 'speaking':
+      return 'speaking'
+    case 'error':
+      return 'disconnected'
+    case 'reconnecting':
+      return 'disconnected'
+    default:
+      return 'idle'
+  }
+}
+
+export function voicePanelStateLabel(
+  state: VoiceUiPanelState,
+  locale: 'ar' | 'en' = 'ar',
+): string {
+  const ar: Record<VoiceUiPanelState, string> = {
+    idle: 'جاهز',
+    listening: 'أستمع إليك…',
+    thinking: 'أفكّر…',
+    speaking: 'أتحدث…',
+    disconnected: 'غير متصل',
+    muted: 'صامت',
+    interrupted: 'تمت المقاطعة',
+  }
+  const en: Record<VoiceUiPanelState, string> = {
+    idle: 'Ready',
+    listening: 'Listening…',
+    thinking: 'Thinking…',
+    speaking: 'Speaking…',
+    disconnected: 'Disconnected',
+    muted: 'Muted',
+    interrupted: 'Interrupted',
+  }
+  return locale === 'ar' ? ar[state] : en[state]
+}

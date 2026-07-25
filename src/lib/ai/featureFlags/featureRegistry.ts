@@ -175,6 +175,39 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: budget_intelligence. Does not replace search engines; Conversation Brain narrates facts only.',
   },
   {
+    id: 'ai.conversation_intelligence',
+    name: 'Conversation Intelligence',
+    description:
+      'Recovery Phase 4 — live travel memory, entity extraction, intent detection, reference resolution, smart summaries, outcome-changing questions, and travel-consultant personality. Additive soft enrich on planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes:
+      'Product alias: conversation_intelligence. Default OFF. Does not redesign UI or replace extractFromUserText / booking / search engines. No production API keys.',
+  },
+  {
+    id: 'ai.llm_conversation_brain',
+    name: 'LLM Conversation Brain',
+    description:
+      'Recovery Phase 5 — LLM-first conversation brain (mock reasoner primary; Phase 4 rules fallback): travel reasoning, tool decisions, confidence, context optimization, dialect-aware consultant replies. Additive soft enrich on planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes:
+      'Product alias: llm_conversation_brain. Default OFF. Production remote LLM APIs remain disabled; mock LLM path only. Uses Phase 4 conversationIntelligence as rules fallback in-process (no flag coupling). Does not redesign UI or replace search/booking engines.',
+  },
+  {
+    id: 'ai.autonomous_agent_orchestrator',
+    name: 'Autonomous AI Agent Orchestrator',
+    description:
+      'Recovery Phase 6 — mission planning, multi-step task execution, goal manager, dynamic replan, tool orchestration, recovery, and debug decision explanations. Additive soft enrich on planTurn under src/lib/agent/orchestrator/autonomous.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes:
+      'Product alias: autonomous_agent_orchestrator. Default OFF. Distinct from frozen Sprint 113 ai.orchestrator and Sprint 54 ai.autonomous_agent. Production APIs disabled. Does not redesign UI or replace planTurn ownership.',
+  },
+  {
     id: 'ai.traveler_personalization',
     name: 'Traveler Personalization Intelligence',
     description:

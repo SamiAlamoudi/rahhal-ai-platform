@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import type { VoiceInputMode, VoiceLocale, VoiceSessionStatus } from '../../lib/chat/voice/voiceTypes'
 import { VOICE_LOCALES } from '../../lib/chat/voice/voiceTypes'
+import { createVoiceAdapter } from '../../lib/premiumExperience'
 import VoiceWaveform from './VoiceWaveform'
 
 interface VoiceComposerProps {
@@ -24,15 +26,15 @@ interface VoiceComposerProps {
 }
 
 const STATUS_LABELS: Record<VoiceSessionStatus, string> = {
-  idle: 'جاهز',
+  idle: 'جاهز للاستماع',
   requesting_permission: 'طلب إذن الميكروفون…',
-  listening: 'Listening…',
-  thinking: 'Thinking…',
-  responding: 'Responding…',
-  processing: 'Thinking…',
-  speaking: 'Speaking…',
-  reconnecting: 'إعادة الاتصال بالاستماع…',
-  error: 'خطأ',
+  listening: 'أستمع إليك…',
+  thinking: 'أفكّر في أفضل خيار لك…',
+  responding: 'أجهّز الرد…',
+  processing: 'أفكّر في أفضل خيار لك…',
+  speaking: 'أتحدث…',
+  reconnecting: 'أعيد الاتصال…',
+  error: 'حدث خطأ',
 }
 
 export default function VoiceComposer({
@@ -63,10 +65,18 @@ export default function VoiceComposer({
   const holdRef = useRef(false)
   const [smoothLevel, setSmoothLevel] = useState(0)
   const showMicHelp = !!permissionError || permissionState === 'denied' || permissionState === 'unsupported'
+  const voiceAdapter = useMemo(() => createVoiceAdapter(), [])
 
   useEffect(() => {
     setSmoothLevel((prev) => prev * 0.55 + level * 0.45)
   }, [level])
+
+  useEffect(() => {
+    void voiceAdapter.connect()
+    return () => {
+      void voiceAdapter.disconnect()
+    }
+  }, [voiceAdapter])
 
   useEffect(() => {
     if (mode !== 'push_to_talk') return
@@ -95,12 +105,16 @@ export default function VoiceComposer({
   }, [mode, enabled, processing, speaking, reconnecting, onPushStart, onPushEnd])
 
   return (
-    <div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-3 sm:p-4">
+    <div
+      className="space-y-3 rounded-[1.75rem] border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/80 p-4 shadow-lg shadow-slate-900/5 sm:p-5"
+      data-testid="premium-voice-composer"
+      data-voice-adapter={voiceAdapter.id}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-bold text-slate-900">المحادثة الصوتية</p>
           <p className="text-[11px] text-slate-400">
-            نفس سجل المحادثة والنص — بدون اتصال هاتفي أو فيديو
+            {voiceAdapter.label} · Mock · جاهز للمزوّدين لاحقاً
           </p>
         </div>
         <span
@@ -135,7 +149,7 @@ export default function VoiceComposer({
             value={mode}
             onChange={(e) => onModeChange(e.target.value as VoiceInputMode)}
             disabled={!enabled || busy}
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
           >
             <option value="push_to_talk">اضغط للتحدث</option>
             <option value="hands_free">حر اليدين</option>
@@ -148,7 +162,7 @@ export default function VoiceComposer({
             value={locale}
             onChange={(e) => onLocaleChange(e.target.value as VoiceLocale)}
             disabled={!enabled || busy}
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
           >
             <option value="ar">{VOICE_LOCALES.ar.labelAr}</option>
             <option value="en">{VOICE_LOCALES.en.labelEn}</option>
@@ -162,27 +176,64 @@ export default function VoiceComposer({
           <button
             type="button"
             onClick={onRequestPermission}
-            className="mt-1 font-medium underline"
+            className="mt-1 min-h-10 font-medium underline"
           >
             إعادة طلب إذن الميكروفون
           </button>
         </div>
       )}
 
-      <VoiceWaveform
-        active={listening}
-        level={smoothLevel}
-        label={listening ? 'Recording waveform' : 'Idle waveform'}
-      />
+      <div className="flex flex-col items-center gap-3 py-2">
+        <motion.div
+          animate={
+            listening
+              ? { scale: [1, 1.06, 1] }
+              : speaking
+                ? { scale: [1, 1.03, 1] }
+                : thinking
+                  ? { opacity: [0.7, 1, 0.7] }
+                  : { scale: 1, opacity: 1 }
+          }
+          transition={{ duration: listening || speaking || thinking ? 1.4 : 0.2, repeat: listening || speaking || thinking ? Infinity : 0 }}
+          className={`flex h-20 w-20 items-center justify-center rounded-full shadow-xl ${
+            listening
+              ? 'voice-mic-pulse bg-rose-500 text-white shadow-rose-500/30'
+              : speaking
+                ? 'bg-primary-600 text-white shadow-primary-600/30'
+                : thinking
+                  ? 'bg-slate-800 text-white'
+                  : 'bg-slate-900 text-white shadow-slate-900/25'
+          }`}
+          aria-hidden
+        >
+          <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="2">
+            <path
+              d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </motion.div>
+        <VoiceWaveform
+          active={listening || speaking}
+          level={smoothLevel}
+          label={listening ? 'Recording waveform' : speaking ? 'Speaking waveform' : 'Idle waveform'}
+        />
+      </div>
 
       <div
-        className="min-h-[3rem] rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700"
+        className="min-h-[3rem] rounded-2xl bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-100"
         aria-live="polite"
       >
         {partialTranscript.trim()
           ? partialTranscript
           : listening
-            ? '…تحدث الآن — التوقف القصير (٢–٣ ثوانٍ) لن يقطع التسجيل'
+            ? '…تحدث الآن — التوقف القصير لن يقطع التسجيل'
             : 'سيظهر نص كلامك هنا ويُحفظ في سجل المحادثة'}
       </div>
 
@@ -198,7 +249,7 @@ export default function VoiceComposer({
             onMouseLeave={() => listening && void onPushEnd()}
             onTouchStart={() => void onPushStart()}
             onTouchEnd={() => void onPushEnd()}
-            className={`min-h-12 flex-1 touch-none rounded-2xl px-4 py-3 text-sm font-bold text-white transition-colors ${
+            className={`min-h-12 flex-1 touch-none rounded-2xl px-4 py-3 text-sm font-bold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
               listening ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary-600 hover:bg-primary-700'
             } disabled:bg-slate-300`}
           >
@@ -211,7 +262,7 @@ export default function VoiceComposer({
             aria-pressed={listening}
             aria-label={listening ? 'إيقاف وضع حر اليدين' : 'تشغيل وضع حر اليدين'}
             onClick={onToggleHandsFree}
-            className={`min-h-12 flex-1 rounded-2xl px-4 py-3 text-sm font-bold text-white transition-colors ${
+            className={`min-h-12 flex-1 rounded-2xl px-4 py-3 text-sm font-bold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
               listening ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary-600 hover:bg-primary-700'
             } disabled:bg-slate-300`}
           >
@@ -222,9 +273,12 @@ export default function VoiceComposer({
         {(speaking || processing || listening || reconnecting) && (
           <button
             type="button"
-            onClick={onInterrupt}
+            onClick={() => {
+              voiceAdapter.interrupt()
+              onInterrupt()
+            }}
             aria-label="مقاطعة الرد الصوتي"
-            className="min-h-12 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-100"
+            className="min-h-12 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
           >
             مقاطعة
           </button>

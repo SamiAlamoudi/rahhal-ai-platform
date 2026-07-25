@@ -58,7 +58,8 @@ export function PublicOnlyRoute({ children }: ProtectedRouteProps) {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/chat" replace />
+    // Recovery Phase 2 — land on conversation-first home.
+    return <Navigate to="/" replace />
   }
 
   return <>{children}</>

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import type { AiHomeGreeting, HomeLocale } from '../../lib/aiHome'
 import { formatGreetingLines } from '../../lib/aiHome'
+import { consultantLine } from '../../lib/premiumExperience'
 
 export interface AiHomeHeroProps {
   greeting: AiHomeGreeting
@@ -9,59 +10,86 @@ export interface AiHomeHeroProps {
   brandTagline: string
 }
 
+/**
+ * Full-bleed conversation-first hero — brand as primary signal.
+ */
 export function AiHomeHero({ greeting, locale, brandName, brandTagline }: AiHomeHeroProps) {
   const lines = formatGreetingLines(greeting, locale)
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setVisible(true))
-    return () => cancelAnimationFrame(id)
-  }, [])
+  const question = lines[2] || consultantLine(locale, 'whereToday')
 
   return (
     <section
-      className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-primary-900 to-primary-700 px-5 py-10 text-white sm:px-8 sm:py-14"
+      className="relative isolate min-h-[58vh] overflow-hidden sm:min-h-[62vh]"
       data-testid="ai-home-hero"
       aria-label={brandName}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.12),_transparent_55%)]" />
-      <div className="pointer-events-none absolute -start-10 top-8 h-40 w-40 rounded-full bg-accent-400/20 blur-3xl" />
-      <div className="pointer-events-none absolute -end-8 bottom-0 h-48 w-48 rounded-full bg-sky-300/15 blur-3xl" />
-
+      {/* Full-bleed atmospheric plane */}
       <div
-        className={`relative z-10 transition-all duration-700 ease-out ${
-          visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20 backdrop-blur-sm"
-            aria-hidden
-          >
-            <span className="absolute inset-0 animate-ping rounded-2xl bg-accent-300/20" />
-            <svg viewBox="0 0 24 24" className="relative h-6 w-6 text-accent-200" fill="currentColor">
-              <path d="M12 2l2.5 6.5L21 9l-5 4.5L17.5 21 12 17l-5.5 4L8 13.5 3 9l6.5-.5z" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-2xl font-bold tracking-tight sm:text-3xl">{brandName}</p>
-            <p className="text-[11px] text-primary-100/90">{brandTagline}</p>
-          </div>
-        </div>
+        className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,#1c80f0_0%,#122e57_45%,#0b1628_100%)]"
+        aria-hidden
+      />
+      <div
+        className="absolute inset-0 opacity-40"
+        style={{
+          backgroundImage:
+            'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.04\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+        }}
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -start-24 top-10 h-72 w-72 rounded-full bg-sky-400/20 blur-3xl"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -end-16 bottom-0 h-80 w-80 rounded-full bg-cyan-300/10 blur-3xl"
+        aria-hidden
+      />
 
-        <div className="mt-8 max-w-xl space-y-1.5">
-          <p className="text-sm font-medium text-primary-100/90 sm:text-base">{lines[0]}</p>
-          <p className="text-lg font-semibold sm:text-xl">{lines[1]}</p>
-          <p className="text-base text-white/95 sm:text-lg">{lines[2]}</p>
-        </div>
+      <div className="relative z-10 mx-auto flex max-w-3xl flex-col justify-end px-5 pb-10 pt-16 sm:px-6 sm:pb-14 sm:pt-20">
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          className="text-[11px] font-medium tracking-[0.18em] text-sky-100/80 uppercase"
+        >
+          {brandTagline}
+        </motion.p>
 
-        <div className="mt-6 flex items-center gap-2 text-[11px] text-primary-100/80">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-300" />
-          </span>
-          {locale === 'ar' ? 'مستشار السفر الذكي جاهز' : 'AI travel concierge ready'}
-        </div>
+        <motion.h1
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.05, ease: 'easeOut' }}
+          className="mt-3 text-5xl font-bold tracking-tight text-white sm:text-6xl md:text-7xl"
+        >
+          {brandName}
+        </motion.h1>
+
+        <motion.p
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.12, ease: 'easeOut' }}
+          className="mt-3 text-sm text-sky-100/90 sm:text-base"
+        >
+          {lines[0]} {lines[1]}
+        </motion.p>
+
+        <motion.p
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.2, ease: 'easeOut' }}
+          className="mt-6 max-w-xl text-2xl font-semibold leading-snug text-white sm:text-3xl"
+        >
+          {question}
+        </motion.p>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.32 }}
+          className="mt-3 max-w-md text-sm leading-relaxed text-sky-100/85"
+        >
+          {consultantLine(locale, 'dreamTrip')}
+        </motion.p>
       </div>
     </section>
   )

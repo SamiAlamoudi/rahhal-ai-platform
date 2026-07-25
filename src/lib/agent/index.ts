@@ -115,6 +115,52 @@ export type {
   RankedBudgetCandidate,
 } from './budgetIntelligence'
 export {
+  isConversationIntelligenceEnabled,
+  CONVERSATION_INTELLIGENCE_FEATURE_ID,
+  analyzeConversation,
+  enrichWithConversationIntelligence,
+  extractEntities,
+  detectConversationIntent,
+  resolveReferences,
+  summarizeConversation,
+  formatSummaryForConsultant,
+  planIntelligentQuestions,
+  filterInterviewMissingFields,
+  PHASE4_CONVERSATION_INTELLIGENCE_VERSION,
+} from './conversationIntelligence'
+export type {
+  ConversationIntelligenceResult,
+  LiveTravelMemory,
+  ConversationIntentKind,
+  ExtractedEntities,
+} from './conversationIntelligence'
+export {
+  isLlmConversationBrainEnabled,
+  LLM_CONVERSATION_BRAIN_FEATURE_ID,
+  runLlmConversationBrain,
+  enrichWithLlmConversationBrain,
+  detectArabicDialect,
+  PHASE5_LLM_CONVERSATION_BRAIN_VERSION,
+} from './llmBrain'
+export type {
+  LlmBrainResult,
+  ArabicDialect,
+  ToolDecisionKind,
+  ConfidenceLevel,
+} from './llmBrain'
+export {
+  isAutonomousAgentOrchestratorEnabled,
+  AUTONOMOUS_AGENT_ORCHESTRATOR_FEATURE_ID,
+  runAutonomousAgentOrchestrator,
+  enrichWithAutonomousAgentOrchestrator,
+  PHASE6_AUTONOMOUS_ORCHESTRATOR_VERSION,
+} from './orchestrator/autonomous'
+export type {
+  AutonomousOrchestratorResult,
+  MissionPlan,
+  TravelGoal,
+} from './orchestrator/autonomous'
+export {
   isTravelerPersonalizationEnabled,
   TRAVELER_PERSONALIZATION_FEATURE_ID,
   parsePreferenceUtterance,

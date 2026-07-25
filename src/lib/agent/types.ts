@@ -416,6 +416,65 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Recovery Phase 4 — Conversation Intelligence snapshot (memory, intent, summary).
+   * Additive structured facts only — does not author traveler-facing replies.
+   * Present when `ai.conversation_intelligence` is ON for the turn.
+   */
+  conversationIntelligence?: {
+    intent: string
+    intentConfidence: number
+    destination: string | null
+    adults: number | null
+    budgetAmount: number | null
+    currency: string | null
+    monthHint: string | null
+    purpose: string | null
+    summaryBullets: string[]
+    questionIds: string[]
+    insightIds: string[]
+    streaming: boolean
+  }
+  /**
+   * Recovery Phase 5 — LLM Conversation Brain snapshot (reasoning, tools, confidence).
+   * Additive structured facts / debug stages only — production APIs disabled by default.
+   * Present when `ai.llm_conversation_brain` is ON for the turn.
+   */
+  llmBrain?: {
+    intent: string
+    dialect: string
+    confidence: string
+    primaryTool: string
+    destination: string | null
+    usedRulesFallback: boolean
+    providerMode: string
+    stageCount: number
+    proactiveTipCount: number
+    responsePreview: string
+    /** Hidden in production UI — stage traces for debug panel consumers. */
+    debugStages?: Array<{ id: string; label: string; detail: string; confidence: string; source: string }>
+  }
+  /**
+   * Recovery Phase 6 — Autonomous Agent Orchestrator snapshot (mission, tasks, recovery).
+   * Additive debug timeline only — never production UI. Flag OFF by default.
+   */
+  autonomousOrchestrator?: {
+    missionId: string
+    missionTitle: string
+    status: string
+    destination: string | null
+    purpose: string | null
+    taskCount: number
+    completedCount: number
+    primaryTool: string
+    replanned: boolean
+    clarificationCount: number
+    recoveryCount: number
+    decisionCount: number
+    replyPreview: string
+    /** Hidden in production — mission/task/tool/recovery timeline. */
+    timeline?: Array<{ at: string; kind: string; label: string; detail: string }>
+  }
+  /**
    * Sprint 76 — Traveler Personalization snapshot (profile, confidence, ranking deltas).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */
