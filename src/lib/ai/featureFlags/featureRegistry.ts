@@ -545,6 +545,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: rc1_validation. Additive under src/lib/rc1Validation. Does not rewrite engines or merge releases.',
   },
   {
+    id: 'soak.staging',
+    name: 'Staging Soak Test (Pre-GA)',
+    description:
+      'Sprint 19 — Long-run soak, concurrency, memory leak, long conversations, failure durability, production baseline. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: soak_staging. Additive under src/lib/soakTesting. Simulated staging soak — does not rewrite engines, UI, or providers.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:

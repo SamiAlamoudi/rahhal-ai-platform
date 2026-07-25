@@ -22,6 +22,7 @@
     "security:gate": "npm run security:scan && npm run security:env-check && npm run security:validate",
     "audit:readiness": "node scripts/production-readiness-audit.mjs",
     "rc1:validate": "vitest run src/lib/__tests__/rc1Validation.sprint18.test.ts src/lib/__tests__/rc1.coreJourney.test.ts src/lib/__tests__/rc1.failurePaths.test.ts src/lib/__tests__/rc1.stagingSmoke.test.ts",
+    "soak:validate": "vitest run src/lib/__tests__/soakTesting.sprint19.test.ts",
     "amadeus:check": "node scripts/amadeus-check.mjs",
     "amadeus:live-search": "node scripts/amadeus-live-search.mjs",
     "preview:verify": "vitest run src/lib/__tests__/previewEnvCheck.cli.test.ts",
