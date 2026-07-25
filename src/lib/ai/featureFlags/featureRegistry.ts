@@ -1572,6 +1572,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_knowledge_engine. Blueprints only — never searches or calls knowledge providers.',
   },
+  {
+    id: 'brain.tool_engine',
+    name: 'AI Tool Execution Engine Architecture (Phase 6 Stage 7)',
+    description:
+      'Additive architecture-only Tool Execution Engine: registry, capability catalog, router/dispatcher/resolver, permissions/policies, validation/normalization, retry/timeout/circuit breaker, queue/events/analytics/audit, state machine, execution pipeline. Blueprints only — no tool execution, LLM, APIs, Runtime, or production wiring. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.knowledge_engine'],
+    notes:
+      'Product alias: brain_tool_engine. Blueprints only — never dispatches tools or calls external APIs.',
+  },
 ]
 
 export class FeatureRegistry {
