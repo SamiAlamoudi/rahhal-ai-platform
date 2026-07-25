@@ -26,96 +26,189 @@ export interface DynamicResultCard {
   accent?: string
 }
 
-const DEMO_CARDS: DynamicResultCard[] = [
+export interface InferredTravelRoute {
+  originAr: string
+  originEn: string
+  destinationAr: string
+  destinationEn: string
+  /** Airport / city codes for compact English route labels when known. */
+  originCode?: string
+  destinationCode?: string
+}
+
+const DESTINATION_HINTS: Array<{
+  match: RegExp
+  destinationAr: string
+  destinationEn: string
+  destinationCode?: string
+}> = [
   {
-    id: 'flight-demo',
-    kind: 'flight',
-    titleAr: 'الرياض → دبي',
-    titleEn: 'RUH → DXB',
-    subtitleAr: 'مباشرة · صباح الغد',
-    subtitleEn: 'Nonstop · tomorrow morning',
-    metaAr: 'من ١٬٢٤٠ ر.س',
-    metaEn: 'From 1,240 SAR',
-    accent: 'sky',
+    match: /المغرب|morocco|مراكش|marrakech|marrakesh|الدار البيضاء|casablanca|أكادير|اغادير|agadir|الرباط|rabat/i,
+    destinationAr: 'المغرب',
+    destinationEn: 'Morocco',
+    destinationCode: 'RAK',
   },
   {
-    id: 'hotel-demo',
-    kind: 'hotel',
-    titleAr: 'فندق وسط المدينة',
-    titleEn: 'City Center Hotel',
-    subtitleAr: 'تقييم ٤٫٧ · إفطار مشمول',
-    subtitleEn: '4.7 rating · breakfast included',
-    metaAr: '٨٩٠ ر.س / ليلة',
-    metaEn: '890 SAR / night',
-    accent: 'teal',
+    match: /دبي|dubai/i,
+    destinationAr: 'دبي',
+    destinationEn: 'Dubai',
+    destinationCode: 'DXB',
   },
   {
-    id: 'weather-demo',
-    kind: 'weather',
-    titleAr: 'طقس الوجهة',
-    titleEn: 'Destination weather',
-    subtitleAr: 'مشمس · ٢٨°',
-    subtitleEn: 'Sunny · 28°',
-    metaAr: 'مثالي للتنزّه',
-    metaEn: 'Ideal for exploring',
-    accent: 'amber',
+    match: /طوكيو|tokyo/i,
+    destinationAr: 'طوكيو',
+    destinationEn: 'Tokyo',
+    destinationCode: 'NRT',
   },
   {
-    id: 'budget-demo',
-    kind: 'budget',
-    titleAr: 'ملخص الميزانية',
-    titleEn: 'Budget snapshot',
-    subtitleAr: 'ضمن ميزانيتك المقترحة',
-    subtitleEn: 'Within your suggested budget',
-    metaAr: '≈ ٧٬٢٠٠ ر.س',
-    metaEn: '≈ 7,200 SAR',
-    accent: 'emerald',
+    match: /إسطنبول|اسطنبول|istanbul/i,
+    destinationAr: 'إسطنبول',
+    destinationEn: 'Istanbul',
+    destinationCode: 'IST',
   },
   {
-    id: 'activity-demo',
-    kind: 'activity',
-    titleAr: 'تجربة مميزة',
-    titleEn: 'Signature experience',
-    subtitleAr: 'جولة ثقافية مسائية',
-    subtitleEn: 'Evening cultural walk',
-    metaAr: 'ساعتان',
-    metaEn: '2 hours',
-    accent: 'rose',
+    match: /باريس|paris/i,
+    destinationAr: 'باريس',
+    destinationEn: 'Paris',
+    destinationCode: 'CDG',
   },
   {
-    id: 'restaurant-demo',
-    kind: 'restaurant',
-    titleAr: 'مطعم موصى به',
-    titleEn: 'Recommended restaurant',
-    subtitleAr: 'مأكولات محلية رفيعة',
-    subtitleEn: 'Elevated local cuisine',
-    metaAr: 'حجز مرن',
-    metaEn: 'Flexible booking',
-    accent: 'orange',
-  },
-  {
-    id: 'visa-demo',
-    kind: 'visa',
-    titleAr: 'متطلبات التأشيرة',
-    titleEn: 'Visa requirements',
-    subtitleAr: 'تحقق سريع للمسافرين السعوديين',
-    subtitleEn: 'Quick check for Saudi travelers',
-    metaAr: 'إرشاد فقط',
-    metaEn: 'Guidance only',
-    accent: 'sky',
-  },
-  {
-    id: 'timeline-demo',
-    kind: 'timeline',
-    titleAr: 'خط زمني للرحلة',
-    titleEn: 'Trip timeline',
-    subtitleAr: 'يوم الوصول → الاستكشاف → المغادرة',
-    subtitleEn: 'Arrival → explore → departure',
-    metaAr: 'مسودة',
-    metaEn: 'Draft',
-    accent: 'teal',
+    match: /القاهرة|cairo/i,
+    destinationAr: 'القاهرة',
+    destinationEn: 'Cairo',
+    destinationCode: 'CAI',
   },
 ]
+
+/**
+ * Infer origin/destination labels from conversation seed text.
+ * Defaults origin to Riyadh (Saudi product baseline) but never invents Dubai
+ * when another destination is clearly requested.
+ */
+export function inferTravelRouteFromSeed(seedText: string): InferredTravelRoute {
+  const text = seedText.trim()
+  const originAr = 'الرياض'
+  const originEn = 'Riyadh'
+  const originCode = 'RUH'
+  for (const hint of DESTINATION_HINTS) {
+    if (hint.match.test(text)) {
+      return {
+        originAr,
+        originEn,
+        originCode,
+        destinationAr: hint.destinationAr,
+        destinationEn: hint.destinationEn,
+        destinationCode: hint.destinationCode,
+      }
+    }
+  }
+  return {
+    originAr,
+    originEn,
+    originCode,
+    destinationAr: 'وجهتك',
+    destinationEn: 'your destination',
+  }
+}
+
+function demoCardsForRoute(route: InferredTravelRoute): DynamicResultCard[] {
+  const flightTitleAr = `${route.originAr} → ${route.destinationAr}`
+  const flightTitleEn =
+    route.originCode && route.destinationCode
+      ? `${route.originCode} → ${route.destinationCode}`
+      : `${route.originEn} → ${route.destinationEn}`
+
+  return [
+    {
+      id: 'flight-demo',
+      kind: 'flight',
+      titleAr: flightTitleAr,
+      titleEn: flightTitleEn,
+      subtitleAr: 'مباشرة · صباح الغد',
+      subtitleEn: 'Nonstop · tomorrow morning',
+      metaAr: 'من ١٬٢٤٠ ر.س',
+      metaEn: 'From 1,240 SAR',
+      accent: 'sky',
+    },
+    {
+      id: 'hotel-demo',
+      kind: 'hotel',
+      titleAr: `فندق في ${route.destinationAr}`,
+      titleEn: `Hotel in ${route.destinationEn}`,
+      subtitleAr: 'تقييم ٤٫٧ · إفطار مشمول',
+      subtitleEn: '4.7 rating · breakfast included',
+      metaAr: '٨٩٠ ر.س / ليلة',
+      metaEn: '890 SAR / night',
+      accent: 'teal',
+    },
+    {
+      id: 'weather-demo',
+      kind: 'weather',
+      titleAr: `طقس ${route.destinationAr}`,
+      titleEn: `${route.destinationEn} weather`,
+      subtitleAr: 'مشمس · ٢٨°',
+      subtitleEn: 'Sunny · 28°',
+      metaAr: 'مثالي للتنزّه',
+      metaEn: 'Ideal for exploring',
+      accent: 'amber',
+    },
+    {
+      id: 'budget-demo',
+      kind: 'budget',
+      titleAr: 'ملخص الميزانية',
+      titleEn: 'Budget snapshot',
+      subtitleAr: 'ضمن ميزانيتك المقترحة',
+      subtitleEn: 'Within your suggested budget',
+      metaAr: '≈ ٧٬٢٠٠ ر.س',
+      metaEn: '≈ 7,200 SAR',
+      accent: 'emerald',
+    },
+    {
+      id: 'activity-demo',
+      kind: 'activity',
+      titleAr: `تجربة في ${route.destinationAr}`,
+      titleEn: `${route.destinationEn} experience`,
+      subtitleAr: 'جولة ثقافية مسائية',
+      subtitleEn: 'Evening cultural walk',
+      metaAr: 'ساعتان',
+      metaEn: '2 hours',
+      accent: 'rose',
+    },
+    {
+      id: 'restaurant-demo',
+      kind: 'restaurant',
+      titleAr: 'مطعم موصى به',
+      titleEn: 'Recommended restaurant',
+      subtitleAr: 'مأكولات محلية رفيعة',
+      subtitleEn: 'Elevated local cuisine',
+      metaAr: 'حجز مرن',
+      metaEn: 'Flexible booking',
+      accent: 'orange',
+    },
+    {
+      id: 'visa-demo',
+      kind: 'visa',
+      titleAr: 'متطلبات التأشيرة',
+      titleEn: 'Visa requirements',
+      subtitleAr: 'تحقق سريع للمسافرين السعوديين',
+      subtitleEn: 'Quick check for Saudi travelers',
+      metaAr: 'إرشاد فقط',
+      metaEn: 'Guidance only',
+      accent: 'sky',
+    },
+    {
+      id: 'timeline-demo',
+      kind: 'timeline',
+      titleAr: 'خط زمني للرحلة',
+      titleEn: 'Trip timeline',
+      subtitleAr: 'يوم الوصول → الاستكشاف → المغادرة',
+      subtitleEn: 'Arrival → explore → departure',
+      metaAr: 'مسودة',
+      metaEn: 'Draft',
+      accent: 'teal',
+    },
+  ]
+}
 
 /** Infer demo cards from conversation text for progressive UI (no APIs). */
 export function buildDynamicResultCards(seedText: string, limit = 4): DynamicResultCard[] {
@@ -139,9 +232,10 @@ export function buildDynamicResultCards(seedText: string, limit = 4): DynamicRes
     kinds.add('budget')
   }
 
-  const mapped = DEMO_CARDS.filter((c) => kinds.has(c.kind)).slice(0, limit)
+  const demoCards = demoCardsForRoute(inferTravelRouteFromSeed(seedText))
+  const mapped = demoCards.filter((c) => kinds.has(c.kind)).slice(0, limit)
   if (mapped.length > 0) return mapped
-  return DEMO_CARDS.slice(0, limit)
+  return demoCards.slice(0, limit)
 }
 
 export function resultCardTitle(card: DynamicResultCard, locale: 'ar' | 'en'): string {
