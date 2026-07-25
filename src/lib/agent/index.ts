@@ -115,6 +115,26 @@ export type {
   RankedBudgetCandidate,
 } from './budgetIntelligence'
 export {
+  isConversationIntelligenceEnabled,
+  CONVERSATION_INTELLIGENCE_FEATURE_ID,
+  analyzeConversation,
+  enrichWithConversationIntelligence,
+  extractEntities,
+  detectConversationIntent,
+  resolveReferences,
+  summarizeConversation,
+  formatSummaryForConsultant,
+  planIntelligentQuestions,
+  filterInterviewMissingFields,
+  PHASE4_CONVERSATION_INTELLIGENCE_VERSION,
+} from './conversationIntelligence'
+export type {
+  ConversationIntelligenceResult,
+  LiveTravelMemory,
+  ConversationIntentKind,
+  ExtractedEntities,
+} from './conversationIntelligence'
+export {
   isTravelerPersonalizationEnabled,
   TRAVELER_PERSONALIZATION_FEATURE_ID,
   parsePreferenceUtterance,

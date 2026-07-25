@@ -59,6 +59,12 @@ import {
   type BudgetIntelligenceResult,
 } from './budgetIntelligence'
 import {
+  enrichWithConversationIntelligence,
+  filterInterviewMissingFields,
+  isConversationIntelligenceEnabled,
+  type ConversationIntelligenceResult,
+} from './conversationIntelligence'
+import {
   enrichWithTravelerPersonalization,
   isTravelerPersonalizationEnabled,
   runTravelerPersonalization,
@@ -330,6 +336,11 @@ export interface TravelAgentServiceOptions {
    */
   budgetIntelligenceEnabled?: boolean
   /**
+   * Recovery Phase 4 — Conversation Intelligence (live memory, intent, references).
+   * Default: FeatureRegistry `ai.conversation_intelligence` (OFF).
+   */
+  conversationIntelligenceEnabled?: boolean
+  /**
    * Sprint 76 — Traveler Personalization Intelligence (profile learning, ranking).
    * Default: FeatureRegistry `ai.traveler_personalization` (ON).
    */
@@ -596,6 +607,26 @@ function toMetaBudgetIntelligence(
     allocatedFlights: result.allocation?.flights ?? null,
     allocatedHotels: result.allocation?.hotels ?? null,
     durationMs: result.durationMs,
+  }
+}
+
+function toMetaConversationIntelligence(
+  result: ConversationIntelligenceResult,
+): NonNullable<AgentProviderMeta['conversationIntelligence']> {
+  const locale = result.locale
+  return {
+    intent: result.intent,
+    intentConfidence: result.intentConfidence,
+    destination: result.memory.destination,
+    adults: result.memory.travelers.adults,
+    budgetAmount: result.memory.budgetAmount,
+    currency: result.memory.currency,
+    monthHint: result.memory.monthHint,
+    purpose: result.memory.purpose,
+    summaryBullets: locale === 'ar' ? result.summary.bulletsAr : result.summary.bulletsEn,
+    questionIds: result.questions.map((q) => q.id),
+    insightIds: result.insights.map((i) => i.id),
+    streaming: result.streaming,
   }
 }
 
@@ -1417,6 +1448,29 @@ export function createTravelAgentService(
       }
       memory.missingFields = missingRequirementFields(memory.requirements)
 
+      let conversationIntelligenceResult: ConversationIntelligenceResult | null = null
+
+      // Recovery Phase 4 — Conversation Intelligence (default OFF). Soft enrich only.
+      if (isConversationIntelligenceEnabled({ enabled: options.conversationIntelligenceEnabled })) {
+        const recentTexts = input.messages
+          .slice(0, -1)
+          .slice(-6)
+          .map((m) => m.content)
+        const enriched = enrichWithConversationIntelligence({
+          userText,
+          memory,
+          recentTexts,
+          enabled: true,
+          locale: memory.locale,
+        })
+        memory = enriched.memory
+        conversationIntelligenceResult = enriched.conversationIntelligence
+        // Prefer consultant questions over classic interview slots.
+        memory.missingFields = filterInterviewMissingFields(
+          missingRequirementFields(memory.requirements).map(String),
+        ) as Array<keyof TripRequirements>
+      }
+
       // Alpha — confirm/pay turns must keep prior trip context even if the last
       // user line has no destination text (CTAs like "أكد الحجز" / "ادفع الآن").
       if (alphaJourneyCue && memory.missingFields.length > 0) {
@@ -1871,12 +1925,18 @@ export function createTravelAgentService(
         const withBudget = budgetIntelligenceResult
           ? { ...withBooking, budgetIntelligence: toMetaBudgetIntelligence(budgetIntelligenceResult) }
           : withBooking
-        const withPersonalization = travelerPersonalizationResult
+        const withConversationIntelligence = conversationIntelligenceResult
           ? {
             ...withBudget,
-            travelerPersonalization: toMetaTravelerPersonalization(travelerPersonalizationResult),
+            conversationIntelligence: toMetaConversationIntelligence(conversationIntelligenceResult),
           }
           : withBudget
+        const withPersonalization = travelerPersonalizationResult
+          ? {
+            ...withConversationIntelligence,
+            travelerPersonalization: toMetaTravelerPersonalization(travelerPersonalizationResult),
+          }
+          : withConversationIntelligence
         const withOptimizer = tripOptimizerResult
           ? { ...withPersonalization, tripOptimizer: toMetaTripOptimizer(tripOptimizerResult) }
           : withPersonalization

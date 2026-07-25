@@ -416,6 +416,25 @@ export interface AgentProviderMeta {
     durationMs: number
   }
   /**
+   * Recovery Phase 4 — Conversation Intelligence snapshot (memory, intent, summary).
+   * Additive structured facts only — does not author traveler-facing replies.
+   * Present when `ai.conversation_intelligence` is ON for the turn.
+   */
+  conversationIntelligence?: {
+    intent: string
+    intentConfidence: number
+    destination: string | null
+    adults: number | null
+    budgetAmount: number | null
+    currency: string | null
+    monthHint: string | null
+    purpose: string | null
+    summaryBullets: string[]
+    questionIds: string[]
+    insightIds: string[]
+    streaming: boolean
+  }
+  /**
    * Sprint 76 — Traveler Personalization snapshot (profile, confidence, ranking deltas).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */

@@ -175,6 +175,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: budget_intelligence. Does not replace search engines; Conversation Brain narrates facts only.',
   },
   {
+    id: 'ai.conversation_intelligence',
+    name: 'Conversation Intelligence',
+    description:
+      'Recovery Phase 4 — live travel memory, entity extraction, intent detection, reference resolution, smart summaries, outcome-changing questions, and travel-consultant personality. Additive soft enrich on planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes:
+      'Product alias: conversation_intelligence. Default OFF. Does not redesign UI or replace extractFromUserText / booking / search engines. No production API keys.',
+  },
+  {
     id: 'ai.traveler_personalization',
     name: 'Traveler Personalization Intelligence',
     description:
