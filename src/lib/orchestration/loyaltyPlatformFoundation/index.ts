@@ -1,0 +1,155 @@
+/**
+ * Phase 7 Stage 2 — Loyalty Platform Foundation barrel.
+ *
+ * Architecture / contracts / types / blueprints only.
+ * Gated by `brain.loyalty_foundation` (default OFF).
+ * No DB, auth, payments, reward calculation, Runtime, HTTP, APIs, or LLM.
+ */
+
+import { LOYALTY_PLATFORM_ISOLATION as LP_ISOLATION } from './types'
+import { LOYALTY_SECTION_IDS, MEMBERSHIP_LEVELS } from './types'
+
+export {
+  BRAIN_LOYALTY_FOUNDATION_FEATURE_ID,
+  isBrainLoyaltyFoundationEnabled,
+  listLoyaltyRegistry,
+  listLoyaltySectionIds,
+  LoyaltyRegistry,
+  LOYALTY_REGISTRY,
+} from './registry'
+
+export type {
+  LoyaltyLocale,
+  MembershipLevelId,
+  MembershipStatusId,
+  LoyaltyTimelineEventKind,
+  LoyaltySectionId,
+  LoyaltyAccountContract,
+  MembershipLevelsContract,
+  MembershipStatusContract,
+  RewardPointsContract,
+  PointLedgerEntry,
+  PointLedgerContract,
+  PointExpirationStrategyContract,
+  RewardCatalogEntry,
+  RewardCatalogContract,
+  RewardRedemptionContract,
+  TravelAchievementsContract,
+  BadgesContract,
+  MilestonesContract,
+  ReferralProgramContract,
+  ReferralRewardsContract,
+  PartnerRewardsContract,
+  TravelCreditsContract,
+  CouponsContract,
+  PromoRegistryEntry,
+  PromoRegistryContract,
+  VoucherRegistryEntry,
+  VoucherRegistryContract,
+  CampaignRegistryEntry,
+  CampaignRegistryContract,
+  LoyaltyWalletContract,
+  RewardHistoryContract,
+  RewardTimelineEvent,
+  RewardTimelineContract,
+  LoyaltyAuditEntry,
+  LoyaltyAuditTrailContract,
+  LoyaltyAnalyticsContract,
+  LoyaltyInsightsContract,
+  RewardRecommendationContract,
+  OfferPersonalizationContract,
+  RewardEligibilityContract,
+  CampaignDecisionContract,
+  GamificationStrategyContract,
+  LoyaltyRegistryEntry,
+  LoyaltyPlatformBlueprint,
+} from './types'
+
+export {
+  LOYALTY_PLATFORM_ISOLATION,
+  MEMBERSHIP_LEVELS,
+  MEMBERSHIP_STATUS_IDS,
+  LOYALTY_SECTION_IDS,
+} from './types'
+
+export {
+  buildLoyaltyAccount,
+  buildMembershipLevels,
+  buildMembershipStatus,
+  buildRewardPoints,
+  buildPointLedger,
+  buildPointExpirationStrategy,
+  buildRewardCatalog,
+  buildRewardRedemption,
+  buildTravelAchievements,
+  buildBadges,
+  buildMilestones,
+  buildReferralProgram,
+  buildReferralRewards,
+  buildPartnerRewards,
+  buildTravelCredits,
+  buildCoupons,
+  buildPromoRegistry,
+  buildVoucherRegistry,
+  buildCampaignRegistry,
+  buildLoyaltyWallet,
+  buildRewardHistory,
+  buildRewardTimeline,
+  buildLoyaltyAuditTrail,
+  buildLoyaltyAnalytics,
+  buildLoyaltyInsights,
+  buildRewardRecommendation,
+  buildOfferPersonalization,
+  buildRewardEligibility,
+  buildCampaignDecision,
+  buildGamificationStrategy,
+} from './pipelines'
+
+export {
+  LoyaltyPlatformFoundation,
+  buildLoyaltyPlatformBlueprint,
+  tryBuildLoyaltyPlatformBlueprint,
+  assertLoyaltyPlatformIsolation,
+} from './engine'
+export type { BuildLoyaltyBlueprintOptions } from './engine'
+
+export const LOYALTY_PLATFORM_ARCHITECTURE = {
+  version: '7.2.0-loyalty-platform',
+  featureId: 'brain.loyalty_foundation' as const,
+  architectureOnly: true,
+  components: [
+    'loyalty_account',
+    'membership_levels',
+    'membership_status',
+    'reward_points',
+    'point_ledger',
+    'point_expiration_strategy',
+    'reward_catalog',
+    'reward_redemption',
+    'travel_achievements',
+    'badges',
+    'milestones',
+    'referral_program',
+    'referral_rewards',
+    'partner_rewards',
+    'travel_credits',
+    'coupons',
+    'promo_registry',
+    'voucher_registry',
+    'campaign_registry',
+    'loyalty_wallet',
+    'reward_history',
+    'reward_timeline',
+    'loyalty_audit_trail',
+    'loyalty_analytics',
+    'loyalty_insights',
+    'reward_recommendation_contract',
+    'offer_personalization_contract',
+    'reward_eligibility_contract',
+    'campaign_decision_contract',
+    'gamification_strategy_contract',
+  ] as const,
+  membershipLevels: MEMBERSHIP_LEVELS,
+  sectionIds: LOYALTY_SECTION_IDS,
+  ...LP_ISOLATION,
+} as const
