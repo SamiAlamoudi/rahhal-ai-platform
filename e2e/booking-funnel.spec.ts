@@ -12,8 +12,8 @@ test.describe('Booking funnel (browser E2E)', () => {
     await expect(page.getByRole('heading', { name: 'رحّال' })).toBeVisible()
 
     await page.getByTestId('login-demo').click()
-    // Alpha routes demo login into the conversational experience.
-    await expect(page).toHaveURL(/\/chat\/?$/)
+    // Authenticated users land on conversation-first Home (/), not /chat.
+    await expect(page).toHaveURL(/\/$/)
 
     await page.goto('/search')
     await expect(page.locator('#ctrl-destination')).toBeVisible()

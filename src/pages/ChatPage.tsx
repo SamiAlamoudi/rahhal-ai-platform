@@ -5,6 +5,10 @@ import MessageBubble from '../components/chat/MessageBubble'
 import LiveNotificationsBanner from '../components/chat/experience/LiveNotificationsBanner'
 import VirtualizedMessageList from '../components/chat/experience/VirtualizedMessageList'
 import { ChatWelcome } from '../components/premium'
+import { ProductAppBar } from '../components/productUx'
+import { VoiceStateBadge } from '../components/productUx/chat/VoiceStateBadge'
+import { SuggestedReplies } from '../components/productUx/chat/SuggestedReplies'
+import { isUiNewExperienceEnabled, productCopy } from '../lib/productUx'
 
 /** RC-2 — voice UI loads only when the user switches to voice mode. */
 const VoicePanel = lazy(() =>
@@ -934,8 +938,97 @@ function LegacyChatPage() {
     }
   }
 
+  const newExperienceOn = isUiNewExperienceEnabled()
+  const voiceUiState =
+    voiceStatus === 'listening'
+      ? 'listening'
+      : voiceStatus === 'thinking' || voiceStatus === 'processing'
+        ? 'thinking'
+        : voiceStatus === 'speaking' || voiceStatus === 'responding'
+          ? 'speaking'
+          : voiceStatus === 'reconnecting'
+            ? 'reconnecting'
+            : !online
+              ? 'offline'
+              : 'ready'
+
+  const chatHeaderTrailing = (
+    <div className="flex shrink-0 items-center gap-2">
+      {newExperienceOn && composerMode === 'voice' ? (
+        <VoiceStateBadge state={voiceUiState} locale={chatLocale} />
+      ) : null}
+      <button
+        type="button"
+        onClick={cycleTheme}
+        className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        aria-label={`Theme ${themePreference}`}
+        title="Light / Dark / High contrast"
+      >
+        {themePreference === 'system' ? 'Theme' : themePreference}
+      </button>
+      <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium dark:bg-slate-800" role="tablist" aria-label="وضع الإدخال">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={composerMode === 'text'}
+          onClick={() => {
+            setComposerMode('text')
+            voiceRef.current?.interrupt()
+          }}
+          className={`rounded-md px-2.5 py-1 ${composerMode === 'text' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500'}`}
+        >
+          كتابة
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={composerMode === 'voice'}
+          onClick={() => setComposerMode('voice')}
+          className={`rounded-md px-2.5 py-1 ${composerMode === 'voice' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500'}`}
+        >
+          صوت
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={() => void handleCreate()}
+        className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-700"
+      >
+        محادثة جديدة
+      </button>
+    </div>
+  )
+
   return (
     <div className={`flex h-[100dvh] flex-col bg-gradient-to-b from-slate-50/50 via-white to-white ${chatThemeClassName(theme)}`}>
+      {newExperienceOn ? (
+        <ProductAppBar
+          locale={chatLocale}
+          title={productCopy(chatLocale, 'chatTitle')}
+          subtitle={
+            online
+              ? productCopy(chatLocale, 'chatSubtitle')
+              : chatLocale === 'ar'
+                ? 'غير متصل — وضع القراءة فقط مؤقتاً'
+                : 'Offline — read-only for now'
+          }
+          onBack={() => navigate('/')}
+          backLabel={chatLocale === 'ar' ? 'رجوع' : 'Back'}
+          maxWidthClassName="max-w-6xl"
+          leadingExtra={
+            <button
+              type="button"
+              className="rounded-lg px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 lg:hidden dark:text-slate-300 dark:hover:bg-slate-800"
+              aria-expanded={mobileSidebarOpen}
+              aria-controls="chat-sidebar"
+              onClick={() => setMobileSidebarOpen(true)}
+            >
+              المحادثات
+            </button>
+          }
+          trailing={chatHeaderTrailing}
+        />
+      ) : (
       <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/80 backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-2">
@@ -967,49 +1060,10 @@ function LegacyChatPage() {
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={cycleTheme}
-              className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-              aria-label={`Theme ${themePreference}`}
-              title="Light / Dark / High contrast"
-            >
-              {themePreference === 'system' ? 'Theme' : themePreference}
-            </button>
-            <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium dark:bg-slate-800" role="tablist" aria-label="وضع الإدخال">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={composerMode === 'text'}
-                onClick={() => {
-                  setComposerMode('text')
-                  voiceRef.current?.interrupt()
-                }}
-                className={`rounded-md px-2.5 py-1 ${composerMode === 'text' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500'}`}
-              >
-                كتابة
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={composerMode === 'voice'}
-                onClick={() => setComposerMode('voice')}
-                className={`rounded-md px-2.5 py-1 ${composerMode === 'voice' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500'}`}
-              >
-                صوت
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => void handleCreate()}
-              className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-700"
-            >
-              محادثة جديدة
-            </button>
-          </div>
+          {chatHeaderTrailing}
         </div>
       </header>
+      )}
 
       <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1">
         <div id="chat-sidebar" className="contents">
@@ -1203,10 +1257,26 @@ function LegacyChatPage() {
               ) : null}
 
               <div
-                className={`border-t border-slate-100/80 bg-white/95 px-3 py-3 backdrop-blur-xl sm:px-6 ${
+                className={`sticky bottom-0 border-t border-slate-100/80 bg-white/95 px-3 py-3 backdrop-blur-xl sm:px-6 ${
                   composerMode === 'voice' ? 'pb-4' : ''
                 }`}
               >
+                {newExperienceOn && composerMode === 'text' && activeId && !isStreaming ? (
+                  <div className="mb-3">
+                    <SuggestedReplies
+                      locale={chatLocale}
+                      disabled={!online}
+                      onSelect={(text) => {
+                        setDraft(text)
+                      }}
+                      replies={
+                        chatLocale === 'ar'
+                          ? ['اقترح خياراً أرخص', 'أظهر خط السير', 'وضّح الميزانية']
+                          : ['Suggest a cheaper option', 'Show the itinerary', 'Explain the budget']
+                      }
+                    />
+                  </div>
+                ) : null}
                 {composerMode === 'voice' ? (
                   <Suspense
                     fallback={

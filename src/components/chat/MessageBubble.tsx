@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import { copyTextToClipboard } from '../../lib/chat/chatHelpers'
 import { tripPlanFromMeta } from '../../lib/agent/memory'
 import type { TripPlan } from '../../lib/agent/types'
 import { isConversationExperienceEnabled } from '../../lib/chat/conversationExperienceUi'
+import { isUiNewExperienceEnabled } from '../../lib/productUx'
 import { AiThinkingRail, DynamicResultCards } from '../premium'
 import { progressiveCardLimit } from '../../lib/premiumExperience'
 import MarkdownContent from './MarkdownContent'
@@ -11,6 +12,12 @@ import ItineraryActions from './ItineraryActions'
 import ConversationExperiencePanel from './experience/ConversationExperiencePanel'
 import AlphaJourneyPanel from './AlphaJourneyPanel'
 import TypingIndicator from './experience/TypingIndicator'
+
+const NewExperienceResultsBridge = lazy(() =>
+  import('../productUx/chat/NewExperienceResultsBridge').then((m) => ({
+    default: m.NewExperienceResultsBridge,
+  })),
+)
 import type {
   ConversationBookingAction,
   ConversationBookingState,
@@ -66,6 +73,7 @@ export default function MessageBubble({
   const audioUrl = safeMediaUrl(message.audioUrl)
   const itinerary = tripPlanFromMeta(message.providerMeta)
   const experienceOn = isConversationExperienceEnabled()
+  const newExperienceOn = isUiNewExperienceEnabled()
   const timestamp = formatMessageTime(message.createdAt)
   const seedForUi = useMemo(() => {
     const metaSeed =
@@ -191,11 +199,23 @@ export default function MessageBubble({
             )}
             {showResultCards ? (
               <div className="mt-3">
-                <DynamicResultCards
-                  seedText={seedForUi || message.content}
-                  locale={locale}
-                  limit={cardLimit}
-                />
+                {newExperienceOn ? (
+                  <Suspense fallback={null}>
+                    <NewExperienceResultsBridge
+                      message={message}
+                      locale={locale}
+                      isStreaming={isStreaming}
+                      onEditItinerary={onEditItinerary}
+                      onSmartAction={onSmartAction}
+                    />
+                  </Suspense>
+                ) : (
+                  <DynamicResultCards
+                    seedText={seedForUi || message.content}
+                    locale={locale}
+                    limit={cardLimit}
+                  />
+                )}
               </div>
             ) : null}
             {!isStreaming && onSmartAction && (

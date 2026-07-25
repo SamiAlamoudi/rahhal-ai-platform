@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { authService, validateSignInForm, mapAuthErrorMessage, type AuthError } from '../lib/auth'
 import { isDemoAuthEnabled } from '../lib/auth/demoAuth'
+import { productCopy } from '../lib/productUx'
+import { AuthExperience } from '../components/productUx'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -11,6 +13,7 @@ export default function Login() {
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const demoEnabled = isDemoAuthEnabled()
+  const locale = 'ar' as const
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -44,82 +47,77 @@ export default function Login() {
     navigate('/')
   }
 
-  const fieldError = (field: string) => errors.find(e => e.field === field)?.message
+  const fieldError = (field: string) => errors.find((e) => e.field === field)?.message
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-sky-50 via-white to-white px-4">
-      <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-600 text-white shadow-lg shadow-primary-600/30">
-            <svg viewBox="0 0 24 24" className="h-7 w-7" fill="currentColor">
-              <path d="M12 2l2.5 6.5L21 9l-5 4.5L17.5 21 12 17l-5.5 4L8 13.5 3 9l6.5-.5z" />
-            </svg>
-          </div>
-          <h1 className="text-xl font-bold text-slate-900">رحّال</h1>
-          <p className="mt-1 text-sm text-slate-500">سجّل الدخول لمتابعة تخطيط رحلاتك</p>
+    <AuthExperience
+      locale={locale}
+      title={productCopy(locale, 'authLoginTitle')}
+      subtitle={productCopy(locale, 'authLoginSubtitle')}
+      footer={
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <Link to="/forgot-password" className="font-medium text-primary-600 hover:text-primary-700">
+            نسيت كلمة المرور؟
+          </Link>
+          <Link to="/signup" className="text-slate-500 hover:text-slate-700">
+            إنشاء حساب جديد
+          </Link>
+        </div>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4" data-testid="login-form">
+        {generalError && (
+          <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{generalError}</div>
+        )}
+
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">البريد الإلكتروني</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 transition focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400/20"
+            placeholder="example@email.com"
+            autoComplete="email"
+          />
+          {fieldError('email') && <p className="mt-1 text-xs text-rose-500">{fieldError('email')}</p>}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          {generalError && (
-            <div className="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-600">{generalError}</div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">كلمة المرور</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 transition focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400/20"
+            placeholder="••••••••"
+            autoComplete="current-password"
+          />
+          {fieldError('password') && (
+            <p className="mt-1 text-xs text-rose-500">{fieldError('password')}</p>
           )}
+        </div>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">البريد الإلكتروني</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400/20"
-              placeholder="example@email.com"
-              autoComplete="email"
-            />
-            {fieldError('email') && <p className="mt-1 text-xs text-rose-500">{fieldError('email')}</p>}
-          </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-xl bg-primary-600 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:bg-primary-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-50"
+        >
+          {loading ? 'جاري الدخول...' : 'تسجيل الدخول'}
+        </button>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">كلمة المرور</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-800 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400/20"
-              placeholder="••••••••"
-              autoComplete="current-password"
-            />
-            {fieldError('password') && <p className="mt-1 text-xs text-rose-500">{fieldError('password')}</p>}
-          </div>
-
+        {demoEnabled && (
           <button
-            type="submit"
+            type="button"
             disabled={loading}
-            className="w-full rounded-xl bg-primary-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary-600/30 transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50"
+            onClick={handleDemoSignIn}
+            data-testid="login-demo"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 active:scale-[0.98] disabled:opacity-50"
           >
-            {loading ? 'جاري الدخول...' : 'تسجيل الدخول'}
+            متابعة كمستخدم تجريبي (محلي)
           </button>
-
-          {demoEnabled && (
-            <button
-              type="button"
-              disabled={loading}
-              onClick={handleDemoSignIn}
-              data-testid="login-demo"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 active:scale-[0.98] disabled:opacity-50"
-            >
-              متابعة كمستخدم تجريبي (محلي)
-            </button>
-          )}
-
-          <div className="flex items-center justify-between pt-2">
-            <Link to="/forgot-password" className="text-xs text-primary-600 hover:text-primary-700">
-              نسيت كلمة المرور؟
-            </Link>
-            <Link to="/signup" className="text-xs text-slate-500 hover:text-slate-700">
-              إنشاء حساب جديد
-            </Link>
-          </div>
-        </form>
-      </div>
-    </div>
+        )}
+      </form>
+    </AuthExperience>
   )
 }

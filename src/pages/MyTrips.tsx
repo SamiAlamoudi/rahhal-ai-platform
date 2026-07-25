@@ -18,6 +18,8 @@ import {
   MyTripsLoadingState,
   TripRecordCard,
 } from '../components/myTrips'
+import { ProductPageShell } from '../components/productUx'
+import { isUiNewExperienceEnabled, productCopy } from '../lib/productUx'
 
 type TabId = TripBucket | 'all'
 
@@ -145,33 +147,10 @@ export default function MyTrips() {
   }
 
   const t = (ar: string, en: string) => (locale === 'ar' ? ar : en)
+  const newExperienceOn = isUiNewExperienceEnabled()
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50/50 via-white to-sky-50/30">
-      <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100"
-              aria-label={t('رجوع', 'Back')}
-            >
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
-            <div>
-              <h1 className="text-base font-bold text-slate-900">{t('رحلاتي', 'My Trips')}</h1>
-              <p className="text-[10px] text-slate-400">
-                {t('حجوزاتك وسجلات السفر', 'Your bookings and travel records')}
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+  const tripsBody = (
+      <>
         <div className="mb-4 flex flex-wrap gap-1 rounded-xl border border-slate-100 bg-white p-1 shadow-sm">
           {TABS.map((item) => (
             <button
@@ -242,7 +221,49 @@ export default function MyTrips() {
             )}
           </>
         )}
-      </main>
+      </>
+  )
+
+  if (newExperienceOn) {
+    return (
+      <ProductPageShell
+        locale={locale}
+        title={productCopy(locale, 'tripsTitle')}
+        subtitle={productCopy(locale, 'tripsSubtitle')}
+        onBack={() => navigate('/')}
+        backLabel={t('رجوع', 'Back')}
+      >
+        {tripsBody}
+      </ProductPageShell>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50/50 via-white to-sky-50/30">
+      <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100"
+              aria-label={t('رجوع', 'Back')}
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-base font-bold text-slate-900">{t('رحلاتي', 'My Trips')}</h1>
+              <p className="text-[10px] text-slate-400">
+                {t('حجوزاتك وسجلات السفر', 'Your bookings and travel records')}
+              </p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">{tripsBody}</main>
     </div>
   )
 }
