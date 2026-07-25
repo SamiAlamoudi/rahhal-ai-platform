@@ -93,6 +93,13 @@ export function mergeRequirements(
     preferredDepartureTime: patch.preferredDepartureTime ?? base.preferredDepartureTime ?? null,
     datesFlexible: patch.datesFlexible ?? base.datesFlexible ?? null,
     travelerTimezone: patch.travelerTimezone ?? base.travelerTimezone ?? null,
+    rooms: patch.rooms ?? base.rooms ?? null,
+    preferredArea: patch.preferredArea ?? base.preferredArea ?? null,
+    breakfastRequired: patch.breakfastRequired ?? base.breakfastRequired ?? null,
+    freeCancellationRequired: patch.freeCancellationRequired ?? base.freeCancellationRequired ?? null,
+    hotelAmenities: patch.hotelAmenities && patch.hotelAmenities.length > 0
+      ? uniqueStrings([...(base.hotelAmenities ?? []), ...patch.hotelAmenities])
+      : (base.hotelAmenities ?? []),
   }
 
   // Locking a named destination clears flexible discovery.
@@ -238,6 +245,11 @@ export function normalizeRequirements(raw: TripRequirements): TripRequirements {
     preferredDepartureTime: raw.preferredDepartureTime ?? null,
     datesFlexible: raw.datesFlexible ?? null,
     travelerTimezone: raw.travelerTimezone ?? null,
+    rooms: raw.rooms ?? null,
+    preferredArea: raw.preferredArea ?? null,
+    breakfastRequired: raw.breakfastRequired ?? null,
+    freeCancellationRequired: raw.freeCancellationRequired ?? null,
+    hotelAmenities: Array.isArray(raw.hotelAmenities) ? raw.hotelAmenities : [],
   }
 }
 

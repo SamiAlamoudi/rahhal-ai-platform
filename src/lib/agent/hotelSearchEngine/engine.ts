@@ -9,6 +9,7 @@ import {
   type ProviderRuntimeMode,
   GRACEFUL_PROVIDER_MESSAGE,
 } from '../providerRuntime'
+import { SmartCache } from '../liveProviders/cache'
 import { dedupeHotels } from './dedupe'
 import { applyHotelFilters } from './filters'
 import { searchHotelbedsFuture } from './hotelbedsFuture'
@@ -29,6 +30,8 @@ export type HotelSearchEngineOptions = {
   registry?: ProviderRuntimeRegistry
   forceMock?: boolean
   createRequestId?: () => string
+  /** Integration Sprint 3 — optional search result cache (15 min hotels). */
+  cache?: SmartCache | null
 }
 
 export type HotelSearchEngine = {
@@ -115,6 +118,8 @@ async function queryProviders(
     checkIn: request.checkIn,
     checkOut: request.checkOut,
     adults: request.adults,
+    children: request.children ?? 0,
+    rooms: request.rooms ?? 1,
     currency: request.currency,
     signal: request.signal,
   }
@@ -222,6 +227,22 @@ async function queryProviders(
   }
 }
 
+function hotelCacheKey(request: ReturnType<typeof normalizeRequest>): string {
+  return [
+    request.destination,
+    request.city,
+    request.checkIn,
+    request.checkOut,
+    String(request.adults),
+    String(request.children ?? 0),
+    String(request.rooms),
+    request.currency,
+    request.hotelId ?? '',
+    request.cursor ?? '',
+    JSON.stringify(request.filters ?? {}),
+  ].join('|')
+}
+
 export function createHotelSearchEngine(
   options: HotelSearchEngineOptions = {},
 ): HotelSearchEngine {
@@ -229,6 +250,10 @@ export function createHotelSearchEngine(
     options.registry
     ?? createProviderRuntimeRegistry({ forceMock: options.forceMock ?? true })
   const createRequestId = options.createRequestId ?? createRequestIdDefault
+  const cache =
+    options.cache === null
+      ? null
+      : (options.cache ?? new SmartCache({ ttlByNamespace: { hotels: 15 * 60 * 1000 } }))
   let initialized = false
 
   async function ensureInit() {
@@ -242,6 +267,22 @@ export function createHotelSearchEngine(
     await ensureInit()
     const normalized = normalizeRequest(request)
     const requestId = createRequestId()
+    const key = hotelCacheKey(normalized)
+
+    if (cache) {
+      const hit = cache.get<HotelSearchPage>('hotels', key)
+      if (hit) {
+        return {
+          ...hit,
+          diagnostics: {
+            ...hit.diagnostics,
+            requestId,
+            cacheHit: true,
+          },
+        }
+      }
+    }
+
     const queried = await queryProviders(registry, normalized)
 
     let working = queried.hotels
@@ -298,13 +339,15 @@ export function createHotelSearchEngine(
       gracefulMessage: queried.gracefulMessage,
     }
 
-    return {
+    const result: HotelSearchPage = {
       hotels: page.page,
       nextCursor: page.nextCursor,
       hasMore: page.hasMore,
       total: page.total,
       diagnostics,
     }
+    cache?.set('hotels', key, result)
+    return result
   }
 
   return {

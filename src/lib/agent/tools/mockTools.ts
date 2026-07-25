@@ -13,8 +13,8 @@ import {
   type HotelSearchEngine,
 } from '../hotelSearchEngine'
 import { runConversationAwareFlightSearch } from '../integrationFlightSearch'
+import { runConversationAwareHotelSearch } from '../integrationHotelSearch'
 import type { AgentTool, AgentToolContext, AgentToolResult, ToolJsonSchema } from './types'
-import { runHotelSearchTool } from './searchEngineBridge'
 
 const destinationSchemaProps = {
   destination: { type: 'string', description: 'Primary destination city or country' },
@@ -213,7 +213,7 @@ export function createMockHotelSearchTool(
     async execute(ctx) {
       const started = Date.now()
       try {
-        const { data, empty, gracefulMessage } = await runHotelSearchTool(hotelEngine, ctx)
+        const { data, empty, gracefulMessage } = await runConversationAwareHotelSearch(hotelEngine, ctx)
         const stays = Array.isArray(data.stays) ? data.stays : []
         const destination = String(ctx.input?.destination ?? ctx.requirements.destination ?? '')
         const highlights = data.highlights as {
@@ -235,9 +235,15 @@ export function createMockHotelSearchTool(
           }
         }
 
-        const summary = ctx.locale === 'ar'
-          ? `${stays.length} إقامات عبر محرك الفنادق في ${destination}`
-          : `${stays.length} stays via hotel engine in ${destination}${highlights?.best ? ` · Best: ${highlights.best}` : ''}${highlights?.cheapest ? ` · Cheapest: ${highlights.cheapest}` : ''}`
+        const consultant =
+          ctx.locale === 'ar'
+            ? (typeof data.consultantSummaryAr === 'string' ? data.consultantSummaryAr : null)
+            : (typeof data.consultantSummaryEn === 'string' ? data.consultantSummaryEn : null)
+
+        const summary = consultant
+          ?? (ctx.locale === 'ar'
+            ? `${stays.length} إقامات عبر محرك الفنادق في ${destination}`
+            : `${stays.length} stays via hotel engine in ${destination}${highlights?.best ? ` · Best: ${highlights.best}` : ''}${highlights?.cheapest ? ` · Cheapest: ${highlights.cheapest}` : ''}`)
 
         return {
           tool: 'hotels',

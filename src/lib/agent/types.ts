@@ -91,6 +91,16 @@ export interface TripRequirements {
   datesFlexible: boolean | null
   /** IANA timezone hint for departure-local interpretation (default Asia/Riyadh). */
   travelerTimezone: string | null
+  /**
+   * Integration Sprint 3 — optional hotel preferences (additive).
+   * Never block intake when unset; used only when searching hotels.
+   */
+  rooms: number | null
+  preferredArea: string | null
+  breakfastRequired: boolean | null
+  freeCancellationRequired: boolean | null
+  /** Soft amenity prefs: breakfast, pool, gym, parking, beach, wifi, … */
+  hotelAmenities: string[]
 }
 
 export interface ItineraryActivity {
@@ -923,6 +933,11 @@ export function emptyRequirements(): TripRequirements {
     preferredDepartureTime: null,
     datesFlexible: null,
     travelerTimezone: null,
+    rooms: null,
+    preferredArea: null,
+    breakfastRequired: null,
+    freeCancellationRequired: null,
+    hotelAmenities: [],
   }
 }
 

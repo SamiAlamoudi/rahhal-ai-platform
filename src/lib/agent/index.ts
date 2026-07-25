@@ -731,6 +731,21 @@ export {
   type RankedConversationFlight,
 } from './integrationFlightSearch'
 
+/** Integration Sprint 3 — conversation ↔ live hotel search bridge */
+export {
+  INTEGRATION_LIVE_HOTEL_SEARCH_VERSION,
+  tryConversationLiveHotelSearch,
+  conversationHotelResultToToolData,
+  runConversationAwareHotelSearch,
+  rankConversationHotels,
+  buildConsultantHotelSummary,
+  resetConversationHotelSearchCache,
+  getConversationHotelSearchCache,
+  buildLiveHotelCriteriaFromContext,
+  type ConversationHotelSearchResult,
+  type RankedConversationHotel,
+} from './integrationHotelSearch'
+
 /** Sprint 73 — Hotel Search Engine */
 export {
   createHotelSearchEngine,

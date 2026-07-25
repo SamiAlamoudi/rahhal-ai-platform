@@ -50,6 +50,8 @@ export interface ProviderRuntimeSearchRequest {
   children?: number
   /** Integration Sprint 2 — cabin class hint (economy / business / …). */
   cabin?: string | null
+  /** Integration Sprint 3 — hotel rooms. */
+  rooms?: number
   currency?: string
   signal?: AbortSignal
 }

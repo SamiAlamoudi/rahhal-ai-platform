@@ -68,6 +68,8 @@ export interface HotelSearchRequest {
   checkIn?: string
   checkOut?: string | null
   adults?: number
+  /** Integration Sprint 3 — children count for live providers. */
+  children?: number
   rooms?: number
   currency?: string
   /** Center for nearby search. */
