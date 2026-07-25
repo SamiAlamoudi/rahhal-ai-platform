@@ -1,0 +1,232 @@
+/**
+ * Integration Foundation styles — shared chrome + page transitions.
+ */
+
+.rahhal-if {
+  min-height: 100vh;
+  color: var(--rahhal-if-ink);
+  background: var(--rahhal-if-bg);
+  font-family: var(--rahhal-if-font);
+  padding: 1.15rem clamp(1rem, 3vw, 2rem) 2rem;
+}
+
+.rahhal-if-header,
+.rahhal-if-shell,
+.rahhal-if-panel {
+  max-width: var(--rahhal-if-max, 72rem);
+  margin-inline: auto;
+  margin-bottom: 0.85rem;
+}
+
+.rahhal-if-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rahhal-if-brand {
+  margin: 0;
+  font-size: var(--rahhal-if-brand-size);
+  font-weight: 800;
+}
+
+.rahhal-if-header h1 {
+  margin: 0.1rem 0 0;
+  font-size: var(--rahhal-if-title-size);
+  color: var(--rahhal-if-accent);
+}
+
+.rahhal-if-header button,
+.rahhal-if-nav button,
+.rahhal-if-list button,
+.rahhal-if-chips button {
+  border: 1px solid var(--rahhal-if-line);
+  background: var(--rahhal-if-panel);
+  color: inherit;
+  border-radius: 0.7rem;
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+  transition: transform var(--rahhal-if-transition),
+    background var(--rahhal-if-transition);
+}
+
+.rahhal-if-shell {
+  display: grid;
+  grid-template-columns: 16rem 1fr;
+  gap: 0.85rem;
+}
+
+.rahhal-if-nav,
+.rahhal-if-panel,
+.rahhal-if-card {
+  background: var(--rahhal-if-panel);
+  border: 1px solid var(--rahhal-if-line);
+  border-radius: var(--rahhal-if-radius, 1.1rem);
+  padding: 0.85rem 1rem;
+  backdrop-filter: blur(10px);
+}
+
+.rahhal-if-page {
+  animation: rahhal-if-page var(--rahhal-if-anim-page, 280ms) ease both;
+}
+
+@keyframes rahhal-if-page {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rahhal-if-nav {
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+}
+
+.rahhal-if-nav button.is-active {
+  background: color-mix(in srgb, var(--rahhal-if-accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--rahhal-if-accent) 45%, transparent);
+}
+
+.rahhal-if-panel h2 {
+  margin: 0 0 0.45rem;
+  font-size: 1rem;
+}
+
+.rahhal-if-panel p,
+.rahhal-if-muted {
+  color: var(--rahhal-if-muted);
+  margin: 0;
+}
+
+.rahhal-if-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+
+.rahhal-if-card {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.rahhal-if-card strong {
+  font-size: 1.05rem;
+}
+
+.rahhal-if-card em {
+  font-style: normal;
+  font-size: 0.8rem;
+  color: var(--rahhal-if-accent);
+}
+
+.rahhal-if-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.rahhal-if-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--rahhal-if-line);
+  padding-bottom: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.rahhal-if-list li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.rahhal-if-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.rahhal-if-chips button.is-active {
+  background: color-mix(in srgb, var(--rahhal-if-accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--rahhal-if-accent) 45%, transparent);
+}
+
+.rahhal-if-graph {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.rahhal-if-graph__node {
+  border: 1px solid var(--rahhal-if-line);
+  border-radius: 0.7rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.85rem;
+}
+
+.rahhal-if-graph__edge {
+  color: var(--rahhal-if-muted);
+  font-size: 0.8rem;
+  padding-inline-start: 0.75rem;
+}
+
+.rahhal-if-preview {
+  border: 1px dashed var(--rahhal-if-line);
+  border-radius: 0.85rem;
+  padding: 0.5rem;
+  overflow: auto;
+  max-height: 70vh;
+}
+
+.rahhal-if-state {
+  min-height: 5rem;
+  display: grid;
+  place-items: center;
+  gap: 0.35rem;
+  border: 1px dashed var(--rahhal-if-line);
+  border-radius: 0.85rem;
+  color: var(--rahhal-if-muted);
+  text-align: center;
+  padding: 0.85rem;
+}
+
+.rahhal-if-state.is-error {
+  color: var(--rahhal-if-danger);
+}
+
+.rahhal-if-pulse {
+  animation: rahhal-if-pulse 1s ease infinite;
+}
+
+@keyframes rahhal-if-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+.rahhal-if-badge {
+  border: 1px solid var(--rahhal-if-line);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--rahhal-if-muted);
+}
+
+.rahhal-if-badge.is-on {
+  color: var(--rahhal-if-accent);
+  border-color: color-mix(in srgb, var(--rahhal-if-accent) 50%, transparent);
+}
+
+@media (max-width: 900px) {
+  .rahhal-if-shell {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rahhal-if-page,
+  .rahhal-if-pulse {
+    animation: none;
+  }
+}
