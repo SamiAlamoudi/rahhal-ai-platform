@@ -1,7 +1,7 @@
 # Action Execution — Flow Diagram (Sprint 11)
 
 **Branch:** `cursor/action-execution-layer-7518`  
-**Draft PR:** _(pending)_  
+**Draft PR:** [#275](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/275)  
 **Flag:** `ai.integration_action_execution` (default OFF)
 
 ```
