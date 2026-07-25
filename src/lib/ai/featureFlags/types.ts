@@ -57,6 +57,7 @@ export type FeatureId =
   | 'production_audit.platform'
   | 'rc1.validation'
   | 'soak.staging'
+  | 'rc2.ga_review'
   | 'ai.trip_builder'
   | 'ai.memory_engine'
   | 'ai.orchestrator'
