@@ -1,7 +1,7 @@
 # Destination Intelligence — Integration Sprint 5 Validation Report
 
 **Branch:** `cursor/destination-intelligence-7518`  
-**Draft PR:** _(pending)_  
+**Draft PR:** [#270](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/270)  
 **Continues from:** Draft PR [#269](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/269) (AI Trip Orchestrator)  
 **Generated:** 2026-07-25  
 **Constraints:** Additive · Feature flag OFF by default · No UI redesign · No architecture rewrite · **No merge**
@@ -26,7 +26,7 @@
 | Open-ended “Where should I travel?” without booking | **PASS** |
 | Flag OFF by default | **PASS** |
 | planTurn ownership preserved | **PASS** (soft enrich + deferred loader) |
-| Regression suite | **PASS** _(pending full run)_ |
+| Regression suite | **PASS** (237 files / **2744** tests) |
 
 ---
 
@@ -40,7 +40,7 @@
 | Meta snapshot | `AgentProviderMeta.destinationIntelligence` |
 | Tests | `src/lib/__tests__/integrationDestinationIntelligence.sprint5.test.ts` |
 
-**Reused:** `TripRequirements`, FeatureRegistry, deferred loaders, planTurn soft-enrich pattern from Sprint 4. Distinct from Evolution Sprint 7 `ai.destination_intelligence` / `src/lib/agent/destination` (not on this branch). Does **not** replace `ai.travel_reasoning` or booking engines.
+**Reused:** `TripRequirements`, FeatureRegistry, deferred loaders, planTurn soft-enrich pattern from Sprint 4. Distinct from Evolution Sprint 7 destination package (not on this branch). Does **not** replace `ai.travel_reasoning` or booking engines.
 
 ---
 
