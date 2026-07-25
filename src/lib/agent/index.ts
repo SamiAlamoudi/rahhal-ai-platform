@@ -135,6 +135,20 @@ export type {
   ExtractedEntities,
 } from './conversationIntelligence'
 export {
+  isLlmConversationBrainEnabled,
+  LLM_CONVERSATION_BRAIN_FEATURE_ID,
+  runLlmConversationBrain,
+  enrichWithLlmConversationBrain,
+  detectArabicDialect,
+  PHASE5_LLM_CONVERSATION_BRAIN_VERSION,
+} from './llmBrain'
+export type {
+  LlmBrainResult,
+  ArabicDialect,
+  ToolDecisionKind,
+  ConfidenceLevel,
+} from './llmBrain'
+export {
   isTravelerPersonalizationEnabled,
   TRAVELER_PERSONALIZATION_FEATURE_ID,
   parsePreferenceUtterance,

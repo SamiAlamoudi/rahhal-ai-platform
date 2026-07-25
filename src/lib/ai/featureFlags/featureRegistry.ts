@@ -186,6 +186,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: conversation_intelligence. Default OFF. Does not redesign UI or replace extractFromUserText / booking / search engines. No production API keys.',
   },
   {
+    id: 'ai.llm_conversation_brain',
+    name: 'LLM Conversation Brain',
+    description:
+      'Recovery Phase 5 — LLM-first conversation brain (mock reasoner primary; Phase 4 rules fallback): travel reasoning, tool decisions, confidence, context optimization, dialect-aware consultant replies. Additive soft enrich on planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes:
+      'Product alias: llm_conversation_brain. Default OFF. Production remote LLM APIs remain disabled; mock LLM path only. Uses Phase 4 conversationIntelligence as rules fallback in-process (no flag coupling). Does not redesign UI or replace search/booking engines.',
+  },
+  {
     id: 'ai.traveler_personalization',
     name: 'Traveler Personalization Intelligence',
     description:

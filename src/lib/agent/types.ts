@@ -435,6 +435,25 @@ export interface AgentProviderMeta {
     streaming: boolean
   }
   /**
+   * Recovery Phase 5 — LLM Conversation Brain snapshot (reasoning, tools, confidence).
+   * Additive structured facts / debug stages only — production APIs disabled by default.
+   * Present when `ai.llm_conversation_brain` is ON for the turn.
+   */
+  llmBrain?: {
+    intent: string
+    dialect: string
+    confidence: string
+    primaryTool: string
+    destination: string | null
+    usedRulesFallback: boolean
+    providerMode: string
+    stageCount: number
+    proactiveTipCount: number
+    responsePreview: string
+    /** Hidden in production UI — stage traces for debug panel consumers. */
+    debugStages?: Array<{ id: string; label: string; detail: string; confidence: string; source: string }>
+  }
+  /**
    * Sprint 76 — Traveler Personalization snapshot (profile, confidence, ranking deltas).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */

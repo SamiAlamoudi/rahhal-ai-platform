@@ -65,6 +65,11 @@ import {
   type ConversationIntelligenceResult,
 } from './conversationIntelligence'
 import {
+  enrichWithLlmConversationBrain,
+  isLlmConversationBrainEnabled,
+  type LlmBrainResult,
+} from './llmBrain'
+import {
   enrichWithTravelerPersonalization,
   isTravelerPersonalizationEnabled,
   runTravelerPersonalization,
@@ -340,6 +345,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.conversation_intelligence` (OFF).
    */
   conversationIntelligenceEnabled?: boolean
+  /**
+   * Recovery Phase 5 — LLM Conversation Brain (mock LLM primary; rules fallback).
+   * Default: FeatureRegistry `ai.llm_conversation_brain` (OFF).
+   */
+  llmConversationBrainEnabled?: boolean
   /**
    * Sprint 76 — Traveler Personalization Intelligence (profile learning, ranking).
    * Default: FeatureRegistry `ai.traveler_personalization` (ON).
@@ -627,6 +637,30 @@ function toMetaConversationIntelligence(
     questionIds: result.questions.map((q) => q.id),
     insightIds: result.insights.map((i) => i.id),
     streaming: result.streaming,
+  }
+}
+
+function toMetaLlmBrain(
+  result: LlmBrainResult,
+): NonNullable<AgentProviderMeta['llmBrain']> {
+  return {
+    intent: result.intent,
+    dialect: result.dialect,
+    confidence: result.confidence,
+    primaryTool: result.toolDecision.tool,
+    destination: result.memory.destination,
+    usedRulesFallback: result.usedRulesFallback,
+    providerMode: result.debug.providerMode,
+    stageCount: result.debug.stages.length,
+    proactiveTipCount: result.reasoning.proactiveTips.length,
+    responsePreview: result.response.displayText.slice(0, 180),
+    debugStages: result.debug.stages.map((s) => ({
+      id: s.id,
+      label: s.label,
+      detail: s.detail,
+      confidence: s.confidence,
+      source: s.source,
+    })),
   }
 }
 
@@ -1449,6 +1483,7 @@ export function createTravelAgentService(
       memory.missingFields = missingRequirementFields(memory.requirements)
 
       let conversationIntelligenceResult: ConversationIntelligenceResult | null = null
+      let llmBrainResult: LlmBrainResult | null = null
 
       // Recovery Phase 4 — Conversation Intelligence (default OFF). Soft enrich only.
       if (isConversationIntelligenceEnabled({ enabled: options.conversationIntelligenceEnabled })) {
@@ -1466,6 +1501,27 @@ export function createTravelAgentService(
         memory = enriched.memory
         conversationIntelligenceResult = enriched.conversationIntelligence
         // Prefer consultant questions over classic interview slots.
+        memory.missingFields = filterInterviewMissingFields(
+          missingRequirementFields(memory.requirements).map(String),
+        ) as Array<keyof TripRequirements>
+      }
+
+      // Recovery Phase 5 — LLM Conversation Brain (default OFF). Mock LLM primary; rules fallback.
+      if (isLlmConversationBrainEnabled({ enabled: options.llmConversationBrainEnabled })) {
+        const recentTexts = input.messages
+          .slice(0, -1)
+          .slice(-6)
+          .map((m) => m.content)
+        const enrichedBrain = enrichWithLlmConversationBrain({
+          userText,
+          memory,
+          recentTexts,
+          enabled: true,
+          locale: memory.locale,
+          turn: input.messages.filter((m) => m.role === 'user').length,
+        })
+        memory = enrichedBrain.memory
+        llmBrainResult = enrichedBrain.llmBrain
         memory.missingFields = filterInterviewMissingFields(
           missingRequirementFields(memory.requirements).map(String),
         ) as Array<keyof TripRequirements>
@@ -1931,12 +1987,18 @@ export function createTravelAgentService(
             conversationIntelligence: toMetaConversationIntelligence(conversationIntelligenceResult),
           }
           : withBudget
-        const withPersonalization = travelerPersonalizationResult
+        const withLlmBrain = llmBrainResult
           ? {
             ...withConversationIntelligence,
-            travelerPersonalization: toMetaTravelerPersonalization(travelerPersonalizationResult),
+            llmBrain: toMetaLlmBrain(llmBrainResult),
           }
           : withConversationIntelligence
+        const withPersonalization = travelerPersonalizationResult
+          ? {
+            ...withLlmBrain,
+            travelerPersonalization: toMetaTravelerPersonalization(travelerPersonalizationResult),
+          }
+          : withLlmBrain
         const withOptimizer = tripOptimizerResult
           ? { ...withPersonalization, tripOptimizer: toMetaTripOptimizer(tripOptimizerResult) }
           : withPersonalization
