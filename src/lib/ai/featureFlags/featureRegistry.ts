@@ -1671,6 +1671,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_intent_engine. Blueprints only — never classifies utterances or starts planning/booking. Does not replace brain.intent.',
   },
+  {
+    id: 'brain.travel_planning',
+    name: 'AI Travel Planning Engine Architecture (Phase 7 Stage 7)',
+    description:
+      'Additive architecture-only Travel Planning Engine: transforms profile/context/intent/preferences/budget/dates/destination into planning structures (pipeline/schema/lifecycle/strategy/constraints/goals/priorities/rules/timeline/snapshot/confidence/revision/version/alternatives/optimization). Blueprints only — never books, prices, or calls external APIs. Distinct from Phase 6 brain.planning_engine. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.intent_engine'],
+    notes:
+      'Product alias: brain_travel_planning. Blueprints only — generates planning structures only; never books. Does not replace brain.planning_engine.',
+  },
 ]
 
 export class FeatureRegistry {
