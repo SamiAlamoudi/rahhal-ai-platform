@@ -1,6 +1,7 @@
 # Rahhal AI Platform — RC-3 Final Foundation Report
 
 **Branch:** `cursor/rc3-foundation-7518`  
+**Draft PR:** [#265](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/265)  
 **Continues from:** Draft PR [#264](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/264) (RC-2 Performance)  
 **Validation:** 232 files / **2685** tests PASS · lint · typecheck · arch:circular · secret hygiene · build  
 **Scope:** Final engineering cleanup before production integrations  
