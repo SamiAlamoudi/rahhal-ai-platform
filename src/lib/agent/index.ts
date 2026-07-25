@@ -759,6 +759,20 @@ export {
   type OrchestratorExecutionPlan,
 } from './integrationTripOrchestrator'
 
+/** Integration Sprint 5 — Destination Intelligence */
+export {
+  INTEGRATION_DESTINATION_INTELLIGENCE_VERSION,
+  INTEGRATION_DESTINATION_INTELLIGENCE_FEATURE_ID,
+  isIntegrationDestinationIntelligenceEnabled,
+  runDestinationIntelligence,
+  enrichWithIntegrationDestinationIntelligence,
+  recommendDestinations,
+  compareDestinations,
+  type DestinationIntelligenceResult,
+  type DestinationRecommendation,
+  type DestinationComparison,
+} from './integrationDestinationIntelligence'
+
 /** Sprint 73 — Hotel Search Engine */
 export {
   createHotelSearchEngine,

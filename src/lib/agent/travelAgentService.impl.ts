@@ -42,6 +42,8 @@ import type { BookingIntelligenceResult } from './bookingIntelligence'
 import { isBudgetIntelligenceEnabled } from './budgetIntelligence/feature'
 import type { BudgetIntelligenceResult } from './budgetIntelligence'
 import { isIntegrationTripOrchestratorEnabled } from './integrationTripOrchestrator/feature'
+import { isIntegrationDestinationIntelligenceEnabled } from './integrationDestinationIntelligence/feature'
+import type { DestinationIntelligenceResult } from './integrationDestinationIntelligence/types'
 import { isConversationIntelligenceEnabled } from './conversationIntelligence/feature'
 import type { ConversationIntelligenceResult } from './conversationIntelligence'
 import { isLlmConversationBrainEnabled } from './llmBrain/feature'
@@ -122,6 +124,7 @@ import {
   loadBrainOrchestrator,
   loadBudgetIntelligence,
   loadIntegrationTripOrchestrator,
+  loadIntegrationDestinationIntelligence,
   loadConcierge,
   loadConciergeIntegration,
   loadConciergeMeta,
@@ -1006,6 +1009,9 @@ export function createTravelAgentService(
   const isIntegrationTripOrchestratorOn = (): boolean =>
     isIntegrationTripOrchestratorEnabled()
 
+  const isIntegrationDestinationIntelligenceOn = (): boolean =>
+    isIntegrationDestinationIntelligenceEnabled()
+
   const isTravelerPersonalizationOn = (): boolean =>
     isTravelerPersonalizationEnabled({ enabled: options.travelerPersonalizationEnabled })
 
@@ -1614,6 +1620,8 @@ export function createTravelAgentService(
 
       let reasoningResult: TravelReasoningResult | null = null
       let reasoningMeta: AgentProviderMeta['reasoning'] | undefined
+      let destinationIntelligenceResult: DestinationIntelligenceResult | null = null
+      let destinationIntelligenceMeta: AgentProviderMeta['destinationIntelligence'] | undefined
       let clarificationMeta: NonNullable<AgentProviderMeta['clarification']> | undefined
       let rahhalBrainMeta: RahhalBrainMetaSnapshot | undefined
       let travelExecutiveSnapshot: RahhalBrainTurnResult['executive']
@@ -1865,6 +1873,33 @@ export function createTravelAgentService(
         memory.missingFields = missingRequirementFields(memory.requirements, {
           smart: isClarificationEnabled(),
         })
+
+        // Integration Sprint 5 — Destination Intelligence (advisor; no booking required).
+        if (isIntegrationDestinationIntelligenceOn() && userText.trim()) {
+          const __mod_destinationIntelligence = await loadIntegrationDestinationIntelligence()
+          if (
+            __mod_destinationIntelligence.shouldRunDestinationIntelligence({
+              userText,
+              memory,
+              force:
+                extracted.intent === 'discover'
+                || memory.requirements.destinationFlexible === true,
+            })
+          ) {
+            const diEnriched = await __mod_destinationIntelligence.enrichWithIntegrationDestinationIntelligence({
+              memory,
+              userText,
+              locale: memory.locale,
+              force: true,
+              deps: { enabled: true },
+            })
+            memory = diEnriched.memory
+            destinationIntelligenceResult = diEnriched.destinationIntelligence
+            destinationIntelligenceMeta = __mod_destinationIntelligence.toDestinationIntelligenceMeta(
+              diEnriched.destinationIntelligence,
+            )
+          }
+        }
         memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
       }
 
@@ -2080,9 +2115,15 @@ export function createTravelAgentService(
         const withAutonomous = autonomousSnapshot
           ? { ...meta, autonomous: toMetaAutonomous(autonomousSnapshot) }
           : meta
-        const withBooking = bookingIntelligenceResult
-          ? { ...withAutonomous, bookingIntelligence: toMetaBookingIntelligence(bookingIntelligenceResult) }
+        const withDestinationIntelligence = destinationIntelligenceMeta
+          ? { ...withAutonomous, destinationIntelligence: destinationIntelligenceMeta }
           : withAutonomous
+        const withBooking = bookingIntelligenceResult
+          ? {
+            ...withDestinationIntelligence,
+            bookingIntelligence: toMetaBookingIntelligence(bookingIntelligenceResult),
+          }
+          : withDestinationIntelligence
         const withBudget = budgetIntelligenceResult
           ? { ...withBooking, budgetIntelligence: toMetaBudgetIntelligence(budgetIntelligenceResult) }
           : withBooking
@@ -2192,6 +2233,70 @@ export function createTravelAgentService(
           ...enriched,
           spokenText,
           voicePhase: enriched.voicePhase ?? 'final',
+        }
+      }
+
+      // Integration Sprint 5 — Destination Intelligence can advise without a booking request.
+      if (
+        !isBrainCoreEnabled()
+        && destinationIntelligenceResult?.enabled
+        && destinationIntelligenceResult.ok
+        && (
+          destinationIntelligenceResult.mode === 'compare'
+          || destinationIntelligenceResult.mode === 'recommend'
+          || (
+            memory.requirements.destinationFlexible
+            && !memory.requirements.destination
+          )
+        )
+      ) {
+        memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
+        const diSummary = memory.locale === 'en'
+          ? destinationIntelligenceResult.consultantSummaryEn
+          : destinationIntelligenceResult.consultantSummaryAr
+        const diHints = [
+          destinationIntelligenceResult.primary
+            ? `${destinationIntelligenceResult.primary.knowledge.nameEn}: ${destinationIntelligenceResult.primary.whyEn}`
+            : null,
+          ...destinationIntelligenceResult.alternatives.slice(0, 2).map(
+            (a) => `${a.knowledge.nameEn}: ${a.whyEn}`,
+          ),
+        ].filter(Boolean) as string[]
+        const facts = buildTravelFacts({
+          memory,
+          objective: 'propose_options',
+          missingSlots: memory.missingFields.map(String),
+          optionHints: diHints,
+          recommendations: [
+            diSummary,
+            ...(destinationIntelligenceResult.primary?.knowledge.prosEn.slice(0, 2) ?? []),
+          ].filter(Boolean),
+          warnings: destinationIntelligenceResult.primary?.knowledge.consEn.slice(0, 2) ?? [],
+        })
+        const spoken = await speakTravelFacts({
+          llms,
+          conversationId: input.conversationId,
+          messages: input.messages,
+          facts,
+          signal: input.signal,
+        })
+        const replyText = diSummary || spoken.displayText
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          spokenText: (diSummary || spoken.spokenText)?.slice(0, 360),
+          voicePhase: 'final',
+          toolResults: [],
+        }
+        return {
+          reply: replyText,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta: attachTurnMeta(meta, meta.spokenText),
+          toolBatch: null,
         }
       }
 

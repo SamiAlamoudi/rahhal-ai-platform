@@ -279,6 +279,19 @@ export interface AgentProviderMeta {
     inferredClimate: string | null
   }
   /**
+   * Integration Sprint 5 — Destination Intelligence snapshot (advisor recommendations).
+   * Additive; present when `ai.integration_destination_intelligence` ran for the turn.
+   */
+  destinationIntelligence?: {
+    mode: string
+    primaryId: string | null
+    alternativeIds: string[]
+    themes: string[]
+    summary: string
+    score: number | null
+    latencyMs: number
+  }
+  /**
    * Sprint 46 — soft preference inference snapshot (never-ask-twice).
    */
   clarification?: {

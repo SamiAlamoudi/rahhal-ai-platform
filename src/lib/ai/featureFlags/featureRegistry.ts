@@ -425,6 +425,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: integration_trip_orchestrator. Additive under src/lib/agent/integrationTripOrchestrator. Distinct from quarantined ai.orchestrator and brain.trip_orchestrator. When OFF, legacy planTurn path is unchanged.',
   },
   {
+    id: 'ai.integration_destination_intelligence',
+    name: 'Integration Destination Intelligence',
+    description:
+      'Integration Sprint 5 — destination advisor layer (knowledge, matching, comparison, weather readiness mock, local transport, cost, culture). Recommends destinations without a booking request. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_destination_intelligence. Additive under src/lib/agent/integrationDestinationIntelligence. Distinct from Evolution Sprint 7 ai.destination_intelligence if present. When OFF, planTurn path is unchanged.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:
