@@ -1,37 +1,42 @@
-# Known Issues — v1.0.1
+# Known Issues — Post Merge Integration (2026-07-25)
 
-Honest inventory of residual limitations. Carry-forward from `v1.0.0` / RC1 unless noted.
+Honest inventory after merging Production Readiness stack #277–#283 into `main`.
 
-### Resolved in v1.0.1
+## Merge / integration
 
-- Missing `npm run providers:check` script and CI Providers check step (restored via PR #56; packaged in this patch).
+1. **PR #278 first landed on stacked base, not `main`**  
+   Retarget via `gh pr edit --base` was denied. GitHub merge closed #278 into `cursor/production-security-secrets-7518`. Content was immediately merged into `main` with an explicit merge commit before continuing. Later PRs were retargeted with ManagePullRequest before merge.
 
-### Resolved post-v1.0.1 (RC verification follow-up)
+2. **Parallel Integration Drafts #266–#276 remain open**  
+   Intentionally not merged. Merging them without reconciliation risks conflicts/duplication with modules already on `main`.
 
-- Vite **dev** CSP `script-src 'self'` blocked React Refresh preamble (blank SPA). Dev middleware now allows `'unsafe-inline'` + local HMR websockets; production/preview CSP remains strict.
-- `TravelConversation` crashed on first message when `msgIdRef` was read inside a `useState` initializer before declaration (TDZ).
-- Vitest inherited developer `.env.local` adapter flags and flaked provider default/auto-enable suites; test config now uses `envDir: false` with an explicit mock-safe env.
+## Runtime / environment
 
-## Major
+1. **Local agent VM cannot complete login without real Supabase**  
+   `.env.local` uses placeholder `https://example.supabase.co`. `supabaseClient` initializes at import time; React may not mount. Docker / `supabase start` unavailable in this environment. Hosted app boot was verified separately.
 
-1. **Browser E2E coverage is Chromium-only MVP**  
-   Playwright covers the mock booking funnel (`npm run test:playwright` / CI `e2e` job). Multi-browser matrix and staging-host smoke remain follow-ups; Vitest `test:e2e` is still the library journey suite (not a browser harness).
+2. **Demo credentials not present on hosted Supabase**  
+   Login form on `https://rahhal-ai-platform.vercel.app` works, but arbitrary demo email/password returns invalid credentials (expected without seeded demo user).
 
-2. **Preview/staging host publish is artifact + manual**  
-   CI builds a preview `dist/` artifact (`Preview readiness` workflow) with mock payments and live providers off. Public preview URL / Edge `ops-health` still need host secrets and a manual publish step — see `docs/PREVIEW_DEPLOYMENT.md`.
+3. **Vercel Preview deployments are SSO-protected**  
+   Explicit Preview URL requires Vercel authentication; browser console shows Vercel SSO/FedCM noise, not app runtime faults.
 
-## Minor
+4. **Vercel Production auto-deploy on `main`**  
+   Merging to `main` triggered Vercel Production deployments via project settings. This phase did **not** run `vercel deploy --prod`. Ops should confirm whether Production auto-deploy on `main` is desired.
 
-1. **Live providers remain opt-in**  
-   By design for RC1. Enabling any live provider requires Edge secrets + explicit flags and is out of RC1 scope.
+## Pre-existing (carry-forward)
 
-2. **Mock payment only**  
-   Moyasar/live card rails are intentionally blocked for staging/production env validation until a later payment production phase.
+1. **Playwright booking-funnel E2E** — demo-login → `/chat` timeout in CI (seen on #281/#282). Not introduced by merge commits.
 
-3. **Voice media APIs are mocked in CI**  
-   Microphone permission denied / interrupt / reconnect paths are covered with mock STT/TTS; real-device variation is not CI-gated.
+2. **Live providers remain OFF by default** — intentional; Edge secrets required for pilots.
 
-## Resolved for RC1 (do not reopen without evidence)
+3. **Browser E2E is Chromium-only MVP** — multi-browser matrix still follow-up.
 
-- Secret-hygiene false positives from docs/allowlists (addressed in Phase X via `scripts/secret-hygiene-scan.sh`)
-- Mock payment + live-provider default-OFF enforcement in env validation and readiness probes
+4. **`providers.amadeus.enabled` registry default true** — production helper still gates live URLs; keep `provider.amadeus` / live search flags OFF for safe defaults.
+
+## Not issues
+
+- ChatPage bundle unchanged at **139.28 kB**  
+- `npm audit --audit-level=high` = 0  
+- No circular dependencies  
+- No duplicate SecretManager / Observability / Load / Audit / RC1 / Soak / RC2 packages  
