@@ -505,6 +505,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: secret_manager. Additive under src/lib/security/secrets. When OFF, legacy env reads in liveProviders remain unchanged. Does not rewrite Provider Runtime, Journey, Planner, Action, Maps, Flights, Hotels, or Budget engines.',
   },
   {
+    id: 'observability.platform',
+    name: 'Observability Platform',
+    description:
+      'Sprint 15 — Centralized Logger, MetricsCollector, Tracer, HealthMonitor, EventRecorder, CorrelationIdManager. Structured logging, tracing, metrics, health checks, alert definitions. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: observability_platform. Additive under src/lib/observability. Does not modify Conversation Brain, Journey, Planner, Action, Provider Runtime, SecretManager, Maps, Flights, Hotels, or Budget. No external alerting integration yet.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:

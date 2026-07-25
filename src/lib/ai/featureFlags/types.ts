@@ -52,6 +52,7 @@ export type FeatureId =
   | 'ai.integration_action_execution'
   | 'ai.integration_journey'
   | 'security.secret_manager'
+  | 'observability.platform'
   | 'ai.trip_builder'
   | 'ai.memory_engine'
   | 'ai.orchestrator'
