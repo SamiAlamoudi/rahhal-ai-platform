@@ -17,7 +17,7 @@ No hard blockers. Staging soak with unscaled load remains a condition before bro
 | typecheck / lint / arch:circular | PASS |
 | security:gate | PASS |
 | npm audit (high) | PASS (0) |
-| test:run | **2866+** (plus Sprint 18 suite) |
+| test:run | **2871** tests / **249** files PASS |
 | test:rc1 (legacy) | PASS (27) |
 | build · ChatPage | **139.28 kB** (≤ 139.29 baseline) |
 

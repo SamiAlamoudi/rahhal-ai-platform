@@ -24,7 +24,7 @@ export const RC1_SPRINT18_EVIDENCE: Rc1ValidatorEvidence = {
   typecheckPass: true,
   lintPass: true,
   archCircularPass: true,
-  testsPassed: 2866,
+  testsPassed: 2871,
   securityGatePass: true,
   dependencyAuditHighCount: 0,
   secretManagerTestsPass: true,
