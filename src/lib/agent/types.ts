@@ -454,6 +454,24 @@ export interface AgentProviderMeta {
     debugStages?: Array<{ id: string; label: string; detail: string; confidence: string; source: string }>
   }
   /**
+   * Recovery Phase 6 — Agent Runtime snapshot (tool lifecycle, events, stream chunks).
+   * Additive debug timeline only — mock tools; no production UI. Flag OFF by default.
+   */
+  agentRuntime?: {
+    intent: string
+    dialect: string
+    tool: string
+    toolStatus: string | null
+    confidence: string
+    eventCount: number
+    traceCount: number
+    interrupted: boolean
+    durationMs: number
+    responsePreview: string
+    /** Hidden in production — runtime event timeline */
+    events?: Array<{ type: string; detail: string }>
+  }
+  /**
    * Sprint 76 — Traveler Personalization snapshot (profile, confidence, ranking deltas).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */

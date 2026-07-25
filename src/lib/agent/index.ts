@@ -149,6 +149,19 @@ export type {
   ConfidenceLevel,
 } from './llmBrain'
 export {
+  isAgentRuntimeEnabled,
+  AGENT_RUNTIME_FEATURE_ID,
+  runAgentRuntime,
+  enrichWithAgentRuntime,
+  resetAgentRuntimeSessions,
+  PHASE6_AGENT_RUNTIME_VERSION,
+} from './agentRuntime'
+export type {
+  AgentRuntimeResult,
+  RuntimeEventType,
+  ToolLifecycleStatus,
+} from './agentRuntime'
+export {
   isTravelerPersonalizationEnabled,
   TRAVELER_PERSONALIZATION_FEATURE_ID,
   parsePreferenceUtterance,

@@ -70,6 +70,11 @@ import {
   type LlmBrainResult,
 } from './llmBrain'
 import {
+  enrichWithAgentRuntime,
+  isAgentRuntimeEnabled,
+  type AgentRuntimeResult,
+} from './agentRuntime'
+import {
   enrichWithTravelerPersonalization,
   isTravelerPersonalizationEnabled,
   runTravelerPersonalization,
@@ -350,6 +355,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.llm_conversation_brain` (OFF).
    */
   llmConversationBrainEnabled?: boolean
+  /**
+   * Recovery Phase 6 — AI Agent Runtime & mock tool execution.
+   * Default: FeatureRegistry `ai.agent_runtime` (OFF).
+   */
+  agentRuntimeEnabled?: boolean
   /**
    * Sprint 76 — Traveler Personalization Intelligence (profile learning, ranking).
    * Default: FeatureRegistry `ai.traveler_personalization` (ON).
@@ -661,6 +671,24 @@ function toMetaLlmBrain(
       confidence: s.confidence,
       source: s.source,
     })),
+  }
+}
+
+function toMetaAgentRuntime(
+  result: AgentRuntimeResult,
+): NonNullable<AgentProviderMeta['agentRuntime']> {
+  return {
+    intent: result.intent,
+    dialect: result.dialect,
+    tool: result.toolDecision,
+    toolStatus: result.toolExecution?.status ?? null,
+    confidence: result.confidence,
+    eventCount: result.events.length,
+    traceCount: result.trace.length,
+    interrupted: result.interrupted,
+    durationMs: result.durationMs,
+    responsePreview: result.responseText.slice(0, 180),
+    events: result.events.map((e) => ({ type: e.type, detail: e.detail })),
   }
 }
 
@@ -1484,6 +1512,7 @@ export function createTravelAgentService(
 
       let conversationIntelligenceResult: ConversationIntelligenceResult | null = null
       let llmBrainResult: LlmBrainResult | null = null
+      let agentRuntimeResult: AgentRuntimeResult | null = null
 
       // Recovery Phase 4 — Conversation Intelligence (default OFF). Soft enrich only.
       if (isConversationIntelligenceEnabled({ enabled: options.conversationIntelligenceEnabled })) {
@@ -1522,6 +1551,27 @@ export function createTravelAgentService(
         })
         memory = enrichedBrain.memory
         llmBrainResult = enrichedBrain.llmBrain
+        memory.missingFields = filterInterviewMissingFields(
+          missingRequirementFields(memory.requirements).map(String),
+        ) as Array<keyof TripRequirements>
+      }
+
+      // Recovery Phase 6 — Agent Runtime (default OFF). Mock tool execution only.
+      if (isAgentRuntimeEnabled({ enabled: options.agentRuntimeEnabled })) {
+        const recentTexts = input.messages
+          .slice(0, -1)
+          .slice(-6)
+          .map((m) => m.content)
+        const enrichedRuntime = await enrichWithAgentRuntime({
+          userText,
+          memory,
+          recentTexts,
+          enabled: true,
+          locale: memory.locale,
+          conversationId: input.conversationId,
+        })
+        memory = enrichedRuntime.memory
+        agentRuntimeResult = enrichedRuntime.agentRuntime
         memory.missingFields = filterInterviewMissingFields(
           missingRequirementFields(memory.requirements).map(String),
         ) as Array<keyof TripRequirements>
@@ -1993,12 +2043,18 @@ export function createTravelAgentService(
             llmBrain: toMetaLlmBrain(llmBrainResult),
           }
           : withConversationIntelligence
-        const withPersonalization = travelerPersonalizationResult
+        const withAgentRuntime = agentRuntimeResult
           ? {
             ...withLlmBrain,
-            travelerPersonalization: toMetaTravelerPersonalization(travelerPersonalizationResult),
+            agentRuntime: toMetaAgentRuntime(agentRuntimeResult),
           }
           : withLlmBrain
+        const withPersonalization = travelerPersonalizationResult
+          ? {
+            ...withAgentRuntime,
+            travelerPersonalization: toMetaTravelerPersonalization(travelerPersonalizationResult),
+          }
+          : withAgentRuntime
         const withOptimizer = tripOptimizerResult
           ? { ...withPersonalization, tripOptimizer: toMetaTripOptimizer(tripOptimizerResult) }
           : withPersonalization

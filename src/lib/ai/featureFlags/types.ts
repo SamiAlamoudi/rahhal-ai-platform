@@ -23,6 +23,7 @@ export type FeatureId =
   | 'ai.budget_intelligence'
   | 'ai.conversation_intelligence'
   | 'ai.llm_conversation_brain'
+  | 'ai.agent_runtime'
   | 'ai.traveler_personalization'
   | 'ai.trip_optimizer'
   | 'ai.travel_planner'

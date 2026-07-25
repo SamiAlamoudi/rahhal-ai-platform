@@ -197,6 +197,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: llm_conversation_brain. Default OFF. Production remote LLM APIs remain disabled; mock LLM path only. Uses Phase 4 conversationIntelligence as rules fallback in-process (no flag coupling). Does not redesign UI or replace search/booking engines.',
   },
   {
+    id: 'ai.agent_runtime',
+    name: 'AI Agent Runtime & Tool Execution',
+    description:
+      'Recovery Phase 6 — executable runtime connecting Conversation Intelligence + LLM Brain with mock tool adapters, lifecycle events, interruption, streaming chunks, and debug traces. Additive soft enrich on planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes:
+      'Product alias: agent_runtime. Default OFF. Reuses existing CI/llmBrain modules — no new reasoning layer. Mock tools only; no production API calls. Distinct from Sprint 113 ai.orchestrator.',
+  },
+  {
     id: 'ai.traveler_personalization',
     name: 'Traveler Personalization Intelligence',
     description:
