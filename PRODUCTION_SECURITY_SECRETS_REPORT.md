@@ -1,7 +1,7 @@
 # Production Security & Secrets Management — Sprint 14 Report
 
 **Branch:** `cursor/production-security-secrets-7518`  
-**Draft PR:** _(pending)_  
+**Draft PR:** [#277](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/277)  
 **Continues from:** Draft PR [#276](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/276)  
 **Generated:** 2026-07-23  
 **Constraints:** Additive · Not a feature sprint · No UI redesign · No architecture rewrite · **No merge**  
@@ -24,7 +24,11 @@
 | liveProviders bridge (flag-gated) | **PASS** |
 | Flag OFF by default | **PASS** |
 | Forbidden engines untouched | **PASS** |
-| Regression / performance | **PASS** _(pending full gate)_ |
+| Lint / typecheck / arch:circular | **PASS** |
+| Regression suite | **PASS** (244 files / **2823** tests) |
+| Build · ChatPage | **PASS** (139.20 kB unchanged) |
+| Secret hygiene scan | **PASS** |
+| Performance | **≥90** (score **94**) |
 
 ---
 

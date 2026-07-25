@@ -1,7 +1,7 @@
 # Secret Manager — Architecture (Sprint 14)
 
 **Branch:** `cursor/production-security-secrets-7518`  
-**Draft PR:** _(pending)_  
+**Draft PR:** [#277](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/277)  
 **Flag:** `security.secret_manager` (default OFF)
 
 ```
