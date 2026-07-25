@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { getFeatureRegistry, resetFeatureRegistry } from '../ai'
 import { createTravelAgentService } from '../agent/travelAgentService'
 import {
-  BRAIN_LOYALTY_PLATFORM_FEATURE_ID,
+  BRAIN_LOYALTY_FOUNDATION_FEATURE_ID,
   LOYALTY_PLATFORM_ARCHITECTURE,
   LOYALTY_SECTION_IDS,
   LoyaltyPlatformFoundation,
@@ -15,7 +15,7 @@ import {
   MEMBERSHIP_LEVELS,
   assertLoyaltyPlatformIsolation,
   buildLoyaltyPlatformBlueprint,
-  isBrainLoyaltyPlatformEnabled,
+  isBrainLoyaltyFoundationEnabled,
   tryBuildLoyaltyPlatformBlueprint,
 } from '../orchestration/loyaltyPlatformFoundation'
 
@@ -25,14 +25,14 @@ describe('Phase 7 Stage 2 — Loyalty Platform Foundation (architecture)', () =>
   })
 
   describe('feature gate + isolation', () => {
-    it('registers brain.loyalty_platform default OFF', () => {
-      const def = getFeatureRegistry().get(BRAIN_LOYALTY_PLATFORM_FEATURE_ID)
+    it('registers brain.loyalty_foundation default OFF', () => {
+      const def = getFeatureRegistry().get(BRAIN_LOYALTY_FOUNDATION_FEATURE_ID)
       expect(def?.enabled).toBe(false)
       expect(def?.dependsOn).toEqual(['brain.traveler_profile'])
       expect(
-        getFeatureRegistry().isEnabled(BRAIN_LOYALTY_PLATFORM_FEATURE_ID),
+        getFeatureRegistry().isEnabled(BRAIN_LOYALTY_FOUNDATION_FEATURE_ID),
       ).toBe(false)
-      expect(isBrainLoyaltyPlatformEnabled()).toBe(false)
+      expect(isBrainLoyaltyFoundationEnabled()).toBe(false)
       expect(tryBuildLoyaltyPlatformBlueprint({})).toBeNull()
       expect(LOYALTY_PLATFORM_ARCHITECTURE.wiredIntoDatabase).toBe(false)
       expect(LOYALTY_PLATFORM_ARCHITECTURE.wiredIntoAuthentication).toBe(false)
@@ -44,6 +44,9 @@ describe('Phase 7 Stage 2 — Loyalty Platform Foundation (architecture)', () =>
       expect(LOYALTY_PLATFORM_ARCHITECTURE.wiredIntoApis).toBe(false)
       expect(LOYALTY_PLATFORM_ARCHITECTURE.wiredIntoLlms).toBe(false)
       expect(LOYALTY_PLATFORM_ARCHITECTURE.businessLogic).toBe(false)
+      // Distinct from Sprint 38 executable loyalty platform flag
+      const sprint38 = getFeatureRegistry().get('brain.loyalty_platform')
+      expect(sprint38?.dependsOn).toContain('brain.travel_disruption_engine')
     })
 
     it('does not change planTurn production path', async () => {

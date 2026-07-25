@@ -1617,15 +1617,15 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: brain_traveler_profile. Blueprints only — never persists profiles or calls LLMs. UI presentation remains ui.traveler_profile.',
   },
   {
-    id: 'brain.loyalty_platform',
+    id: 'brain.loyalty_foundation',
     name: 'Loyalty Platform Foundation Architecture (Phase 7 Stage 2)',
     description:
-      'Additive architecture-only Loyalty Platform Foundation: accounts, membership, points/ledger, catalog/redemption, achievements/badges/milestones, referrals, partners, credits/coupons/promos/vouchers/campaigns, wallet, history/timeline/audit/analytics/insights, AI reward/offer/eligibility/campaign/gamification contracts. Blueprints only — no DB, auth, payments, reward calculation, Runtime, HTTP, APIs, or LLM. Default OFF.',
+      'Additive architecture-only Loyalty Platform Foundation: accounts, membership, points/ledger, catalog/redemption, achievements/badges/milestones, referrals, partners, credits/coupons/promos/vouchers/campaigns, wallet, history/timeline/audit/analytics/insights, AI reward/offer/eligibility/campaign/gamification contracts. Blueprints only — no DB, auth, payments, reward calculation, Runtime, HTTP, APIs, or LLM. Distinct from Sprint 38 brain.loyalty_platform. Default OFF.',
     lifecycle: 'experimental',
     enabled: false,
     dependsOn: ['brain.traveler_profile'],
     notes:
-      'Product alias: brain_loyalty_platform. Blueprints only — never calculates rewards or processes payments.',
+      'Product alias: brain_loyalty_foundation. Blueprints only — never calculates rewards or processes payments. Does not replace brain.loyalty_platform.',
   },
 ]
 

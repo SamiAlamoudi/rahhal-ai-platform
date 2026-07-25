@@ -312,7 +312,7 @@ export interface LoyaltyRegistryEntry {
 
 export interface LoyaltyPlatformBlueprint {
   version: '7.2.0-loyalty-platform'
-  featureId: 'brain.loyalty_platform'
+  featureId: 'brain.loyalty_foundation'
   architectureOnly: true
   account: LoyaltyAccountContract
   membershipLevels: MembershipLevelsContract
@@ -360,6 +360,7 @@ export const LOYALTY_PLATFORM_ISOLATION = {
   wiredIntoApis: false,
   wiredIntoLlms: false,
   businessLogic: false,
+  distinctFromSprint38LoyaltyPlatform: true,
 } as const
 
 export const MEMBERSHIP_LEVELS: readonly MembershipLevelId[] = [

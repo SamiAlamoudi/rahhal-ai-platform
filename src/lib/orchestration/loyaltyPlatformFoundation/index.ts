@@ -2,7 +2,7 @@
  * Phase 7 Stage 2 — Loyalty Platform Foundation barrel.
  *
  * Architecture / contracts / types / blueprints only.
- * Gated by `brain.loyalty_platform` (default OFF).
+ * Gated by `brain.loyalty_foundation` (default OFF).
  * No DB, auth, payments, reward calculation, Runtime, HTTP, APIs, or LLM.
  */
 
@@ -10,8 +10,8 @@ import { LOYALTY_PLATFORM_ISOLATION as LP_ISOLATION } from './types'
 import { LOYALTY_SECTION_IDS, MEMBERSHIP_LEVELS } from './types'
 
 export {
-  BRAIN_LOYALTY_PLATFORM_FEATURE_ID,
-  isBrainLoyaltyPlatformEnabled,
+  BRAIN_LOYALTY_FOUNDATION_FEATURE_ID,
+  isBrainLoyaltyFoundationEnabled,
   listLoyaltyRegistry,
   listLoyaltySectionIds,
   LoyaltyRegistry,
@@ -115,7 +115,7 @@ export type { BuildLoyaltyBlueprintOptions } from './engine'
 
 export const LOYALTY_PLATFORM_ARCHITECTURE = {
   version: '7.2.0-loyalty-platform',
-  featureId: 'brain.loyalty_platform' as const,
+  featureId: 'brain.loyalty_foundation' as const,
   architectureOnly: true,
   components: [
     'loyalty_account',

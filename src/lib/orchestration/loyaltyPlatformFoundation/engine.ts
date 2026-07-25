@@ -4,7 +4,7 @@
  */
 
 import { listLoyaltyRegistry } from './registry'
-import { isBrainLoyaltyPlatformEnabled } from './registry'
+import { isBrainLoyaltyFoundationEnabled } from './registry'
 import {
   buildBadges,
   buildCampaignDecision,
@@ -53,7 +53,7 @@ export function buildLoyaltyPlatformBlueprint(
 
   return {
     version: '7.2.0-loyalty-platform',
-    featureId: 'brain.loyalty_platform',
+    featureId: 'brain.loyalty_foundation',
     architectureOnly: true,
     account: buildLoyaltyAccount(),
     membershipLevels: buildMembershipLevels(),
@@ -92,7 +92,7 @@ export function buildLoyaltyPlatformBlueprint(
 export function tryBuildLoyaltyPlatformBlueprint(
   options: BuildLoyaltyBlueprintOptions = {},
 ): LoyaltyPlatformBlueprint | null {
-  if (!isBrainLoyaltyPlatformEnabled({ enabled: options.enabled })) {
+  if (!isBrainLoyaltyFoundationEnabled({ enabled: options.enabled })) {
     return null
   }
   return buildLoyaltyPlatformBlueprint(options)

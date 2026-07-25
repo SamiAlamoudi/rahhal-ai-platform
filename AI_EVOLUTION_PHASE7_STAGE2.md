@@ -4,10 +4,11 @@
 
 | Field | Value |
 |-------|-------|
-| Flag | `brain.loyalty_platform` |
+| Flag | `brain.loyalty_foundation` |
 | Default | **OFF** |
 | Depends on | `brain.traveler_profile` |
 | Package | `src/lib/orchestration/loyaltyPlatformFoundation/` |
+| Distinct from | Sprint 38 `brain.loyalty_platform` |
 | DB / Auth / Payments / Reward calc / Runtime / LLM | **Not wired** |
 
 See `AI_LOYALTY_PLATFORM.md`, `AI_LOYALTY_ARCHITECTURE.md`, `AI_REWARD_ENGINE.md`, `AI_GAMIFICATION.md`, `AI_LOYALTY_VALIDATION.md`.

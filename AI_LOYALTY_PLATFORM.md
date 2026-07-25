@@ -1,7 +1,8 @@
 # Loyalty Platform Foundation — Phase 7 Stage 2
 
-**Status:** Architecture only · Flag `brain.loyalty_platform` **default OFF**  
+**Status:** Architecture only · Flag `brain.loyalty_foundation` **default OFF**  
 **Depends on:** `brain.traveler_profile`  
+**Distinct from:** Sprint 38 flag `brain.loyalty_platform` (executable loyalty layer)  
 **Freeze:** Database · Auth · Payments · Coupons logic · Reward calculation · Business logic · HTTP · Streaming · Runtime · APIs · LLM · prior PRs.
 
 Complete loyalty platform foundation for future rewards, memberships, AI incentives, referrals, campaigns, achievements, and partner ecosystems.  
@@ -21,7 +22,7 @@ Reward Recommendation · Offer Personalization · Reward Eligibility · Campaign
 
 ```mermaid
 flowchart TD
-  Flag{brain.loyalty_platform}
+  Flag{brain.loyalty_foundation}
   Flag -->|OFF| Null[tryBuild → null]
   Flag -->|ON architecture| BP[LoyaltyPlatformBlueprint]
   BP --> Core[Account / Membership / Points]
