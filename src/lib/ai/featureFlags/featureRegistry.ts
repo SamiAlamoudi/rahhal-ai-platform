@@ -555,6 +555,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: soak_staging. Additive under src/lib/soakTesting. Simulated staging soak — does not rewrite engines, UI, or providers.',
   },
   {
+    id: 'rc2.ga_review',
+    name: 'RC2 General Availability Review',
+    description:
+      'RC2 — Final GA release review: merge order, feature flags, security, performance, documentation index, checklist, GO/NO-GO. Review-only; no product behavior. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: rc2_ga_review. Additive under src/lib/rc2GaReview. Does not implement features, refactor architecture, or merge releases.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:
