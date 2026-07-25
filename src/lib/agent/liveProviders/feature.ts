@@ -1,4 +1,6 @@
 import { getFeatureRegistry } from '../../ai/featureFlags'
+import { isSecretManagerEnabled } from '../../security/secrets/feature'
+import { getSecretManager } from '../../security/secrets/SecretManager'
 import type { LiveProviderId } from './types'
 
 export const LIVE_PROVIDERS_FEATURE_ID = 'ai.live_providers' as const
@@ -71,8 +73,18 @@ export function isLiveProviderEnabled(
   return false
 }
 
+/**
+ * Sprint 14 — when `security.secret_manager` is ON, credentials come from SecretManager
+ * (EnvironmentSecretProvider). When OFF, legacy env read is unchanged (no behavior change).
+ * Provider Runtime is not modified; adapters keep calling this helper.
+ */
 export function readLiveProviderSecret(key: string): string | null {
-  // Server-only secrets — never VITE_* OAuth secrets.
+  if (isSecretManagerEnabled()) {
+    return getSecretManager().get(key, {
+      caller: 'readLiveProviderSecret',
+    })
+  }
+  // Server-only secrets — never VITE_* OAuth secrets (legacy path).
   return readEnv(key)
 }
 
@@ -111,8 +123,8 @@ export function readBookingApiKey(): string | null {
     readLiveProviderSecret('BOOKING_API_KEY')
     ?? readLiveProviderSecret('RAPIDAPI_KEY')
     ?? readLiveProviderSecret('BOOKING_RAPIDAPI_KEY')
-    ?? readEnv('VITE_RAPIDAPI_KEY')
-    ?? readEnv('VITE_BOOKING_API_KEY')
+    ?? readLiveProviderSecret('VITE_RAPIDAPI_KEY')
+    ?? readLiveProviderSecret('VITE_BOOKING_API_KEY')
   )
 }
 

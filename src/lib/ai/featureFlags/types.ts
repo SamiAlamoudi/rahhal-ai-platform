@@ -51,6 +51,7 @@ export type FeatureId =
   | 'ai.integration_disruption_recovery'
   | 'ai.integration_action_execution'
   | 'ai.integration_journey'
+  | 'security.secret_manager'
   | 'ai.trip_builder'
   | 'ai.memory_engine'
   | 'ai.orchestrator'

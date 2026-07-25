@@ -495,6 +495,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: integration_journey. Additive under src/lib/agent/integrationJourney. Wraps existing integration modules via deferred soft-activate; child flags stay OFF unless enabled separately. When OFF, planTurn path is unchanged.',
   },
   {
+    id: 'security.secret_manager',
+    name: 'Production Secret Manager',
+    description:
+      'Sprint 14 — Central SecretManager / SecretProvider / EnvironmentSecretProvider. Providers obtain credentials through one secure configuration layer. Future vault backends prepared but not enabled. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: secret_manager. Additive under src/lib/security/secrets. When OFF, legacy env reads in liveProviders remain unchanged. Does not rewrite Provider Runtime, Journey, Planner, Action, Maps, Flights, Hotels, or Budget engines.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:
