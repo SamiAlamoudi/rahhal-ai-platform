@@ -133,5 +133,11 @@ Inspiration (“somewhere cold”) → continue conversation + recommend, **not*
 
 ## Test report
 
-Suite: `src/lib/__tests__/llmBrain.phase5.test.ts`  
-Validate: `npm run lint`, `npm run typecheck`, `npm run arch:circular`, `npm run test:run`.
+Suite: `src/lib/__tests__/llmBrain.phase5.test.ts` (15/15)
+
+| Check | Result |
+|-------|--------|
+| `npm run lint` | pass |
+| `npm run typecheck` | pass |
+| `npm run arch:circular` | pass |
+| `npm run test:run` | **227 files / 2650 tests passed** |
