@@ -24,6 +24,7 @@ export {
   createVoiceAdapter,
   createMockVoiceAdapter,
   createPreparedVoiceAdapter,
+  createRealtimeIntegratedVoiceAdapter,
   resolveVoiceAdapterProviderId,
   listVoiceAdapterProviders,
   mapSessionStatusToPanelState,

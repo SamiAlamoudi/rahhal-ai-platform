@@ -99,5 +99,11 @@ Metrics on `session.getMetrics()`:
 
 ## Test report
 
-Suite: `src/lib/__tests__/realtimeVoice.phase7.test.ts`  
-Validate: `npm run lint`, `npm run typecheck`, `npm run arch:circular`, `npm run test:run`.
+Suite: `src/lib/__tests__/realtimeVoice.phase7.test.ts` (10/10)
+
+| Check | Result |
+|-------|--------|
+| `npm run lint` | pass |
+| `npm run typecheck` | pass |
+| `npm run arch:circular` | pass |
+| `npm run test:run` | **229 files / 2671 tests passed** |
