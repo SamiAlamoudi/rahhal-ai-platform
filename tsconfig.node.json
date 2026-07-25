@@ -19,5 +19,11 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "src/lib/viteAmadeusApiPlugin.ts", "api/**/*.ts"]
+  "include": [
+    "vite.config.ts",
+    "src/lib/viteAmadeusApiPlugin.ts",
+    "src/lib/viteOpenAiRealtimeApiPlugin.ts",
+    "src/lib/viteNodeEnv.ts",
+    "api/**/*.ts"
+  ]
 }

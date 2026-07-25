@@ -1,4 +1,4 @@
-import { createDefaultAggregationEngine } from '../aggregation'
+import { createDefaultAggregationEngine } from '../aggregation/factory'
 import type { AgentTool, AgentToolName, ToolJsonSchema } from './types'
 import { createAgentToolRegistry } from './registry'
 import { createAllMockTools } from './mockTools'

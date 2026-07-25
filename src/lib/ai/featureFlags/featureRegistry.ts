@@ -175,6 +175,50 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: budget_intelligence. Does not replace search engines; Conversation Brain narrates facts only.',
   },
   {
+    id: 'ai.conversation_intelligence',
+    name: 'Conversation Intelligence',
+    description:
+      'Recovery Phase 4 — live travel memory, entity extraction, intent detection, reference resolution, smart summaries, outcome-changing questions, and travel-consultant personality. Additive soft enrich on planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes:
+      'Product alias: conversation_intelligence. Default OFF. Does not redesign UI or replace extractFromUserText / booking / search engines. No production API keys.',
+  },
+  {
+    id: 'ai.llm_conversation_brain',
+    name: 'LLM Conversation Brain',
+    description:
+      'Recovery Phase 5 — LLM-first conversation brain (mock reasoner primary; Phase 4 rules fallback): travel reasoning, tool decisions, confidence, context optimization, dialect-aware consultant replies. Additive soft enrich on planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes:
+      'Product alias: llm_conversation_brain. Default OFF. Production remote LLM APIs remain disabled; mock LLM path only. Uses Phase 4 conversationIntelligence as rules fallback in-process (no flag coupling). Does not redesign UI or replace search/booking engines.',
+  },
+  {
+    id: 'ai.agent_runtime',
+    name: 'AI Agent Runtime & Tool Execution',
+    description:
+      'Recovery Phase 6 — executable runtime connecting Conversation Intelligence + LLM Brain with mock tool adapters, lifecycle events, interruption, streaming chunks, and debug traces. Additive soft enrich on planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes:
+      'Product alias: agent_runtime. Default OFF. Reuses existing CI/llmBrain modules — no new reasoning layer. Mock tools only; no production API calls. Distinct from Sprint 113 ai.orchestrator.',
+  },
+  {
+    id: 'ai.realtime_voice',
+    name: 'Real AI Voice Integration',
+    description:
+      'Recovery Phase 7 — multi-provider realtime voice (OpenAI Realtime / Gemini Live / Azure / Web Speech / Mock) with failover, reconnect, latency metrics, and Agent Runtime incremental reasoning. Production default OFF; live sockets require VITE_VOICE_LIVE_ALLOW.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes:
+      'Product alias: realtime_voice. Production disabled by default. Dev opt-in via VITE_REALTIME_VOICE_DEV + VITE_VOICE_LIVE_ALLOW for sockets. Uses Agent Runtime in-process (no flag coupling). Distinct from frozen Sprint 18 ui.voice_conversation / voice.realtime. No API keys committed.',
+  },
+  {
     id: 'ai.traveler_personalization',
     name: 'Traveler Personalization Intelligence',
     description:
@@ -369,6 +413,96 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     dependsOn: ['providers.amadeus.enabled'],
     notes:
       'Product alias: live_hotel_search. Additive under src/lib/agent/liveHotelSearch + AmadeusHotelSearchProvider. Does not modify flight search, engines, or UI. Availability only — no booking.',
+  },
+  {
+    id: 'ai.integration_trip_orchestrator',
+    name: 'Integration Trip Orchestrator',
+    description:
+      'Integration Sprint 4 — coordinates flight + hotel providers (parallel search, budget split, conflicts, itinerary, consultant summary). Does not replace providers or planTurn ownership. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_trip_orchestrator. Additive under src/lib/agent/integrationTripOrchestrator. Distinct from quarantined ai.orchestrator and brain.trip_orchestrator. When OFF, legacy planTurn path is unchanged.',
+  },
+  {
+    id: 'ai.integration_destination_intelligence',
+    name: 'Integration Destination Intelligence',
+    description:
+      'Integration Sprint 5 — destination advisor layer (knowledge, matching, comparison, weather readiness mock, local transport, cost, culture). Recommends destinations without a booking request. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_destination_intelligence. Additive under src/lib/agent/integrationDestinationIntelligence. Distinct from Evolution Sprint 7 ai.destination_intelligence if present. When OFF, planTurn path is unchanged.',
+  },
+  {
+    id: 'ai.integration_trip_companion',
+    name: 'Integration Live Trip Companion',
+    description:
+      'Integration Sprint 7 — live trip session, timeline engine, smart notifications (prepared), dynamic replanning, travel assistant, context memory, location abstraction, emergency framework. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_trip_companion. Additive under src/lib/agent/integrationTripCompanion. No live maps/GPS. When OFF, planTurn path is unchanged.',
+  },
+  {
+    id: 'ai.integration_maps_mobility',
+    name: 'Integration Maps & Live Mobility',
+    description:
+      'Integration Sprint 8 — map provider abstraction, geocode/reverse, routes, nearby places, ETA/leave-by, spatial context. Mock provider default; live Google Maps adapter optional and not auto-enabled. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_maps_mobility. Additive under src/lib/agent/integrationMapsMobility. Reuses integrations/providers/googleMaps client when live is explicitly injected. When OFF, planTurn path is unchanged.',
+  },
+  {
+    id: 'ai.integration_budget_pricing',
+    name: 'Integration Budget & Pricing Intelligence',
+    description:
+      'Integration Sprint 9 — BudgetEngine, cost breakdown, trade-offs, tier optimizer, flexible alternatives, cost memory, conversational budget asks. Default OFF. Distinct from Sprint 75 ai.budget_intelligence.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_budget_pricing. Additive under src/lib/agent/integrationBudgetPricing. Reuses parseBudgetUtterance and offer price hints; does not rewrite live pricing providers. When OFF, planTurn path is unchanged.',
+  },
+  {
+    id: 'ai.integration_disruption_recovery',
+    name: 'Integration Live Disruption Recovery',
+    description:
+      'Integration Sprint 10 — DisruptionEngine, impact analyzer, recovery plans (best/cheapest/fastest/minimal/premium), auto-replan, risk scoring, live alert provider abstraction (not enabled). Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_disruption_recovery. Additive under src/lib/agent/integrationDisruptionRecovery. Distinct from brain.travel_disruption_engine. When OFF, planTurn path is unchanged.',
+  },
+  {
+    id: 'ai.integration_action_execution',
+    name: 'Integration Action Execution Layer',
+    description:
+      'Integration Sprint 11 — ActionEngine, confirmation gate, dry-run/mock/preview execution, execution memory, Provider Runtime mock bridge. Live booking prepared but not enabled. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_action_execution. Additive under src/lib/agent/integrationActionExecution. Reuses Provider Runtime; does not rewrite providers. Distinct from ai.booking_execution. When OFF, planTurn path is unchanged.',
+  },
+  {
+    id: 'ai.integration_journey',
+    name: 'Integration End-to-End Journey',
+    description:
+      'Integration Sprint 12 — JourneyEngine coordinator: shared handoff, shared decision scoring, stage traces (conversation→completion), observability. Not a new standalone feature. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_journey. Additive under src/lib/agent/integrationJourney. Wraps existing integration modules via deferred soft-activate; child flags stay OFF unless enabled separately. When OFF, planTurn path is unchanged.',
+  },
+  {
+    id: 'security.secret_manager',
+    name: 'Production Secret Manager',
+    description:
+      'Sprint 14 — Central SecretManager / SecretProvider / EnvironmentSecretProvider. Providers obtain credentials through one secure configuration layer. Future vault backends prepared but not enabled. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: secret_manager. Additive under src/lib/security/secrets. When OFF, legacy env reads in liveProviders remain unchanged. Does not rewrite Provider Runtime, Journey, Planner, Action, Maps, Flights, Hotels, or Budget engines.',
   },
   {
     id: 'ai.trip_builder',

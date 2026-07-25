@@ -3,7 +3,7 @@
  *   GET  /api/health/providers
  *   POST /api/amadeus-token
  *
- * Reads AMADEUS_* from process.env (or .env.local via Vite env loading).
+ * Sprint 14 — Node middleware uses viteNodeEnv (not SPA provider SecretManager).
  */
 
 import type { Plugin } from 'vite'
@@ -13,6 +13,7 @@ import {
   probeAmadeusConnection,
   readAmadeusCredentials,
 } from '../../api/_lib/amadeusEnv.js'
+import { buildAmadeusEnvBag } from './viteNodeEnv.js'
 
 function sendJson(res: { statusCode?: number; setHeader: (k: string, v: string) => void; end: (b: string) => void }, status: number, body: unknown) {
   res.statusCode = status
@@ -38,7 +39,7 @@ export function amadeusApiPlugin(): Plugin {
             sendJson(res, 405, { error: 'Method not allowed' })
             return
           }
-          const health = await probeAmadeusConnection(process.env)
+          const health = await probeAmadeusConnection(buildAmadeusEnvBag())
           sendJson(res, 200, health)
           return
         }
@@ -54,7 +55,7 @@ export function amadeusApiPlugin(): Plugin {
             return
           }
 
-          const { clientId, clientSecret, host, hasCredentials } = readAmadeusCredentials(process.env)
+          const { clientId, clientSecret, host, hasCredentials } = readAmadeusCredentials(buildAmadeusEnvBag())
           if (!hasCredentials || !clientId || !clientSecret) {
             sendJson(res, 503, {
               ...missingCredentialsResponse(),

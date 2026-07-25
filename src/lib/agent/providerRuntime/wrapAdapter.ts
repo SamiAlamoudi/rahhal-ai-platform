@@ -96,6 +96,8 @@ export function wrapLiveSdkAsRuntimeAdapter(input: {
             departureDate: req.departureDate ?? '2026-08-01',
             returnDate: req.returnDate,
             adults: req.adults ?? 1,
+            children: req.children ?? 0,
+            cabin: req.cabin ?? null,
             currency: req.currency ?? 'SAR',
             signal: req.signal,
           })
@@ -106,6 +108,8 @@ export function wrapLiveSdkAsRuntimeAdapter(input: {
             checkIn: req.checkIn ?? req.departureDate ?? '2026-08-01',
             checkOut: req.checkOut ?? req.returnDate,
             adults: req.adults ?? 1,
+            children: req.children ?? 0,
+            rooms: req.rooms ?? 1,
             currency: req.currency ?? 'SAR',
             signal: req.signal,
           })

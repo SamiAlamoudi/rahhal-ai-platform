@@ -115,6 +115,53 @@ export type {
   RankedBudgetCandidate,
 } from './budgetIntelligence'
 export {
+  isConversationIntelligenceEnabled,
+  CONVERSATION_INTELLIGENCE_FEATURE_ID,
+  analyzeConversation,
+  enrichWithConversationIntelligence,
+  extractEntities,
+  detectConversationIntent,
+  resolveReferences,
+  summarizeConversation,
+  formatSummaryForConsultant,
+  planIntelligentQuestions,
+  filterInterviewMissingFields,
+  PHASE4_CONVERSATION_INTELLIGENCE_VERSION,
+} from './conversationIntelligence'
+export type {
+  ConversationIntelligenceResult,
+  LiveTravelMemory,
+  ConversationIntentKind,
+  ExtractedEntities,
+} from './conversationIntelligence'
+export {
+  isLlmConversationBrainEnabled,
+  LLM_CONVERSATION_BRAIN_FEATURE_ID,
+  runLlmConversationBrain,
+  enrichWithLlmConversationBrain,
+  detectArabicDialect,
+  PHASE5_LLM_CONVERSATION_BRAIN_VERSION,
+} from './llmBrain'
+export type {
+  LlmBrainResult,
+  ArabicDialect,
+  ToolDecisionKind,
+  ConfidenceLevel,
+} from './llmBrain'
+export {
+  isAgentRuntimeEnabled,
+  AGENT_RUNTIME_FEATURE_ID,
+  runAgentRuntime,
+  enrichWithAgentRuntime,
+  resetAgentRuntimeSessions,
+  PHASE6_AGENT_RUNTIME_VERSION,
+} from './agentRuntime'
+export type {
+  AgentRuntimeResult,
+  RuntimeEventType,
+  ToolLifecycleStatus,
+} from './agentRuntime'
+export {
   isTravelerPersonalizationEnabled,
   TRAVELER_PERSONALIZATION_FEATURE_ID,
   parsePreferenceUtterance,
@@ -668,6 +715,148 @@ export {
   type UnifiedFlight,
   type FlightSortMode,
 } from './flightSearchEngine'
+
+/** Integration Sprint 2 — conversation ↔ live flight search bridge */
+export {
+  INTEGRATION_LIVE_FLIGHT_SEARCH_VERSION,
+  tryConversationLiveFlightSearch,
+  conversationResultToToolData,
+  runConversationAwareFlightSearch,
+  rankConversationFlights,
+  buildConsultantFlightSummary,
+  resetConversationFlightSearchCache,
+  getConversationFlightSearchCache,
+  buildLiveCriteriaFromContext,
+  type ConversationFlightSearchResult,
+  type RankedConversationFlight,
+} from './integrationFlightSearch'
+
+/** Integration Sprint 3 — conversation ↔ live hotel search bridge */
+export {
+  INTEGRATION_LIVE_HOTEL_SEARCH_VERSION,
+  tryConversationLiveHotelSearch,
+  conversationHotelResultToToolData,
+  runConversationAwareHotelSearch,
+  rankConversationHotels,
+  buildConsultantHotelSummary,
+  resetConversationHotelSearchCache,
+  getConversationHotelSearchCache,
+  buildLiveHotelCriteriaFromContext,
+  type ConversationHotelSearchResult,
+  type RankedConversationHotel,
+} from './integrationHotelSearch'
+
+/** Integration Sprint 4 — AI Trip Orchestrator */
+export {
+  INTEGRATION_TRIP_ORCHESTRATOR_VERSION,
+  INTEGRATION_TRIP_ORCHESTRATOR_FEATURE_ID,
+  isIntegrationTripOrchestratorEnabled,
+  runTripOrchestrator,
+  enrichWithIntegrationTripOrchestrator,
+  buildOrchestratorBudget,
+  detectTripScenario,
+  type TripOrchestratorResult,
+  type OrchestratorExecutionPlan,
+} from './integrationTripOrchestrator'
+
+/** Integration Sprint 5 — Destination Intelligence */
+export {
+  INTEGRATION_DESTINATION_INTELLIGENCE_VERSION,
+  INTEGRATION_DESTINATION_INTELLIGENCE_FEATURE_ID,
+  isIntegrationDestinationIntelligenceEnabled,
+  runDestinationIntelligence,
+  enrichWithIntegrationDestinationIntelligence,
+  recommendDestinations,
+  compareDestinations,
+  type DestinationIntelligenceResult,
+  type DestinationRecommendation,
+  type DestinationComparison,
+} from './integrationDestinationIntelligence'
+
+/** Integration Sprint 7 — Live Trip Companion */
+export {
+  INTEGRATION_TRIP_COMPANION_VERSION,
+  INTEGRATION_TRIP_COMPANION_FEATURE_ID,
+  isIntegrationTripCompanionEnabled,
+  runTripCompanion,
+  enrichWithIntegrationTripCompanion,
+  createTripSession,
+  buildTravelTimeline,
+  detectCompanionDisruption,
+  type TripCompanionResult,
+  type TripSession,
+  type TravelTimelineSnapshot,
+} from './integrationTripCompanion'
+
+/** Integration Sprint 8 — Maps & Live Mobility */
+export {
+  INTEGRATION_MAPS_MOBILITY_VERSION,
+  INTEGRATION_MAPS_MOBILITY_FEATURE_ID,
+  isIntegrationMapsMobilityEnabled,
+  runMapsMobility,
+  enrichWithIntegrationMapsMobility,
+  createMockMapProvider,
+  detectMapsMobilityIntent,
+  type MapsMobilityResult,
+  type MapProvider,
+  type MobilityRoute,
+} from './integrationMapsMobility'
+
+/** Integration Sprint 9 — Budget & Pricing Intelligence */
+export {
+  INTEGRATION_BUDGET_PRICING_VERSION,
+  INTEGRATION_BUDGET_PRICING_FEATURE_ID,
+  isIntegrationBudgetPricingEnabled,
+  runBudgetPricing,
+  enrichWithIntegrationBudgetPricing,
+  createBudgetEngine,
+  optimizeBudgetOptions,
+  type BudgetPricingResult,
+  type BudgetEnvelope,
+  type OptimizedBudgetOption,
+} from './integrationBudgetPricing'
+
+/** Integration Sprint 10 — Live Disruption Recovery */
+export {
+  INTEGRATION_DISRUPTION_RECOVERY_VERSION,
+  INTEGRATION_DISRUPTION_RECOVERY_FEATURE_ID,
+  isIntegrationDisruptionRecoveryEnabled,
+  runDisruptionRecovery,
+  enrichWithIntegrationDisruptionRecovery,
+  createDisruptionEngine,
+  detectLiveDisruption,
+  type DisruptionRecoveryResult,
+  type RecoveryPlan,
+  type DetectedLiveDisruption,
+} from './integrationDisruptionRecovery'
+
+/** Integration Sprint 11 — Action Execution Layer */
+export {
+  INTEGRATION_ACTION_EXECUTION_VERSION,
+  INTEGRATION_ACTION_EXECUTION_FEATURE_ID,
+  isIntegrationActionExecutionEnabled,
+  runActionExecution,
+  enrichWithIntegrationActionExecution,
+  createActionEngine,
+  detectActionKind,
+  type ActionExecutionResult,
+  type ActionKind,
+  type ActionExecutionMode,
+} from './integrationActionExecution'
+
+/** Integration Sprint 12 — End-to-End Journey Integration */
+export {
+  INTEGRATION_JOURNEY_VERSION,
+  INTEGRATION_JOURNEY_FEATURE_ID,
+  JOURNEY_STAGE_ORDER,
+  isIntegrationJourneyEnabled,
+  runIntegrationJourney,
+  enrichWithIntegrationJourney,
+  createJourneyEngine,
+  type JourneyResult,
+  type JourneyStageId,
+  type JourneyScenario,
+} from './integrationJourney'
 
 /** Sprint 73 — Hotel Search Engine */
 export {

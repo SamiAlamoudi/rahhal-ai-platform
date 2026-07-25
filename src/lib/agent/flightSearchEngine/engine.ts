@@ -10,6 +10,7 @@ import {
   type ProviderRuntimeMode,
   GRACEFUL_PROVIDER_MESSAGE,
 } from '../providerRuntime'
+import { SmartCache } from '../liveProviders/cache'
 import { dedupeFlights } from './dedupe'
 import { applyFlightFilters } from './filters'
 import { enrichMockFlight, normalizeFlightOffers } from './normalize'
@@ -30,6 +31,8 @@ export type FlightSearchEngineOptions = {
   forceMock?: boolean
   now?: () => number
   createRequestId?: () => string
+  /** Integration Sprint 2 — optional search result cache (15 min flight_routes). */
+  cache?: SmartCache | null
 }
 
 export type FlightSearchEngine = {
@@ -107,6 +110,8 @@ async function queryProviders(
     departureDate: request.departureDate,
     returnDate: request.returnDate,
     adults: request.adults,
+    children: request.children ?? 0,
+    cabin: request.cabin ?? null,
     currency: request.currency,
     signal: request.signal,
   }
@@ -205,6 +210,22 @@ async function queryProviders(
   }
 }
 
+function flightCacheKey(request: ReturnType<typeof normalizeRequest>): string {
+  return [
+    request.tripType,
+    request.origin,
+    request.destination,
+    request.departureDate,
+    request.returnDate ?? '-',
+    String(request.adults),
+    String(request.children ?? 0),
+    request.cabin ?? 'economy',
+    request.currency,
+    (request.preferredAirlines ?? []).join(','),
+    request.cursor ?? '',
+  ].join('|')
+}
+
 export function createFlightSearchEngine(
   options: FlightSearchEngineOptions = {},
 ): FlightSearchEngine {
@@ -212,6 +233,10 @@ export function createFlightSearchEngine(
     options.registry
     ?? createProviderRuntimeRegistry({ forceMock: options.forceMock ?? true })
   const createRequestId = options.createRequestId ?? createRequestIdDefault
+  const cache =
+    options.cache === null
+      ? null
+      : (options.cache ?? new SmartCache({ ttlByNamespace: { flight_routes: 15 * 60 * 1000 } }))
   let initialized = false
 
   async function ensureInit() {
@@ -225,6 +250,22 @@ export function createFlightSearchEngine(
     await ensureInit()
     const normalized = normalizeRequest(request)
     const requestId = createRequestId()
+    const key = flightCacheKey(normalized)
+
+    if (cache) {
+      const hit = cache.get<FlightSearchPage>('flight_routes', key)
+      if (hit) {
+        return {
+          ...hit,
+          diagnostics: {
+            ...hit.diagnostics,
+            requestId,
+            cacheHit: true,
+          },
+        }
+      }
+    }
+
     const queried = await queryProviders(registry, normalized)
 
     const totalBeforeFilter = queried.flights.length
@@ -251,13 +292,15 @@ export function createFlightSearchEngine(
       gracefulMessage: queried.gracefulMessage,
     }
 
-    return {
+    const result: FlightSearchPage = {
       flights: page.page,
       nextCursor: page.nextCursor,
       hasMore: page.hasMore,
       total: page.total,
       diagnostics,
     }
+    cache?.set('flight_routes', key, result)
+    return result
   }
 
   return {

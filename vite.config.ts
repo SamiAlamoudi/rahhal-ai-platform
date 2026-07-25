@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { amadeusApiPlugin } from './src/lib/viteAmadeusApiPlugin.js'
+import { openAiRealtimeApiPlugin } from './src/lib/viteOpenAiRealtimeApiPlugin.js'
 
 /**
  * Security headers for Vite middleware.
@@ -19,6 +20,9 @@ function securityHeaders(development: boolean): Record<string, string> {
     'wss://*.supabase.co',
     'https://test.api.amadeus.com',
     'https://api.amadeus.com',
+    // Integration Sprint 1 — OpenAI Realtime (ephemeral client secrets + WS)
+    'https://api.openai.com',
+    'wss://api.openai.com',
     'https://fonts.googleapis.com',
     'https://fonts.gstatic.com',
     ...(development ? ['ws:', 'wss:', 'http://localhost:*', 'http://127.0.0.1:*'] : []),
@@ -75,7 +79,13 @@ function securityHeadersPlugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), securityHeadersPlugin(), amadeusApiPlugin()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    securityHeadersPlugin(),
+    amadeusApiPlugin(),
+    openAiRealtimeApiPlugin(),
+  ],
   build: {
     // Documented performance budget signal (Phase X) — warn above ~900kB uncompressed chunk.
     chunkSizeWarningLimit: 900,
@@ -94,6 +104,57 @@ export default defineConfig({
             {
               name: 'vendor-supabase',
               test: /node_modules[\\/]@supabase/,
+            },
+            {
+              // RC-2 — keep motion out of route entry chunks when possible
+              name: 'vendor-motion',
+              test: /node_modules[\\/](framer-motion|motion)([\\/]|$)/,
+            },
+            {
+              // RC-2 — live provider adapters only when live integration is imported
+              name: 'provider-amadeus',
+              test: /[\\/]src[\\/](lib[\\/]agent[\\/]aggregation[\\/]providers[\\/]amadeus|integrations[\\/]providers[\\/]amadeus)/,
+            },
+            {
+              name: 'provider-booking',
+              test: /[\\/]src[\\/](lib[\\/]agent[\\/]aggregation[\\/]providers[\\/]booking|integrations[\\/]providers[\\/]booking)/,
+            },
+            {
+              name: 'agent-impl',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]travelAgentService\.impl/,
+            },
+            // RC-3 — independently loadable agent / brain layers
+            {
+              name: 'layer-reasoning',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]reasoning([\\/]|$)/,
+            },
+            {
+              name: 'layer-travel-planner',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]travelPlanner([\\/]|$)/,
+            },
+            {
+              name: 'layer-brain-core',
+              test: /[\\/]src[\\/]lib[\\/]brain[\\/]core([\\/]|$)/,
+            },
+            {
+              name: 'layer-brain-executive',
+              test: /[\\/]src[\\/]lib[\\/]brain[\\/]executive([\\/]|$)/,
+            },
+            {
+              name: 'layer-conversation-intelligence',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]conversationIntelligence([\\/]|$)/,
+            },
+            {
+              name: 'layer-llm-brain',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]llmBrain([\\/]|$)/,
+            },
+            {
+              name: 'layer-agent-runtime',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]agentRuntime([\\/]|$)/,
+            },
+            {
+              name: 'layer-realtime-voice',
+              test: /[\\/]src[\\/]lib[\\/]realtimeVoice([\\/]|$)/,
             },
           ],
         },

@@ -7,6 +7,7 @@ import type {
   PaymentSessionStatus,
 } from './paymentTypes'
 import type { PaymentProvider, PaymentProviderConfig } from './paymentProvider'
+import { readManagedConfig } from '../security/secrets/managedAccess'
 
 interface MoyasarEdgeResponse {
   paymentSessionId?: string
@@ -28,21 +29,21 @@ export interface MoyasarPaymentProviderOptions {
   supabaseUrl?: string | null
 }
 
-function readViteEnv(name: string): string | null {
-  const value = import.meta.env[name] as string | undefined
-  if (value === undefined || value === null || value === '') return null
-  return String(value)
-}
-
 /**
  * SPA calls a Supabase Edge Function which holds MOYASAR_SECRET_KEY.
  * Never load the Moyasar secret into VITE_* browser env.
  */
 export function resolveMoyasarPaymentUrl(options: MoyasarPaymentProviderOptions = {}): string {
-  const explicit = (options.paymentUrl ?? readViteEnv('VITE_MOYASAR_PAYMENT_URL'))?.replace(/\/+$/, '')
+  const explicit = (
+    options.paymentUrl
+    ?? readManagedConfig('VITE_MOYASAR_PAYMENT_URL')
+  )?.replace(/\/+$/, '')
   if (explicit) return explicit
 
-  const base = (options.supabaseUrl ?? readViteEnv('VITE_SUPABASE_URL'))?.replace(/\/+$/, '')
+  const base = (
+    options.supabaseUrl
+    ?? readManagedConfig('VITE_SUPABASE_URL')
+  )?.replace(/\/+$/, '')
   if (!base) {
     throw new Error('VITE_SUPABASE_URL (or VITE_MOYASAR_PAYMENT_URL) is required for Moyasar')
   }
@@ -103,7 +104,7 @@ export class MoyasarPaymentProvider implements PaymentProvider {
   }
 
   private resolveInvokeApiKey(): string {
-    const key = this.options.invokeApiKey ?? readViteEnv('VITE_SUPABASE_ANON_KEY')
+    const key = this.options.invokeApiKey ?? readManagedConfig('VITE_SUPABASE_ANON_KEY')
     if (!key) {
       throw new Error('VITE_SUPABASE_ANON_KEY is required for Moyasar payment provider')
     }

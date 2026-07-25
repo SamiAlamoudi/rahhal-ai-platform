@@ -6,7 +6,12 @@ dist/
 # Environment secrets — never commit
 .env
 .env.local
+.env.production
 .env.*.local
+*.pem
+*.key
+secrets.*
+credentials.*
 
 # Editor / OS
 .DS_Store

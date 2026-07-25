@@ -81,6 +81,11 @@ function inferTripType(req: TripRequirements): FlightSearchRequest['tripType'] {
 }
 
 function cabinFrom(req: TripRequirements): FlightSearchRequest['cabin'] {
+  const explicit = (req.cabinPreference ?? '').toLowerCase()
+  if (explicit.includes('first')) return 'first'
+  if (explicit.includes('business')) return 'business'
+  if (explicit.includes('premium')) return 'premium_economy'
+  if (explicit.includes('economy')) return 'economy'
   const purpose = (req.tripPurpose ?? '').toLowerCase()
   const style = (req.budgetStyle ?? '').toLowerCase()
   if (req.travelerType === 'business' || purpose.includes('business')) return 'business'
@@ -97,8 +102,19 @@ export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchReq
     ? String(ctx.input?.endDate ?? req.endDate)
     : null
   const tripType = inferTripType(req)
-  const adults = travelersFrom(ctx)
+  const children =
+    typeof req.children === 'number' && req.children >= 0
+      ? Math.floor(req.children)
+      : Number.isFinite(Number(ctx.input?.children)) && Number(ctx.input?.children) >= 0
+        ? Math.floor(Number(ctx.input?.children))
+        : 0
+  const totalTravelers = travelersFrom(ctx)
+  const adults = Math.max(1, totalTravelers - children)
   const currency = currencyFrom(ctx)
+  const preferredAirline =
+    typeof ctx.input?.preferredAirline === 'string'
+      ? ctx.input.preferredAirline
+      : req.preferredAirline
 
   const request: FlightSearchRequest = {
     tripType,
@@ -107,8 +123,10 @@ export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchReq
     departureDate,
     returnDate: tripType === 'one_way' ? null : returnDate,
     adults,
+    children,
     currency,
     cabin: cabinFrom(req),
+    preferredAirlines: preferredAirline ? [preferredAirline] : undefined,
     sort: 'recommendation',
     pageSize: 20,
     signal: ctx.signal,
@@ -154,10 +172,25 @@ export function buildHotelSearchRequest(ctx: AgentToolContext): HotelSearchReque
   const city = String(ctx.input?.destination ?? req.destination ?? req.destinations[0] ?? '')
   const checkIn = String(ctx.input?.checkIn ?? req.startDate ?? defaultDepartureDate())
   const nights = nightsFrom(ctx)
-  const checkOut = req.endDate
-    ? String(req.endDate)
+  const checkOut = (ctx.input?.checkOut ?? req.endDate)
+    ? String(ctx.input?.checkOut ?? req.endDate)
     : addDays(checkIn, nights)
-  const adults = travelersFrom(ctx)
+  const children =
+    typeof req.children === 'number' && req.children >= 0
+      ? Math.floor(req.children)
+      : Number.isFinite(Number(ctx.input?.children)) && Number(ctx.input?.children) >= 0
+        ? Math.floor(Number(ctx.input?.children))
+        : 0
+  const totalTravelers = travelersFrom(ctx)
+  const adults = Math.max(1, totalTravelers - children)
+  const rooms =
+    typeof req.rooms === 'number' && req.rooms > 0
+      ? Math.floor(req.rooms)
+      : Number.isFinite(Number(ctx.input?.rooms)) && Number(ctx.input?.rooms) > 0
+        ? Math.floor(Number(ctx.input?.rooms))
+        : req.travelerType === 'family'
+          ? Math.max(1, Math.ceil(adults / 2))
+          : 1
   const currency = currencyFrom(ctx)
   const style = (req.budgetStyle ?? '').toLowerCase()
   const budget = req.budgetAmount
@@ -172,28 +205,55 @@ export function buildHotelSearchRequest(ctx: AgentToolContext): HotelSearchReque
     })
     : null
 
+  const starMatch = (req.hotelPreference ?? '').match(/([1-5])_star/)
+  const minStars = starMatch?.[1] ? Number(starMatch[1]) : null
+  const amenities = [
+    ...(req.hotelAmenities ?? []),
+    ...(Array.isArray(ctx.input?.amenities) ? (ctx.input!.amenities as unknown[]).map(String) : []),
+  ].map((a) => a.trim().toLowerCase()).filter(Boolean)
+
   const request: HotelSearchRequest = {
     city,
     destination: city,
     checkIn,
     checkOut,
     adults,
-    rooms: req.travelerType === 'family' ? Math.max(1, Math.ceil(adults / 2)) : 1,
+    children,
+    rooms,
     currency,
     sort: 'recommended',
     pageSize: 20,
     signal: ctx.signal,
     parallel: true,
+    filters: {},
   }
 
-  if (style === 'luxury') {
-    request.filters = { minStars: 4, minRating: 4 }
-  } else if (allocation) {
-    request.filters = { maxPrice: hotelNightlyCap(allocation, nights) }
+  if (style === 'luxury' || minStars != null) {
+    request.filters = {
+      ...request.filters,
+      minStars: minStars ?? 4,
+      minRating: style === 'luxury' ? 4 : undefined,
+    }
+  }
+  if (allocation) {
+    request.filters = {
+      ...request.filters,
+      maxPrice: hotelNightlyCap(allocation, nights),
+    }
   } else if (style === 'budget' && typeof budget === 'number' && budget > 0) {
     request.filters = {
+      ...request.filters,
       maxPrice: Math.max(80, Math.round((budget * 0.35) / nights)),
     }
+  }
+  if (req.breakfastRequired) {
+    request.filters = { ...request.filters, breakfastIncluded: true }
+  }
+  if (req.freeCancellationRequired) {
+    request.filters = { ...request.filters, freeCancellationOnly: true }
+  }
+  if (amenities.length) {
+    request.filters = { ...request.filters, amenities }
   }
 
   return request

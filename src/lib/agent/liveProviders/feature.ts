@@ -1,27 +1,13 @@
 import { getFeatureRegistry } from '../../ai/featureFlags'
+import { isSecretManagerEnabled } from '../../security/secrets/feature'
+import { getSecretManager } from '../../security/secrets/SecretManager'
+import { readManagedConfig, readManagedEnv } from '../../security/secrets/managedAccess'
 import type { LiveProviderId } from './types'
 
 export const LIVE_PROVIDERS_FEATURE_ID = 'ai.live_providers' as const
 export const PROVIDER_AMADEUS_FEATURE_ID = 'provider.amadeus' as const
 export const PROVIDER_DUFFEL_FEATURE_ID = 'provider.duffel' as const
 export const PROVIDER_BOOKING_FEATURE_ID = 'provider.booking' as const
-
-function readEnv(key: string): string | null {
-  try {
-    const vite = (import.meta as { env?: Record<string, unknown> }).env?.[key]
-    if (vite !== undefined && vite !== null && String(vite) !== '') return String(vite)
-  } catch {
-    /* ignore */
-  }
-  try {
-    const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
-    const value = proc?.env?.[key]
-    if (value !== undefined && value !== null && value !== '') return String(value)
-  } catch {
-    /* ignore */
-  }
-  return null
-}
 
 function parseBool(value: string | null, defaultValue: boolean): boolean {
   if (value == null) return defaultValue
@@ -34,8 +20,8 @@ function parseBool(value: string | null, defaultValue: boolean): boolean {
 export function isLiveProvidersEnabled(options?: { enabled?: boolean }): boolean {
   if (typeof options?.enabled === 'boolean') return options.enabled
   if (!getFeatureRegistry().isEnabled('ai.live_providers')) return false
-  return parseBool(readEnv('VITE_LIVE_PROVIDERS_ENABLED'), false)
-    || parseBool(readEnv('PROVIDER_LIVE_LAYER'), false)
+  return parseBool(readManagedConfig('VITE_LIVE_PROVIDERS_ENABLED'), false)
+    || parseBool(readManagedConfig('PROVIDER_LIVE_LAYER'), false)
 }
 
 export function isLiveProviderEnabled(
@@ -55,25 +41,40 @@ export function isLiveProviderEnabled(
   if (featureId && !getFeatureRegistry().isEnabled(featureId)) return false
 
   if (providerId === 'amadeus') {
-    return parseBool(readEnv('PROVIDER_AMADEUS_LIVE'), false)
-      || parseBool(readEnv('VITE_AMADEUS_ENABLED'), false)
-      || readEnv('VITE_FLIGHT_PROVIDER') === 'amadeus'
+    return parseBool(readManagedConfig('PROVIDER_AMADEUS_LIVE'), false)
+      || parseBool(readManagedConfig('VITE_AMADEUS_ENABLED'), false)
+      || readManagedConfig('VITE_FLIGHT_PROVIDER') === 'amadeus'
   }
   if (providerId === 'duffel') {
-    return parseBool(readEnv('PROVIDER_DUFFEL_LIVE'), false)
-      || readEnv('VITE_FLIGHT_PROVIDER') === 'duffel'
+    return parseBool(readManagedConfig('PROVIDER_DUFFEL_LIVE'), false)
+      || readManagedConfig('VITE_FLIGHT_PROVIDER') === 'duffel'
   }
   if (providerId === 'booking') {
-    return parseBool(readEnv('PROVIDER_BOOKING_LIVE'), false)
-      || readEnv('VITE_HOTEL_ADAPTER') === 'booking'
-      || readEnv('VITE_BOOKING_PROVIDER') === 'booking'
+    return parseBool(readManagedConfig('PROVIDER_BOOKING_LIVE'), false)
+      || readManagedConfig('VITE_HOTEL_ADAPTER') === 'booking'
+      || readManagedConfig('VITE_BOOKING_PROVIDER') === 'booking'
   }
   return false
 }
 
-export function readLiveProviderSecret(key: string): string | null {
-  // Server-only secrets — never VITE_* OAuth secrets.
-  return readEnv(key)
+/**
+ * Sprint 14 — credentials via SecretManager (EnvironmentSecretProvider).
+ * Provider-scoped reads enforce secret isolation.
+ */
+export function readLiveProviderSecret(
+  key: string,
+  providerId?: 'amadeus' | 'duffel' | 'booking',
+): string | null {
+  if (isSecretManagerEnabled()) {
+    return getSecretManager().get(key, {
+      caller: 'readLiveProviderSecret',
+      providerId: providerId ?? 'generic',
+    })
+  }
+  return readManagedEnv(key, {
+    caller: 'readLiveProviderSecret',
+    providerId: providerId ?? 'generic',
+  })
 }
 
 /**
@@ -82,15 +83,15 @@ export function readLiveProviderSecret(key: string): string | null {
  */
 export function readAmadeusApiKey(): string | null {
   return (
-    readLiveProviderSecret('AMADEUS_API_KEY')
-    ?? readLiveProviderSecret('AMADEUS_CLIENT_ID')
+    readLiveProviderSecret('AMADEUS_API_KEY', 'amadeus')
+    ?? readLiveProviderSecret('AMADEUS_CLIENT_ID', 'amadeus')
   )
 }
 
 export function readAmadeusApiSecret(): string | null {
   return (
-    readLiveProviderSecret('AMADEUS_API_SECRET')
-    ?? readLiveProviderSecret('AMADEUS_CLIENT_SECRET')
+    readLiveProviderSecret('AMADEUS_API_SECRET', 'amadeus')
+    ?? readLiveProviderSecret('AMADEUS_CLIENT_SECRET', 'amadeus')
   )
 }
 
@@ -99,20 +100,19 @@ export function hasAmadeusCredentials(): boolean {
 }
 
 export function hasDuffelCredentials(): boolean {
-  return Boolean(readLiveProviderSecret('DUFFEL_API_TOKEN'))
+  return Boolean(readLiveProviderSecret('DUFFEL_API_TOKEN', 'duffel'))
 }
 
 /**
  * Sprint 60 — Booking.com / RapidAPI hotel credentials (server preferred).
- * Order: BOOKING_API_KEY → RAPIDAPI_KEY → BOOKING_RAPIDAPI_KEY → VITE_RAPIDAPI_KEY
  */
 export function readBookingApiKey(): string | null {
   return (
-    readLiveProviderSecret('BOOKING_API_KEY')
-    ?? readLiveProviderSecret('RAPIDAPI_KEY')
-    ?? readLiveProviderSecret('BOOKING_RAPIDAPI_KEY')
-    ?? readEnv('VITE_RAPIDAPI_KEY')
-    ?? readEnv('VITE_BOOKING_API_KEY')
+    readLiveProviderSecret('BOOKING_API_KEY', 'booking')
+    ?? readLiveProviderSecret('RAPIDAPI_KEY', 'booking')
+    ?? readLiveProviderSecret('BOOKING_RAPIDAPI_KEY', 'booking')
+    ?? readLiveProviderSecret('VITE_RAPIDAPI_KEY', 'booking')
+    ?? readLiveProviderSecret('VITE_BOOKING_API_KEY', 'booking')
   )
 }
 

@@ -78,6 +78,29 @@ export interface TripRequirements {
   regenerateDay: number | null
   /** Scoped regenerate: whole trip, day, flight, hotel, or activities. */
   regenerateScope: RegenerateScope | null
+  /**
+   * Integration Sprint 2 — optional flight preferences (additive).
+   * Never block intake when unset; used only when searching flights.
+   */
+  cabinPreference: string | null
+  /** Children count (separate from adults in travelers). */
+  children: number | null
+  preferredAirline: string | null
+  preferredDepartureTime: 'morning' | 'afternoon' | 'evening' | 'night' | null
+  /** Soft date flexibility ("around next week", "flexible dates"). */
+  datesFlexible: boolean | null
+  /** IANA timezone hint for departure-local interpretation (default Asia/Riyadh). */
+  travelerTimezone: string | null
+  /**
+   * Integration Sprint 3 — optional hotel preferences (additive).
+   * Never block intake when unset; used only when searching hotels.
+   */
+  rooms: number | null
+  preferredArea: string | null
+  breakfastRequired: boolean | null
+  freeCancellationRequired: boolean | null
+  /** Soft amenity prefs: breakfast, pool, gym, parking, beach, wifi, … */
+  hotelAmenities: string[]
 }
 
 export interface ItineraryActivity {
@@ -256,6 +279,105 @@ export interface AgentProviderMeta {
     inferredClimate: string | null
   }
   /**
+   * Integration Sprint 5 — Destination Intelligence snapshot (advisor recommendations).
+   * Additive; present when `ai.integration_destination_intelligence` ran for the turn.
+   */
+  destinationIntelligence?: {
+    mode: string
+    primaryId: string | null
+    alternativeIds: string[]
+    themes: string[]
+    summary: string
+    score: number | null
+    latencyMs: number
+  }
+  /**
+   * Integration Sprint 7 — Live Trip Companion snapshot (session / timeline / replan).
+   * Additive; present when `ai.integration_trip_companion` ran for the turn.
+   */
+  tripCompanion?: {
+    sessionState: string | null
+    assistantIntent: string
+    primaryEventId: string | null
+    notificationCount: number
+    replanned: boolean
+    emergencyKind: string | null
+    summary: string
+    latencyMs: number
+  }
+  /**
+   * Integration Sprint 8 — Maps & Live Mobility snapshot (spatial / routes / nearby).
+   * Additive; present when `ai.integration_maps_mobility` ran for the turn.
+   */
+  mapsMobility?: {
+    intent: string
+    live: boolean
+    originId: string | null
+    destinationId: string | null
+    routeMode: string | null
+    nearbyCount: number
+    summary: string
+    latencyMs: number
+  }
+  /**
+   * Integration Sprint 9 — Budget & Pricing Intelligence snapshot.
+   * Additive; present when `ai.integration_budget_pricing` ran for the turn.
+   */
+  budgetPricing?: {
+    intent: string
+    tier: string | null
+    total: number | null
+    currency: string | null
+    withinBudget: boolean | null
+    tradeoffCount: number
+    flexibleCount: number
+    summary: string
+    latencyMs: number
+  }
+  /**
+   * Integration Sprint 10 — Live Disruption Recovery snapshot.
+   * Additive; present when `ai.integration_disruption_recovery` ran for the turn.
+   */
+  disruptionRecovery?: {
+    intent: string
+    kind: string | null
+    risk: string | null
+    strategy: string | null
+    planCount: number
+    replanned: boolean
+    summary: string
+    latencyMs: number
+  }
+  /**
+   * Integration Sprint 11 — Action Execution Layer snapshot.
+   * Additive; present when `ai.integration_action_execution` ran for the turn.
+   */
+  actionExecution?: {
+    intent: string
+    action: string | null
+    mode: string
+    confirmed: boolean | null
+    pending: boolean
+    reference: string | null
+    liveBlocked: boolean
+    summary: string
+    latencyMs: number
+  }
+  /**
+   * Integration Sprint 12 — End-to-End Journey coordinator snapshot.
+   * Additive; present when `ai.integration_journey` ran for the turn.
+   */
+  journey?: {
+    stage: string
+    scenario: string
+    overall: number
+    knownSlots: number
+    skippedModules: number
+    turn: number
+    summary: string
+    latencyMs: number
+  }
+  /**
    * Sprint 46 — soft preference inference snapshot (never-ask-twice).
    */
   clarification?: {
@@ -414,6 +536,62 @@ export interface AgentProviderMeta {
     allocatedFlights: number | null
     allocatedHotels: number | null
     durationMs: number
+  }
+  /**
+   * Recovery Phase 4 — Conversation Intelligence snapshot (memory, intent, summary).
+   * Additive structured facts only — does not author traveler-facing replies.
+   * Present when `ai.conversation_intelligence` is ON for the turn.
+   */
+  conversationIntelligence?: {
+    intent: string
+    intentConfidence: number
+    destination: string | null
+    adults: number | null
+    budgetAmount: number | null
+    currency: string | null
+    monthHint: string | null
+    purpose: string | null
+    summaryBullets: string[]
+    questionIds: string[]
+    insightIds: string[]
+    streaming: boolean
+  }
+  /**
+   * Recovery Phase 5 — LLM Conversation Brain snapshot (reasoning, tools, confidence).
+   * Additive structured facts / debug stages only — production APIs disabled by default.
+   * Present when `ai.llm_conversation_brain` is ON for the turn.
+   */
+  llmBrain?: {
+    intent: string
+    dialect: string
+    confidence: string
+    primaryTool: string
+    destination: string | null
+    usedRulesFallback: boolean
+    providerMode: string
+    stageCount: number
+    proactiveTipCount: number
+    responsePreview: string
+    /** Hidden in production UI — stage traces for debug panel consumers. */
+    debugStages?: Array<{ id: string; label: string; detail: string; confidence: string; source: string }>
+  }
+  /**
+   * Recovery Phase 6 — Agent Runtime snapshot (tool lifecycle, events, stream chunks).
+   * Additive debug timeline only — mock tools; no production UI. Flag OFF by default.
+   */
+  agentRuntime?: {
+    intent: string
+    dialect: string
+    tool: string
+    toolStatus: string | null
+    confidence: string
+    eventCount: number
+    traceCount: number
+    interrupted: boolean
+    durationMs: number
+    responsePreview: string
+    /** Hidden in production — runtime event timeline */
+    events?: Array<{ type: string; detail: string }>
   }
   /**
    * Sprint 76 — Traveler Personalization snapshot (profile, confidence, ranking deltas).
@@ -848,6 +1026,17 @@ export function emptyRequirements(): TripRequirements {
     tripPurpose: null,
     regenerateDay: null,
     regenerateScope: null,
+    cabinPreference: null,
+    children: null,
+    preferredAirline: null,
+    preferredDepartureTime: null,
+    datesFlexible: null,
+    travelerTimezone: null,
+    rooms: null,
+    preferredArea: null,
+    breakfastRequired: null,
+    freeCancellationRequired: null,
+    hotelAmenities: [],
   }
 }
 

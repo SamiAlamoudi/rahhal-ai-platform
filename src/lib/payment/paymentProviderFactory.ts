@@ -2,6 +2,7 @@ import type { PaymentProvider, PaymentProviderConfig, PaymentProviderType } from
 import { defaultProviderConfig } from './paymentProvider'
 import { MockPaymentProvider } from './mockPaymentProvider'
 import { MoyasarPaymentProvider } from './moyasarPaymentProvider'
+import { readManagedConfig } from '../security/secrets/managedAccess'
 
 const instances: Map<PaymentProviderType, PaymentProvider> = new Map()
 
@@ -62,7 +63,7 @@ export function resetPaymentProviderFactory(): void {
 }
 
 export function getDefaultPaymentProviderType(): PaymentProviderType {
-  const envType = import.meta.env.VITE_PAYMENT_PROVIDER as string | undefined
+  const envType = readManagedConfig('VITE_PAYMENT_PROVIDER')
   if (envType === 'hyperpay' || envType === 'moyasar' || envType === 'stripe' || envType === 'checkout_com') {
     return envType
   }

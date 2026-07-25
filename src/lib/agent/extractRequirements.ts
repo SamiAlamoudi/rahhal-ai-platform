@@ -144,6 +144,33 @@ export function extractFromUserText(
   const monthDate = matchMonthHint(lower, normalized)
   if (monthDate && !patch.startDate) patch.startDate = monthDate
 
+  // Integration Sprint 2 — flexible dates / flight preferences (additive, never blocking).
+  if (
+    /\bflexible\s+dates?\b|\bdates?\s+flexible\b|around\s+next\s+week|تواريخ?\s*مرنة|مرن\s*في\s*التواريخ|حوالي\s*الأسبوع|حوالي\s*الاسبوع/.test(lower)
+    || /تواريخ\s*مرنة|مرن\s*بالتاريخ/.test(normalized)
+  ) {
+    patch.datesFlexible = true
+  }
+  if (
+    /\bnext\s+week\b/.test(lower)
+    || /الأسبوع\s*القادم|الاسبوع\s*القادم|الأسبوع\s*المقبل|الاسبوع\s*المقبل/.test(normalized)
+  ) {
+    // Soft flexibility when traveler says "next week" without a hard day.
+    if (!isoHardDate(normalized)) patch.datesFlexible = patch.datesFlexible ?? true
+  }
+
+  const cabin = matchCabinPreference(lower, normalized)
+  if (cabin) patch.cabinPreference = cabin
+
+  const airline = matchPreferredAirline(lower, normalized)
+  if (airline) patch.preferredAirline = airline
+
+  const depWindow = matchPreferredDepartureTime(lower, normalized)
+  if (depWindow) patch.preferredDepartureTime = depWindow
+
+  const childrenOnly = matchChildrenCount(lower, normalized)
+  if (childrenOnly != null) patch.children = childrenOnly
+
   const interests = matchInterests(lower, normalized)
   if (interests.length) patch.interests = uniqueInterests([...(patch.interests ?? []), ...interests])
 
@@ -155,6 +182,32 @@ export function extractFromUserText(
 
   const hotel = matchHotelPreference(lower, normalized)
   if (hotel) patch.hotelPreference = hotel
+
+  // Integration Sprint 3 — hotel rooms / area / amenities / policies (additive).
+  const rooms = matchRooms(lower, normalized)
+  if (rooms != null) patch.rooms = rooms
+
+  const area = matchPreferredArea(lower, normalized)
+  if (area) patch.preferredArea = area
+
+  if (
+    /\bbreakfast\b|includes? breakfast|with breakfast|إفطار|افطار|يشمل الإفطار|يشمل الافطار/.test(lower)
+    || /يشمل\s*الإفطار|يشمل\s*الافطار|مع\s*إفطار|مع\s*افطار/.test(normalized)
+  ) {
+    patch.breakfastRequired = true
+  }
+  if (
+    /\bfree cancellation\b|refundable|إلغاء مجاني|الغاء مجاني|قابل للاسترداد/.test(lower)
+    || /إلغاء\s*مجاني|الغاء\s*مجاني/.test(normalized)
+  ) {
+    patch.freeCancellationRequired = true
+  }
+
+  const amenities = matchHotelAmenities(lower, normalized)
+  if (amenities.length) {
+    patch.hotelAmenities = amenities
+    if (amenities.includes('breakfast')) patch.breakfastRequired = true
+  }
 
   const packageScope = matchPackageScope(lower, normalized)
   if (packageScope) patch.packageScope = packageScope
@@ -880,6 +933,58 @@ function matchHotelClass(lower: string, original: string): string | null {
   return null
 }
 
+function matchRooms(lower: string, original: string): number | null {
+  const en = lower.match(/(\d+)\s*rooms?/)
+  if (en?.[1]) {
+    const n = Number(en[1])
+    if (Number.isFinite(n) && n > 0) return Math.floor(n)
+  }
+  const ar = original.match(/(\d+)\s*(?:غرف|غرفة)/)
+  if (ar?.[1]) {
+    const n = Number(ar[1])
+    if (Number.isFinite(n) && n > 0) return Math.floor(n)
+  }
+  if (/غرفتين|غرفتان/.test(original)) return 2
+  if (/\btwo rooms\b/.test(lower)) return 2
+  return null
+}
+
+function matchPreferredArea(lower: string, original: string): string | null {
+  if (/\bdowntown\b|city center|وسط المدينة|وسط البلد/.test(lower) || /وسط\s*المدينة|وسط\s*البلد/.test(original)) {
+    return 'central'
+  }
+  if (/\bbeach\b|seafront|شاطئ|الكورنيش/.test(lower) || /شاطئ|الكورنيش/.test(original)) return 'beach'
+  if (/\bmarina\b|المارينا|مرسى/.test(lower) || /المارينا/.test(original)) return 'marina'
+  if (/\bnear airport\b|قرب المطار|قريب من المطار/.test(lower) || /قرب\s*المطار/.test(original)) {
+    return 'near_airport'
+  }
+  if (/\bbusiness district\b|منطقة الأعمال|حي الأعمال/.test(lower) || /منطقة\s*الأعمال/.test(original)) {
+    return 'business_district'
+  }
+  const areaEn = lower.match(/(?:near|around|in)\s+(?:the\s+)?([a-z][a-z\s]{2,24}?)\s*(?:area|district|neighborhood)/)
+  if (areaEn?.[1]) return areaEn[1].trim()
+  return null
+}
+
+function matchHotelAmenities(lower: string, original: string): string[] {
+  const out: string[] = []
+  if (/\bbreakfast\b|إفطار|افطار/.test(lower) || /إفطار|افطار/.test(original)) out.push('breakfast')
+  if (/\bparking\b|مواقف|موقف سيارات/.test(lower) || /موقف/.test(original)) out.push('parking')
+  if (/\bpool\b|مسبح|سباحة/.test(lower) || /مسبح/.test(original)) out.push('pool')
+  if (/\bgym\b|fitness|نادي رياضي|جيم/.test(lower) || /نادي\s*رياضي|جيم/.test(original)) out.push('gym')
+  if (/\bbeach\b|شاطئ/.test(lower) || /شاطئ/.test(original)) out.push('beach')
+  if (/\bspaf?\b|سبا|مساج/.test(lower) || /سبا/.test(original)) out.push('spa')
+  if (/\bwifi\b|wi-fi|إنترنت|انترنت/.test(lower) || /واي\s*فاي|إنترنت|انترنت/.test(original)) out.push('wifi')
+  if (/\bfamily[- ]friendly\b|عائلي|مناسب للعائلات/.test(lower) || /مناسب\s*للعائلات|عائلي/.test(original)) {
+    out.push('family')
+  }
+  if (/\bbusiness hotel\b|فندق أعمال|لرجال الأعمال/.test(lower) || /فندق\s*أعمال|رجال\s*الأعمال/.test(original)) {
+    out.push('business')
+  }
+  if (/\bairport hotel\b|فندق المطار/.test(lower) || /فندق\s*المطار/.test(original)) out.push('airport')
+  return [...new Set(out)]
+}
+
 function matchPackageScope(lower: string, original: string): PackageScope | null {
   if (/\bflights?\s*only\b|flight only|طيران فقط|رحلات فقط/.test(lower) || /طيران\s*فقط/.test(original)) {
     return 'flights_only'
@@ -888,6 +993,69 @@ function matchPackageScope(lower: string, original: string): PackageScope | null
     || /باقة\s*كاملة|رحلة\s*كاملة/.test(original)) {
     return 'full_package'
   }
+  return null
+}
+
+function isoHardDate(text: string): boolean {
+  return /20\d{2}-\d{2}-\d{2}/.test(text) || /\d{1,2}\s*\/\s*\d{1,2}\s*\/\s*\d{2,4}/.test(text)
+}
+
+function matchCabinPreference(lower: string, original: string): string | null {
+  if (/\bfirst\s*class\b|درجة أولى|الدرجة الاولى|الدرجة الأولى/.test(lower) || /درجة\s*أولى|درجة\s*اولى/.test(original)) {
+    return 'first'
+  }
+  if (/\bbusiness\s*class\b|درجة رجال الأعمال|رجال اعمال|بزنس/.test(lower) || /رجال\s*الأعمال|رجال\s*اعمال/.test(original)) {
+    return 'business'
+  }
+  if (/\bpremium\s*economy\b|اقتصادية مميزة|بريميوم/.test(lower) || /اقتصادية\s*مميزة/.test(original)) {
+    return 'premium_economy'
+  }
+  if (/\beconomy\b|سياحية|درجة اقتصادية/.test(lower) || /درجة\s*اقتصادية|سياحية/.test(original)) {
+    return 'economy'
+  }
+  return null
+}
+
+function matchPreferredAirline(lower: string, original: string): string | null {
+  if (/\bsaudi\s*airlines?\b|\bsv\b/.test(lower) || /الخطوط\s*السعودية|سعودية/.test(original)) return 'SV'
+  if (/\bemirates\b|\bek\b/.test(lower) || /طيران\s*الإمارات|طيران\s*الامارات/.test(original)) return 'EK'
+  if (/\bqatar\s*airways?\b|\bqr\b/.test(lower) || /القطرية/.test(original)) return 'QR'
+  if (/\bethiad\b|\bey\b/.test(lower) || /الاتحاد/.test(original)) return 'EY'
+  if (/\bflynas\b|\bxy\b/.test(lower) || /طيران\s*ناس|فلاي\s*ناس/.test(original)) return 'XY'
+  if (/\broyal\s*air\s*maroc\b/.test(lower) || /الملكية\s*المغربية/.test(original)) return 'AT'
+  const en = lower.match(/(?:prefer|preferred|with)\s+([a-z][a-z\s]{1,20}?)\s*air(?:lines?|ways)?/)
+  if (en?.[1]) return en[1].trim()
+  const ar = original.match(/(?:أفضل|افضل|أفضلية)\s+([^\s،,]{2,20})/)
+  if (ar?.[1]) return ar[1].trim()
+  return null
+}
+
+function matchPreferredDepartureTime(
+  lower: string,
+  original: string,
+): 'morning' | 'afternoon' | 'evening' | 'night' | null {
+  if (/\bmorning\b|صباح|فجّر|فجر/.test(lower) || /صباح/.test(original)) return 'morning'
+  if (/\bafternoon\b|ظهر|بعد الظهر|بعدالظهر/.test(lower) || /بعد\s*الظهر/.test(original)) return 'afternoon'
+  if (/\bevening\b|مساء|العصر/.test(lower) || /مساء/.test(original)) return 'evening'
+  if (/\bnight\b|ليلة|ليلي|بعد منتصف/.test(lower) || /ليلي|ليلة/.test(original)) return 'night'
+  return null
+}
+
+function matchChildrenCount(lower: string, original: string): number | null {
+  const en = lower.match(/(\d+)\s*(?:kids?|children|child)/)
+  if (en?.[1]) {
+    const n = Number(en[1])
+    if (Number.isFinite(n) && n >= 0) return Math.floor(n)
+  }
+  const ar = original.match(/(\d+)\s*(?:أطفال|اطفال|طفل|طفلة)/)
+  if (ar?.[1]) {
+    const n = Number(ar[1])
+    if (Number.isFinite(n) && n >= 0) return Math.floor(n)
+  }
+  // Dual / plural without explicit digits (common Gulf/Saudi phrasing).
+  if (/طفلين|طفلان/.test(original)) return 2
+  if (/ثلاثة\s*أطفال|ثلاث\s*اطفال|٣\s*أطفال/.test(original)) return 3
+  if (/\bkids\b|\bchildren\b/.test(lower) && !/\d/.test(lower)) return 1
   return null
 }
 

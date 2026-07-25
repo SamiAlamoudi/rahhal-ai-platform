@@ -1,5 +1,6 @@
 import { AMADEUS_DEFAULT_HOST, normalizeAmadeusHost } from '../../../../../integrations/providers/amadeus/amadeusHost'
 import { getIntegrationConfig } from '../../../../../integrations/config/environment'
+import { readManagedConfig, readManagedEnv } from '../../../../security/secrets/managedAccess'
 
 export type AmadeusEnvironment = 'sandbox' | 'production'
 
@@ -23,27 +24,6 @@ export interface AmadeusProviderConfig {
 const PRODUCTION_HOST = 'https://api.amadeus.com'
 const SANDBOX_HOST = AMADEUS_DEFAULT_HOST
 
-function readProcessEnv(key: string): string | null {
-  try {
-    const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
-    const value = proc?.env?.[key]
-    if (value === undefined || value === null || value === '') return null
-    return String(value)
-  } catch {
-    return null
-  }
-}
-
-function readViteEnv(key: string): string | null {
-  try {
-    const value = (import.meta as { env?: Record<string, unknown> }).env?.[key]
-    if (value === undefined || value === null || value === '') return null
-    return String(value)
-  } catch {
-    return null
-  }
-}
-
 export function resolveAmadeusEnvironment(baseUrl: string): AmadeusEnvironment {
   const host = normalizeAmadeusHost(baseUrl).toLowerCase()
   if (host.includes('test.api.amadeus.com')) return 'sandbox'
@@ -52,8 +32,8 @@ export function resolveAmadeusEnvironment(baseUrl: string): AmadeusEnvironment {
 }
 
 /**
- * Resolve Amadeus adapter config from AMADEUS_* secrets (server/test),
- * integration SPA proxy settings, and sandbox/production host selection.
+ * Resolve Amadeus adapter config via SecretManager-backed managed access.
+ * No direct process.env / import.meta.env reads.
  */
 export function resolveAmadeusProviderConfig(
   overrides: Partial<AmadeusProviderConfig> = {},
@@ -61,33 +41,33 @@ export function resolveAmadeusProviderConfig(
   const integration = getIntegrationConfig().flight
   const clientId =
     overrides.clientId
-    ?? readProcessEnv('AMADEUS_API_KEY')
-    ?? readProcessEnv('AMADEUS_CLIENT_ID')
+    ?? readManagedEnv('AMADEUS_API_KEY', { providerId: 'amadeus' })
+    ?? readManagedEnv('AMADEUS_CLIENT_ID', { providerId: 'amadeus' })
   const clientSecret =
     overrides.clientSecret
-    ?? readProcessEnv('AMADEUS_API_SECRET')
-    ?? readProcessEnv('AMADEUS_CLIENT_SECRET')
+    ?? readManagedEnv('AMADEUS_API_SECRET', { providerId: 'amadeus' })
+    ?? readManagedEnv('AMADEUS_CLIENT_SECRET', { providerId: 'amadeus' })
 
   const envSwitch = String(
     overrides.environment
-    ?? readProcessEnv('AMADEUS_ENV')
-    ?? readViteEnv('VITE_AMADEUS_ENV')
+    ?? readManagedConfig('AMADEUS_ENV')
+    ?? readManagedConfig('VITE_AMADEUS_ENV')
     ?? 'auto',
   ).toLowerCase()
 
   const explicitBase = overrides.baseUrl
     ?? (envSwitch === 'production' ? PRODUCTION_HOST : null)
     ?? (envSwitch === 'sandbox' ? SANDBOX_HOST : null)
-    ?? readProcessEnv('AMADEUS_BASE_URL')
-    ?? readViteEnv('VITE_AMADEUS_BASE_URL')
-    ?? readViteEnv('VITE_FLIGHT_BASE_URL')
+    ?? readManagedConfig('AMADEUS_BASE_URL')
+    ?? readManagedConfig('VITE_AMADEUS_BASE_URL')
+    ?? readManagedConfig('VITE_FLIGHT_BASE_URL')
     ?? integration.baseUrl
 
   const baseUrl = normalizeAmadeusHost(explicitBase || SANDBOX_HOST)
   const environment = resolveAmadeusEnvironment(baseUrl)
 
   const providerSelected = integration.adapter === 'amadeus'
-    || readViteEnv('VITE_AMADEUS_ENABLED') === 'true'
+    || readManagedConfig('VITE_AMADEUS_ENABLED') === 'true'
     || Boolean(clientId && clientSecret)
 
   return {

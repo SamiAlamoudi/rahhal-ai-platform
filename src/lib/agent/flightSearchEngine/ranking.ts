@@ -6,6 +6,8 @@ import type { UnifiedFlight } from './types'
 
 export type RankPreferences = {
   preferredAirlines?: string[]
+  /** Integration Sprint 2 — morning | afternoon | evening | night */
+  preferredDepartureTime?: 'morning' | 'afternoon' | 'evening' | 'night'
 }
 
 function completenessScore(flight: UnifiedFlight): number {
@@ -51,14 +53,28 @@ export function scoreFlight(
     : 0.7
   const confidence = providerConfidence(flight)
   const completeness = completenessScore(flight)
+  let convenienceScore = flight.stops <= 0 ? 1 : flight.stops === 1 ? 0.65 : 0.35
+  if (prefs.preferredDepartureTime && flight.departureTime) {
+    const hour = new Date(flight.departureTime).getUTCHours()
+    const window =
+      hour >= 5 && hour < 12
+        ? 'morning'
+        : hour >= 12 && hour < 17
+          ? 'afternoon'
+          : hour >= 17 && hour < 21
+            ? 'evening'
+            : 'night'
+    convenienceScore = (convenienceScore + (window === prefs.preferredDepartureTime ? 1 : 0.35)) / 2
+  }
 
   return (
-    priceScore * 0.3
-    + durationScore * 0.2
-    + stopsScore * 0.2
+    priceScore * 0.28
+    + durationScore * 0.18
+    + stopsScore * 0.18
+    + convenienceScore * 0.12
     + airlineScore * 0.1
-    + confidence * 0.1
-    + completeness * 0.1
+    + confidence * 0.08
+    + completeness * 0.06
   )
 }
 

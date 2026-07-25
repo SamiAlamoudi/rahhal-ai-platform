@@ -71,6 +71,8 @@ export interface FlightSearchRequest {
   returnDate?: string | null
   legs?: FlightLegRequest[]
   adults?: number
+  /** Integration Sprint 2 — children (0+); forwarded to live providers. */
+  children?: number
   currency?: string
   preferredAirlines?: string[]
   cabin?: FlightCabinClass
