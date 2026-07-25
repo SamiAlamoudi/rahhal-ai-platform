@@ -117,6 +117,39 @@ body {
   --rahhal-muted: #64748b;
   --rahhal-glow: rgba(28, 128, 240, 0.18);
   --rahhal-radius-xl: 1.75rem;
+  /* Product Sprint A — UX foundation tokens (CSS bridge) */
+  --product-ink: #0f172a;
+  --product-muted: #64748b;
+  --product-surface: #ffffff;
+  --product-brand: #1c80f0;
+  --product-brand-deep: #122e57;
+  --product-radius-panel: 1.35rem;
+  --product-elev-md: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+@keyframes product-atmosphere-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(12px, -10px, 0);
+  }
+}
+
+.product-atmosphere-drift {
+  animation: product-atmosphere-drift 14s ease-in-out infinite;
+}
+
+.product-atmosphere-drift-delayed {
+  animation-delay: -6s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-atmosphere-drift,
+  .product-atmosphere-drift-delayed {
+    animation: none;
+  }
 }
 
 /* Recovery Phase 2 — premium chat surfaces */

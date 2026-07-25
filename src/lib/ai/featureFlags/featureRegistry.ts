@@ -1397,6 +1397,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: premium_home. Presentation only — composes existing production home data. Does not change navigation, engines, or APIs. When OFF, ProductionHomeScreen still renders the premium sections while gated by ui.production_integration. Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
+  {
+    id: 'ui.new_experience',
+    name: 'Product Sprint A — New UX Experience',
+    description:
+      'Phase 2 Product Evolution Sprint A — Arabic-first conversation UX foundation (shell, home, result cards, itinerary/budget/confirmation presentation). Default OFF for rollback to current UI.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: new_experience. Presentation only on Recovery spine (Home/Chat/Settings). Does not rewrite engines, add providers, or enable live booking/payments.',
+  },
 ]
 
 export class FeatureRegistry {

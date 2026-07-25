@@ -46,6 +46,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ui.checkout_review` | beta | yes | Sprint 15 checkout review page (alias: checkout_review) |
 | `ui.payment_preparation` | beta | yes | Sprint 15 payment ports + sessions, mock only (alias: payment_preparation) |
 | `ui.ai_home` | beta | yes | Sprint 16 conversation-first AI Home (alias: ai_home) |
+| `ui.new_experience` | experimental | **no** | Product Sprint A — New UX/UI Foundation (alias: new_experience); rollback = current UI |
 | `ui.conversation_home` | beta | yes | Sprint 16 home → Chat seed entry (alias: conversation_home) |
 | `ui.travel_cards` | beta | yes | Sprint 16 smart travel cards on Home (alias: travel_cards) |
 | `ui.continue_booking` | beta | yes | Sprint 16 continue-booking panel (alias: continue_booking) |

@@ -1,10 +1,17 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import TravelConversationCard from '../components/TravelConversationCard'
 import QuickActions from '../components/QuickActions'
 import { useAuth } from '../lib/auth'
 import { getFeatureRegistry } from '../lib/ai'
+import { isUiNewExperienceEnabled } from '../lib/productUx'
 import AiHomeExperience from './AiHomeExperience'
+
+const NewHomeExperience = lazy(() =>
+  import('../components/productUx/home/NewHomeExperience').then((m) => ({
+    default: m.NewHomeExperience,
+  })),
+)
 
 /**
  * Recovery Phase 1 — ONE home composition for product traffic.
@@ -125,6 +132,14 @@ function LegacyHome() {
 }
 
 export default function Home() {
+  // Product Sprint A — new experience behind ui.new_experience (default OFF).
+  if (isUiNewExperienceEnabled()) {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-slate-50" aria-busy="true" />}>
+        <NewHomeExperience />
+      </Suspense>
+    )
+  }
   // Recovery Phase 1: ignore ui.production_integration for routing.
   const aiHomeEnabled = getFeatureRegistry().isEnabled('ui.ai_home')
   if (aiHomeEnabled) return <AiHomeExperience />

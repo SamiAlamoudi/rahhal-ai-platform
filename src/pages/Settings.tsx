@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authService, useAuth } from '../lib/auth'
 import { settingsService } from '../lib/settings/settingsService'
+import { ProductPageShell, TravelPreferencesPanel } from '../components/productUx'
+import { isUiNewExperienceEnabled, productCopy } from '../lib/productUx'
 import {
   SETTINGS_CURRENCIES,
   SETTINGS_LANGUAGES,
@@ -165,39 +167,10 @@ export default function Settings() {
   const labelClass = 'mb-1.5 block text-sm font-medium text-slate-700'
   const sectionClass = 'rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-6'
   const toggleRowClass = 'flex items-start justify-between gap-4 py-3 border-b border-slate-50 last:border-0'
+  const newExperienceOn = isUiNewExperienceEnabled()
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50/50 via-white to-white">
-      <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100"
-              aria-label="رجوع"
-            >
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
-            <div className="min-w-0">
-              <h1 className="truncate text-base font-bold text-slate-900">الإعدادات</h1>
-              <p className="text-[10px] text-slate-400">الملف الشخصي والتفضيلات والخصوصية</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => void loadSettings()}
-            disabled={loading}
-            className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
-          >
-            تحديث
-          </button>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-4xl space-y-4 px-4 py-6 sm:space-y-5 sm:px-6">
+  const settingsBody = (
+      <>
         {loading && (
           <div className="rounded-2xl border border-slate-100 bg-white px-4 py-8 text-center shadow-sm">
             <p className="text-sm text-slate-400">جاري تحميل الإعدادات...</p>
@@ -219,6 +192,14 @@ export default function Settings() {
 
         {!loading && (
           <>
+            {newExperienceOn ? (
+              <TravelPreferencesPanel
+                locale="ar"
+                initial={{
+                  language: form.preferredLanguage === 'en' ? 'en' : 'ar',
+                }}
+              />
+            ) : null}
             <section className={sectionClass}>
               <h2 className="text-sm font-bold text-slate-900">الملف الشخصي</h2>
               <p className="mt-1 text-xs text-slate-400">حدّث اسمك الظاهر في الحساب</p>
@@ -523,6 +504,66 @@ export default function Settings() {
             </section>
           </>
         )}
+      </>
+  )
+
+  if (newExperienceOn) {
+    return (
+      <ProductPageShell
+        locale="ar"
+        title={productCopy('ar', 'settingsTitle')}
+        subtitle={productCopy('ar', 'settingsSubtitle')}
+        onBack={() => navigate('/')}
+        trailing={
+          <button
+            type="button"
+            onClick={() => void loadSettings()}
+            disabled={loading}
+            className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+          >
+            تحديث
+          </button>
+        }
+        mainClassName="space-y-4 sm:space-y-5"
+      >
+        {settingsBody}
+      </ProductPageShell>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50/50 via-white to-white">
+      <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100"
+              aria-label="رجوع"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-bold text-slate-900">الإعدادات</h1>
+              <p className="text-[10px] text-slate-400">الملف الشخصي والتفضيلات والخصوصية</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadSettings()}
+            disabled={loading}
+            className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+          >
+            تحديث
+          </button>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-4xl space-y-4 px-4 py-6 sm:space-y-5 sm:px-6">
+        {settingsBody}
       </main>
     </div>
   )
