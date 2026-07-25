@@ -525,6 +525,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: load_testing_platform. Additive under src/lib/loadTesting. Simulated sessions only — does not modify Conversation Brain, Journey, Planner, Action, SecretManager, Observability Platform, or Provider Runtime.',
   },
   {
+    id: 'production_audit.platform',
+    name: 'Production Readiness Audit Platform',
+    description:
+      'Sprint 17 — Production readiness auditor, checklist, and release scorecard. Audit-only; no product behavior changes. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: production_audit_platform. Additive under src/lib/productionAudit. Does not modify Conversation Brain, UI, providers, or architecture.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:
