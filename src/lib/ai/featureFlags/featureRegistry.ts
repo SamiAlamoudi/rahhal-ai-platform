@@ -1682,6 +1682,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_travel_planning. Blueprints only — generates planning structures only; never books. Does not replace brain.planning_engine.',
   },
+  {
+    id: 'brain.search_orchestrator',
+    name: 'Travel Search Orchestrator Architecture (Phase 7 Stage 8)',
+    description:
+      'Additive architecture-only Travel Search Orchestrator: prepares unified search requests from plan/profile/context/intent/preferences/budget/dates/destination via pipeline/schema/contracts/lifecycle, provider abstraction, strategy/ranking/normalization/aggregation/confidence/snapshot/revision. Blueprints only — NEVER calls providers, HTTP, SDKs, or pricing APIs. Distinct from Sprint 24 brain.search. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.travel_planning'],
+    notes:
+      'Product alias: brain_search_orchestrator. Blueprints only — orchestration architecture only; never calls providers. Does not replace brain.search.',
+  },
 ]
 
 export class FeatureRegistry {

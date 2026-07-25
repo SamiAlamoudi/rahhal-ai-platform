@@ -165,6 +165,7 @@ export type FeatureId =
   | 'brain.context_engine'
   | 'brain.intent_engine'
   | 'brain.travel_planning'
+  | 'brain.search_orchestrator'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'
