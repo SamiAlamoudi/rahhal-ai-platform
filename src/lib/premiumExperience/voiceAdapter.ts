@@ -74,12 +74,23 @@ export function listVoiceAdapterProviders(): readonly VoiceAdapterProviderId[] {
   ] as const
 }
 
-/** Prefer mock unless a future key is present (still non-executing). */
+/**
+ * Prefer mock by default.
+ * OpenAI Realtime is selected via non-secret VITE_REALTIME_VOICE_PROVIDER /
+ * VITE_OPENAI_REALTIME_ENABLED — never via frontend API keys.
+ */
 export function resolveVoiceAdapterProviderId(): VoiceAdapterProviderId {
-  if (envFlag('VITE_OPENAI_REALTIME_KEY')) return 'openai_realtime'
-  if (envFlag('VITE_GEMINI_LIVE_KEY')) return 'gemini_live'
-  if (envFlag('VITE_AZURE_VOICE_KEY')) return 'azure_voice'
-  if (envFlag('VITE_DEEPGRAM_KEY')) return 'deepgram'
+  try {
+    const hint = (import.meta.env.VITE_REALTIME_VOICE_PROVIDER as string | undefined)?.trim().toLowerCase()
+    if (hint === 'openai_realtime') return 'openai_realtime'
+    if (hint === 'gemini_live') return 'gemini_live'
+    if (hint === 'azure_voice' || hint === 'azure_realtime') return 'azure_voice'
+    if (hint === 'web_speech') return 'web_speech'
+    if (hint === 'deepgram') return 'deepgram'
+  } catch {
+    /* ignore */
+  }
+  if (envFlag('VITE_OPENAI_REALTIME_ENABLED')) return 'openai_realtime'
   if (envFlag('VITE_VOICE_WEB_SPEECH')) return 'web_speech'
   return 'mock'
 }

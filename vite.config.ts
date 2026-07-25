@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { amadeusApiPlugin } from './src/lib/viteAmadeusApiPlugin.js'
+import { openAiRealtimeApiPlugin } from './src/lib/viteOpenAiRealtimeApiPlugin.js'
 
 /**
  * Security headers for Vite middleware.
@@ -19,6 +20,9 @@ function securityHeaders(development: boolean): Record<string, string> {
     'wss://*.supabase.co',
     'https://test.api.amadeus.com',
     'https://api.amadeus.com',
+    // Integration Sprint 1 — OpenAI Realtime (ephemeral client secrets + WS)
+    'https://api.openai.com',
+    'wss://api.openai.com',
     'https://fonts.googleapis.com',
     'https://fonts.gstatic.com',
     ...(development ? ['ws:', 'wss:', 'http://localhost:*', 'http://127.0.0.1:*'] : []),
@@ -75,7 +79,13 @@ function securityHeadersPlugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), securityHeadersPlugin(), amadeusApiPlugin()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    securityHeadersPlugin(),
+    amadeusApiPlugin(),
+    openAiRealtimeApiPlugin(),
+  ],
   build: {
     // Documented performance budget signal (Phase X) — warn above ~900kB uncompressed chunk.
     chunkSizeWarningLimit: 900,

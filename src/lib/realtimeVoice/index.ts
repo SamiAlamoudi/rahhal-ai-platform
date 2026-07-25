@@ -34,7 +34,20 @@ export { VoiceSession, createVoiceSession } from './voiceSession'
 
 export { createMockProvider, MockProvider } from './providers/mockProvider'
 export { createWebSpeechProvider, WebSpeechProvider } from './providers/webSpeechProvider'
-export { createOpenAIRealtimeProvider, OpenAIRealtimeProvider } from './providers/openaiRealtimeProvider'
+export {
+  createOpenAIRealtimeProvider,
+  OpenAIRealtimeProvider,
+  isOpenAiRealtimeClientEnabled,
+  type OpenAiRealtimeProviderDeps,
+} from './providers/openaiRealtimeProvider'
+export {
+  MOCK_TRAVEL_TOOLS,
+  buildSessionUpdateEvent,
+  mapToolNameToDecision,
+} from './providers/openaiRealtimeProtocol'
+export { buildTravelConsultantInstructions } from './travelConsultantPrompt'
+
+export const INTEGRATION_OPENAI_REALTIME_VERSION = 'integration-openai-realtime-v1' as const
 export { createGeminiLiveProvider, GeminiLiveProvider } from './providers/geminiLiveProvider'
 export { createAzureRealtimeProvider, AzureRealtimeProvider } from './providers/azureRealtimeProvider'
 export {

@@ -89,21 +89,23 @@ Metrics on `session.getMetrics()`:
 ## Security
 
 - No API keys in repo  
-- Keys only via `VITE_OPENAI_REALTIME_KEY`, `VITE_GEMINI_LIVE_KEY`, `VITE_AZURE_VOICE_KEY`, …  
+- **OpenAI Realtime:** browser never holds production keys. Server mints ephemeral client secrets via `POST /api/openai-realtime-session` (`OPENAI_API_KEY` server-only). Client opt-in: `VITE_OPENAI_REALTIME_ENABLED` + `VITE_VOICE_LIVE_ALLOW` (non-secret).  
+- Other live providers may still use `VITE_GEMINI_LIVE_KEY`, `VITE_AZURE_VOICE_KEY`, … when those adapters are enabled  
 - Live network gated by `VITE_VOICE_LIVE_ALLOW`  
 
 ## Integration
 
 - `createVoiceAdapter()` uses realtime session **only when** `ai.realtime_voice` is enabled  
 - Flag OFF → Phase 3 mock/prepared adapters unchanged  
+- OpenAI provider selection prefers non-secret hints (`VITE_OPENAI_REALTIME_ENABLED` / `VITE_REALTIME_VOICE_PROVIDER`); failures failover to `mock`  
 
 ## Test report
 
-Suite: `src/lib/__tests__/realtimeVoice.phase7.test.ts` (10/10)
+Suites: `realtimeVoice.phase7.test.ts` + `openaiRealtime.integration.test.ts`
 
 | Check | Result |
 |-------|--------|
 | `npm run lint` | pass |
 | `npm run typecheck` | pass |
 | `npm run arch:circular` | pass |
-| `npm run test:run` | **229 files / 2671 tests passed** |
+| `npm run test:run` | **233 files / 2694 tests passed** |
