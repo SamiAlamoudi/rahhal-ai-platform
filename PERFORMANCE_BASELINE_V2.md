@@ -10,7 +10,7 @@ Extends Sprint 15 `PERFORMANCE_BASELINE.md` with load-test budgets.
 | Heavy provider + booking (40 users each) | &lt; 5s | PASS |
 | P99 step latency (simulation) | &lt; 5s | PASS |
 | Error rate (no injection) | &lt; 10% | PASS |
-| ChatPage bundle | **unchanged** (no ChatPage import) | verify in build |
+| ChatPage bundle | **139.29 kB** (unchanged) | PASS |
 | Performance score | ≥ 95 | PASS |
 
 ## Measured dimensions
