@@ -1539,6 +1539,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_planning_engine. Blueprints only — never plans trips or calls providers.',
   },
+  {
+    id: 'brain.decision_engine',
+    name: 'AI Decision Engine Architecture (Phase 6 Stage 4)',
+    description:
+      'Additive architecture-only Decision Engine: evaluate alternatives, scoring/ranking, tradeoffs, explainability, recommendations, audit trail. Contracts/types only — no decision execution, LLM, Runtime, or production wiring. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.planning_engine'],
+    notes:
+      'Product alias: brain_decision_engine. Blueprints only — never ranks or recommends via models/APIs.',
+  },
 ]
 
 export class FeatureRegistry {

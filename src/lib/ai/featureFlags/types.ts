@@ -152,6 +152,7 @@ export type FeatureId =
   | 'ui.integration_foundation'
   | 'brain.conversation_orchestrator'
   | 'brain.planning_engine'
+  | 'brain.decision_engine'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'
