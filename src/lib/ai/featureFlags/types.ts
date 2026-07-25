@@ -154,6 +154,7 @@ export type FeatureId =
   | 'brain.planning_engine'
   | 'brain.decision_engine'
   | 'brain.memory_engine'
+  | 'brain.knowledge_engine'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

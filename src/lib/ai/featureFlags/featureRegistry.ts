@@ -1561,6 +1561,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_memory_engine. Blueprints only — never persists or embeds memory.',
   },
+  {
+    id: 'brain.knowledge_engine',
+    name: 'AI Knowledge Engine Architecture (Phase 6 Stage 6)',
+    description:
+      'Additive architecture-only Knowledge Engine: providers/sources/documents/entities/graph, retrieval/ranking/validation/freshness/provenance/cache contracts covering travel knowledge domains. Blueprints only — no LLM, APIs, DB, vector search, Runtime, or production wiring. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.memory_engine'],
+    notes:
+      'Product alias: brain_knowledge_engine. Blueprints only — never searches or calls knowledge providers.',
+  },
 ]
 
 export class FeatureRegistry {
