@@ -10,11 +10,13 @@ export { RAHHAL_PERSONALITY, consultantLine } from './personality'
 
 export {
   buildDynamicResultCards,
+  inferTravelRouteFromSeed,
   resultCardTitle,
   resultCardSubtitle,
   resultCardMeta,
   resultCardKindLabel,
   type DynamicResultCard,
+  type InferredTravelRoute,
   type ResultCardKind,
 } from './resultCards'
 

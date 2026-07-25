@@ -8,6 +8,7 @@ import {
 } from '../../../lib/chat/conversationExperienceUi'
 import {
   buildDynamicResultCards,
+  inferTravelRouteFromSeed,
   resultCardMeta,
   resultCardSubtitle,
   resultCardTitle,
@@ -24,20 +25,25 @@ export interface NewExperienceResultsBridgeProps {
 }
 
 function seedFlights(seed: string, locale: ProductLocale): FlightCardModel[] {
+  const route = inferTravelRouteFromSeed(seed)
+  const departure =
+    locale === 'ar' ? route.originAr : (route.originCode ?? route.originEn)
+  const arrival =
+    locale === 'ar' ? route.destinationAr : (route.destinationCode ?? route.destinationEn)
   const cards = buildDynamicResultCards(seed, 3)
   return cards
     .filter((c) => c.kind === 'flight')
     .slice(0, 2)
     .map((c, i) => {
-      const title = resultCardTitle(c, locale)
       const subtitle = resultCardSubtitle(c, locale)
+      const airline = locale === 'ar' ? 'رحلة مقترحة' : 'Suggested flight'
       return {
         kind: 'flight' as const,
         id: c.id || `seed-flight-${i}`,
-        airline: title,
-        logoLabel: title.slice(0, 2).toUpperCase(),
-        departure: locale === 'ar' ? 'مغادرة' : 'DEP',
-        arrival: locale === 'ar' ? 'وصول' : 'ARR',
+        airline,
+        logoLabel: airline.slice(0, 2).toUpperCase(),
+        departure,
+        arrival,
         durationLabel: resultCardMeta(c, locale) || '—',
         stops: /مباشر|direct|nonstop/i.test(subtitle) ? 0 : 1,
         baggage: locale === 'ar' ? 'حقيبة مقصورة' : 'Cabin bag',
@@ -52,6 +58,7 @@ function seedFlights(seed: string, locale: ProductLocale): FlightCardModel[] {
 }
 
 function seedHotels(seed: string, locale: ProductLocale): HotelCardModel[] {
+  const route = inferTravelRouteFromSeed(seed)
   const cards = buildDynamicResultCards(seed, 3)
   return cards
     .filter((c) => c.kind === 'hotel')
@@ -63,7 +70,7 @@ function seedHotels(seed: string, locale: ProductLocale): HotelCardModel[] {
         id: c.id || `seed-hotel-${i}`,
         name: title,
         photos: [],
-        mapQuery: title,
+        mapQuery: `${title} ${route.destinationEn}`,
         stars: 4,
         rating: 8.2,
         reviewsLabel: resultCardSubtitle(c, locale),
@@ -74,7 +81,10 @@ function seedHotels(seed: string, locale: ProductLocale): HotelCardModel[] {
         loyaltyRewards: '',
         price: 450 + i * 90,
         currency: 'SAR',
-        area: resultCardMeta(c, locale) || (locale === 'ar' ? 'وسط المدينة' : 'City center'),
+        area:
+          locale === 'ar'
+            ? route.destinationAr
+            : route.destinationEn,
       }
     })
 }
@@ -110,19 +120,24 @@ export function NewExperienceResultsBridge({
     return {
       flights: flights.length ? flights : seedFlights(seed, locale),
       hotels: hotels.length ? hotels : seedHotels(seed, locale),
-      destinations:
-        /وجهة|destination|المغرب|morocco|مراكش|أغادير|tokyo|دبي|istanbul/i.test(seed)
-          ? [
-              {
-                id: 'dest-1',
-                name: locale === 'ar' ? 'المغرب' : 'Morocco',
-                reason:
-                  locale === 'ar'
-                    ? 'تناسب الثقافة والطقس والميزانية المرنة'
-                    : 'Fits culture, weather, and flexible budget',
-              },
-            ]
-          : [],
+      destinations: (() => {
+        const route = inferTravelRouteFromSeed(seed)
+        const mentioned =
+          /وجهة|destination|المغرب|morocco|مراكش|أغادير|tokyo|دبي|dubai|istanbul|paris|باريس|طوكيو|القاهرة|cairo/i.test(
+            seed,
+          )
+        if (!mentioned || route.destinationEn === 'your destination') return []
+        return [
+          {
+            id: 'dest-1',
+            name: locale === 'ar' ? route.destinationAr : route.destinationEn,
+            reason:
+              locale === 'ar'
+                ? 'تناسب الثقافة والطقس والميزانية المرنة'
+                : 'Fits culture, weather, and flexible budget',
+          },
+        ]
+      })(),
       showItinerary: wantsPlan || Boolean(meta.structured?.dailyItinerary?.length),
       showConfirmation: wantsConfirm,
       disruptionRecommendation: wantsDisruption
