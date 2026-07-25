@@ -10,7 +10,7 @@
 | Chunk | Sprint 1 (#266) | Sprint 2 |
 |---|---|---|
 | ChatPage | 139.20 kB | **139.20 kB** (unchanged) |
-| agent-impl | 222.20 kB | **225.97 kB** (+~3.8 kB additive) |
+| agent-impl | 222.20 kB | **225.94 kB** (+~3.7 kB additive) |
 | integrationFlightSearch (lazy) | — | **46.77 kB** separate chunk |
 
 Performance score target **≥ 90** maintained: ChatPage first-load path not inflated; live bridge loads with agent/tool graph only.
