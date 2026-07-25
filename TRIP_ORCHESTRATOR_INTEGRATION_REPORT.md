@@ -1,6 +1,7 @@
 # AI Trip Orchestrator — Integration Sprint 4 Validation Report
 
 **Branch:** `cursor/ai-trip-orchestrator-7518`  
+**Draft PR:** [#269](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/269)  
 **Continues from:** Draft PR [#268](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/268) (Live Hotel Search)  
 **Generated:** 2026-07-25  
 **Constraints:** Additive · Feature flag OFF by default · No UI redesign · No architecture rewrite · **No merge**
@@ -23,7 +24,7 @@
 | Preference seed / learn | **PASS** (preferenceBridge) |
 | Flag OFF by default | **PASS** |
 | planTurn ownership preserved | **PASS** (soft enrich only) |
-| Regression suite | **PASS** |
+| Regression suite | **PASS** (236 files / **2732** tests) |
 
 ---
 

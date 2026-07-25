@@ -1,6 +1,7 @@
 # Trip Orchestrator — Performance Report (Sprint 4)
 
 **Branch:** `cursor/ai-trip-orchestrator-7518`  
+**Draft PR:** [#269](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/269)  
 **Generated:** 2026-07-25  
 
 ---
