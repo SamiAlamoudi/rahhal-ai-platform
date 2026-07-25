@@ -109,5 +109,11 @@ Also: `Interrupted` / `Resumed`
 
 ## Test report
 
-Suite: `src/lib/__tests__/agentRuntime.phase6.test.ts`  
-Validate: `npm run lint`, `npm run typecheck`, `npm run arch:circular`, `npm run test:run`.
+Suite: `src/lib/__tests__/agentRuntime.phase6.test.ts` (11/11)
+
+| Check | Result |
+|-------|--------|
+| `npm run lint` | pass |
+| `npm run typecheck` | pass |
+| `npm run arch:circular` | pass |
+| `npm run test:run` | **228 files / 2661 tests passed** |
