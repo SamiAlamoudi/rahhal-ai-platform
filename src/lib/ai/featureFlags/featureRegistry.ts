@@ -1704,6 +1704,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_travel_recommendation. Blueprints only — recommendation architecture only; never books or calls providers. Does not replace ai.recommendation_engine / ai.recommendation_intelligence / brain.personalization_engine.',
   },
+  {
+    id: 'brain.offer_decision_engine',
+    name: 'Offer Decision Engine Architecture (Phase 7 Stage 10)',
+    description:
+      'Additive architecture-only Offer Decision Engine: selects best offer from recommendation results via pipeline/schema/strategy/scoring/ranking/explanation/confidence/validation/lifecycle/snapshot/revision balancing price, quality, preferences, and business rules. Blueprints only — NEVER books, contacts providers, calculates payments, or executes recommendations. Distinct from brain.travel_recommendation / brain.personalization_engine / ai.recommendation_engine. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.travel_recommendation'],
+    notes:
+      'Product alias: brain_offer_decision_engine. Blueprints only — offer decision architecture only; never books, calls providers, or calculates payments. Does not replace brain.travel_recommendation.',
+  },
 ]
 
 export class FeatureRegistry {
