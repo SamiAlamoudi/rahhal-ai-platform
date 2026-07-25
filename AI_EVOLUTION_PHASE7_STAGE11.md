@@ -17,10 +17,10 @@ See `AI_BOOKING_ORCHESTRATOR.md`, `AI_BOOKING_PIPELINE.md`, `AI_BOOKING_SCHEMA.m
 
 | Command | Result |
 |---------|--------|
-| `npm run lint` | Pending |
-| `npm run typecheck` | Pending |
-| `npm run arch:circular` | Pending |
-| `npm run test:run` | Pending |
+| `npm run lint` | Pass |
+| `npm run typecheck` | Pass |
+| `npm run arch:circular` | Pass |
+| `npm run test:run` | Pass — **2945** tests (273 files) |
 
-Draft PR: pending  
+Draft PR: https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/254  
 Do not merge.
