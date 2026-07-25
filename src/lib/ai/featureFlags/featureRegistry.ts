@@ -1594,6 +1594,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_llm_adapter. Blueprints only — never calls OpenAI/Claude/Gemini or any provider SDK.',
   },
+  {
+    id: 'brain.runtime_orchestrator',
+    name: 'AI Runtime Orchestrator Architecture (Phase 6 Stage 9)',
+    description:
+      'Additive architecture-only Runtime Orchestrator: unifies conversation/planning/decision/memory/knowledge/tool/LLM adapter engines via execution pipeline, lifecycle, coordinator, dependency graph, guards/hooks/middleware, recovery/retry/timeout, metrics/trace/audit. Blueprints only — no production runtime, AI calls, APIs, SDKs, HTTP, or tool execution. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.llm_adapter'],
+    notes:
+      'Product alias: brain_runtime_orchestrator. Blueprints only — never starts a live runtime or coordinates engines in production.',
+  },
 ]
 
 export class FeatureRegistry {
