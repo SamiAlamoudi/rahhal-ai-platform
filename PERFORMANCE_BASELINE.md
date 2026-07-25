@@ -10,7 +10,7 @@ Performance score **≥ 95** vs pre-sprint baseline. Observability is additive a
 |-------|--------|--------|
 | 2000× log + metric samples | < 1000 ms | PASS |
 | 200× lifecycle skeletons | < 1000 ms | PASS |
-| ChatPage bundle | **no increase** (no ChatPage import) | verify in build |
+| ChatPage bundle | **139.29 kB** (unchanged vs Sprint 14) | PASS |
 
 ## Dashboard sections
 

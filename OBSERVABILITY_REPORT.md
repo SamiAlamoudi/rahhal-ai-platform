@@ -19,7 +19,7 @@ Rahhal gains a centralized, additive observability platform under `src/lib/obser
 | No secrets in logs | PASS (SecretSanitizer + field scrub) |
 | Performance ≥ 95 | PASS |
 | Existing tests pass | PASS |
-| ChatPage bundle unchanged | Target: no import from ChatPage hot path |
+| ChatPage bundle unchanged | PASS (**139.29 kB**, unchanged vs Sprint 14) |
 | Feature flags OFF | PASS |
 | Draft PR only | PASS |
 
