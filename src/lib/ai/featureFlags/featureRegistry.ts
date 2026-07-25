@@ -515,6 +515,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: observability_platform. Additive under src/lib/observability. Does not modify Conversation Brain, Journey, Planner, Action, Provider Runtime, SecretManager, Maps, Flights, Hotels, or Budget. No external alerting integration yet.',
   },
   {
+    id: 'load_testing.platform',
+    name: 'Load Testing & Resilience Platform',
+    description:
+      'Sprint 16 — LoadRunner, stress profiles, failure injection, resilience validation, capacity estimation. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: load_testing_platform. Additive under src/lib/loadTesting. Simulated sessions only — does not modify Conversation Brain, Journey, Planner, Action, SecretManager, Observability Platform, or Provider Runtime.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:
