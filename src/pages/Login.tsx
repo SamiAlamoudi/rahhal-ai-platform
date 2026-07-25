@@ -28,7 +28,7 @@ export default function Login() {
       setGeneralError(mapAuthErrorMessage(result.error))
       return
     }
-    navigate('/chat')
+    navigate('/')
   }
 
   const handleDemoSignIn = async () => {
@@ -41,7 +41,7 @@ export default function Login() {
       setGeneralError(result.error ?? 'تعذّر الدخول التجريبي')
       return
     }
-    navigate('/chat')
+    navigate('/')
   }
 
   const fieldError = (field: string) => errors.find(e => e.field === field)?.message
