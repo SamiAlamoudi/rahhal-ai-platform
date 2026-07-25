@@ -212,7 +212,7 @@ Browser cold-start / FCP / FID / voice streaming latency / CPU were **not** meas
 | Audio cleanup | Adapter `disconnect` / session `stop` → provider disconnect |
 | AbortController | Agent enrich uses local async; no global controllers left open in tests |
 | Timers | ReconnectManager avoids `setInterval`; no zombie timers found |
-| Memory leaks (heuristic) | 2671 tests pass with session reset helpers (`resetAgentRuntimeSessions`) |
+| Memory leaks (heuristic) | Full suite passes with session reset helpers (`resetAgentRuntimeSessions`) |
 
 **Memory score: 84**
 
@@ -408,7 +408,7 @@ Manual browser login/voice on device not executed in this cloud audit (Supabase 
 npm run lint
 npm run typecheck
 npm run arch:circular
-npm run test:run          # 2671+ tests
+npm run test:run          # 2674 tests
 npm run build
 bash scripts/secret-hygiene-scan.sh
 ```
