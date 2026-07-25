@@ -465,6 +465,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: integration_budget_pricing. Additive under src/lib/agent/integrationBudgetPricing. Reuses parseBudgetUtterance and offer price hints; does not rewrite live pricing providers. When OFF, planTurn path is unchanged.',
   },
   {
+    id: 'ai.integration_disruption_recovery',
+    name: 'Integration Live Disruption Recovery',
+    description:
+      'Integration Sprint 10 — DisruptionEngine, impact analyzer, recovery plans (best/cheapest/fastest/minimal/premium), auto-replan, risk scoring, live alert provider abstraction (not enabled). Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_disruption_recovery. Additive under src/lib/agent/integrationDisruptionRecovery. Distinct from brain.travel_disruption_engine. When OFF, planTurn path is unchanged.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:

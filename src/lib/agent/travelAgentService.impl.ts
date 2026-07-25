@@ -50,6 +50,8 @@ import { isIntegrationMapsMobilityEnabled } from './integrationMapsMobility/feat
 import type { MapsMobilityResult } from './integrationMapsMobility/types'
 import { isIntegrationBudgetPricingEnabled } from './integrationBudgetPricing/feature'
 import type { BudgetPricingResult } from './integrationBudgetPricing/types'
+import { isIntegrationDisruptionRecoveryEnabled } from './integrationDisruptionRecovery/feature'
+import type { DisruptionRecoveryResult } from './integrationDisruptionRecovery/types'
 import { isConversationIntelligenceEnabled } from './conversationIntelligence/feature'
 import type { ConversationIntelligenceResult } from './conversationIntelligence'
 import { isLlmConversationBrainEnabled } from './llmBrain/feature'
@@ -134,6 +136,7 @@ import {
   loadIntegrationTripCompanion,
   loadIntegrationMapsMobility,
   loadIntegrationBudgetPricing,
+  loadIntegrationDisruptionRecovery,
   loadConcierge,
   loadConciergeIntegration,
   loadConciergeMeta,
@@ -1030,6 +1033,9 @@ export function createTravelAgentService(
   const isIntegrationBudgetPricingOn = (): boolean =>
     isIntegrationBudgetPricingEnabled()
 
+  const isIntegrationDisruptionRecoveryOn = (): boolean =>
+    isIntegrationDisruptionRecoveryEnabled()
+
   const isTravelerPersonalizationOn = (): boolean =>
     isTravelerPersonalizationEnabled({ enabled: options.travelerPersonalizationEnabled })
 
@@ -1646,6 +1652,8 @@ export function createTravelAgentService(
       let mapsMobilityMeta: AgentProviderMeta['mapsMobility'] | undefined
       let budgetPricingResult: BudgetPricingResult | null = null
       let budgetPricingMeta: AgentProviderMeta['budgetPricing'] | undefined
+      let disruptionRecoveryResult: DisruptionRecoveryResult | null = null
+      let disruptionRecoveryMeta: AgentProviderMeta['disruptionRecovery'] | undefined
       let clarificationMeta: NonNullable<AgentProviderMeta['clarification']> | undefined
       let rahhalBrainMeta: RahhalBrainMetaSnapshot | undefined
       let travelExecutiveSnapshot: RahhalBrainTurnResult['executive']
@@ -1999,6 +2007,31 @@ export function createTravelAgentService(
             )
           }
         }
+
+        // Integration Sprint 10 — Live Disruption Recovery (detect → recover → replan).
+        if (isIntegrationDisruptionRecoveryOn() && userText.trim()) {
+          const __mod_disruptionRecovery = await loadIntegrationDisruptionRecovery()
+          if (
+            __mod_disruptionRecovery.shouldRunDisruptionRecovery({
+              userText,
+              memory,
+            })
+          ) {
+            const disruptionEnriched =
+              await __mod_disruptionRecovery.enrichWithIntegrationDisruptionRecovery({
+                memory,
+                userText,
+                locale: memory.locale,
+                force: true,
+                deps: { enabled: true },
+              })
+            memory = disruptionEnriched.memory
+            disruptionRecoveryResult = disruptionEnriched.disruptionRecovery
+            disruptionRecoveryMeta = __mod_disruptionRecovery.toDisruptionRecoveryMeta(
+              disruptionEnriched.disruptionRecovery,
+            )
+          }
+        }
         memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
       }
 
@@ -2226,12 +2259,15 @@ export function createTravelAgentService(
         const withBudgetPricing = budgetPricingMeta
           ? { ...withMapsMobility, budgetPricing: budgetPricingMeta }
           : withMapsMobility
+        const withDisruptionRecovery = disruptionRecoveryMeta
+          ? { ...withBudgetPricing, disruptionRecovery: disruptionRecoveryMeta }
+          : withBudgetPricing
         const withBooking = bookingIntelligenceResult
           ? {
-            ...withBudgetPricing,
+            ...withDisruptionRecovery,
             bookingIntelligence: toMetaBookingIntelligence(bookingIntelligenceResult),
           }
-          : withBudgetPricing
+          : withDisruptionRecovery
         const withBudget = budgetIntelligenceResult
           ? { ...withBooking, budgetIntelligence: toMetaBudgetIntelligence(budgetIntelligenceResult) }
           : withBooking
@@ -2341,6 +2377,66 @@ export function createTravelAgentService(
           ...enriched,
           spokenText,
           voicePhase: enriched.voicePhase ?? 'final',
+        }
+      }
+
+      // Integration Sprint 10 — Live Disruption Recovery owns delay/cancel recovery asks
+      // (prefer over companion when the traveler reports an active disruption).
+      if (
+        !isBrainCoreEnabled()
+        && disruptionRecoveryResult?.enabled
+        && disruptionRecoveryResult.ok
+        && (
+          disruptionRecoveryResult.disruption != null
+          || disruptionRecoveryResult.intent === 'what_now'
+        )
+      ) {
+        memory = withTripPlan({ ...memory, phase: memory.phase }, memory.tripPlan)
+        const disruptionSummary = memory.locale === 'en'
+          ? disruptionRecoveryResult.consultantSummaryEn
+          : disruptionRecoveryResult.consultantSummaryAr
+        const facts = buildTravelFacts({
+          memory,
+          objective: 'propose_options',
+          missingSlots: memory.missingFields.map(String),
+          optionHints: [
+            disruptionRecoveryResult.primary
+              ? `${disruptionRecoveryResult.primary.titleEn}: ${disruptionRecoveryResult.primary.whyEn}`
+              : null,
+            ...disruptionRecoveryResult.plans.slice(0, 2).map((p) => p.titleEn),
+          ].filter(Boolean) as string[],
+          recommendations: [disruptionSummary].filter(Boolean),
+          warnings: [
+            disruptionRecoveryResult.impact?.summaryEn,
+            disruptionRecoveryResult.risk
+              ? `Risk: ${disruptionRecoveryResult.risk}`
+              : null,
+          ].filter(Boolean) as string[],
+        })
+        const spoken = await speakTravelFacts({
+          llms,
+          conversationId: input.conversationId,
+          messages: input.messages,
+          facts,
+          signal: input.signal,
+        })
+        const replyText = disruptionSummary || spoken.displayText
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          spokenText: (disruptionSummary || spoken.spokenText)?.slice(0, 360),
+          voicePhase: 'final',
+          toolResults: [],
+        }
+        return {
+          reply: replyText,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta: attachTurnMeta(meta, meta.spokenText),
+          toolBatch: null,
         }
       }
 

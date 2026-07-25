@@ -89,6 +89,10 @@ export function loadIntegrationBudgetPricing() {
   return loadOnce('integrationBudgetPricing', () => import('./integrationBudgetPricing'))
 }
 
+export function loadIntegrationDisruptionRecovery() {
+  return loadOnce('integrationDisruptionRecovery', () => import('./integrationDisruptionRecovery'))
+}
+
 export function loadTravelerPersonalization() {
   return loadOnce('travelerPersonalization', () => import('./travelerPersonalization'))
 }

@@ -816,6 +816,20 @@ export {
   type OptimizedBudgetOption,
 } from './integrationBudgetPricing'
 
+/** Integration Sprint 10 — Live Disruption Recovery */
+export {
+  INTEGRATION_DISRUPTION_RECOVERY_VERSION,
+  INTEGRATION_DISRUPTION_RECOVERY_FEATURE_ID,
+  isIntegrationDisruptionRecoveryEnabled,
+  runDisruptionRecovery,
+  enrichWithIntegrationDisruptionRecovery,
+  createDisruptionEngine,
+  detectLiveDisruption,
+  type DisruptionRecoveryResult,
+  type RecoveryPlan,
+  type DetectedLiveDisruption,
+} from './integrationDisruptionRecovery'
+
 /** Sprint 73 — Hotel Search Engine */
 export {
   createHotelSearchEngine,

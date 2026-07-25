@@ -335,6 +335,20 @@ export interface AgentProviderMeta {
     latencyMs: number
   }
   /**
+   * Integration Sprint 10 — Live Disruption Recovery snapshot.
+   * Additive; present when `ai.integration_disruption_recovery` ran for the turn.
+   */
+  disruptionRecovery?: {
+    intent: string
+    kind: string | null
+    risk: string | null
+    strategy: string | null
+    planCount: number
+    replanned: boolean
+    summary: string
+    latencyMs: number
+  }
+  /**
    * Sprint 46 — soft preference inference snapshot (never-ask-twice).
    */
   clarification?: {
