@@ -788,6 +788,20 @@ export {
   type TravelTimelineSnapshot,
 } from './integrationTripCompanion'
 
+/** Integration Sprint 8 — Maps & Live Mobility */
+export {
+  INTEGRATION_MAPS_MOBILITY_VERSION,
+  INTEGRATION_MAPS_MOBILITY_FEATURE_ID,
+  isIntegrationMapsMobilityEnabled,
+  runMapsMobility,
+  enrichWithIntegrationMapsMobility,
+  createMockMapProvider,
+  detectMapsMobilityIntent,
+  type MapsMobilityResult,
+  type MapProvider,
+  type MobilityRoute,
+} from './integrationMapsMobility'
+
 /** Sprint 73 — Hotel Search Engine */
 export {
   createHotelSearchEngine,

@@ -306,6 +306,20 @@ export interface AgentProviderMeta {
     latencyMs: number
   }
   /**
+   * Integration Sprint 8 — Maps & Live Mobility snapshot (spatial / routes / nearby).
+   * Additive; present when `ai.integration_maps_mobility` ran for the turn.
+   */
+  mapsMobility?: {
+    intent: string
+    live: boolean
+    originId: string | null
+    destinationId: string | null
+    routeMode: string | null
+    nearbyCount: number
+    summary: string
+    latencyMs: number
+  }
+  /**
    * Sprint 46 — soft preference inference snapshot (never-ask-twice).
    */
   clarification?: {

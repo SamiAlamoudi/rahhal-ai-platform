@@ -46,6 +46,8 @@ import { isIntegrationDestinationIntelligenceEnabled } from './integrationDestin
 import type { DestinationIntelligenceResult } from './integrationDestinationIntelligence/types'
 import { isIntegrationTripCompanionEnabled } from './integrationTripCompanion/feature'
 import type { TripCompanionResult } from './integrationTripCompanion/types'
+import { isIntegrationMapsMobilityEnabled } from './integrationMapsMobility/feature'
+import type { MapsMobilityResult } from './integrationMapsMobility/types'
 import { isConversationIntelligenceEnabled } from './conversationIntelligence/feature'
 import type { ConversationIntelligenceResult } from './conversationIntelligence'
 import { isLlmConversationBrainEnabled } from './llmBrain/feature'
@@ -128,6 +130,7 @@ import {
   loadIntegrationTripOrchestrator,
   loadIntegrationDestinationIntelligence,
   loadIntegrationTripCompanion,
+  loadIntegrationMapsMobility,
   loadConcierge,
   loadConciergeIntegration,
   loadConciergeMeta,
@@ -1018,6 +1021,9 @@ export function createTravelAgentService(
   const isIntegrationTripCompanionOn = (): boolean =>
     isIntegrationTripCompanionEnabled()
 
+  const isIntegrationMapsMobilityOn = (): boolean =>
+    isIntegrationMapsMobilityEnabled()
+
   const isTravelerPersonalizationOn = (): boolean =>
     isTravelerPersonalizationEnabled({ enabled: options.travelerPersonalizationEnabled })
 
@@ -1630,6 +1636,8 @@ export function createTravelAgentService(
       let destinationIntelligenceMeta: AgentProviderMeta['destinationIntelligence'] | undefined
       let tripCompanionResult: TripCompanionResult | null = null
       let tripCompanionMeta: AgentProviderMeta['tripCompanion'] | undefined
+      let mapsMobilityResult: MapsMobilityResult | null = null
+      let mapsMobilityMeta: AgentProviderMeta['mapsMobility'] | undefined
       let clarificationMeta: NonNullable<AgentProviderMeta['clarification']> | undefined
       let rahhalBrainMeta: RahhalBrainMetaSnapshot | undefined
       let travelExecutiveSnapshot: RahhalBrainTurnResult['executive']
@@ -1932,6 +1940,30 @@ export function createTravelAgentService(
             )
           }
         }
+
+        // Integration Sprint 8 — Maps & Live Mobility (spatial awareness).
+        if (isIntegrationMapsMobilityOn() && userText.trim()) {
+          const __mod_mapsMobility = await loadIntegrationMapsMobility()
+          if (
+            __mod_mapsMobility.shouldRunMapsMobility({
+              userText,
+              memory,
+            })
+          ) {
+            const mapsEnriched = await __mod_mapsMobility.enrichWithIntegrationMapsMobility({
+              memory,
+              userText,
+              locale: memory.locale,
+              force: true,
+              deps: { enabled: true },
+            })
+            memory = mapsEnriched.memory
+            mapsMobilityResult = mapsEnriched.mapsMobility
+            mapsMobilityMeta = __mod_mapsMobility.toMapsMobilityMeta(
+              mapsEnriched.mapsMobility,
+            )
+          }
+        }
         memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
       }
 
@@ -2153,12 +2185,15 @@ export function createTravelAgentService(
         const withTripCompanion = tripCompanionMeta
           ? { ...withDestinationIntelligence, tripCompanion: tripCompanionMeta }
           : withDestinationIntelligence
+        const withMapsMobility = mapsMobilityMeta
+          ? { ...withTripCompanion, mapsMobility: mapsMobilityMeta }
+          : withTripCompanion
         const withBooking = bookingIntelligenceResult
           ? {
-            ...withTripCompanion,
+            ...withMapsMobility,
             bookingIntelligence: toMetaBookingIntelligence(bookingIntelligenceResult),
           }
-          : withTripCompanion
+          : withMapsMobility
         const withBudget = budgetIntelligenceResult
           ? { ...withBooking, budgetIntelligence: toMetaBudgetIntelligence(budgetIntelligenceResult) }
           : withBooking
@@ -2268,6 +2303,59 @@ export function createTravelAgentService(
           ...enriched,
           spokenText,
           voicePhase: enriched.voicePhase ?? 'final',
+        }
+      }
+
+      // Integration Sprint 8 — Maps & Live Mobility answers spatial / route questions.
+      if (
+        !isBrainCoreEnabled()
+        && mapsMobilityResult?.enabled
+        && mapsMobilityResult.ok
+        && mapsMobilityResult.intent !== 'unknown'
+      ) {
+        memory = withTripPlan({ ...memory, phase: memory.phase }, memory.tripPlan)
+        const mapsSummary = memory.locale === 'en'
+          ? mapsMobilityResult.consultantSummaryEn
+          : mapsMobilityResult.consultantSummaryAr
+        const facts = buildTravelFacts({
+          memory,
+          objective: 'propose_options',
+          missingSlots: memory.missingFields.map(String),
+          optionHints: [
+            mapsMobilityResult.route
+              ? `Route: ${mapsMobilityResult.route.summaryEn}`
+              : null,
+            mapsMobilityResult.nearby[0]
+              ? `Nearby: ${mapsMobilityResult.nearby[0].place.labelEn}`
+              : null,
+          ].filter(Boolean) as string[],
+          recommendations: [mapsSummary].filter(Boolean),
+          warnings: [],
+        })
+        const spoken = await speakTravelFacts({
+          llms,
+          conversationId: input.conversationId,
+          messages: input.messages,
+          facts,
+          signal: input.signal,
+        })
+        const replyText = mapsSummary || spoken.displayText
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          spokenText: (mapsSummary || spoken.spokenText)?.slice(0, 360),
+          voicePhase: 'final',
+          toolResults: [],
+        }
+        return {
+          reply: replyText,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta: attachTurnMeta(meta, meta.spokenText),
+          toolBatch: null,
         }
       }
 

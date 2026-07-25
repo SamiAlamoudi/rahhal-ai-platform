@@ -445,6 +445,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: integration_trip_companion. Additive under src/lib/agent/integrationTripCompanion. No live maps/GPS. When OFF, planTurn path is unchanged.',
   },
   {
+    id: 'ai.integration_maps_mobility',
+    name: 'Integration Maps & Live Mobility',
+    description:
+      'Integration Sprint 8 — map provider abstraction, geocode/reverse, routes, nearby places, ETA/leave-by, spatial context. Mock provider default; live Google Maps adapter optional and not auto-enabled. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_maps_mobility. Additive under src/lib/agent/integrationMapsMobility. Reuses integrations/providers/googleMaps client when live is explicitly injected. When OFF, planTurn path is unchanged.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:

@@ -81,6 +81,10 @@ export function loadIntegrationTripCompanion() {
   return loadOnce('integrationTripCompanion', () => import('./integrationTripCompanion'))
 }
 
+export function loadIntegrationMapsMobility() {
+  return loadOnce('integrationMapsMobility', () => import('./integrationMapsMobility'))
+}
+
 export function loadTravelerPersonalization() {
   return loadOnce('travelerPersonalization', () => import('./travelerPersonalization'))
 }
