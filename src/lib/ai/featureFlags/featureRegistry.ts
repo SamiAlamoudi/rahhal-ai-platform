@@ -1649,6 +1649,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_preference_extraction. Blueprints only — never parses conversations or persists preferences. No traditional forms.',
   },
+  {
+    id: 'brain.context_engine',
+    name: 'Traveler Context Engine Architecture (Phase 7 Stage 5)',
+    description:
+      'Additive architecture-only Traveler Context Engine: live conversation/trip/session/environment/constraint/budget/destination/timeline/companion/weather/transport/accommodation/activity/visa/goal context, snapshot/confidence/freshness/merge/priorities/validation, output contracts (TravelerContext/ConversationContext/TripContext/SessionContext/ContextSnapshot/ContextConfidence/ContextValidation). Blueprints only — no LLM, Runtime, DB, storage, HTTP, or APIs. Distinct from Memory / brain.context_memory. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.preference_extraction'],
+    notes:
+      'Product alias: brain_context_engine. Blueprints only — never assembles live context or reads Memory stores.',
+  },
 ]
 
 export class FeatureRegistry {

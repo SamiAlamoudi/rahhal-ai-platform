@@ -162,6 +162,7 @@ export type FeatureId =
   | 'brain.loyalty_foundation'
   | 'brain.personalization_engine'
   | 'brain.preference_extraction'
+  | 'brain.context_engine'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'
