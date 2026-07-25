@@ -5,6 +5,7 @@ import { tripPlanFromMeta } from '../../lib/agent/memory'
 import type { TripPlan } from '../../lib/agent/types'
 import { isConversationExperienceEnabled } from '../../lib/chat/conversationExperienceUi'
 import { AiThinkingRail, DynamicResultCards } from '../premium'
+import { progressiveCardLimit } from '../../lib/premiumExperience'
 import MarkdownContent from './MarkdownContent'
 import ItineraryActions from './ItineraryActions'
 import ConversationExperiencePanel from './experience/ConversationExperiencePanel'
@@ -73,8 +74,14 @@ export default function MessageBubble({
         : ''
     return metaSeed || message.content || ''
   }, [message.content, message.providerMeta])
+  const streamingCardLimit = progressiveCardLimit(message.content.length)
   const showResultCards =
-    !isUser && !isStreaming && message.status === 'complete' && message.content.length > 40
+    !isUser
+    && (
+      (isStreaming && streamingCardLimit > 0)
+      || (!isStreaming && message.status === 'complete' && message.content.length > 40)
+    )
+  const cardLimit = isStreaming ? streamingCardLimit : 5
 
   const handleCopy = async () => {
     const ok = await copyTextToClipboard(message.content)
@@ -164,15 +171,31 @@ export default function MessageBubble({
           <>
             {isStreaming ? (
               <div className="space-y-3">
-                <AiThinkingRail active seedText={seedForUi} locale={locale} />
-                <TypingIndicator />
+                {!message.content ? (
+                  <AiThinkingRail active seedText={seedForUi} locale={locale} />
+                ) : null}
+                {message.content ? (
+                  <MarkdownContent content={message.content} />
+                ) : (
+                  <TypingIndicator />
+                )}
+                {message.content ? (
+                  <span
+                    className="inline-block h-3 w-1.5 animate-pulse rounded-sm bg-primary-500 align-middle"
+                    aria-hidden
+                  />
+                ) : null}
               </div>
             ) : (
               <MarkdownContent content={message.content || ''} />
             )}
             {showResultCards ? (
               <div className="mt-3">
-                <DynamicResultCards seedText={seedForUi} locale={locale} limit={4} />
+                <DynamicResultCards
+                  seedText={seedForUi || message.content}
+                  locale={locale}
+                  limit={cardLimit}
+                />
               </div>
             ) : null}
             {!isStreaming && onSmartAction && (

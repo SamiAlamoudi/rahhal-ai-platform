@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import type { VoiceInputMode, VoiceLocale, VoiceSessionStatus } from '../../lib/chat/voice/voiceTypes'
 import { VOICE_LOCALES } from '../../lib/chat/voice/voiceTypes'
-import { createRealtimeVoiceAdapter } from '../../lib/premiumExperience'
+import { createVoiceAdapter } from '../../lib/premiumExperience'
 import VoiceWaveform from './VoiceWaveform'
 
 interface VoiceComposerProps {
@@ -65,18 +65,18 @@ export default function VoiceComposer({
   const holdRef = useRef(false)
   const [smoothLevel, setSmoothLevel] = useState(0)
   const showMicHelp = !!permissionError || permissionState === 'denied' || permissionState === 'unsupported'
-  const realtime = useMemo(() => createRealtimeVoiceAdapter(), [])
+  const voiceAdapter = useMemo(() => createVoiceAdapter(), [])
 
   useEffect(() => {
     setSmoothLevel((prev) => prev * 0.55 + level * 0.45)
   }, [level])
 
   useEffect(() => {
-    void realtime.connect()
+    void voiceAdapter.connect()
     return () => {
-      void realtime.disconnect()
+      void voiceAdapter.disconnect()
     }
-  }, [realtime])
+  }, [voiceAdapter])
 
   useEffect(() => {
     if (mode !== 'push_to_talk') return
@@ -108,13 +108,13 @@ export default function VoiceComposer({
     <div
       className="space-y-3 rounded-[1.75rem] border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/80 p-4 shadow-lg shadow-slate-900/5 sm:p-5"
       data-testid="premium-voice-composer"
-      data-realtime-provider={realtime.id}
+      data-voice-adapter={voiceAdapter.id}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-bold text-slate-900">المحادثة الصوتية</p>
           <p className="text-[11px] text-slate-400">
-            {realtime.label} · جاهز لـ OpenAI Realtime / Gemini Live
+            {voiceAdapter.label} · Mock · جاهز للمزوّدين لاحقاً
           </p>
         </div>
         <span
@@ -274,7 +274,7 @@ export default function VoiceComposer({
           <button
             type="button"
             onClick={() => {
-              realtime.interrupt()
+              voiceAdapter.interrupt()
               onInterrupt()
             }}
             aria-label="مقاطعة الرد الصوتي"

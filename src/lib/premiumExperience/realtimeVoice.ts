@@ -1,16 +1,26 @@
 /**
- * Realtime voice adapter seam — mock when OpenAI Realtime / Gemini Live keys absent.
- * Presentation + session state only; no network calls.
+ * Phase 2 realtime seam — now backed by Phase 3 VoiceAdapter (mock-first).
+ * Kept for backward compatibility with existing imports/tests.
  */
 
-export type RealtimeVoiceProviderId = 'mock' | 'openai_realtime' | 'gemini_live'
+import {
+  createMockVoiceAdapter,
+  createVoiceAdapter,
+  resolveVoiceAdapterProviderId,
+  type VoiceAdapterProviderId,
+  type VoiceUiPanelState,
+} from './voiceAdapter'
 
-export type RealtimeVoiceUiState =
-  | 'idle'
-  | 'listening'
-  | 'thinking'
-  | 'speaking'
-  | 'interrupted'
+/** @deprecated Prefer VoiceAdapterProviderId — kept for Phase 2 tests. */
+export type RealtimeVoiceProviderId = Extract<
+  VoiceAdapterProviderId,
+  'mock' | 'openai_realtime' | 'gemini_live'
+>
+
+export type RealtimeVoiceUiState = Extract<
+  VoiceUiPanelState,
+  'idle' | 'listening' | 'thinking' | 'speaking' | 'interrupted'
+>
 
 export interface RealtimeVoiceAdapter {
   id: RealtimeVoiceProviderId
@@ -20,60 +30,41 @@ export interface RealtimeVoiceAdapter {
   interrupt: () => void
 }
 
-function hasOpenAiRealtimeKey(): boolean {
-  try {
-    return Boolean(import.meta.env.VITE_OPENAI_REALTIME_KEY)
-  } catch {
-    return false
-  }
-}
-
-function hasGeminiLiveKey(): boolean {
-  try {
-    return Boolean(import.meta.env.VITE_GEMINI_LIVE_KEY)
-  } catch {
-    return false
-  }
-}
-
 export function resolveRealtimeVoiceProviderId(): RealtimeVoiceProviderId {
-  if (hasOpenAiRealtimeKey()) return 'openai_realtime'
-  if (hasGeminiLiveKey()) return 'gemini_live'
+  const id = resolveVoiceAdapterProviderId()
+  if (id === 'openai_realtime' || id === 'gemini_live' || id === 'mock') return id
   return 'mock'
+}
+
+export function createMockRealtimeVoiceAdapter(): RealtimeVoiceAdapter {
+  const adapter = createMockVoiceAdapter()
+  return {
+    id: 'mock',
+    label: adapter.label,
+    connect: async () => {
+      const r = await adapter.connect()
+      return { connected: r.connected, mock: r.mock }
+    },
+    disconnect: () => adapter.disconnect(),
+    interrupt: () => adapter.interrupt(),
+  }
 }
 
 export function createRealtimeVoiceAdapter(
   preferred?: RealtimeVoiceProviderId,
 ): RealtimeVoiceAdapter {
-  const id = preferred ?? resolveRealtimeVoiceProviderId()
-  if (id === 'openai_realtime' && !hasOpenAiRealtimeKey()) {
-    return createMockRealtimeVoiceAdapter()
-  }
-  if (id === 'gemini_live' && !hasGeminiLiveKey()) {
-    return createMockRealtimeVoiceAdapter()
-  }
-  if (id === 'mock') return createMockRealtimeVoiceAdapter()
-
-  // Keys present but live wiring deferred — safe mock with labeled provider.
+  const adapter = createVoiceAdapter(preferred ?? resolveRealtimeVoiceProviderId())
+  const id = (adapter.id === 'openai_realtime' || adapter.id === 'gemini_live'
+    ? adapter.id
+    : 'mock') as RealtimeVoiceProviderId
   return {
     id,
-    label: id === 'openai_realtime' ? 'OpenAI Realtime (prepared)' : 'Gemini Live (prepared)',
-    async connect() {
-      return { connected: false, mock: true }
+    label: adapter.label,
+    connect: async () => {
+      const r = await adapter.connect()
+      return { connected: r.connected, mock: true }
     },
-    async disconnect() {},
-    interrupt() {},
-  }
-}
-
-export function createMockRealtimeVoiceAdapter(): RealtimeVoiceAdapter {
-  return {
-    id: 'mock',
-    label: 'Mock realtime voice',
-    async connect() {
-      return { connected: true, mock: true }
-    },
-    async disconnect() {},
-    interrupt() {},
+    disconnect: () => adapter.disconnect(),
+    interrupt: () => adapter.interrupt(),
   }
 }

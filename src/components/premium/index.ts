@@ -1,3 +1,5 @@
 export { AiThinkingRail } from './AiThinkingRail'
 export { DynamicResultCards } from './DynamicResultCards'
 export { ChatWelcome } from './ChatWelcome'
+export { VoicePanel } from './VoicePanel'
+export type { VoicePanelProps } from './VoicePanel'

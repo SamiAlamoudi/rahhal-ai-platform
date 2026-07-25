@@ -11,6 +11,8 @@ export type ResultCardKind =
   | 'transport'
   | 'weather'
   | 'budget'
+  | 'visa'
+  | 'timeline'
 
 export interface DynamicResultCard {
   id: string
@@ -91,6 +93,28 @@ const DEMO_CARDS: DynamicResultCard[] = [
     metaEn: 'Flexible booking',
     accent: 'orange',
   },
+  {
+    id: 'visa-demo',
+    kind: 'visa',
+    titleAr: 'متطلبات التأشيرة',
+    titleEn: 'Visa requirements',
+    subtitleAr: 'تحقق سريع للمسافرين السعوديين',
+    subtitleEn: 'Quick check for Saudi travelers',
+    metaAr: 'إرشاد فقط',
+    metaEn: 'Guidance only',
+    accent: 'sky',
+  },
+  {
+    id: 'timeline-demo',
+    kind: 'timeline',
+    titleAr: 'خط زمني للرحلة',
+    titleEn: 'Trip timeline',
+    subtitleAr: 'يوم الوصول → الاستكشاف → المغادرة',
+    subtitleEn: 'Arrival → explore → departure',
+    metaAr: 'مسودة',
+    metaEn: 'Draft',
+    accent: 'teal',
+  },
 ]
 
 /** Infer demo cards from conversation text for progressive UI (no APIs). */
@@ -105,6 +129,8 @@ export function buildDynamicResultCards(seedText: string, limit = 4): DynamicRes
   if (/activity|نشاط|تجربة|tour/.test(text)) kinds.add('activity')
   if (/map|خريطة|location/.test(text)) kinds.add('map')
   if (/transport|مواصلات|taxi|train/.test(text)) kinds.add('transport')
+  if (/visa|تأشير|تاشير/.test(text)) kinds.add('visa')
+  if (/timeline|جدول|itinerary|خط.?زمني|أيام|days/.test(text)) kinds.add('timeline')
 
   if (kinds.size === 0) {
     kinds.add('flight')
@@ -140,6 +166,8 @@ export function resultCardKindLabel(kind: ResultCardKind, locale: 'ar' | 'en'): 
     transport: { ar: 'مواصلات', en: 'Transport' },
     weather: { ar: 'طقس', en: 'Weather' },
     budget: { ar: 'ميزانية', en: 'Budget' },
+    visa: { ar: 'تأشيرة', en: 'Visa' },
+    timeline: { ar: 'خط زمني', en: 'Timeline' },
   }
   return locale === 'ar' ? map[kind].ar : map[kind].en
 }

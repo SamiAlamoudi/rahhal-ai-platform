@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
@@ -6,6 +6,10 @@ import VoiceComposer from '../components/chat/VoiceComposer'
 import LiveNotificationsBanner from '../components/chat/experience/LiveNotificationsBanner'
 import VirtualizedMessageList from '../components/chat/experience/VirtualizedMessageList'
 import { ChatWelcome } from '../components/premium'
+
+const VoicePanel = lazy(() =>
+  import('../components/premium/VoicePanel').then((m) => ({ default: m.VoicePanel })),
+)
 import { travelAgentService } from '../lib/agent/travelAgentService'
 import { detectAgentLocale } from '../lib/agent/locale'
 import type { TripPlan } from '../lib/agent/types'
@@ -92,6 +96,7 @@ function LegacyChatPage() {
   const [voiceLocale, setVoiceLocale] = useState<VoiceLocale>('ar')
   const [partialTranscript, setPartialTranscript] = useState('')
   const [voiceLevel, setVoiceLevel] = useState(0)
+  const [voiceMuted, setVoiceMuted] = useState(false)
   const [micError, setMicError] = useState<string | null>(null)
   const [permissionState, setPermissionState] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null)
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine)
@@ -418,6 +423,27 @@ function LegacyChatPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [mobileSidebarOpen])
+
+  // Phase 3 — Esc stops speaking / cancels in-flight voice or streaming reply.
+  const voiceBusyRef = useRef(false)
+  const isStreamingRef = useRef(false)
+  voiceBusyRef.current = voiceBusy
+  isStreamingRef.current = isStreaming
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return
+      }
+      if (voiceBusyRef.current || isStreamingRef.current) {
+        e.preventDefault()
+        stopGeneration()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const handleCreate = async () => {
     setActionError(null)
@@ -1044,7 +1070,9 @@ function LegacyChatPage() {
           {activeId && (
             <>
               <div
-                className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"
+                className={`min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 ${
+                  composerMode === 'voice' ? 'pb-56' : ''
+                }`}
                 onScroll={(e) => {
                   const el = e.currentTarget
                   const distance = el.scrollHeight - el.scrollTop - el.clientHeight
@@ -1107,10 +1135,35 @@ function LegacyChatPage() {
                 <div ref={bottomRef} />
               </div>
 
-              <div className="border-t border-slate-100/80 bg-white/95 px-3 py-3 backdrop-blur-xl sm:px-6">
+              {composerMode === 'voice' && activeId ? (
+                <Suspense fallback={null}>
+                  <VoicePanel
+                    status={voiceStatus}
+                    level={voiceLevel}
+                    partialTranscript={partialTranscript}
+                    locale={voiceLocale === 'en' ? 'en' : 'ar'}
+                    muted={voiceMuted}
+                    online={online}
+                    visible
+                    onInterrupt={stopGeneration}
+                    onStopSpeaking={stopGeneration}
+                    onRestartListening={() => {
+                      if (voiceMode === 'hands_free') void handleToggleHandsFree()
+                      else void handlePushStart()
+                    }}
+                    onToggleMute={() => setVoiceMuted((v) => !v)}
+                  />
+                </Suspense>
+              ) : null}
+
+              <div
+                className={`border-t border-slate-100/80 bg-white/95 px-3 py-3 backdrop-blur-xl sm:px-6 ${
+                  composerMode === 'voice' ? 'pb-4' : ''
+                }`}
+              >
                 {composerMode === 'voice' ? (
                   <VoiceComposer
-                    enabled={!!activeId && !isStreaming}
+                    enabled={!!activeId && !isStreaming && !voiceMuted}
                     status={voiceStatus}
                     mode={voiceMode}
                     locale={voiceLocale}
