@@ -1627,6 +1627,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_loyalty_foundation. Blueprints only — never calculates rewards or processes payments. Does not replace brain.loyalty_platform.',
   },
+  {
+    id: 'brain.personalization_engine',
+    name: 'AI Personalization Engine Architecture (Phase 7 Stage 3)',
+    description:
+      'Additive architecture-only Personalization Engine: preference/behavior learning, pattern/intent, segments/personas, awareness models, favorite rankings, recommendation scoring/feedback, timeline/audit, destination/hotel/activity/restaurant/transport/tone/offer recommendation contracts. Blueprints only — no LLM, recommendation execution, DB, Runtime, HTTP, or APIs. Distinct from ai.personalization / ai.recommendation_engine. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.loyalty_foundation'],
+    notes:
+      'Product alias: brain_personalization_engine. Blueprints only — never learns, scores, or recommends via models/APIs.',
+  },
 ]
 
 export class FeatureRegistry {
