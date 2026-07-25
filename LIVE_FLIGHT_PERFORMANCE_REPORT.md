@@ -1,6 +1,7 @@
 # Live Flight Search — Performance Report (Sprint 2)
 
 **Branch:** `cursor/live-flight-search-7518`  
+**Draft PR:** [#267](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/267)  
 **Generated:** 2026-07-25  
 
 ---

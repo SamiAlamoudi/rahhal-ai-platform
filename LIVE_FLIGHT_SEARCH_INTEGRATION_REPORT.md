@@ -1,6 +1,7 @@
 # Live Flight Search — Integration Sprint 2 Validation Report
 
 **Branch:** `cursor/live-flight-search-7518`  
+**Draft PR:** [#267](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/267)  
 **Continues from:** Draft PR [#266](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/266) (OpenAI Realtime Voice)  
 **Generated:** 2026-07-25  
 **Constraints:** Additive · Feature flag OFF by default · No UI redesign · No architecture rewrite · **No merge**
