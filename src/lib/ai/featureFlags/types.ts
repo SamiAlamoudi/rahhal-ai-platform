@@ -161,6 +161,7 @@ export type FeatureId =
   | 'brain.traveler_profile'
   | 'brain.loyalty_foundation'
   | 'brain.personalization_engine'
+  | 'brain.preference_extraction'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

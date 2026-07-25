@@ -1638,6 +1638,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_personalization_engine. Blueprints only — never learns, scores, or recommends via models/APIs.',
   },
+  {
+    id: 'brain.preference_extraction',
+    name: 'AI Smart Preference Extraction Engine Architecture (Phase 7 Stage 4)',
+    description:
+      'Additive architecture-only Preference Extraction Engine: conversation parser, implicit/explicit detectors, confidence/conflict/freshness, timeline/revision, merge/validation/weighting/expiration, category preferences, output contracts (ExtractedPreference/Candidate/Evidence/Confidence/Validation/Update). Blueprints only — no LLM, DB, storage, Runtime, recommendation execution, HTTP, or APIs. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.personalization_engine'],
+    notes:
+      'Product alias: brain_preference_extraction. Blueprints only — never parses conversations or persists preferences. No traditional forms.',
+  },
 ]
 
 export class FeatureRegistry {
