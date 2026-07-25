@@ -39,6 +39,9 @@ export interface BuildPreferenceExtractionBlueprintOptions {
 export function buildPreferenceExtractionBlueprint(
   options: BuildPreferenceExtractionBlueprintOptions = {},
 ): PreferenceExtractionBlueprint {
+  void options.sessionId
+  void options.locale
+
   return {
     version: '7.4.0-preference-extraction',
     featureId: 'brain.preference_extraction',
