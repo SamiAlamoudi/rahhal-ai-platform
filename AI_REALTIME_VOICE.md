@@ -15,7 +15,7 @@ Default execution is **Mock** (development). Production live providers require e
 |------|---------|-------|
 | `ai.realtime_voice` | **OFF** | Production disabled |
 | Dev opt-in | `VITE_REALTIME_VOICE_DEV=true` (DEV only) | Enables integration without flipping registry |
-| Live sockets | `VITE_VOICE_LIVE_ALLOW=true` + provider key | Required for any real network provider |
+| Live sockets | `VITE_VOICE_LIVE_ALLOW=true` + provider opt-in | OpenAI: `VITE_OPENAI_REALTIME_ENABLED` (no browser key). Other providers may still require `VITE_*` keys. |
 
 Distinct from frozen Sprint 18: `ui.voice_conversation`, `voice.realtime`, `voice.provider`, `voice.mock`.
 
@@ -38,7 +38,7 @@ Distinct from frozen Sprint 18: `ui.voice_conversation`, `voice.realtime`, `voic
 
 - `MockProvider` — default, duplex simulation  
 - `WebSpeechProvider` — browser fallback (no cloud keys)  
-- `OpenAIRealtimeProvider` — prepared; no sockets unless live allow  
+- `OpenAIRealtimeProvider` — production wiring via ephemeral `/api/openai-realtime-session`; no sockets unless live allow + client opt-in  
 - `GeminiLiveProvider` — prepared  
 - `AzureRealtimeProvider` — prepared  
 
