@@ -138,5 +138,11 @@ Decision explanations are `debugOnly: true` — **never production UI**.
 
 ## Test report
 
-Suite: `src/lib/__tests__/autonomousOrchestrator.phase6.test.ts`  
-Validate: `npm run lint`, `npm run typecheck`, `npm run arch:circular`, `npm run test:run`.
+Suite: `src/lib/__tests__/autonomousOrchestrator.phase6.test.ts` (14/14)
+
+| Check | Result |
+|-------|--------|
+| `npm run lint` | pass |
+| `npm run typecheck` | pass |
+| `npm run arch:circular` | pass |
+| `npm run test:run` | **228 files / 2664 tests passed** |
