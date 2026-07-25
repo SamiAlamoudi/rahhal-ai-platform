@@ -1,7 +1,7 @@
 # End-to-End Journey — Complete Examples (Sprint 12)
 
 **Branch:** `cursor/e2e-journey-integration-7518`  
-**Draft PR:** _(pending)_  
+**Draft PR:** [#276](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/276)  
 **Flag:** `ai.integration_journey` (default OFF)
 
 ---

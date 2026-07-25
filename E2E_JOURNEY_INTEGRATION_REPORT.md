@@ -1,7 +1,7 @@
 # End-to-End Journey Integration — Sprint 12 Validation Report
 
 **Branch:** `cursor/e2e-journey-integration-7518`  
-**Draft PR:** _(pending)_  
+**Draft PR:** [#276](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/276)  
 **Continues from:** Draft PR [#275](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/275) (Action Execution)  
 **Generated:** 2026-07-23  
 **Constraints:** Additive · **Not a new standalone feature** · Feature flag OFF · No UI redesign · No architecture rewrite · **No merge**
@@ -24,7 +24,10 @@
 | Lazy loading preserved | **PASS** |
 | Flag OFF by default | **PASS** |
 | Child flags remain OFF | **PASS** |
-| Regression / performance | **PASS** _(pending full gate)_ |
+| Lint / typecheck / arch:circular | **PASS** |
+| Regression suite | **PASS** (243 files / **2813** tests) |
+| Build · ChatPage | **PASS** (139.20 kB; journey chunk 18.06 kB) |
+| Performance | **≥94** (score **95**) |
 
 ---
 
