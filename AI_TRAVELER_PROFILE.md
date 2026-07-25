@@ -1,27 +1,37 @@
-# Traveler Profile Center — Phase 5 Stage 4
+# Traveler Profile Foundation — Phase 7 Stage 1
 
-**Status:** Additive presentation · Flag `ui.traveler_profile` **default OFF**  
-**Depends on:** `ui.application_shell`  
-**Freeze:** Production · Auth · AI · Runtime · Booking · Maps · Weather · Firebase · Notifications · payments · storage · prior PRs.
+**Status:** Architecture only · Flag `brain.traveler_profile` **default OFF**  
+**Depends on:** `brain.runtime_orchestrator`  
+**Distinct from:** UI flag `ui.traveler_profile` (presentation only)  
+**Freeze:** Database · Auth · Storage · Passport OCR · LLM · Runtime · HTTP · Streaming · APIs · Business logic · prior PRs.
 
-Premium Traveler Profile Center — **presentation and placeholders only**.
+Single source of truth (architecture) for every traveler — identity, preferences, documents metadata, consent, timeline, and AI profile capability contracts.  
+**Blueprints only. No implementation.**
 
-## Sections
+## Package
 
-Profile Overview · Personal Information · Travel Preferences · Languages · Currencies · Time Zone · Travel Documents · Multiple Passports · Visa / Boarding Pass placeholders · Emergency Contacts · Family Members · Frequent Flyer / Hotel Loyalty · Preferred Airlines / Hotels · Preferred Seat · Meal Preferences · Payment Methods placeholder · Saved Travelers · Privacy / Notification Settings · Security Center · Profile Completion
+`src/lib/orchestration/travelerProfileFoundation/`
 
-## Visuals
+## Created (contracts)
 
-Profile cards · Progress ring · Document cards · Passport cards · Loyalty cards · Preference chips · Security status · Settings sections · Completion timeline
+Traveler Profile · Identity · Preferences · Travel Style/Interests · Budget/Accommodation/Transportation/Food/Accessibility/Language · Favorites (destinations/airlines/hotels/activities) · Family · Companions · Passport/Visa metadata · Documents Registry · Emergency Contacts · Notifications · Privacy · Consent · Timeline · Audit · Versioning · Status · Validation
+
+## AI profile capabilities
+
+Profile Evidence Builder · Traveler Memory · Context Enrichment · Preference Learning · Travel Taste Analyzer
 
 ```mermaid
 flowchart TD
-  Flag{ui.traveler_profile}
-  Flag -->|OFF| Null[Not rendered]
-  Flag -->|ON demo/tests| TP[TravelerProfileCenter]
-  TP --> Profile[Overview / Personal / Preferences]
-  TP --> Docs[Documents / Loyalty / Settings]
-  TP -.->|never| Engines[Auth / AI / Booking / Firebase / Payments]
+  Flag{brain.traveler_profile}
+  Flag -->|OFF| Null[tryBuild → null]
+  Flag -->|ON architecture| BP[TravelerProfileBlueprint]
+  BP --> Core[Identity / Preferences / Favorites]
+  BP --> Docs[Documents / Consent / Privacy]
+  BP --> AI[Evidence / Memory / Learning / Taste]
+  BP -.->|never| DB[Database / Auth / Storage]
+  BP -.->|never| LLM[LLM Calls / Runtime]
 ```
 
-Force-render: `<TravelerProfileCenter enabled />`.
+Force blueprint: `tryBuildTravelerProfileBlueprint({ enabled: true })`.
+
+See also: `AI_PROFILE_ARCHITECTURE.md`, `AI_PROFILE_SCHEMA.md`, `AI_PROFILE_TIMELINE.md`, `AI_PROFILE_VALIDATION.md`, `AI_EVOLUTION_PHASE7_STAGE1.md`.

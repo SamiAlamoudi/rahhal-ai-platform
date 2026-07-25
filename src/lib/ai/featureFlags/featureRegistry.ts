@@ -1605,6 +1605,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_runtime_orchestrator. Blueprints only — never starts a live runtime or coordinates engines in production.',
   },
+  {
+    id: 'brain.traveler_profile',
+    name: 'Traveler Profile Foundation Architecture (Phase 7 Stage 1)',
+    description:
+      'Additive architecture-only Traveler Profile Foundation: identity, preferences, favorites, family/companions, document metadata registry, consent/privacy, timeline/versioning/validation, AI evidence/memory/enrichment/learning/taste contracts. Blueprints only — no DB, auth, storage, OCR, LLM, Runtime, HTTP, or APIs. Distinct from ui.traveler_profile. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.runtime_orchestrator'],
+    notes:
+      'Product alias: brain_traveler_profile. Blueprints only — never persists profiles or calls LLMs. UI presentation remains ui.traveler_profile.',
+  },
 ]
 
 export class FeatureRegistry {
