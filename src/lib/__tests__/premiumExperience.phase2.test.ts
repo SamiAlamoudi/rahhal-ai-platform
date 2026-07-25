@@ -27,10 +27,12 @@ describe('Recovery Phase 2 — premium experience', () => {
   })
 
   it('builds dynamic result cards from seed text', () => {
-    const cards = buildDynamicResultCards('hotel weather budget flight', 4)
+    const cards = buildDynamicResultCards('hotel weather budget flight dubai', 4)
     expect(cards.length).toBeGreaterThan(0)
     expect(cards.some((c) => c.kind === 'flight')).toBe(true)
     expect(cards.some((c) => c.kind === 'hotel')).toBe(true)
+    const flight = cards.find((c) => c.kind === 'flight')
+    expect(flight?.titleEn).toMatch(/DXB|Dubai/)
   })
 
   it('uses mock realtime voice when keys are absent', () => {
