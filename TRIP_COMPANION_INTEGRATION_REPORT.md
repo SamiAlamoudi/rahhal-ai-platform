@@ -1,7 +1,7 @@
 # Live Trip Companion — Integration Sprint 7 Validation Report
 
 **Branch:** `cursor/live-trip-companion-7518`  
-**Draft PR:** _(pending)_  
+**Draft PR:** [#271](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/271)  
 **Continues from:** Draft PR [#270](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/270) (Destination Intelligence)  
 **Generated:** 2026-07-25  
 **Constraints:** Additive · Feature flag OFF by default · No UI redesign · No architecture rewrite · **No merge**
@@ -24,7 +24,7 @@
 | Emergency framework (no live integrations) | **PASS** |
 | Flag OFF by default | **PASS** |
 | planTurn ownership preserved | **PASS** (soft enrich + deferred loader) |
-| Regression suite | **PASS** _(pending full run)_ |
+| Regression suite | **PASS** (238 files / **2755** tests) |
 
 ---
 
@@ -57,6 +57,16 @@ Traveler in-trip ask / disruption
 ```
 
 When flag OFF: zero behavior change on `/chat`.
+
+---
+
+## Staged enablement
+
+```bash
+# FeatureRegistry
+ai.integration_trip_companion=ON
+# No live maps / GPS / emergency APIs required
+```
 
 ---
 

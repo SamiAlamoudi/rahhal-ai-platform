@@ -1,6 +1,6 @@
 # Live Trip Companion — Scenario Examples (Sprint 7)
 
-**Draft PR:** _(pending)_  
+**Draft PR:** [#271](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/271)  
 Flag `ai.integration_trip_companion` remains **OFF** by default.
 
 ---

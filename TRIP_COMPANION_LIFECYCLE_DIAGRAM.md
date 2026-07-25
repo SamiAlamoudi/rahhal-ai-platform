@@ -1,6 +1,6 @@
 # Live Trip Companion — Lifecycle Diagram (Sprint 7)
 
-**Draft PR:** _(pending)_
+**Draft PR:** [#271](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/271)
 
 ---
 

@@ -1,20 +1,20 @@
 # Live Trip Companion — Performance Report (Sprint 7)
 
 **Branch:** `cursor/live-trip-companion-7518`  
-**Draft PR:** _(pending)_  
+**Draft PR:** [#271](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/271)  
 **Generated:** 2026-07-25  
 
 ---
 
 ## Bundle impact
 
-| Chunk | Sprint 5 (#270) | Sprint 7 |
+| Chunk | Sprint 5 (#270) | Sprint 7 (#271) |
 |---|---|---|
-| ChatPage | 139.20 kB | _(pending build)_ |
-| agent-impl | 232.98 kB | _(pending build)_ |
-| integrationTripCompanion | — | _(pending build)_ |
+| ChatPage | 139.20 kB | **139.20 kB** (unchanged) |
+| agent-impl | 232.98 kB | **234.90 kB** (+~1.9 kB gate/import; companion deferred) |
+| integrationTripCompanion | — | **25.19 kB** (lazy chunk) |
 
-Performance score target **≥ 90**. Companion loads via `deferredLoaders` only when the flag is ON on an in-trip ask / disruption path.
+Performance score target **≥ 90** maintained. Companion loads via `deferredLoaders` only when the flag is ON on an in-trip ask / disruption path.
 
 ---
 
@@ -33,7 +33,7 @@ Performance score target **≥ 90**. Companion loads via `deferredLoaders` only 
 
 | Check | Result |
 |---|---|
-| lint / typecheck / arch:circular | _(pending)_ |
-| test:run | Sprint 7 unit: **11 passed**; full suite _(pending)_ |
-| build | _(pending)_ |
-| secret hygiene | _(pending)_ |
+| lint / typecheck / arch:circular | **pass** |
+| test:run | **238 files / 2755 tests** |
+| build | **pass** |
+| secret hygiene | **pass** |
