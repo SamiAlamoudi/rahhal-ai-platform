@@ -1,6 +1,8 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { motion } from 'framer-motion'
 import type { HomeLocale } from '../../lib/aiHome'
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition'
+import { consultantLine } from '../../lib/premiumExperience'
 import { HomeButton } from './HomeButton'
 
 export interface ConversationComposerProps {
@@ -30,7 +32,6 @@ export function ConversationComposer({
     lang: locale === 'ar' ? 'ar-SA' : 'en-US',
     silenceMs: 3000,
     onResult: (transcript) => {
-      // Insert into composer — never auto-send.
       const current = valueRef.current.trim()
       onChange(current ? `${current} ${transcript}` : transcript)
     },
@@ -60,7 +61,7 @@ export function ConversationComposer({
       return
     }
     if (!speech.isSupported) {
-      speech.start() // sets unsupported error state
+      speech.start()
       return
     }
     speech.clearError()
@@ -81,13 +82,16 @@ export function ConversationComposer({
     : t('إدخال صوتي', 'Voice input')
 
   return (
-    <form
+    <motion.form
       onSubmit={onForm}
       data-testid="ai-home-composer"
-      className={`rounded-3xl border bg-white p-3 shadow-xl shadow-slate-900/8 transition-all duration-200 sm:p-4 ${
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay: 0.15, ease: 'easeOut' }}
+      className={`rounded-[1.75rem] border bg-white/95 p-3 shadow-2xl shadow-slate-950/15 backdrop-blur-xl transition-all duration-200 sm:p-4 ${
         focused || listening
-          ? 'border-primary-400 ring-2 ring-primary-500/15'
-          : 'border-slate-100'
+          ? 'border-primary-400 ring-4 ring-primary-500/15'
+          : 'border-white/80'
       }`}
     >
       <label className="sr-only" htmlFor="ai-home-input">
@@ -100,16 +104,16 @@ export function ConversationComposer({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onKeyDown={onKeyDown}
-        rows={3}
+        rows={2}
         disabled={disabled}
         placeholder={t(
-          'مثال: أريد السفر إلى طوكيو… أو ميزانيتي ٥٠٠٠ ر.س',
-          'e.g. I want to travel to Tokyo… or I have 5000 SAR',
+          'مثال: أريد السفر إلى طوكيو لمدة أسبوع…',
+          'e.g. I want a week in Tokyo…',
         )}
-        className="w-full resize-none bg-transparent px-2 py-2 text-sm leading-relaxed text-slate-800 placeholder:text-slate-400 focus:outline-none sm:text-base"
+        className="w-full resize-none bg-transparent px-2 py-2 text-base leading-relaxed text-slate-800 placeholder:text-slate-400 focus:outline-none sm:text-[1.05rem]"
       />
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
             onClick={onMicClick}
@@ -119,25 +123,20 @@ export function ConversationComposer({
             aria-label={micLabel}
             aria-pressed={listening}
             title={micLabel}
-            className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors disabled:opacity-40 ${
+            className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:opacity-40 ${
               listening
-                ? 'voice-mic-pulse border-rose-300 bg-rose-50 text-rose-600'
-                : 'border-slate-200 text-slate-500 hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700'
+                ? 'voice-mic-pulse scale-105 bg-rose-500 text-white shadow-lg shadow-rose-500/35'
+                : 'bg-slate-900 text-white shadow-lg shadow-slate-900/25 hover:scale-[1.03] hover:bg-slate-800'
             }`}
           >
             {listening ? (
-              <svg
-                viewBox="0 0 24 24"
-                className="h-5 w-5 animate-pulse"
-                fill="currentColor"
-                aria-hidden="true"
-              >
+              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor" aria-hidden="true">
                 <rect x="6" y="6" width="12" height="12" rx="2" />
               </svg>
             ) : (
               <svg
                 viewBox="0 0 24 24"
-                className="h-5 w-5"
+                className="h-6 w-6"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -158,7 +157,7 @@ export function ConversationComposer({
           </button>
           {listening ? (
             <span
-              className="flex items-center gap-1.5 text-xs font-medium text-rose-600"
+              className="flex items-center gap-1.5 text-sm font-medium text-rose-600"
               role="status"
               aria-live="polite"
               data-testid="ai-home-voice-listening"
@@ -167,22 +166,27 @@ export function ConversationComposer({
                 className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500"
                 aria-hidden="true"
               />
-              {t('جاري الاستماع…', 'Listening...')}
+              {consultantLine(locale, 'listening')}
               {speech.interimTranscript ? (
-                <span className="truncate text-slate-500 max-w-[10rem] sm:max-w-[16rem]">
+                <span className="max-w-[10rem] truncate text-slate-500 sm:max-w-[16rem]">
                   {speech.interimTranscript}
                 </span>
               ) : null}
             </span>
-          ) : null}
+          ) : (
+            <span className="hidden text-xs text-slate-400 sm:inline">
+              {t('تحدث أو اكتب — رحّال يستمع', 'Speak or type — Rahhal is ready')}
+            </span>
+          )}
         </div>
         <HomeButton
           type="submit"
           size="md"
           disabled={disabled || !value.trim()}
           data-testid="ai-home-send"
+          className="min-h-11 rounded-2xl px-5"
         >
-          {t('ابدأ المحادثة', 'Start conversation')}
+          {consultantLine(locale, 'startChat')}
           <svg
             viewBox="0 0 24 24"
             className="h-4 w-4 rtl:rotate-180"
@@ -226,6 +230,6 @@ export function ConversationComposer({
                     )}
         </p>
       ) : null}
-    </form>
+    </motion.form>
   )
 }

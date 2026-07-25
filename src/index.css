@@ -105,11 +105,29 @@ html {
 
 body {
   margin: 0;
-  background-color: #f7f9fc;
+  background-color: #f4f7fb;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 :root {
   color-scheme: light;
+  --rahhal-surface: #ffffff;
+  --rahhal-ink: #0f172a;
+  --rahhal-muted: #64748b;
+  --rahhal-glow: rgba(28, 128, 240, 0.18);
+  --rahhal-radius-xl: 1.75rem;
+}
+
+/* Recovery Phase 2 — premium chat surfaces */
+.premium-thinking-rail {
+  margin-block: 0.25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-mic-pulse {
+    animation: none;
+  }
 }
 
 /* Sprint 42 — conversation experience themes */

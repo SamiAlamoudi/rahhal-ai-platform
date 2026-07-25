@@ -24,7 +24,8 @@ import {
 } from '../components/home'
 
 /**
- * Sprint 16 — conversation-first AI Home (flag-gated from Home.tsx).
+ * Recovery Phase 2 — premium conversation-first home.
+ * Seeds `/chat` (Recovery Phase 1 spine unchanged).
  */
 export default function AiHomeExperience() {
   const navigate = useNavigate()
@@ -95,7 +96,6 @@ export default function AiHomeExperience() {
     (text: string) => {
       const trimmed = text.trim()
       if (!trimmed) return
-      // Recovery Phase 1 — ONE Chat UI: always seed `/chat` (never travel-conversation).
       if (conversationHome) {
         const entry = conversationEntryPath(trimmed)
         navigate(entry.pathname, { state: entry.state })
@@ -131,51 +131,31 @@ export default function AiHomeExperience() {
   )
 
   return (
-    <div
-      className="min-h-screen bg-gradient-to-b from-slate-950/[0.03] via-sky-50/40 to-white"
-      data-testid="ai-home"
-    >
-      <header className="sticky top-0 z-30 border-b border-slate-100/80 bg-white/80 backdrop-blur-md">
+    <div className="min-h-screen bg-slate-50" data-testid="ai-home">
+      <header className="absolute inset-x-0 top-0 z-30">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-5">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm shadow-primary-600/30">
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden>
-                <path d="M12 2l2.5 6.5L21 9l-5 4.5L17.5 21 12 17l-5.5 4L8 13.5 3 9l6.5-.5z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm font-bold leading-tight text-slate-900">رحّال</p>
-              <p className="text-[10px] leading-tight text-slate-400">
-                {t('مستشار السفر الذكي', 'AI travel concierge')}
-              </p>
-            </div>
-          </div>
-          <nav className="flex items-center gap-0.5" aria-label={t('التنقل', 'Navigation')}>
+          <p className="sr-only">رحّال</p>
+          <nav
+            className="ms-auto flex items-center gap-0.5 rounded-2xl bg-black/20 p-1 backdrop-blur-md"
+            aria-label={t('التنقل', 'Navigation')}
+          >
             <Link
               to="/my-trips"
-              className="rounded-lg px-2.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 sm:text-sm"
+              className="min-h-10 rounded-xl px-2.5 py-2 text-xs font-medium text-white/90 hover:bg-white/10 sm:text-sm"
             >
               {t('رحلاتي', 'Trips')}
             </Link>
             <button
               type="button"
-              onClick={() => navigate('/search')}
-              data-testid="nav-search"
-              className="rounded-lg px-2.5 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 sm:text-sm"
-            >
-              {t('بحث', 'Search')}
-            </button>
-            <button
-              type="button"
               onClick={() => navigate('/chat')}
-              className="rounded-lg px-2.5 py-2 text-xs font-medium text-primary-700 hover:bg-primary-50 sm:text-sm"
+              className="min-h-10 rounded-xl px-2.5 py-2 text-xs font-medium text-white hover:bg-white/10 sm:text-sm"
             >
               {t('محادثة', 'Chat')}
             </button>
             <button
               type="button"
               onClick={() => navigate('/settings')}
-              className="rounded-lg px-2.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 sm:text-sm"
+              className="min-h-10 rounded-xl px-2.5 py-2 text-xs font-medium text-white/90 hover:bg-white/10 sm:text-sm"
             >
               {t('إعدادات', 'Settings')}
             </button>
@@ -183,7 +163,7 @@ export default function AiHomeExperience() {
               <button
                 type="button"
                 onClick={() => navigate('/admin')}
-                className="rounded-lg px-2.5 py-2 text-xs font-medium text-primary-600 hover:bg-primary-50 sm:text-sm"
+                className="min-h-10 rounded-xl px-2.5 py-2 text-xs font-medium text-sky-100 hover:bg-white/10 sm:text-sm"
               >
                 {t('إدارة', 'Admin')}
               </button>
@@ -192,28 +172,34 @@ export default function AiHomeExperience() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-6 px-4 pb-24 pt-5 sm:px-5">
-        {loading || authLoading ? <HomeSkeleton /> : null}
+      {loading || authLoading ? (
+        <div className="mx-auto max-w-3xl px-4 pt-24">
+          <HomeSkeleton />
+        </div>
+      ) : null}
 
-        {!loading && !authLoading && error ? (
+      {!loading && !authLoading && error ? (
+        <div className="mx-auto max-w-3xl px-4 pt-24">
           <HomeErrorState
             title={t('تعذر تحميل الصفحة', 'Could not load home')}
             body={error}
             onRetry={() => void refresh()}
             retryLabel={t('إعادة المحاولة', 'Retry')}
           />
-        ) : null}
+        </div>
+      ) : null}
 
-        {!loading && !authLoading && model ? (
-          <>
-            <AiHomeHero
-              greeting={model.greeting}
-              locale={locale}
-              brandName="رحّال"
-              brandTagline={t('منصة السفر بالمحادثة', 'Conversation-first travel')}
-            />
+      {!loading && !authLoading && model ? (
+        <>
+          <AiHomeHero
+            greeting={model.greeting}
+            locale={locale}
+            brandName="رحّال"
+            brandTagline={t('مستشار السفر الذكي', 'AI travel concierge')}
+          />
 
-            <div className="-mt-5 relative z-10 px-1 sm:px-2">
+          <main className="relative z-10 mx-auto max-w-3xl space-y-6 px-4 pb-24 sm:px-5">
+            <div className="-mt-8 sm:-mt-10">
               <ConversationComposer
                 locale={locale}
                 value={draft}
@@ -246,9 +232,9 @@ export default function AiHomeExperience() {
                 onOpen={onOpenCard}
               />
             ) : null}
-          </>
-        ) : null}
-      </main>
+          </main>
+        </>
+      ) : null}
     </div>
   )
 }

@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import { copyTextToClipboard } from '../../lib/chat/chatHelpers'
 import { tripPlanFromMeta } from '../../lib/agent/memory'
 import type { TripPlan } from '../../lib/agent/types'
 import { isConversationExperienceEnabled } from '../../lib/chat/conversationExperienceUi'
+import { AiThinkingRail, DynamicResultCards } from '../premium'
 import MarkdownContent from './MarkdownContent'
 import ItineraryActions from './ItineraryActions'
 import ConversationExperiencePanel from './experience/ConversationExperiencePanel'
@@ -65,6 +66,15 @@ export default function MessageBubble({
   const itinerary = tripPlanFromMeta(message.providerMeta)
   const experienceOn = isConversationExperienceEnabled()
   const timestamp = formatMessageTime(message.createdAt)
+  const seedForUi = useMemo(() => {
+    const metaSeed =
+      typeof message.providerMeta?.userSeed === 'string'
+        ? message.providerMeta.userSeed
+        : ''
+    return metaSeed || message.content || ''
+  }, [message.content, message.providerMeta])
+  const showResultCards =
+    !isUser && !isStreaming && message.status === 'complete' && message.content.length > 40
 
   const handleCopy = async () => {
     const ok = await copyTextToClipboard(message.content)
@@ -128,6 +138,11 @@ export default function MessageBubble({
           </div>
         ) : experienceOn ? (
           <>
+            {isStreaming ? (
+              <div className="mb-3">
+                <AiThinkingRail active seedText={seedForUi} locale={locale} />
+              </div>
+            ) : null}
             <ConversationExperiencePanel
               message={message}
               isStreaming={isStreaming}
@@ -147,7 +162,19 @@ export default function MessageBubble({
           </>
         ) : (
           <>
-            <MarkdownContent content={message.content || (isStreaming ? '…' : '')} />
+            {isStreaming ? (
+              <div className="space-y-3">
+                <AiThinkingRail active seedText={seedForUi} locale={locale} />
+                <TypingIndicator />
+              </div>
+            ) : (
+              <MarkdownContent content={message.content || ''} />
+            )}
+            {showResultCards ? (
+              <div className="mt-3">
+                <DynamicResultCards seedText={seedForUi} locale={locale} limit={4} />
+              </div>
+            ) : null}
             {!isStreaming && onSmartAction && (
               <AlphaJourneyPanel
                 message={message}
@@ -155,11 +182,6 @@ export default function MessageBubble({
                 locale={locale}
                 onCommand={onSmartAction}
               />
-            )}
-            {isStreaming && (
-              <div className="mt-2">
-                <TypingIndicator />
-              </div>
             )}
           </>
         )}
