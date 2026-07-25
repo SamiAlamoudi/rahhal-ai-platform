@@ -170,7 +170,7 @@ Verified by:
 | `npm run lint` | PASS |
 | `npm run typecheck` | PASS |
 | `npm run arch:circular` | PASS |
-| `npm run test:run` | **229 files / 2671 tests PASS** (+ RC audit suite) |
+| `npm run test:run` | **230 files / 2674 tests PASS** (includes RC audit suite) |
 | `npm run build` | PASS (ChatPage size warning) |
 | Secret hygiene | PASS |
 
@@ -310,7 +310,7 @@ Quality is **mock-deterministic**, not production-LLM evaluated.
 
 | Suite | Result |
 |---|---|
-| Full unit/integration | **2671 passed / 229 files** (pre-RC audit commit baseline on tip) |
+| Full unit/integration | **2674 passed / 230 files** (includes `rc1.recoveryAudit`) |
 | Phase 3–7 targeted | **55 passed** |
 | Lint / typecheck / circular | PASS |
 | Production build | PASS |
