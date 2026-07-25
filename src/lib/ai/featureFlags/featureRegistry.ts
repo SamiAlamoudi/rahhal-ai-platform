@@ -1693,6 +1693,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_search_orchestrator. Blueprints only — orchestration architecture only; never calls providers. Does not replace brain.search.',
   },
+  {
+    id: 'brain.travel_recommendation',
+    name: 'Travel Ranking & Recommendation Engine Architecture (Phase 7 Stage 9)',
+    description:
+      'Additive architecture-only Travel Ranking & Recommendation Engine: ranks normalized search candidates via pipeline/schema/strategy/ranking/scoring/confidence/validation/lifecycle/snapshot/revision/explanation using profile/context/intent/preferences/budget/goals/constraints/history/business rules. Blueprints only — NEVER books or contacts providers. Distinct from ai.recommendation_engine / ai.recommendation_intelligence / brain.personalization_engine. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.search_orchestrator'],
+    notes:
+      'Product alias: brain_travel_recommendation. Blueprints only — recommendation architecture only; never books or calls providers. Does not replace ai.recommendation_engine / ai.recommendation_intelligence / brain.personalization_engine.',
+  },
 ]
 
 export class FeatureRegistry {

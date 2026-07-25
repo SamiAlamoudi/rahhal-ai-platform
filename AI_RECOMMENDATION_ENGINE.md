@@ -1,3 +1,39 @@
+# Travel Ranking & Recommendation Engine — Phase 7 Stage 9
+
+**Status:** Architecture only · Flag `brain.travel_recommendation` **default OFF**  
+**Depends on:** `brain.search_orchestrator`  
+**Package:** `src/lib/orchestration/travelRecommendationEngine/`  
+**Distinct from:** Phase 7 Stage 3 `brain.personalization_engine` (section below) · Sprint 6 `ai.recommendation_intelligence` · legacy `ai.recommendation_engine`  
+**Freeze:** Runtime · LLM · Provider APIs · Booking · Pricing · HTTP · Database · Storage · prior PRs.
+
+Receives **normalized search candidates** from the Search Orchestrator and ranks them by traveler profile, conversation context, intent, preferences, budget, planning goals, travel constraints, historical signals, and business rules.
+
+**NEVER books. NEVER contacts providers. Recommendation architecture only.**
+
+## Created (contracts)
+
+Recommendation Engine · Pipeline · Schema · Strategy · Ranking · Scoring · Confidence · Validation · Lifecycle · Snapshot · Revision · Explanation
+
+## Output contracts
+
+`RecommendationCandidate` · `RecommendationScore` · `RecommendationRanking` · `RecommendationReason` · `RecommendationConfidence` · `RecommendationValidation` · `RecommendationSnapshot` · `RecommendationRevision` · `TopRecommendation` · `AlternativeRecommendation`
+
+```mermaid
+flowchart TD
+  Flag{brain.travel_recommendation}
+  Flag -->|OFF| Null[tryBuild → null]
+  Flag -->|ON architecture| BP[TravelRecommendationBlueprint]
+  BP --> In[Search candidates / Profile / Intent / Preferences]
+  BP --> Rank[Score / Rank / Explain / Top + Alternatives]
+  BP -.->|never| Book[Booking / Providers / HTTP]
+```
+
+Force blueprint: `tryBuildTravelRecommendationBlueprint({ enabled: true })`.
+
+See also: `AI_RECOMMENDATION_PIPELINE.md`, `AI_RECOMMENDATION_SCHEMA.md`, `AI_RECOMMENDATION_RANKING.md`, `AI_RECOMMENDATION_SCORING.md`, `AI_RECOMMENDATION_VALIDATION.md`, `AI_EVOLUTION_PHASE7_STAGE9.md`.
+
+---
+
 # Recommendation Engine — Phase 7 Stage 3 (architecture)
 
 **Status:** Architecture only · Flag `brain.personalization_engine` **default OFF**  
