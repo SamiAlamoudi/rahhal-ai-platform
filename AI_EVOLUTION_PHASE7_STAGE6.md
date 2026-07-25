@@ -17,10 +17,10 @@ See `AI_INTENT_ENGINE.md`, `AI_INTENT_CLASSIFIER.md`, `AI_INTENT_PIPELINE.md`, `
 
 | Command | Result |
 |---------|--------|
-| `npm run lint` | Pending |
-| `npm run typecheck` | Pending |
-| `npm run arch:circular` | Pending |
-| `npm run test:run` | Pending |
+| `npm run lint` | Pass |
+| `npm run typecheck` | Pass |
+| `npm run arch:circular` | Pass |
+| `npm run test:run` | Pass — **2925** tests (268 files) |
 
-Draft PR: pending  
+Draft PR: https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/249  
 Do not merge.
