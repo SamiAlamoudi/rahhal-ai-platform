@@ -2,10 +2,12 @@
  * Phase 3 — reusable VoiceAdapter seam.
  * Phase 7 — when `ai.realtime_voice` is enabled, adapters wrap Realtime VoiceSession
  * (still mock-default; live sockets require VITE_VOICE_LIVE_ALLOW).
- * No business-logic / UI redesign.
+ *
+ * RC-1: feature check is a light import; realtimeVoice package is dynamic-imported
+ * only when the flag is ON (no eager Agent Runtime pull when OFF).
  */
 
-import { createVoiceSession as createRealtimeVoiceSession, isRealtimeVoiceEnabled } from '../realtimeVoice'
+import { isRealtimeVoiceEnabled } from '../realtimeVoice/feature'
 
 export type VoiceAdapterProviderId =
   | 'mock'
@@ -136,23 +138,38 @@ function mapToRealtimeProviderId(
   return 'mock'
 }
 
-/** Phase 7 bridge — VoiceAdapter over Realtime VoiceSession (failover to mock). */
+type RealtimeSessionHandle = {
+  start: () => Promise<unknown>
+  stop: () => Promise<void>
+  interrupt: () => Promise<void>
+  getProviderId: () => string | null
+}
+
+/**
+ * Phase 7 bridge — VoiceAdapter over Realtime VoiceSession (failover to mock).
+ * Session module is loaded lazily on first connect (flag-ON path only).
+ */
 export function createRealtimeIntegratedVoiceAdapter(
   preferred?: VoiceAdapterProviderId,
 ): VoiceAdapter {
   const id = preferred ?? resolveVoiceAdapterProviderId()
-  const session = createRealtimeVoiceSession({
-    conversationId: `voice-ui-${Date.now()}`,
-    locale: 'ar',
-    preferredProvider: mapToRealtimeProviderId(id),
-  })
+  let session: RealtimeSessionHandle | null = null
   let muted = false
   let connected = false
+
   return {
     id,
     label: PROVIDER_LABELS[id],
     mock: id === 'mock',
     async connect() {
+      if (!session) {
+        const mod = await import('../realtimeVoice')
+        session = mod.createVoiceSession({
+          conversationId: `voice-ui-${Date.now()}`,
+          locale: 'ar',
+          preferredProvider: mapToRealtimeProviderId(id),
+        })
+      }
       await session.start()
       connected = true
       const providerId = session.getProviderId() ?? 'mock'
@@ -163,11 +180,11 @@ export function createRealtimeIntegratedVoiceAdapter(
       }
     },
     async disconnect() {
-      await session.stop()
+      if (session) await session.stop()
       connected = false
     },
     interrupt() {
-      if (!muted && connected) void session.interrupt()
+      if (!muted && connected && session) void session.interrupt()
     },
     mute() {
       muted = true
