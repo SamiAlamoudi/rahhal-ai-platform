@@ -28,9 +28,8 @@ export {
   seedRequirementsFromPreferences,
   learnPreferencesFromRequirements,
   applyProfileToRequirements,
-  isPreferenceMemoryEnabled,
 } from './preferenceBridge'
-export { isTravelReasoningEnabled } from './feature'
+export { isTravelReasoningEnabled, isPreferenceMemoryEnabled } from './feature'
 export { buildVisaGuidance } from './visaIntelligence'
 export { buildTravelAdvisory } from './travelAdvisory'
 export type { VisaGuidance } from './types'

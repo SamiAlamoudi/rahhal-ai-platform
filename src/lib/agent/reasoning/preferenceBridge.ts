@@ -9,17 +9,9 @@ import {
   type PersonalizationProfile,
   type PreferenceEngine,
 } from '../../ai/preferences'
-import { getFeatureRegistry } from '../../ai/featureFlags'
 import type { TripRequirements } from '../types'
-
-export function isPreferenceMemoryEnabled(options?: { enabled?: boolean }): boolean {
-  if (typeof options?.enabled === 'boolean') return options.enabled
-  const registry = getFeatureRegistry()
-  if (!registry.isEnabled('ai.personalization')) return false
-  return registry.isEnabled('ai.travel_reasoning')
-    || registry.isEnabled('ai.persistent_memory')
-    || registry.isEnabled('ai.smart_clarification')
-}
+export { isPreferenceMemoryEnabled } from './feature'
+import { isPreferenceMemoryEnabled } from './feature'
 
 /**
  * Fill only empty requirement slots from the traveler's long-term profile.

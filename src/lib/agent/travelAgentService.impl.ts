@@ -1,21 +1,17 @@
 /**
  * Single orchestration layer for Travel AI Agent planning.
  * Chat (text + voice) and Saved Trips integrate through this service only.
+ *
+ * RC-3 — heavy LLM / planner / reasoner / enrich / booking / voice graphs load via
+ * `deferredLoaders` only when their code path runs. Feature gates stay static/light.
  */
 
 import type { ChatMessage } from '../chat/chatTypes'
 import { getFeatureRegistry } from '../ai'
-import {
-  createConciergeService,
-  type ConciergeService,
-  type ConciergeState,
-} from '../concierge'
-import { buildConciergeRecommendations } from '../concierge/recommendationBridge'
-import { rebuildConciergeStateFromMessages } from '../concierge/meta'
+import type { ConciergeService, ConciergeState } from '../concierge'
 import { applyTripPlanEdits, buildTripPlan, regenerateTripDay } from './buildItinerary'
 import { applyIntelligentDecisions } from './decision'
 import { extractFromUserText } from './extractRequirements'
-import { createAgentLlmRegistry } from './llm/factory'
 import type { AgentLlmRegistry } from './llm/types'
 import {
   buildTravelFacts,
@@ -38,102 +34,42 @@ import { saveGeneratedItinerary } from './itineraryPersistence'
 import { createToolExecutor } from './tools/executor'
 import { mergeToolResultsIntoPlan } from './tools/mergeToolResults'
 import { selectToolsForTurn } from './tools/selectTools'
-import { createDefaultAgentToolRegistry } from './tools/stubs'
 import type { AgentToolRegistry, AgentToolResult, ToolExecutionBatch } from './tools/types'
-import {
-  goalFromMeta,
-  isAutonomousAgentEnabled,
-  runAutonomousTurn,
-  upsertTravelGoal,
-  type AutonomousAgentSnapshot,
-  type AutonomousProgressEvent,
-} from './autonomous'
-import {
-  enrichWithBookingIntelligence,
-  isBookingIntelligenceEnabled,
-  type BookingIntelligenceResult,
-} from './bookingIntelligence'
-import {
-  enrichWithBudgetIntelligence,
-  isBudgetIntelligenceEnabled,
-  type BudgetIntelligenceResult,
-} from './budgetIntelligence'
+import { isAutonomousAgentEnabled } from './autonomous/feature'
+import type { AutonomousAgentSnapshot, AutonomousProgressEvent } from './autonomous'
+import { isBookingIntelligenceEnabled } from './bookingIntelligence/feature'
+import type { BookingIntelligenceResult } from './bookingIntelligence'
+import { isBudgetIntelligenceEnabled } from './budgetIntelligence/feature'
+import type { BudgetIntelligenceResult } from './budgetIntelligence'
 import { isConversationIntelligenceEnabled } from './conversationIntelligence/feature'
 import type { ConversationIntelligenceResult } from './conversationIntelligence'
 import { isLlmConversationBrainEnabled } from './llmBrain/feature'
 import type { LlmBrainResult } from './llmBrain'
 import { isAgentRuntimeEnabled } from './agentRuntime/feature'
 import type { AgentRuntimeResult } from './agentRuntime'
-import {
-  enrichWithTravelerPersonalization,
-  isTravelerPersonalizationEnabled,
-  runTravelerPersonalization,
-  type TravelerPersonalizationResult,
-} from './travelerPersonalization'
-import {
-  enrichWithTripOptimizer,
-  isTripOptimizerEnabled,
-  type TripOptimizerResult,
-} from './tripOptimizer'
-import {
-  isTravelPlannerEnabled,
-  runTravelPlanner,
-  type TravelPlannerResult,
-} from './travelPlanner'
-import {
-  enrichWithAutonomousDecision,
-  isAutonomousDecisionEnabled,
-  type AutonomousDecisionResult,
-} from './autonomousDecision'
-import {
-  getLearnedProfile,
-  isAdaptiveLearningEnabled,
-  runAdaptiveLearningTurn,
-  type AdaptiveLearningResult,
-} from './adaptiveLearning'
-import {
-  enrichWithPriceIntelligence,
-  isPriceIntelligenceEnabled,
-  type BookingTimingResult,
-} from './priceIntelligence'
-import {
-  enrichWithDynamicPackages,
-  isDynamicPackagesEnabled,
-  type PackageBuilderResult,
-} from './packageBuilder'
-import { applyConstitutionToTurn } from './constitution'
-import {
-  enrichWithItineraryRefinement,
-  isItineraryRefinementEnabled,
-  type RefinementResult,
-} from './itineraryRefinement'
-import {
-  enrichWithBookingExecution,
-  findLatestConfirmedBookingExecution,
-  isBookingExecutionEnabled,
-  shouldRunBookingExecution,
-  type BookingExecutionResult,
-} from './bookingExecution'
-import {
-  enrichWithPaymentsPlatform,
-  findLatestPaymentsResult,
-  isPaymentsEnabled,
-  shouldRunPayments,
-  shouldShowPaymentSummary,
-  type PaymentsPlatformResult,
-} from './paymentsPlatform'
-import {
-  integrateConciergeIntoTurn,
-  type ConciergeTurnIntegrationResult,
-} from './conciergeIntegration'
-import {
-  assembleAlphaTravelerExperience,
-  type AgentAlphaTravelerExperienceAttachment,
-} from './alphaExperience'
-import {
-  assembleBookingAssistant,
-  type AgentBookingAssistantAttachment,
-} from './bookingAssistant'
+import { isTravelerPersonalizationEnabled } from './travelerPersonalization/feature'
+import type { TravelerPersonalizationResult } from './travelerPersonalization'
+import { isTripOptimizerEnabled } from './tripOptimizer/feature'
+import type { TripOptimizerResult } from './tripOptimizer'
+import { isTravelPlannerEnabled } from './travelPlanner/feature'
+import type { TravelPlannerResult } from './travelPlanner'
+import { isAutonomousDecisionEnabled } from './autonomousDecision/feature'
+import type { AutonomousDecisionResult } from './autonomousDecision'
+import { isAdaptiveLearningEnabled } from './adaptiveLearning/feature'
+import type { AdaptiveLearningResult } from './adaptiveLearning'
+import { isPriceIntelligenceEnabled } from './priceIntelligence/feature'
+import type { BookingTimingResult } from './priceIntelligence'
+import { isDynamicPackagesEnabled } from './packageBuilder/feature'
+import type { PackageBuilderResult } from './packageBuilder'
+import { isItineraryRefinementEnabled } from './itineraryRefinement/feature'
+import type { RefinementResult } from './itineraryRefinement'
+import { isBookingExecutionEnabled } from './bookingExecution/feature'
+import type { BookingExecutionResult } from './bookingExecution'
+import { isPaymentsEnabled } from './paymentsPlatform/feature'
+import type { PaymentsPlatformResult } from './paymentsPlatform'
+import type { ConciergeTurnIntegrationResult } from './conciergeIntegration'
+import type { AgentAlphaTravelerExperienceAttachment } from './alphaExperience'
+import type { AgentBookingAssistantAttachment } from './bookingAssistant'
 import type {
   AgentIntent,
   AgentMemory,
@@ -144,29 +80,11 @@ import type {
   TripRequirements,
 } from './types'
 import { withTripPlan } from './types'
-import {
-  buildBookingHistoryConciergeReply,
-  findLatestBookingRecord,
-  getBookingHistoryUserId,
-  getBookingOrchestrator,
-  loadUserBookingRecords,
-  type BookingHistoryIntent,
-  type BookingRecord,
-} from '../booking'
-import {
-  buildConfirmationConciergeReply,
-  confirmationStateFromSession,
-  type ConfirmationConciergeIntent,
-} from '../bookingConfirmation'
-import {
-  buildOrderConciergeReply,
-  findManagedOrderBySessionId,
-  type OrderConciergeIntent,
-} from '../orderManagement'
-import {
-  buildSmartItineraryConciergeReply,
-  type SmartItineraryConciergeIntent,
-} from '../smartItinerary'
+import { getBookingHistoryUserId } from '../booking/bookingHistoryContext'
+import type { BookingHistoryIntent, BookingRecord } from '../booking'
+import type { ConfirmationConciergeIntent } from '../bookingConfirmation'
+import type { OrderConciergeIntent } from '../orderManagement'
+import type { SmartItineraryConciergeIntent } from '../smartItinerary'
 import {
   isBrainAgentHandoffEnabled,
   isBrainConciergeIntegrationEnabled,
@@ -178,25 +96,50 @@ import {
 import { isBrainTripOrchestratorEnabled } from '../brain/orchestrator/feature'
 import type { BrainMetaSnapshot } from '../brain/integration'
 import type { BrainTurnResult } from '../brain/types'
-import {
-  runRahhalBrainTurn,
-  isRahhalBrainEnabled,
-  type RahhalBrainMetaSnapshot,
-  type RahhalBrainTurnResult,
-} from '../brain/core'
+import { isRahhalBrainEnabled } from '../brain/core/feature'
+import type { RahhalBrainMetaSnapshot, RahhalBrainTurnResult } from '../brain/core'
 import { isBookingFlowEnabled } from '../bookingFlow/feature'
 import type { SearchAggregationTurnResult } from '../brain/search'
 import {
-  applyReasoningToRequirements,
   isPreferenceMemoryEnabled,
   isTravelReasoningEnabled,
-  learnPreferencesFromRequirements,
-  matchDestinationSelection,
-  runTravelReasoning,
-  seedRequirementsFromPreferences,
-  toReasoningSnapshot,
-  type TravelReasoningResult,
-} from './reasoning'
+} from './reasoning/feature'
+import type { TravelReasoningResult } from './reasoning'
+import {
+  loadAdaptiveLearning,
+  loadAlphaExperience,
+  loadAutonomous,
+  loadAutonomousDecision,
+  loadBooking,
+  loadBookingAssistant,
+  loadBookingConfirmation,
+  loadBookingExecution,
+  loadBookingFlow,
+  loadBookingIntelligence,
+  loadBrainCore,
+  loadBrainIntegration,
+  loadBrainOrchestrator,
+  loadBudgetIntelligence,
+  loadConcierge,
+  loadConciergeIntegration,
+  loadConciergeMeta,
+  loadConciergeRecommendations,
+  loadConstitution,
+  loadConversationIntelligence,
+  loadItineraryRefinement,
+  loadLlmBrain,
+  loadAgentRuntime,
+  loadOrderManagement,
+  loadPackageBuilder,
+  loadPaymentsPlatform,
+  loadPriceIntelligence,
+  loadReasoning,
+  loadSmartItinerary,
+  loadToolStubs,
+  loadTravelPlanner,
+  loadTravelerPersonalization,
+  loadTripOptimizer,
+} from './deferredLoaders'
 
 const BOOKING_HISTORY_INTENTS = new Set<AgentIntent>([
   'show_trips',
@@ -884,7 +827,7 @@ function priorAutonomousFromMessages(messages: ChatMessage[]): AutonomousAgentSn
     if (msg?.role !== 'assistant') continue
     const meta = msg.providerMeta as unknown as AgentProviderMeta | undefined
     if (!meta || meta.kind !== 'travel_agent') continue
-    const goal = goalFromMeta(meta)
+    const goal = (meta.autonomous?.goal ?? null) as AutonomousAgentSnapshot['goal']
     if (!meta.autonomous && !goal) continue
     return {
       state: (meta.autonomous?.state as AutonomousAgentSnapshot['state']) || 'IDLE',
@@ -950,13 +893,42 @@ function mapConciergeObjective(action: string): ConversationObjective {
 export function createTravelAgentService(
   options: TravelAgentServiceOptions = {},
 ): TravelAgentService {
-  const tools = options.tools ?? createDefaultAgentToolRegistry()
-  const executor = createToolExecutor(tools)
-  const llms = options.llms ?? createAgentLlmRegistry()
+  // RC-3 — tools / LLM registry / concierge constructed on first use (not at import time).
+  let tools: AgentToolRegistry | null = options.tools ?? null
+  let executor = options.tools ? createToolExecutor(options.tools) : null
+  let llms: AgentLlmRegistry | null = options.llms ?? null
+  let conciergeService: ConciergeService | null | undefined =
+    options.concierge === false ? null : options.concierge
+
+  const ensureTools = async () => {
+    if (!tools) {
+      const stubs = await loadToolStubs()
+      tools = stubs.createDefaultAgentToolRegistry()
+    }
+    if (!executor) executor = createToolExecutor(tools)
+    return { tools, executor }
+  }
+
+  const ensureLlms = async (): Promise<AgentLlmRegistry> => {
+    if (!llms) {
+      const factory = await import('./llm/factory')
+      llms = factory.createAgentLlmRegistry()
+    }
+    return llms
+  }
+
+  const ensureConcierge = async (): Promise<ConciergeService | null> => {
+    if (conciergeService !== undefined) return conciergeService
+    if (options.concierge === false) {
+      conciergeService = null
+      return null
+    }
+    const mod = await loadConcierge()
+    conciergeService = mod.createConciergeService()
+    return conciergeService
+  }
+
   const savePlanHook = options.savePlan
-  const conciergeService = options.concierge === false
-    ? null
-    : (options.concierge ?? createConciergeService())
 
   const isConciergeEnabled = (): boolean => {
     if (options.concierge === false) return false
@@ -1068,6 +1040,7 @@ export function createTravelAgentService(
     if (options.listBookingRecords) return options.listBookingRecords()
     const userId = getBookingHistoryUserId()
     if (!userId) return []
+    const { loadUserBookingRecords } = await loadBooking()
     return loadUserBookingRecords(userId)
   }
 
@@ -1100,7 +1073,7 @@ export function createTravelAgentService(
   }> => {
     const travelPlanner = input.travelPlanner
       ?? (isTravelPlannerOn()
-        ? runTravelPlanner({
+        ? (await loadTravelPlanner()).runTravelPlanner({
           userText: input.userText,
           memory: input.memory,
           locale: input.memory.locale,
@@ -1134,7 +1107,9 @@ export function createTravelAgentService(
       let { flightOffers, hotelStays } = offersFromToolBatch(batch)
 
       if (isBudgetIntelEnabled()) {
-        const budgeted = await enrichWithBudgetIntelligence({
+        const __mod_enrichWithBudgetIntelligence = await loadBudgetIntelligence()
+
+        const budgeted = await __mod_enrichWithBudgetIntelligence.enrichWithBudgetIntelligence({
           memory,
           tripPlan: nextPlan,
           userText: input.userText,
@@ -1147,7 +1122,9 @@ export function createTravelAgentService(
       }
 
       if (isTravelerPersonalizationOn()) {
-        const personalized = await enrichWithTravelerPersonalization({
+        const __mod_enrichWithTravelerPersonalization = await loadTravelerPersonalization()
+
+        const personalized = await __mod_enrichWithTravelerPersonalization.enrichWithTravelerPersonalization({
           userId: input.conversationId,
           memory,
           tripPlan: nextPlan,
@@ -1163,7 +1140,9 @@ export function createTravelAgentService(
       }
 
       if (isTripOptimizerOn()) {
-        const optimized = await enrichWithTripOptimizer({
+        const __mod_enrichWithTripOptimizer = await loadTripOptimizer()
+
+        const optimized = await __mod_enrichWithTripOptimizer.enrichWithTripOptimizer({
           memory,
           tripPlan: nextPlan,
           userText: input.userText,
@@ -1180,9 +1159,11 @@ export function createTravelAgentService(
       // Sprint 83 — Package Builder before Decision Engine; reorders offers for DE consumption.
       if (isDynamicPackagesOn()) {
         const learnedProfile = isAdaptiveLearningOn()
-          ? getLearnedProfile(input.conversationId)
+          ? (await loadAdaptiveLearning()).getLearnedProfile(input.conversationId)
           : null
-        const packaged = await enrichWithDynamicPackages({
+        const __mod_enrichWithDynamicPackages = await loadPackageBuilder()
+
+        const packaged = await __mod_enrichWithDynamicPackages.enrichWithDynamicPackages({
           memory,
           tripPlan: nextPlan,
           enabled: options.dynamicPackagesEnabled,
@@ -1198,7 +1179,9 @@ export function createTravelAgentService(
 
       // Sprint 84 — incremental refinement between Package Builder and Decision Engine.
       if (isItineraryRefinementOn() && dynamicPackages) {
-        const refined = enrichWithItineraryRefinement({
+        const __mod_enrichWithItineraryRefinement = await loadItineraryRefinement()
+
+        const refined = __mod_enrichWithItineraryRefinement.enrichWithItineraryRefinement({
           memory,
           tripPlan: nextPlan,
           userText: input.userText,
@@ -1216,9 +1199,11 @@ export function createTravelAgentService(
 
       if (isAutonomousDecisionOn()) {
         const learnedProfile = isAdaptiveLearningOn()
-          ? getLearnedProfile(input.conversationId)
+          ? (await loadAdaptiveLearning()).getLearnedProfile(input.conversationId)
           : null
-        const decided = await enrichWithAutonomousDecision({
+        const __mod_enrichWithAutonomousDecision = await loadAutonomousDecision()
+
+        const decided = await __mod_enrichWithAutonomousDecision.enrichWithAutonomousDecision({
           memory,
           tripPlan: nextPlan,
           enabled: options.autonomousDecisionEnabled,
@@ -1234,7 +1219,9 @@ export function createTravelAgentService(
       // Sprint 81 — booking timing after Decision Engine + Adaptive Learning profile use.
       if (isPriceIntelligenceOn()) {
         const best = autonomousDecision?.recommendations.bestOverall
-        const timed = enrichWithPriceIntelligence({
+        const __mod_enrichWithPriceIntelligence = await loadPriceIntelligence()
+
+        const timed = __mod_enrichWithPriceIntelligence.enrichWithPriceIntelligence({
           memory,
           tripPlan: nextPlan,
           enabled: options.priceIntelligenceEnabled,
@@ -1260,7 +1247,9 @@ export function createTravelAgentService(
           itineraryRefinement,
         }
       }
-      const enriched = await enrichWithBookingIntelligence({
+      const __mod_enrichWithBookingIntelligence = await loadBookingIntelligence()
+
+      const enriched = await __mod_enrichWithBookingIntelligence.enrichWithBookingIntelligence({
         memory,
         tripPlan: nextPlan,
         userId: input.conversationId,
@@ -1271,7 +1260,9 @@ export function createTravelAgentService(
       let bookingExecution: BookingExecutionResult | undefined
       let payments: PaymentsPlatformResult | undefined
       if (isBookingExecEnabled() && enriched.bookingIntelligence) {
-        const executed = await enrichWithBookingExecution({
+        const __mod_enrichWithBookingExecution = await loadBookingExecution()
+
+        const executed = await __mod_enrichWithBookingExecution.enrichWithBookingExecution({
           memory,
           tripPlan: nextPlan,
           userId: input.conversationId,
@@ -1284,17 +1275,25 @@ export function createTravelAgentService(
         bookingExecution = executed.bookingExecution ?? undefined
       }
       // Alpha: pay / confirmation turns reuse the prior booking session in this conversation.
-      const payCue = shouldRunPayments({
+      const __mod_shouldRunPayments = await loadPaymentsPlatform()
+
+      const payCue = __mod_shouldRunPayments.shouldRunPayments({
         userText: input.userText,
         intent: input.memory.lastIntent,
         bookingExecutionStatus: bookingExecution?.snapshot.status ?? null,
       })
-      const summaryCue = shouldShowPaymentSummary(input.userText)
+      const __mod_shouldShowPaymentSummary = await loadPaymentsPlatform()
+
+      const summaryCue = __mod_shouldShowPaymentSummary.shouldShowPaymentSummary(input.userText)
       if (!bookingExecution && (payCue || summaryCue)) {
-        bookingExecution = findLatestConfirmedBookingExecution(input.conversationId) ?? undefined
+        const __mod_findLatestConfirmedBookingExecution = await loadBookingExecution()
+
+        bookingExecution = __mod_findLatestConfirmedBookingExecution.findLatestConfirmedBookingExecution(input.conversationId) ?? undefined
       }
       if (isPaymentsPlatformEnabled() && bookingExecution && payCue) {
-        const paid = await enrichWithPaymentsPlatform({
+        const __mod_enrichWithPaymentsPlatform = await loadPaymentsPlatform()
+
+        const paid = await __mod_enrichWithPaymentsPlatform.enrichWithPaymentsPlatform({
           memory,
           tripPlan: nextPlan,
           userId: input.conversationId,
@@ -1306,9 +1305,13 @@ export function createTravelAgentService(
         nextPlan = paid.tripPlan
         payments = paid.payments ?? undefined
       } else if (isPaymentsPlatformEnabled() && summaryCue) {
-        payments = findLatestPaymentsResult(input.conversationId) ?? undefined
+        const __mod_findLatestPaymentsResult = await loadPaymentsPlatform()
+
+        payments = __mod_findLatestPaymentsResult.findLatestPaymentsResult(input.conversationId) ?? undefined
         if (!bookingExecution) {
-          bookingExecution = findLatestConfirmedBookingExecution(input.conversationId) ?? undefined
+          const __mod_findLatestConfirmedBookingExecution = await loadBookingExecution()
+
+          bookingExecution = __mod_findLatestConfirmedBookingExecution.findLatestConfirmedBookingExecution(input.conversationId) ?? undefined
         }
       }
       return {
@@ -1327,11 +1330,14 @@ export function createTravelAgentService(
     }
 
     if (isAutonomousEnabled()) {
-      const autonomous = await runAutonomousTurn({
+      const { tools: toolRegistry } = await ensureTools()
+      const __mod_runAutonomousTurn = await loadAutonomous()
+
+      const autonomous = await __mod_runAutonomousTurn.runAutonomousTurn({
         conversationId: input.conversationId,
         userText: input.userText ?? '',
         memory: input.memory,
-        registry: tools,
+        registry: toolRegistry,
         priorSnapshot: input.priorAutonomous ?? null,
         signal: input.signal,
         seed: input.seed,
@@ -1359,16 +1365,16 @@ export function createTravelAgentService(
       }
       // Alpha — confirm/pay cues still enrich even when autonomous does not rebuild a plan.
       const journeyCue =
-        shouldRunBookingExecution({
+        (await loadBookingExecution()).shouldRunBookingExecution({
           userText: input.userText,
           intent: input.memory.lastIntent,
           bookingReady: true,
         })
-        || shouldRunPayments({
+        || (await loadPaymentsPlatform()).shouldRunPayments({
           userText: input.userText,
           intent: input.memory.lastIntent,
         })
-        || shouldShowPaymentSummary(input.userText)
+        || (await loadPaymentsPlatform()).shouldShowPaymentSummary(input.userText)
       if (journeyCue) {
         const plan = input.basePlan
           ?? input.memory.tripPlan
@@ -1410,6 +1416,7 @@ export function createTravelAgentService(
       }
     }
 
+    const { executor: toolExecutor } = await ensureTools()
     const selected = selectToolsForTurn({
       requirements: input.memory.requirements,
       intent: input.memory.lastIntent,
@@ -1418,7 +1425,7 @@ export function createTravelAgentService(
     })
 
     const batch = selected.length > 0
-      ? await executor.execute({
+      ? await toolExecutor.execute({
         names: selected,
         ctx: {
           requirements: input.memory.requirements,
@@ -1464,15 +1471,23 @@ export function createTravelAgentService(
 
   const service: TravelAgentService = {
     async planTurn(input) {
+      const llms = await ensureLlms()
+      await ensureConcierge()
       const lastUser = [...input.messages].reverse().find((m) => m.role === 'user')
       const userText = lastUser?.content ?? ''
       // Alpha — booking / payment / confirmation cues must reach Execution + Payments.
-      const alphaBookingCue = shouldRunBookingExecution({
+      const __mod_shouldRunBookingExecution = await loadBookingExecution()
+
+      const alphaBookingCue = __mod_shouldRunBookingExecution.shouldRunBookingExecution({
         userText,
         bookingReady: true,
       })
-      const alphaPaymentCue = shouldRunPayments({ userText })
-      const alphaSummaryCue = shouldShowPaymentSummary(userText)
+      const __mod_shouldRunPayments = await loadPaymentsPlatform()
+
+      const alphaPaymentCue = __mod_shouldRunPayments.shouldRunPayments({ userText })
+      const __mod_shouldShowPaymentSummary = await loadPaymentsPlatform()
+
+      const alphaSummaryCue = __mod_shouldShowPaymentSummary.shouldShowPaymentSummary(userText)
       const alphaJourneyCue = alphaBookingCue || alphaPaymentCue || alphaSummaryCue
       const prior = rebuildMemoryFromMessages(input.messages.slice(0, -1))
       let extracted = extractFromUserText(userText, prior.locale)
@@ -1495,9 +1510,7 @@ export function createTravelAgentService(
       // Recovery Phase 4 — Conversation Intelligence (default OFF). Soft enrich only.
       // RC-2: dynamic import so flag-OFF planTurn does not pay the CI module graph.
       if (isConversationIntelligenceEnabled({ enabled: options.conversationIntelligenceEnabled })) {
-        const { enrichWithConversationIntelligence, filterInterviewMissingFields } = await import(
-          './conversationIntelligence'
-        )
+        const { enrichWithConversationIntelligence, filterInterviewMissingFields } = await loadConversationIntelligence()
         const recentTexts = input.messages
           .slice(0, -1)
           .slice(-6)
@@ -1519,8 +1532,8 @@ export function createTravelAgentService(
 
       // Recovery Phase 5 — LLM Conversation Brain (default OFF). Mock LLM primary; rules fallback.
       if (isLlmConversationBrainEnabled({ enabled: options.llmConversationBrainEnabled })) {
-        const { enrichWithLlmConversationBrain } = await import('./llmBrain')
-        const { filterInterviewMissingFields } = await import('./conversationIntelligence')
+        const { enrichWithLlmConversationBrain } = await loadLlmBrain()
+        const { filterInterviewMissingFields } = await loadConversationIntelligence()
         const recentTexts = input.messages
           .slice(0, -1)
           .slice(-6)
@@ -1542,8 +1555,8 @@ export function createTravelAgentService(
 
       // Recovery Phase 6 — Agent Runtime (default OFF). Mock tool execution only.
       if (isAgentRuntimeEnabled({ enabled: options.agentRuntimeEnabled })) {
-        const { enrichWithAgentRuntime } = await import('./agentRuntime')
-        const { filterInterviewMissingFields } = await import('./conversationIntelligence')
+        const { enrichWithAgentRuntime } = await loadAgentRuntime()
+        const { filterInterviewMissingFields } = await loadConversationIntelligence()
         const recentTexts = input.messages
           .slice(0, -1)
           .slice(-6)
@@ -1613,7 +1626,9 @@ export function createTravelAgentService(
 
       // Sprint 78 — Travel Strategy Planner runs before any search engines.
       if (isTravelPlannerOn()) {
-        travelPlannerResult = runTravelPlanner({
+        const __mod_runTravelPlanner = await loadTravelPlanner()
+
+        travelPlannerResult = __mod_runTravelPlanner.runTravelPlanner({
           userText,
           memory,
           locale: memory.locale,
@@ -1622,7 +1637,9 @@ export function createTravelAgentService(
 
       // Sprint 76 — learn preferences from conversation even when tools do not run.
       if (isTravelerPersonalizationOn()) {
-        travelerPersonalizationResult = runTravelerPersonalization({
+        const __mod_runTravelerPersonalization = await loadTravelerPersonalization()
+
+        travelerPersonalizationResult = __mod_runTravelerPersonalization.runTravelerPersonalization({
           userId: input.conversationId,
           userText,
           memory,
@@ -1631,7 +1648,9 @@ export function createTravelAgentService(
 
       // Sprint 80 — adaptive learning (local preference adaptation) before Decision Engine.
       if (isAdaptiveLearningOn()) {
-        adaptiveLearningResult = runAdaptiveLearningTurn({
+        const __mod_runAdaptiveLearningTurn = await loadAdaptiveLearning()
+
+        adaptiveLearningResult = __mod_runAdaptiveLearningTurn.runAdaptiveLearningTurn({
           userId: input.conversationId,
           userText,
           enabled: options.adaptiveLearningEnabled,
@@ -1639,7 +1658,9 @@ export function createTravelAgentService(
       }
 
       if (isBrainCoreEnabled()) {
-        const brainTurn = runRahhalBrainTurn(
+        const __mod_runRahhalBrainTurn = await loadBrainCore()
+
+        const brainTurn = __mod_runRahhalBrainTurn.runRahhalBrainTurn(
           {
             conversationId: input.conversationId,
             userText,
@@ -1719,9 +1740,10 @@ export function createTravelAgentService(
       } else {
         // Sprint 45/48 — seed empty slots from long-term preference memory (never overwrite).
         if (isPreferenceMemoryEnabled() || isReasoningEnabled()) {
+          const reasoningMod = await loadReasoning()
           memory = {
             ...memory,
-            requirements: seedRequirementsFromPreferences(memory.requirements, {
+            requirements: reasoningMod.seedRequirementsFromPreferences(memory.requirements, {
               userId: preferenceUserId,
             }),
           }
@@ -1747,7 +1769,9 @@ export function createTravelAgentService(
                 nameAr: hit ?? id,
               }
             })
-            const selected = matchDestinationSelection(userText, catalogNames)
+            const __mod_matchDestinationSelection = await loadReasoning()
+
+            const selected = __mod_matchDestinationSelection.matchDestinationSelection(userText, catalogNames)
             if (selected) {
               memory = {
                 ...memory,
@@ -1773,22 +1797,32 @@ export function createTravelAgentService(
             || memory.requirements.destinationFlexible === true
           )
         ) {
-          reasoningResult = runTravelReasoning({
+          const __mod_runTravelReasoning = await loadReasoning()
+
+          reasoningResult = __mod_runTravelReasoning.runTravelReasoning({
             locale: memory.locale,
             requirements: memory.requirements,
             userText,
           })
           memory = {
             ...memory,
-            requirements: applyReasoningToRequirements(memory.requirements, reasoningResult),
+            requirements: __mod_runTravelReasoning.applyReasoningToRequirements(
+              memory.requirements,
+              reasoningResult,
+            ),
           }
-          reasoningMeta = toReasoningSnapshot(reasoningResult)
-          learnPreferencesFromRequirements(memory.requirements, { userId: preferenceUserId })
+          reasoningMeta = __mod_runTravelReasoning.toReasoningSnapshot(reasoningResult)
+          __mod_runTravelReasoning.learnPreferencesFromRequirements(memory.requirements, {
+            userId: preferenceUserId,
+          })
         } else if (
           (isReasoningEnabled() || isPreferenceMemoryEnabled())
           && hasPlanningPatch(extracted.patch as Record<string, unknown>)
         ) {
-          learnPreferencesFromRequirements(memory.requirements, { userId: preferenceUserId })
+          const reasoningMod = await loadReasoning()
+          reasoningMod.learnPreferencesFromRequirements(memory.requirements, {
+            userId: preferenceUserId,
+          })
         }
 
         // Sprint 46 — never-ask-twice: infer soft preferences before computing missing slots.
@@ -1831,12 +1865,12 @@ export function createTravelAgentService(
           toMetaBrain,
           withBrainMeta,
           brainMemoryToRequirementsPatch,
-        } = await import('../brain/integration')
+        } = await loadBrainIntegration()
         attachBrainMeta = withBrainMeta
         let brainResult: BrainTurnResult | null = null
 
         if (orchestratorOn) {
-          const { getOrCreateAITripOrchestrator } = await import('../brain/orchestrator')
+          const { getOrCreateAITripOrchestrator } = await loadBrainOrchestrator()
           const orchestrator = getOrCreateAITripOrchestrator()
           const orchResult = await orchestrator.runTurn({
             conversationId: input.conversationId,
@@ -1916,7 +1950,7 @@ export function createTravelAgentService(
             detectBookingFlowConversationEdit,
             getBookingFlowController,
             searchOptionsToBookingSelectedItems,
-          } = await import('../bookingFlow')
+          } = await loadBookingFlow()
           const flowUserId = getBookingHistoryUserId() || input.conversationId
           const controller = getBookingFlowController()
           let flow =
@@ -2287,8 +2321,12 @@ export function createTravelAgentService(
         && isSmartItineraryEnabled()
       ) {
         const records = await listBookingRecords()
-        const latest = findLatestBookingRecord(records)
-        const reply = buildSmartItineraryConciergeReply({
+        const __mod_findLatestBookingRecord = await loadBooking()
+
+        const latest = __mod_findLatestBookingRecord.findLatestBookingRecord(records)
+        const __mod_buildSmartItineraryConciergeReply = await loadSmartItinerary()
+
+        const reply = __mod_buildSmartItineraryConciergeReply.buildSmartItineraryConciergeReply({
           intent: extracted.intent as SmartItineraryConciergeIntent,
           record: latest,
           locale: memory.locale,
@@ -2318,12 +2356,16 @@ export function createTravelAgentService(
         && !alphaJourneyCue
       ) {
         const records = await listBookingRecords()
-        const latest = findLatestBookingRecord(records)
+        const __mod_findLatestBookingRecord = await loadBooking()
+
+        const latest = __mod_findLatestBookingRecord.findLatestBookingRecord(records)
         const customerId = getBookingHistoryUserId() ?? latest?.userId
+        const orderMod = await loadOrderManagement()
         const order = latest
-          ? findManagedOrderBySessionId(latest.sessionId)
+          ? orderMod.findManagedOrderBySessionId(latest.sessionId)
           : null
-        const reply = buildOrderConciergeReply(
+
+        const reply = orderMod.buildOrderConciergeReply(
           extracted.intent as OrderConciergeIntent,
           {
             bookingSessionId: latest?.sessionId,
@@ -2356,12 +2398,19 @@ export function createTravelAgentService(
         && !alphaJourneyCue
       ) {
         const records = await listBookingRecords()
-        const latest = findLatestBookingRecord(records)
+        const __mod_findLatestBookingRecord = await loadBooking()
+
+        const latest = __mod_findLatestBookingRecord.findLatestBookingRecord(records)
+        const bookingMod = await loadBooking()
+        const confirmMod = await loadBookingConfirmation()
         const session = latest
-          ? getBookingOrchestrator().getBookingSession(latest.sessionId)
+          ? bookingMod.getBookingOrchestrator().getBookingSession(latest.sessionId)
           : null
-        const confirmationState = session ? confirmationStateFromSession(session) : null
-        const reply = buildConfirmationConciergeReply({
+        const confirmationState = session
+          ? confirmMod.confirmationStateFromSession(session)
+          : null
+
+        const reply = confirmMod.buildConfirmationConciergeReply({
           intent: extracted.intent as ConfirmationConciergeIntent,
           state: confirmationState,
           record: latest,
@@ -2390,7 +2439,9 @@ export function createTravelAgentService(
         && isBookingHistoryEnabled()
       ) {
         const records = await listBookingRecords()
-        const reply = buildBookingHistoryConciergeReply({
+        const __mod_buildBookingHistoryConciergeReply = await loadBooking()
+
+        const reply = __mod_buildBookingHistoryConciergeReply.buildBookingHistoryConciergeReply({
           intent: extracted.intent as BookingHistoryIntent,
           records,
           locale: memory.locale,
@@ -2412,7 +2463,10 @@ export function createTravelAgentService(
         }
       }
 
-      let conciergeState: ConciergeState | null = rebuildConciergeStateFromMessages(
+      const __mod_rebuildConciergeStateFromMessages = await loadConciergeMeta()
+
+
+      let conciergeState: ConciergeState | null = __mod_rebuildConciergeStateFromMessages.rebuildConciergeStateFromMessages(
         input.messages.slice(0, -1),
       )
 
@@ -2441,7 +2495,9 @@ export function createTravelAgentService(
             conciergeResult.decision.action === 'propose_options'
             || conciergeResult.decision.action === 'advise'
           ) {
-            const recs = buildConciergeRecommendations({
+            const __mod_buildConciergeRecommendations = await loadConciergeRecommendations()
+
+            const recs = __mod_buildConciergeRecommendations.buildConciergeRecommendations({
               locale: memory.locale,
               requirements: memory.requirements,
               softSignals: conciergeResult.decision.state.softSignals,
@@ -2701,7 +2757,9 @@ export function createTravelAgentService(
 
       // Sprint 54 — keep the travel goal alive across clarification turns.
       if (isAutonomousEnabled()) {
-        const goal = upsertTravelGoal({
+        const __mod_upsertTravelGoal = await loadAutonomous()
+
+        const goal = __mod_upsertTravelGoal.upsertTravelGoal({
           conversationId: input.conversationId,
           userText,
           memory,
@@ -2742,7 +2800,9 @@ export function createTravelAgentService(
         ?? 0.78
 
       // Sprint 97 — integrate ConciergeComposer into conversation response (presentation only).
-      conciergeIntegration = integrateConciergeIntoTurn({
+      const __mod_integrateConciergeIntoTurn = await loadConciergeIntegration()
+
+      conciergeIntegration = __mod_integrateConciergeIntoTurn.integrateConciergeIntoTurn({
         conversationId: input.conversationId,
         memory,
         packageSelected: dynamicPackagesResult?.selected
@@ -2787,7 +2847,9 @@ export function createTravelAgentService(
         const { flightOffers: alphaFlights, hotelStays: alphaHotels } = offersFromToolBatch(
           toolBatch ?? undefined,
         )
-        alphaTravelerAssembly = assembleAlphaTravelerExperience({
+        const __mod_assembleAlphaTravelerExperience = await loadAlphaExperience()
+
+        alphaTravelerAssembly = __mod_assembleAlphaTravelerExperience.assembleAlphaTravelerExperience({
           conversationId: input.conversationId,
           memory,
           conciergeIntegration,
@@ -2819,7 +2881,9 @@ export function createTravelAgentService(
           toolBatch ?? undefined,
         )
         const priceRec = priceIntelligenceResult?.recommendation
-        bookingAssistantAssembly = assembleBookingAssistant({
+        const __mod_assembleBookingAssistant = await loadBookingAssistant()
+
+        bookingAssistantAssembly = __mod_assembleBookingAssistant.assembleBookingAssistant({
           conversationId: input.conversationId,
           memory,
           alphaExperience: alphaTravelerAssembly?.experience ?? null,
@@ -2861,7 +2925,9 @@ export function createTravelAgentService(
         })
       }
 
-      const constitutionPreview = applyConstitutionToTurn({
+      const constitutionMod = await loadConstitution()
+
+      const constitutionPreview = constitutionMod.applyConstitutionToTurn({
         userText,
         memory,
         tripPlan: memory.tripPlan,
@@ -2931,7 +2997,7 @@ export function createTravelAgentService(
       })
 
       // Sprint 89 — validate traveler-facing reply; keep meta on every interaction.
-      const constitutionFinal = applyConstitutionToTurn({
+      const constitutionFinal = constitutionMod.applyConstitutionToTurn({
         userText,
         memory,
         tripPlan: memory.tripPlan,

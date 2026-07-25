@@ -113,6 +113,39 @@ export default defineConfig({
               name: 'agent-impl',
               test: /[\\/]src[\\/]lib[\\/]agent[\\/]travelAgentService\.impl/,
             },
+            // RC-3 — independently loadable agent / brain layers
+            {
+              name: 'layer-reasoning',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]reasoning([\\/]|$)/,
+            },
+            {
+              name: 'layer-travel-planner',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]travelPlanner([\\/]|$)/,
+            },
+            {
+              name: 'layer-brain-core',
+              test: /[\\/]src[\\/]lib[\\/]brain[\\/]core([\\/]|$)/,
+            },
+            {
+              name: 'layer-brain-executive',
+              test: /[\\/]src[\\/]lib[\\/]brain[\\/]executive([\\/]|$)/,
+            },
+            {
+              name: 'layer-conversation-intelligence',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]conversationIntelligence([\\/]|$)/,
+            },
+            {
+              name: 'layer-llm-brain',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]llmBrain([\\/]|$)/,
+            },
+            {
+              name: 'layer-agent-runtime',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]agentRuntime([\\/]|$)/,
+            },
+            {
+              name: 'layer-realtime-voice',
+              test: /[\\/]src[\\/]lib[\\/]realtimeVoice([\\/]|$)/,
+            },
           ],
         },
       },
