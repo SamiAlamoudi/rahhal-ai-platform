@@ -7,15 +7,18 @@ import {
   createGeminiAgentLlmAdapter,
 } from './stubLlmAdapters'
 
+import { readManagedConfig, readManagedEnv } from '../../security/secrets/managedAccess'
+
 export function getDefaultAgentLlmProviderId(): AgentLlmProviderId {
-  const raw = (import.meta.env.VITE_AGENT_LLM_PROVIDER as string | undefined)?.trim().toLowerCase()
+  const raw = readManagedConfig('VITE_AGENT_LLM_PROVIDER')?.trim().toLowerCase()
   if (raw === 'openai' || raw === 'anthropic' || raw === 'gemini' || raw === 'deepseek' || raw === 'local') {
     return raw
   }
   // Prefer OpenAI automatically when a key is present.
   const key = (
-    (import.meta.env.VITE_AGENT_OPENAI_API_KEY as string | undefined)
-    ?? (import.meta.env.VITE_OPENAI_API_KEY as string | undefined)
+    readManagedEnv('OPENAI_API_KEY', { providerId: 'openai' })
+    ?? readManagedConfig('VITE_AGENT_OPENAI_API_KEY')
+    ?? readManagedConfig('VITE_OPENAI_API_KEY')
   )?.trim()
   if (key) return 'openai'
   return 'local'

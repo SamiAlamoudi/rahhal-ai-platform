@@ -1,6 +1,5 @@
 /**
  * Sprint 14 — provider credential facade.
- * Every provider should obtain credentials here (not via import.meta.env).
  */
 
 import { getSecretManager, type SecretManagerOptions } from './SecretManager'
@@ -20,20 +19,20 @@ export function resolveProviderCredentials(
   return manager.getProviderCredentials(providerId, { caller: options?.caller })
 }
 
-/**
- * Canonical secret read for provider adapters.
- * When SecretManager flag is OFF, still uses EnvironmentSecretProvider through SecretManager
- * instance APIs when `force` is set — otherwise callers may keep legacy paths.
- */
 export function readSecretViaManager(
   key: string,
-  options?: { enabled?: boolean; caller?: string; force?: boolean },
+  options?: { enabled?: boolean; caller?: string; force?: boolean; providerId?: SecretProviderId },
 ): string | null {
   if (!options?.force && !isSecretManagerEnabled({ enabled: options?.enabled })) {
-    return null
+    // Still allow managed reads through EnvironmentSecretProvider for migration
+    return getSecretManager().get(key, {
+      caller: options?.caller ?? 'readSecretViaManager',
+      providerId: options?.providerId,
+    })
   }
   return getSecretManager({ enabled: options?.enabled ?? true }).get(key, {
     caller: options?.caller ?? 'readSecretViaManager',
+    providerId: options?.providerId,
   })
 }
 

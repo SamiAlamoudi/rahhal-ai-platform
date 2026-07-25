@@ -10,24 +10,27 @@ import type {
   ConversationLlmResponse,
 } from './types'
 
+import { readManagedConfig, readManagedEnv } from '../../security/secrets/managedAccess'
+
 function readOpenAiKey(): string | null {
   const raw = (
-    (import.meta.env.VITE_AGENT_OPENAI_API_KEY as string | undefined)
-    ?? (import.meta.env.VITE_OPENAI_API_KEY as string | undefined)
+    readManagedEnv('OPENAI_API_KEY', { providerId: 'openai' })
+    ?? readManagedConfig('VITE_AGENT_OPENAI_API_KEY')
+    ?? readManagedConfig('VITE_OPENAI_API_KEY')
   )?.trim()
   return raw || null
 }
 
 function readOpenAiModel(): string {
   return (
-    (import.meta.env.VITE_AGENT_OPENAI_MODEL as string | undefined)?.trim()
+    readManagedConfig('VITE_AGENT_OPENAI_MODEL')?.trim()
     || 'gpt-4o-mini'
   )
 }
 
 function readOpenAiBaseUrl(): string {
   return (
-    (import.meta.env.VITE_AGENT_OPENAI_BASE_URL as string | undefined)?.trim()
+    readManagedConfig('VITE_AGENT_OPENAI_BASE_URL')?.trim()
     || 'https://api.openai.com/v1'
   )
 }

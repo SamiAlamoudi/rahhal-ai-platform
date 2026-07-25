@@ -2,7 +2,7 @@
  * Sprint 14 — in-memory secret access audit (redacted only).
  */
 
-import type { SecretAccessEvent } from './types'
+import type { SecretAccessEvent, SecretProviderId } from './types'
 import { redactSecret } from './redact'
 
 const events: SecretAccessEvent[] = []
@@ -13,12 +13,16 @@ export function recordSecretAccess(input: {
   present: boolean
   caller: string
   value?: string | null
+  providerId?: SecretProviderId | null
+  authorized?: boolean
 }): SecretAccessEvent {
   const event: SecretAccessEvent = {
     at: new Date().toISOString(),
     key: input.key,
     present: input.present,
     caller: input.caller,
+    providerId: input.providerId ?? null,
+    authorized: input.authorized ?? true,
     redactedPreview: input.present ? redactSecret(input.value) : null,
   }
   events.push(event)

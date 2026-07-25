@@ -1,6 +1,5 @@
 /**
  * Sprint 14 — SecretManager (central configuration layer).
- * All credential access should go through this manager.
  */
 
 import { isSecretManagerEnabled } from './feature'
@@ -10,9 +9,12 @@ import { recordSecretAccess } from './audit'
 import { redactSecret } from './redact'
 import {
   expandKeyCandidates,
-  getProviderRegistration,
-  PROVIDER_SECRET_REGISTRY,
-} from './registry'
+  getSecretRegistry,
+} from './SecretRegistry'
+import { createProviderSecretAuthorizer } from './authorization'
+import { getSecretRotationController } from './rotation'
+import { createValidationService } from './ValidationService'
+import { incrementProviderAuthFailure } from './metrics'
 import { SECURITY_SECRET_MANAGER_VERSION } from './types'
 import type {
   ProviderCredentialSet,
@@ -24,9 +26,7 @@ import type {
 
 export interface SecretManagerOptions {
   enabled?: boolean
-  /** Primary backend (default: EnvironmentSecretProvider). */
   provider?: SecretProvider
-  /** Optional chain — first non-null wins. */
   providers?: SecretProvider[]
   caller?: string
 }
@@ -45,7 +45,6 @@ export class SecretManager {
     } else if (options.provider) {
       this.providers = [options.provider]
     } else {
-      // Environment is the production default; vault stub is chained but live=false.
       this.providers = [
         createEnvironmentSecretProvider(),
         createFutureVaultSecretProvider(),
@@ -57,14 +56,30 @@ export class SecretManager {
     return isSecretManagerEnabled({ enabled: this.enabledOverride })
   }
 
-  /** Resolve a single secret key through the provider chain. */
-  get(key: string, options?: { caller?: string }): string | null {
+  get(key: string, options?: { caller?: string; providerId?: SecretProviderId }): string | null {
     this.accessCount += 1
+    const providerId = options?.providerId
+    let authorized = true
+    if (providerId) {
+      authorized = createProviderSecretAuthorizer().authorize(providerId, key)
+      if (!authorized) {
+        incrementProviderAuthFailure()
+        recordSecretAccess({
+          key,
+          present: false,
+          caller: options?.caller ?? this.defaultCaller,
+          providerId,
+          authorized: false,
+          value: null,
+        })
+        return null
+      }
+    }
+
     let value: string | null = null
     for (const provider of this.providers) {
       const raw = provider.get(key)
       const resolved = raw instanceof Promise ? null : raw
-      // Sync path only for env/memory; async vault is future.
       if (resolved != null && String(resolved).trim()) {
         value = String(resolved)
         break
@@ -74,28 +89,28 @@ export class SecretManager {
       key,
       present: Boolean(value),
       caller: options?.caller ?? this.defaultCaller,
+      providerId: providerId ?? null,
+      authorized,
       value,
     })
     return value
   }
 
-  has(key: string, options?: { caller?: string }): boolean {
+  has(key: string, options?: { caller?: string; providerId?: SecretProviderId }): boolean {
     return Boolean(this.get(key, options))
   }
 
-  /** Presence check that never returns secret values. */
   presence(key: string): SecretPresence {
     const value = this.get(key, { caller: `${this.defaultCaller}.presence` })
     return {
       key,
       present: Boolean(value),
-      scope: key.startsWith('VITE_') ? 'client_public' : 'server',
+      scope: key.startsWith('VITE_') ? 'client_safe' : 'server_only',
       source: value ? this.providers[0]?.providerId ?? null : null,
     }
   }
 
-  /** Resolve first present key among candidates (aliases). */
-  getFirst(keys: string[], options?: { caller?: string }): string | null {
+  getFirst(keys: string[], options?: { caller?: string; providerId?: SecretProviderId }): string | null {
     for (const key of keys) {
       const value = this.get(key, options)
       if (value) return value
@@ -103,12 +118,11 @@ export class SecretManager {
     return null
   }
 
-  /** Provider-facing credential bundle — single secure configuration entrypoint. */
   getProviderCredentials(
     providerId: SecretProviderId,
     options?: { caller?: string },
   ): ProviderCredentialSet {
-    const reg = getProviderRegistration(providerId)
+    const reg = getSecretRegistry().get(providerId)
     if (!reg) {
       return {
         providerId,
@@ -116,62 +130,97 @@ export class SecretManager {
         values: {},
         complete: false,
         missing: ['unknown_provider'],
+        invalid: [],
+        disabledGracefully: true,
       }
     }
 
     const values: Record<string, string | null> = {}
     const missing: string[] = []
+    const invalid: string[] = []
     const keys: string[] = []
+    const validator = createValidationService()
 
     for (const entry of reg.required) {
       const candidates = expandKeyCandidates(entry)
       keys.push(...candidates)
       const value = this.getFirst(candidates, {
         caller: options?.caller ?? `provider:${providerId}`,
+        providerId,
       })
       values[entry.key] = value
       if (!value) missing.push(entry.key)
+      else {
+        const issues = validator.validateValue(entry.key, value, entry.format)
+        if (issues.length) invalid.push(entry.key)
+      }
     }
     for (const entry of reg.optional ?? []) {
       const candidates = expandKeyCandidates(entry)
       keys.push(...candidates)
       values[entry.key] = this.getFirst(candidates, {
         caller: options?.caller ?? `provider:${providerId}:optional`,
+        providerId,
       })
     }
 
+    const complete = missing.length === 0 && invalid.length === 0
     return {
       providerId,
       keys: [...new Set(keys)],
       values,
-      complete: missing.length === 0,
+      complete,
       missing,
+      invalid,
+      disabledGracefully: !complete && reg.required.every((r) => r.criticality === 'optional'),
     }
+  }
+
+  refresh(): void {
+    for (const p of this.providers) p.refresh?.()
+  }
+
+  reload(): void {
+    for (const p of this.providers) p.reload?.()
+  }
+
+  getVersion(): string {
+    return getSecretRotationController().getVersion()
+  }
+
+  getLastUpdatedAt(): string | null {
+    return getSecretRotationController().getLastUpdatedAt()
+  }
+
+  invalidateCache(): void {
+    for (const p of this.providers) p.invalidateCache?.()
   }
 
   diagnostics(): SecretManagerDiagnostics {
     const primary = this.providers[0]
+    const rotation = getSecretRotationController()
     return {
       version: SECURITY_SECRET_MANAGER_VERSION,
       enabled: this.isEnabled(),
       backend: primary?.providerId ?? 'none',
       liveBackend: Boolean(primary?.live),
       accessCount: this.accessCount,
-      knownProviderIds: PROVIDER_SECRET_REGISTRY.map((r) => r.providerId),
+      knownProviderIds: getSecretRegistry().providerIds(),
+      rotationVersion: rotation.getVersion(),
+      lastUpdatedAt: rotation.getLastUpdatedAt(),
     }
   }
 
-  /** Safe summary — never includes secret values. */
   safeSummary(): {
     enabled: boolean
     backend: string
-    redactedSample: string | null
+    redactedSample: string
     providers: string[]
   } {
     return {
       enabled: this.isEnabled(),
       backend: this.providers.map((p) => p.providerId).join('+'),
-      redactedSample: redactSecret('sample_secret_value_0000'),
+      redactedSample: redactSecret('sample_secret_value_0000') ?? '[REDACTED]',
       providers: this.providers.map((p) => `${p.providerId}:live=${p.live}`),
     }
   }

@@ -3,7 +3,10 @@
  *
  * API keys are never read from VITE_* variables. Browser clients call the
  * `openweather-proxy` Edge Function; the secret remains server-side.
+ * Sprint 14 — all env access via SecretManager (EnvironmentSecretProvider).
  */
+
+import { readManagedConfig, readManagedEnv } from '../../../../security/secrets/managedAccess'
 
 export interface OpenWeatherProviderConfig {
   /** Server-side OpenWeather API key (never from VITE_*). */
@@ -21,27 +24,6 @@ export interface OpenWeatherProviderConfig {
 
 const DEFAULT_BASE = 'https://api.openweathermap.org/data/2.5'
 
-function readProcessEnv(name: string): string | null {
-  try {
-    const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
-    const value = proc?.env?.[name]
-    if (value === undefined || value === null || value === '') return null
-    return String(value)
-  } catch {
-    return null
-  }
-}
-
-function readViteEnv(name: string): string | null {
-  try {
-    const value = (import.meta as { env?: Record<string, unknown> }).env?.[name]
-    if (value === undefined || value === null || value === '') return null
-    return String(value).trim() || null
-  } catch {
-    return null
-  }
-}
-
 /**
  * Resolve OpenWeather credentials.
  *
@@ -54,29 +36,29 @@ export function resolveOpenWeatherProviderConfig(
 ): OpenWeatherProviderConfig {
   const apiKey = overrides.apiKey !== undefined
     ? overrides.apiKey
-    : readProcessEnv('OPENWEATHER_API_KEY')
+    : readManagedEnv('OPENWEATHER_API_KEY', { providerId: 'weather' })
 
-  const supabaseUrl = readViteEnv('VITE_SUPABASE_URL')
+  const supabaseUrl = readManagedConfig('VITE_SUPABASE_URL')
   const defaultProxy = supabaseUrl
     ? `${supabaseUrl.replace(/\/$/, '')}/functions/v1/openweather-proxy`
     : null
 
   const proxyUrl = overrides.proxyUrl !== undefined
     ? overrides.proxyUrl
-    : (readProcessEnv('OPENWEATHER_PROXY_URL')
-      || readViteEnv('VITE_OPENWEATHER_PROXY_URL')
+    : (readManagedConfig('OPENWEATHER_PROXY_URL')
+      || readManagedConfig('VITE_OPENWEATHER_PROXY_URL')
       || defaultProxy)
 
   const invokeApiKey = overrides.invokeApiKey !== undefined
     ? overrides.invokeApiKey
-    : (readProcessEnv('OPENWEATHER_INVOKE_KEY')
-      || readViteEnv('VITE_SUPABASE_ANON_KEY')
-      || readViteEnv('VITE_SUPABASE_PUBLISHABLE_KEY'))
+    : (readManagedConfig('OPENWEATHER_INVOKE_KEY')
+      || readManagedConfig('VITE_SUPABASE_ANON_KEY')
+      || readManagedConfig('VITE_SUPABASE_PUBLISHABLE_KEY'))
 
   const preferRaw = (
-    readProcessEnv('WEATHER_PROVIDER')
-    || readViteEnv('VITE_WEATHER_PROVIDER')
-    || readViteEnv('VITE_WEATHER_ADAPTER')
+    readManagedConfig('WEATHER_PROVIDER')
+    || readManagedConfig('VITE_WEATHER_PROVIDER')
+    || readManagedConfig('VITE_WEATHER_ADAPTER')
     || 'openweather'
   ).toLowerCase()
 
@@ -85,19 +67,19 @@ export function resolveOpenWeatherProviderConfig(
 
   const timeoutRaw = Number(
     overrides.timeoutMs
-    ?? readProcessEnv('OPENWEATHER_TIMEOUT_MS')
-    ?? readViteEnv('VITE_WEATHER_TIMEOUT')
+    ?? readManagedConfig('OPENWEATHER_TIMEOUT_MS')
+    ?? readManagedConfig('VITE_WEATHER_TIMEOUT')
     ?? 10_000,
   )
   const retriesRaw = Number(
     overrides.maxRetries
-    ?? readProcessEnv('OPENWEATHER_MAX_RETRIES')
+    ?? readManagedConfig('OPENWEATHER_MAX_RETRIES')
     ?? 2,
   )
 
   const baseUrl = overrides.baseUrl
-    ?? readProcessEnv('OPENWEATHER_BASE_URL')
-    ?? readViteEnv('VITE_WEATHER_BASE_URL')
+    ?? readManagedConfig('OPENWEATHER_BASE_URL')
+    ?? readManagedConfig('VITE_WEATHER_BASE_URL')
     ?? DEFAULT_BASE
 
   return {

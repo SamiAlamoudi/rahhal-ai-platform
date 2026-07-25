@@ -1,9 +1,9 @@
 /**
- * Sprint 14 — EnvironmentSecretProvider.
- * Sole approved reader of process / Vite env for secret material.
+ * Sprint 14 — EnvironmentSecretProvider (sole approved env reader).
  */
 
 import type { SecretProvider } from './types'
+import { getSecretRotationController } from './rotation'
 
 function readFromVite(key: string): string | null {
   try {
@@ -28,22 +28,50 @@ function readFromProcess(key: string): string | null {
 
 /**
  * Reads secrets from environment injection (.env, Vercel, GitHub Actions, etc.).
- * This is the only SecretProvider that touches env directly.
+ * This is the ONLY SecretProvider that touches env directly.
  */
 export class EnvironmentSecretProvider implements SecretProvider {
   readonly providerId = 'environment'
   readonly live = true
+  private cache = new Map<string, string | null>()
 
   get(key: string): string | null {
-    // Prefer server/process env for non-VITE keys; allow Vite for public/client keys.
+    if (this.cache.has(key)) return this.cache.get(key) ?? null
+    let value: string | null
     if (key.startsWith('VITE_')) {
-      return readFromVite(key) ?? readFromProcess(key)
+      value = readFromVite(key) ?? readFromProcess(key)
+    } else {
+      value = readFromProcess(key) ?? readFromVite(key)
     }
-    return readFromProcess(key) ?? readFromVite(key)
+    this.cache.set(key, value)
+    return value
   }
 
   has(key: string): boolean {
     return Boolean(this.get(key))
+  }
+
+  refresh(): void {
+    getSecretRotationController().refresh()
+    this.invalidateCache()
+  }
+
+  reload(): void {
+    getSecretRotationController().reload()
+    this.invalidateCache()
+  }
+
+  getVersion(): string {
+    return getSecretRotationController().getVersion()
+  }
+
+  getLastUpdatedAt(): string | null {
+    return getSecretRotationController().getLastUpdatedAt()
+  }
+
+  invalidateCache(): void {
+    this.cache.clear()
+    getSecretRotationController().invalidateCache()
   }
 }
 

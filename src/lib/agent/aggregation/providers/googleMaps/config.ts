@@ -3,7 +3,10 @@
  *
  * API keys are never read from VITE_* variables. Browser clients call the
  * `google-maps-proxy` Edge Function; the secret remains server-side.
+ * Sprint 14 — all env access via SecretManager (EnvironmentSecretProvider).
  */
+
+import { readManagedConfig, readManagedEnv } from '../../../../security/secrets/managedAccess'
 
 export interface GoogleMapsProviderConfig {
   /** Server-side Google Maps Platform API key (never from VITE_*). */
@@ -18,27 +21,6 @@ export interface GoogleMapsProviderConfig {
   maxRetries: number
 }
 
-function readProcessEnv(name: string): string | null {
-  try {
-    const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
-    const value = proc?.env?.[name]
-    if (value === undefined || value === null || value === '') return null
-    return String(value)
-  } catch {
-    return null
-  }
-}
-
-function readViteEnv(name: string): string | null {
-  try {
-    const value = (import.meta as { env?: Record<string, unknown> }).env?.[name]
-    if (value === undefined || value === null || value === '') return null
-    return String(value).trim() || null
-  } catch {
-    return null
-  }
-}
-
 /**
  * Resolve Google Maps credentials.
  *
@@ -51,28 +33,28 @@ export function resolveGoogleMapsProviderConfig(
 ): GoogleMapsProviderConfig {
   const apiKey = overrides.apiKey !== undefined
     ? overrides.apiKey
-    : readProcessEnv('GOOGLE_MAPS_API_KEY')
+    : readManagedEnv('GOOGLE_MAPS_API_KEY', { providerId: 'google_maps' })
 
-  const supabaseUrl = readViteEnv('VITE_SUPABASE_URL')
+  const supabaseUrl = readManagedConfig('VITE_SUPABASE_URL')
   const defaultProxy = supabaseUrl
     ? `${supabaseUrl.replace(/\/$/, '')}/functions/v1/google-maps-proxy`
     : null
 
   const proxyUrl = overrides.proxyUrl !== undefined
     ? overrides.proxyUrl
-    : (readProcessEnv('GOOGLE_MAPS_PROXY_URL')
-      || readViteEnv('VITE_GOOGLE_MAPS_PROXY_URL')
+    : (readManagedConfig('GOOGLE_MAPS_PROXY_URL')
+      || readManagedConfig('VITE_GOOGLE_MAPS_PROXY_URL')
       || defaultProxy)
 
   const invokeApiKey = overrides.invokeApiKey !== undefined
     ? overrides.invokeApiKey
-    : (readProcessEnv('GOOGLE_MAPS_INVOKE_KEY')
-      || readViteEnv('VITE_SUPABASE_ANON_KEY')
-      || readViteEnv('VITE_SUPABASE_PUBLISHABLE_KEY'))
+    : (readManagedConfig('GOOGLE_MAPS_INVOKE_KEY')
+      || readManagedConfig('VITE_SUPABASE_ANON_KEY')
+      || readManagedConfig('VITE_SUPABASE_PUBLISHABLE_KEY'))
 
   const preferRaw = (
-    readProcessEnv('MAPS_PROVIDER')
-    || readViteEnv('VITE_MAPS_PROVIDER')
+    readManagedConfig('MAPS_PROVIDER')
+    || readManagedConfig('VITE_MAPS_PROVIDER')
     || 'google_maps'
   ).toLowerCase()
 
@@ -81,14 +63,14 @@ export function resolveGoogleMapsProviderConfig(
 
   const timeoutRaw = Number(
     overrides.timeoutMs
-    ?? readProcessEnv('GOOGLE_MAPS_TIMEOUT_MS')
-    ?? readViteEnv('VITE_GOOGLE_MAPS_TIMEOUT_MS')
+    ?? readManagedConfig('GOOGLE_MAPS_TIMEOUT_MS')
+    ?? readManagedConfig('VITE_GOOGLE_MAPS_TIMEOUT_MS')
     ?? 12_000,
   )
   const retriesRaw = Number(
     overrides.maxRetries
-    ?? readProcessEnv('GOOGLE_MAPS_MAX_RETRIES')
-    ?? readViteEnv('VITE_GOOGLE_MAPS_MAX_RETRIES')
+    ?? readManagedConfig('GOOGLE_MAPS_MAX_RETRIES')
+    ?? readManagedConfig('VITE_GOOGLE_MAPS_MAX_RETRIES')
     ?? 2,
   )
 

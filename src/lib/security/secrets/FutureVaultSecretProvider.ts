@@ -1,6 +1,5 @@
 /**
  * Sprint 14 — future vault / cloud secret provider (not enabled).
- * Prepared for HashiCorp Vault / AWS Secrets Manager / GCP Secret Manager.
  */
 
 import type { SecretProvider } from './types'
@@ -19,7 +18,6 @@ export const FUTURE_VAULT_CAPABILITIES: FutureVaultCapabilities = {
   azureKeyVault: false,
 }
 
-/** Stub — always empty. Live vault integration is a future sprint. */
 export class FutureVaultSecretProvider implements SecretProvider {
   readonly providerId = 'future_vault'
   readonly live = false
@@ -35,6 +33,12 @@ export class FutureVaultSecretProvider implements SecretProvider {
   listKeys(): string[] {
     return []
   }
+
+  refresh(): void { /* architecture only */ }
+  reload(): void { /* architecture only */ }
+  getVersion(): string { return '0' }
+  getLastUpdatedAt(): string | null { return null }
+  invalidateCache(): void { /* no-op */ }
 }
 
 export function createFutureVaultSecretProvider(): FutureVaultSecretProvider {

@@ -85,8 +85,8 @@ describe('Sprint 14 — Production Security & Secrets Management', () => {
   })
 
   it('redacts secrets and blocks leaks in payloads', () => {
-    expect(redactSecret('abcdefghij')).toBe('ab…ij')
-    expect(redactSecret('short')).toBe('***')
+    expect(redactSecret('abcdefghij')).toBe('[REDACTED]')
+    expect(redactSecret('short')).toBe('[REDACTED]')
     expect(() => assertNoSecretLeak({ msg: 'token=supersecretvalue' }, ['supersecretvalue']))
       .toThrow(/Secret material/)
   })
@@ -113,11 +113,12 @@ describe('Sprint 14 — Production Security & Secrets Management', () => {
     const manager = createSecretManager({ enabled: true, provider: memory })
     setSecretManagerForTests(manager)
     getFeatureRegistry().setEnabled(SECURITY_SECRET_MANAGER_FEATURE_ID, true)
-    expect(readLiveProviderSecret('DUFFEL_API_TOKEN')).toBe('bridged-token-1111')
+    expect(readLiveProviderSecret('DUFFEL_API_TOKEN', 'duffel')).toBe('bridged-token-1111')
+    expect(readLiveProviderSecret('DUFFEL_API_TOKEN', 'amadeus')).toBeNull()
 
     getFeatureRegistry().setEnabled(SECURITY_SECRET_MANAGER_FEATURE_ID, false)
     resetSecretManagerForTests()
-    expect(readLiveProviderSecret('DUFFEL_API_TOKEN_THAT_DOES_NOT_EXIST_XYZ')).toBeNull()
+    expect(readLiveProviderSecret('DUFFEL_API_TOKEN_THAT_DOES_NOT_EXIST_XYZ', 'duffel')).toBeNull()
   })
 
   it('regression: flag OFF leaves SecretManager disabled for registry callers', () => {

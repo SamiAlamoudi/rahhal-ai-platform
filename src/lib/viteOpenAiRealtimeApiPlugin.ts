@@ -2,7 +2,7 @@
  * Vite middleware mirroring Vercel Edge:
  *   POST /api/openai-realtime-session
  *
- * Reads OPENAI_API_KEY from process.env (never VITE_*).
+ * Sprint 14 — Node middleware uses viteNodeEnv (not SPA provider SecretManager).
  */
 
 import type { Plugin } from 'vite'
@@ -11,6 +11,7 @@ import {
   missingOpenAiRealtimeCredentialsResponse,
   readOpenAiRealtimeCredentials,
 } from '../../api/_lib/openaiRealtimeEnv.js'
+import { buildOpenAiEnvBag } from './viteNodeEnv.js'
 
 function sendJson(
   res: { statusCode?: number; setHeader: (k: string, v: string) => void; end: (b: string) => void },
@@ -61,7 +62,7 @@ export function openAiRealtimeApiPlugin(): Plugin {
           return
         }
 
-        const { apiKey, model, voice, hasCredentials } = readOpenAiRealtimeCredentials(process.env)
+        const { apiKey, model, voice, hasCredentials } = readOpenAiRealtimeCredentials(buildOpenAiEnvBag())
         if (!hasCredentials || !apiKey) {
           sendJson(res, 503, {
             ...missingOpenAiRealtimeCredentialsResponse(),

@@ -32,6 +32,9 @@ jobs:
       - name: Secret / env hygiene scan
         run: bash scripts/secret-hygiene-scan.sh
 
+      - name: Security gate (secret scan · env access · sanitization · authz)
+        run: npm run security:gate
+
       - name: Typecheck
         run: npm run typecheck
 
