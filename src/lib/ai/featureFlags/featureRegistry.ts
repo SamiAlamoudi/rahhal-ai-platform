@@ -435,6 +435,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: integration_destination_intelligence. Additive under src/lib/agent/integrationDestinationIntelligence. Distinct from Evolution Sprint 7 ai.destination_intelligence if present. When OFF, planTurn path is unchanged.',
   },
   {
+    id: 'ai.integration_trip_companion',
+    name: 'Integration Live Trip Companion',
+    description:
+      'Integration Sprint 7 — live trip session, timeline engine, smart notifications (prepared), dynamic replanning, travel assistant, context memory, location abstraction, emergency framework. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: integration_trip_companion. Additive under src/lib/agent/integrationTripCompanion. No live maps/GPS. When OFF, planTurn path is unchanged.',
+  },
+  {
     id: 'ai.trip_builder',
     name: 'AI Trip Builder',
     description:

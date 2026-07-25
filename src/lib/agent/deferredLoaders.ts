@@ -77,6 +77,10 @@ export function loadIntegrationDestinationIntelligence() {
   return loadOnce('integrationDestinationIntelligence', () => import('./integrationDestinationIntelligence'))
 }
 
+export function loadIntegrationTripCompanion() {
+  return loadOnce('integrationTripCompanion', () => import('./integrationTripCompanion'))
+}
+
 export function loadTravelerPersonalization() {
   return loadOnce('travelerPersonalization', () => import('./travelerPersonalization'))
 }

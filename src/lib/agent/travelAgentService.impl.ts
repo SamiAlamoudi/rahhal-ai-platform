@@ -44,6 +44,8 @@ import type { BudgetIntelligenceResult } from './budgetIntelligence'
 import { isIntegrationTripOrchestratorEnabled } from './integrationTripOrchestrator/feature'
 import { isIntegrationDestinationIntelligenceEnabled } from './integrationDestinationIntelligence/feature'
 import type { DestinationIntelligenceResult } from './integrationDestinationIntelligence/types'
+import { isIntegrationTripCompanionEnabled } from './integrationTripCompanion/feature'
+import type { TripCompanionResult } from './integrationTripCompanion/types'
 import { isConversationIntelligenceEnabled } from './conversationIntelligence/feature'
 import type { ConversationIntelligenceResult } from './conversationIntelligence'
 import { isLlmConversationBrainEnabled } from './llmBrain/feature'
@@ -125,6 +127,7 @@ import {
   loadBudgetIntelligence,
   loadIntegrationTripOrchestrator,
   loadIntegrationDestinationIntelligence,
+  loadIntegrationTripCompanion,
   loadConcierge,
   loadConciergeIntegration,
   loadConciergeMeta,
@@ -1012,6 +1015,9 @@ export function createTravelAgentService(
   const isIntegrationDestinationIntelligenceOn = (): boolean =>
     isIntegrationDestinationIntelligenceEnabled()
 
+  const isIntegrationTripCompanionOn = (): boolean =>
+    isIntegrationTripCompanionEnabled()
+
   const isTravelerPersonalizationOn = (): boolean =>
     isTravelerPersonalizationEnabled({ enabled: options.travelerPersonalizationEnabled })
 
@@ -1622,6 +1628,8 @@ export function createTravelAgentService(
       let reasoningMeta: AgentProviderMeta['reasoning'] | undefined
       let destinationIntelligenceResult: DestinationIntelligenceResult | null = null
       let destinationIntelligenceMeta: AgentProviderMeta['destinationIntelligence'] | undefined
+      let tripCompanionResult: TripCompanionResult | null = null
+      let tripCompanionMeta: AgentProviderMeta['tripCompanion'] | undefined
       let clarificationMeta: NonNullable<AgentProviderMeta['clarification']> | undefined
       let rahhalBrainMeta: RahhalBrainMetaSnapshot | undefined
       let travelExecutiveSnapshot: RahhalBrainTurnResult['executive']
@@ -1900,6 +1908,30 @@ export function createTravelAgentService(
             )
           }
         }
+
+        // Integration Sprint 7 — Live Trip Companion (session / timeline / replan / assistant).
+        if (isIntegrationTripCompanionOn() && userText.trim()) {
+          const __mod_tripCompanion = await loadIntegrationTripCompanion()
+          if (
+            __mod_tripCompanion.shouldRunTripCompanion({
+              userText,
+              memory,
+            })
+          ) {
+            const companionEnriched = await __mod_tripCompanion.enrichWithIntegrationTripCompanion({
+              memory,
+              userText,
+              locale: memory.locale,
+              force: true,
+              deps: { enabled: true },
+            })
+            memory = companionEnriched.memory
+            tripCompanionResult = companionEnriched.tripCompanion
+            tripCompanionMeta = __mod_tripCompanion.toTripCompanionMeta(
+              companionEnriched.tripCompanion,
+            )
+          }
+        }
         memory = withTripPlan(memory, memory.tripPlan ?? memory.itinerary)
       }
 
@@ -2118,12 +2150,15 @@ export function createTravelAgentService(
         const withDestinationIntelligence = destinationIntelligenceMeta
           ? { ...withAutonomous, destinationIntelligence: destinationIntelligenceMeta }
           : withAutonomous
+        const withTripCompanion = tripCompanionMeta
+          ? { ...withDestinationIntelligence, tripCompanion: tripCompanionMeta }
+          : withDestinationIntelligence
         const withBooking = bookingIntelligenceResult
           ? {
-            ...withDestinationIntelligence,
+            ...withTripCompanion,
             bookingIntelligence: toMetaBookingIntelligence(bookingIntelligenceResult),
           }
-          : withDestinationIntelligence
+          : withTripCompanion
         const withBudget = budgetIntelligenceResult
           ? { ...withBooking, budgetIntelligence: toMetaBudgetIntelligence(budgetIntelligenceResult) }
           : withBooking
@@ -2233,6 +2268,63 @@ export function createTravelAgentService(
           ...enriched,
           spokenText,
           voicePhase: enriched.voicePhase ?? 'final',
+        }
+      }
+
+      // Integration Sprint 7 — Live Trip Companion answers in-trip questions / disruptions.
+      if (
+        !isBrainCoreEnabled()
+        && tripCompanionResult?.enabled
+        && tripCompanionResult.ok
+        && (
+          tripCompanionResult.assistantIntent !== 'unknown'
+          || tripCompanionResult.replanned
+          || tripCompanionResult.emergency
+        )
+      ) {
+        memory = withTripPlan({ ...memory, phase: memory.phase }, memory.tripPlan)
+        const companionSummary = memory.locale === 'en'
+          ? tripCompanionResult.consultantSummaryEn
+          : tripCompanionResult.consultantSummaryAr
+        const facts = buildTravelFacts({
+          memory,
+          objective: 'propose_options',
+          missingSlots: memory.missingFields.map(String),
+          optionHints: [
+            tripCompanionResult.timeline?.next
+              ? `Next: ${tripCompanionResult.timeline.next.titleEn}`
+              : null,
+            tripCompanionResult.session
+              ? `Session: ${tripCompanionResult.session.state}`
+              : null,
+          ].filter(Boolean) as string[],
+          recommendations: [companionSummary].filter(Boolean),
+          warnings: tripCompanionResult.disruptions.map((d) => d.detailEn),
+        })
+        const spoken = await speakTravelFacts({
+          llms,
+          conversationId: input.conversationId,
+          messages: input.messages,
+          facts,
+          signal: input.signal,
+        })
+        const replyText = companionSummary || spoken.displayText
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          spokenText: (companionSummary || spoken.spokenText)?.slice(0, 360),
+          voicePhase: 'final',
+          toolResults: [],
+        }
+        return {
+          reply: replyText,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta: attachTurnMeta(meta, meta.spokenText),
+          toolBatch: null,
         }
       }
 

@@ -292,6 +292,20 @@ export interface AgentProviderMeta {
     latencyMs: number
   }
   /**
+   * Integration Sprint 7 — Live Trip Companion snapshot (session / timeline / replan).
+   * Additive; present when `ai.integration_trip_companion` ran for the turn.
+   */
+  tripCompanion?: {
+    sessionState: string | null
+    assistantIntent: string
+    primaryEventId: string | null
+    notificationCount: number
+    replanned: boolean
+    emergencyKind: string | null
+    summary: string
+    latencyMs: number
+  }
+  /**
    * Sprint 46 — soft preference inference snapshot (never-ask-twice).
    */
   clarification?: {

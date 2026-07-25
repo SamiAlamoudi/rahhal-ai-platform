@@ -773,6 +773,21 @@ export {
   type DestinationComparison,
 } from './integrationDestinationIntelligence'
 
+/** Integration Sprint 7 — Live Trip Companion */
+export {
+  INTEGRATION_TRIP_COMPANION_VERSION,
+  INTEGRATION_TRIP_COMPANION_FEATURE_ID,
+  isIntegrationTripCompanionEnabled,
+  runTripCompanion,
+  enrichWithIntegrationTripCompanion,
+  createTripSession,
+  buildTravelTimeline,
+  detectCompanionDisruption,
+  type TripCompanionResult,
+  type TripSession,
+  type TravelTimelineSnapshot,
+} from './integrationTripCompanion'
+
 /** Sprint 73 — Hotel Search Engine */
 export {
   createHotelSearchEngine,
