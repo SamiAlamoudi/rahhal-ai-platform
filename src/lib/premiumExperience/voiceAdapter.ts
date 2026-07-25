@@ -1,8 +1,11 @@
 /**
  * Phase 3 — reusable VoiceAdapter seam.
- * Supports multiple providers; runtime always uses Mock unless explicitly prepared.
- * No network / no real APIs / no business-logic changes.
+ * Phase 7 — when `ai.realtime_voice` is enabled, adapters wrap Realtime VoiceSession
+ * (still mock-default; live sockets require VITE_VOICE_LIVE_ALLOW).
+ * No business-logic / UI redesign.
  */
+
+import { createVoiceSession as createRealtimeVoiceSession, isRealtimeVoiceEnabled } from '../realtimeVoice'
 
 export type VoiceAdapterProviderId =
   | 'mock'
@@ -122,11 +125,70 @@ export function createPreparedVoiceAdapter(id: VoiceAdapterProviderId): VoiceAda
   }
 }
 
+function mapToRealtimeProviderId(
+  id: VoiceAdapterProviderId,
+): 'mock' | 'openai_realtime' | 'gemini_live' | 'azure_realtime' | 'web_speech' {
+  if (id === 'azure_voice') return 'azure_realtime'
+  if (id === 'deepgram') return 'web_speech'
+  if (id === 'openai_realtime' || id === 'gemini_live' || id === 'web_speech' || id === 'mock') {
+    return id
+  }
+  return 'mock'
+}
+
+/** Phase 7 bridge — VoiceAdapter over Realtime VoiceSession (failover to mock). */
+export function createRealtimeIntegratedVoiceAdapter(
+  preferred?: VoiceAdapterProviderId,
+): VoiceAdapter {
+  const id = preferred ?? resolveVoiceAdapterProviderId()
+  const session = createRealtimeVoiceSession({
+    conversationId: `voice-ui-${Date.now()}`,
+    locale: 'ar',
+    preferredProvider: mapToRealtimeProviderId(id),
+  })
+  let muted = false
+  let connected = false
+  return {
+    id,
+    label: PROVIDER_LABELS[id],
+    mock: id === 'mock',
+    async connect() {
+      await session.start()
+      connected = true
+      const providerId = session.getProviderId() ?? 'mock'
+      return {
+        connected: true,
+        mock: providerId === 'mock',
+        providerId: providerId === 'azure_realtime' ? 'azure_voice' : (providerId as VoiceAdapterProviderId),
+      }
+    },
+    async disconnect() {
+      await session.stop()
+      connected = false
+    },
+    interrupt() {
+      if (!muted && connected) void session.interrupt()
+    },
+    mute() {
+      muted = true
+    },
+    unmute() {
+      muted = false
+    },
+    isMuted() {
+      return muted
+    },
+  }
+}
+
 /**
- * Factory — Phase 3 always returns a safe non-network adapter.
- * Live providers are labeled for future wiring only.
+ * Factory — Phase 3 safe non-network adapter by default.
+ * Phase 7: when realtime voice flag is ON, uses integrated session + failover.
  */
 export function createVoiceAdapter(preferred?: VoiceAdapterProviderId): VoiceAdapter {
+  if (isRealtimeVoiceEnabled()) {
+    return createRealtimeIntegratedVoiceAdapter(preferred)
+  }
   const id = preferred ?? resolveVoiceAdapterProviderId()
   if (id === 'mock') return createMockVoiceAdapter()
   return createPreparedVoiceAdapter(id)

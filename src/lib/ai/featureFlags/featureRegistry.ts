@@ -208,6 +208,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: agent_runtime. Default OFF. Reuses existing CI/llmBrain modules — no new reasoning layer. Mock tools only; no production API calls. Distinct from Sprint 113 ai.orchestrator.',
   },
   {
+    id: 'ai.realtime_voice',
+    name: 'Real AI Voice Integration',
+    description:
+      'Recovery Phase 7 — multi-provider realtime voice (OpenAI Realtime / Gemini Live / Azure / Web Speech / Mock) with failover, reconnect, latency metrics, and Agent Runtime incremental reasoning. Production default OFF; live sockets require VITE_VOICE_LIVE_ALLOW.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes:
+      'Product alias: realtime_voice. Production disabled by default. Dev opt-in via VITE_REALTIME_VOICE_DEV + VITE_VOICE_LIVE_ALLOW for sockets. Uses Agent Runtime in-process (no flag coupling). Distinct from frozen Sprint 18 ui.voice_conversation / voice.realtime. No API keys committed.',
+  },
+  {
     id: 'ai.traveler_personalization',
     name: 'Traveler Personalization Intelligence',
     description:

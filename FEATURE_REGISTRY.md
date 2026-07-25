@@ -55,6 +55,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ai.conversation_intelligence` | experimental | **no** | Recovery Phase 4 — live travel memory, entity/intent/reference intelligence, smart summaries, consultant questions (alias: conversation_intelligence) |
 | `ai.llm_conversation_brain` | experimental | **no** | Recovery Phase 5 — LLM-first conversation brain; mock reasoner primary, rules fallback (alias: llm_conversation_brain) |
 | `ai.agent_runtime` | experimental | **no** | Recovery Phase 6 — agent runtime + mock tool execution (alias: agent_runtime); reuses CI/llmBrain; distinct from frozen `ai.orchestrator` |
+| `ai.realtime_voice` | experimental | **no** | Recovery Phase 7 — multi-provider realtime voice + failover (alias: realtime_voice); production OFF; distinct from frozen `voice.realtime` |
 | `ui.voice_conversation` | experimental | **no** | Sprint 18 voice conversation foundation UI (alias: voice_conversation) |
 | `voice.realtime` | experimental | **no** | Sprint 18 realtime transport gate — stubs only (alias: voice_realtime) |
 | `voice.provider` | experimental | **no** | Sprint 18 provider abstraction gate (alias: voice_provider) |

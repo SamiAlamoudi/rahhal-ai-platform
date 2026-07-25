@@ -24,6 +24,7 @@ export type FeatureId =
   | 'ai.conversation_intelligence'
   | 'ai.llm_conversation_brain'
   | 'ai.agent_runtime'
+  | 'ai.realtime_voice'
   | 'ai.traveler_personalization'
   | 'ai.trip_optimizer'
   | 'ai.travel_planner'
