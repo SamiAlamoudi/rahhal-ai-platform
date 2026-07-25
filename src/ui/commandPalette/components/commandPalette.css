@@ -1,0 +1,237 @@
+/**
+ * Command Palette styles — Material 3–inspired overlay.
+ */
+
+.rahhal-cp {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  color: var(--rahhal-cp-ink);
+  font-family: "IBM Plex Sans Arabic", "SF Pro Display", "Segoe UI", sans-serif;
+}
+
+.rahhal-cp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.rahhal-cp-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--rahhal-cp-scrim);
+  backdrop-filter: blur(6px);
+}
+
+.rahhal-cp-panel {
+  position: relative;
+  z-index: 1;
+  width: min(100% - 2rem, var(--rahhal-cp-max, 40rem));
+  margin: 12vh auto 0;
+  background: var(--rahhal-cp-panel);
+  border: 1px solid var(--rahhal-cp-line);
+  border-radius: var(--rahhal-cp-radius, 1.15rem);
+  box-shadow: 0 24px 80px rgba(2, 6, 23, 0.28);
+  padding: 0.9rem;
+  animation: rahhal-cp-enter var(--rahhal-cp-anim, 180ms) ease both;
+}
+
+@keyframes rahhal-cp-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.rahhal-cp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.rahhal-cp-brand {
+  margin: 0;
+  font-weight: 800;
+  font-size: 1.25rem;
+}
+
+.rahhal-cp-shortcuts {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--rahhal-cp-muted);
+  font-size: 0.8rem;
+}
+
+.rahhal-cp-shortcuts kbd {
+  border: 1px solid var(--rahhal-cp-line);
+  border-radius: 0.4rem;
+  padding: 0.1rem 0.35rem;
+  background: color-mix(in srgb, var(--rahhal-cp-accent) 10%, transparent);
+}
+
+.rahhal-cp-header button,
+.rahhal-cp-filters button,
+.rahhal-cp-layouts button {
+  border: 1px solid var(--rahhal-cp-line);
+  background: transparent;
+  color: inherit;
+  border-radius: 0.65rem;
+  padding: 0.3rem 0.55rem;
+  cursor: pointer;
+  transition: background var(--rahhal-cp-transition, 160ms ease),
+    transform var(--rahhal-cp-transition, 160ms ease);
+}
+
+.rahhal-cp-filters button.is-active,
+.rahhal-cp-layouts button.is-active {
+  background: color-mix(in srgb, var(--rahhal-cp-accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--rahhal-cp-accent) 45%, transparent);
+}
+
+.rahhal-cp-input-wrap input {
+  width: 100%;
+  border-radius: 0.85rem;
+  border: 1px solid var(--rahhal-cp-line);
+  background: color-mix(in srgb, var(--rahhal-cp-accent) 6%, transparent);
+  color: inherit;
+  padding: 0.75rem 0.9rem;
+  font: inherit;
+  margin-bottom: 0.65rem;
+}
+
+.rahhal-cp-filters,
+.rahhal-cp-layouts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.55rem;
+}
+
+.rahhal-cp-quick {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--rahhal-cp-muted);
+  margin-bottom: 0.55rem;
+}
+
+.rahhal-cp-results {
+  max-height: min(48vh, 22rem);
+  overflow: auto;
+}
+
+.rahhal-cp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rahhal-cp-list--grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.rahhal-cp-list--card .rahhal-cp-item,
+.rahhal-cp-list--grid .rahhal-cp-item {
+  border: 1px solid var(--rahhal-cp-line);
+  border-radius: 0.85rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.rahhal-cp-item {
+  width: 100%;
+  display: grid;
+  gap: 0.15rem;
+  text-align: start;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 0.65rem;
+  padding: 0.45rem 0.55rem;
+  transition: background var(--rahhal-cp-transition, 160ms ease);
+}
+
+.rahhal-cp-item:hover,
+.rahhal-cp-item:focus-visible {
+  background: var(--rahhal-cp-highlight);
+  outline: none;
+}
+
+.rahhal-cp-item__title {
+  font-weight: 650;
+}
+
+.rahhal-cp-item__sub {
+  color: var(--rahhal-cp-muted);
+  font-size: 0.8rem;
+}
+
+.rahhal-cp-results--grouped section {
+  margin-bottom: 0.75rem;
+}
+
+.rahhal-cp-results--grouped h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  color: var(--rahhal-cp-accent);
+  text-transform: capitalize;
+}
+
+.rahhal-cp-empty {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  color: var(--rahhal-cp-muted);
+}
+
+.rahhal-cp-empty h3 {
+  margin: 0 0 0.35rem;
+  color: var(--rahhal-cp-ink);
+}
+
+.rahhal-cp-empty ul {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: center;
+}
+
+.rahhal-cp-empty li {
+  border: 1px solid var(--rahhal-cp-line);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .rahhal-cp-panel {
+    margin-top: 8vh;
+  }
+
+  .rahhal-cp-list--grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rahhal-cp-panel {
+    animation: none;
+  }
+}
