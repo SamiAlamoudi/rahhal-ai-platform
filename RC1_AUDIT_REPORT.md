@@ -1,6 +1,7 @@
 # Rahhal AI Platform — Release Candidate Audit (RC-1)
 
 **Branch:** `cursor/rc1-audit-7518`  
+**Draft PR:** [#263](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/263)  
 **Base tip audited:** `b1706d6` (`cursor/phase7-real-ai-voice-7518` / Draft PR **#262**)  
 **Scope:** Validate recovery stack Draft PRs **#256 → #262** (no new features, no merge, no UI redesign)  
 **Generated:** 2026-07-25  
