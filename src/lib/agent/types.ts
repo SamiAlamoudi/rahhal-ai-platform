@@ -454,6 +454,27 @@ export interface AgentProviderMeta {
     debugStages?: Array<{ id: string; label: string; detail: string; confidence: string; source: string }>
   }
   /**
+   * Recovery Phase 6 — Autonomous Agent Orchestrator snapshot (mission, tasks, recovery).
+   * Additive debug timeline only — never production UI. Flag OFF by default.
+   */
+  autonomousOrchestrator?: {
+    missionId: string
+    missionTitle: string
+    status: string
+    destination: string | null
+    purpose: string | null
+    taskCount: number
+    completedCount: number
+    primaryTool: string
+    replanned: boolean
+    clarificationCount: number
+    recoveryCount: number
+    decisionCount: number
+    replyPreview: string
+    /** Hidden in production — mission/task/tool/recovery timeline. */
+    timeline?: Array<{ at: string; kind: string; label: string; detail: string }>
+  }
+  /**
    * Sprint 76 — Traveler Personalization snapshot (profile, confidence, ranking deltas).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.
    */

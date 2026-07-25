@@ -149,6 +149,18 @@ export type {
   ConfidenceLevel,
 } from './llmBrain'
 export {
+  isAutonomousAgentOrchestratorEnabled,
+  AUTONOMOUS_AGENT_ORCHESTRATOR_FEATURE_ID,
+  runAutonomousAgentOrchestrator,
+  enrichWithAutonomousAgentOrchestrator,
+  PHASE6_AUTONOMOUS_ORCHESTRATOR_VERSION,
+} from './orchestrator/autonomous'
+export type {
+  AutonomousOrchestratorResult,
+  MissionPlan,
+  TravelGoal,
+} from './orchestrator/autonomous'
+export {
   isTravelerPersonalizationEnabled,
   TRAVELER_PERSONALIZATION_FEATURE_ID,
   parsePreferenceUtterance,

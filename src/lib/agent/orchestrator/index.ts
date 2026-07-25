@@ -1,5 +1,6 @@
 /**
  * Sprint 113 — AI Orchestrator barrel.
+ * Phase 6 autonomous mission orchestrator is additive under `./autonomous`.
  */
 
 export {
@@ -78,3 +79,29 @@ export {
   runAIOrchestrator,
   type AIOrchestratorOptions,
 } from './AIOrchestrator'
+
+/** Recovery Phase 6 — Autonomous AI Agent Orchestrator (flag OFF). */
+export {
+  AgentOrchestrator,
+  runAutonomousAgentOrchestrator,
+  enrichWithAutonomousAgentOrchestrator,
+  isAutonomousAgentOrchestratorEnabled,
+  AUTONOMOUS_AGENT_ORCHESTRATOR_FEATURE_ID,
+  PHASE6_AUTONOMOUS_ORCHESTRATOR_VERSION,
+  GoalManager,
+  TaskPlanner,
+  MissionExecutionPlanner,
+  ToolOrchestrator,
+  DecisionEngine,
+  TaskQueue,
+  WorkflowManager,
+  RecoveryManager,
+  ExecutionMemory,
+  ExecutionState,
+} from './autonomous'
+export type {
+  AutonomousOrchestratorResult,
+  MissionPlan,
+  TravelGoal,
+  AgentToolId,
+} from './autonomous'

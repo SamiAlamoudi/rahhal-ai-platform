@@ -70,6 +70,11 @@ import {
   type LlmBrainResult,
 } from './llmBrain'
 import {
+  enrichWithAutonomousAgentOrchestrator,
+  isAutonomousAgentOrchestratorEnabled,
+  type AutonomousOrchestratorResult,
+} from './orchestrator/autonomous'
+import {
   enrichWithTravelerPersonalization,
   isTravelerPersonalizationEnabled,
   runTravelerPersonalization,
@@ -350,6 +355,11 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.llm_conversation_brain` (OFF).
    */
   llmConversationBrainEnabled?: boolean
+  /**
+   * Recovery Phase 6 — Autonomous Agent Orchestrator (mission / multi-step).
+   * Default: FeatureRegistry `ai.autonomous_agent_orchestrator` (OFF).
+   */
+  autonomousAgentOrchestratorEnabled?: boolean
   /**
    * Sprint 76 — Traveler Personalization Intelligence (profile learning, ranking).
    * Default: FeatureRegistry `ai.traveler_personalization` (ON).
@@ -660,6 +670,32 @@ function toMetaLlmBrain(
       detail: s.detail,
       confidence: s.confidence,
       source: s.source,
+    })),
+  }
+}
+
+function toMetaAutonomousOrchestrator(
+  result: AutonomousOrchestratorResult,
+): NonNullable<AgentProviderMeta['autonomousOrchestrator']> {
+  return {
+    missionId: result.mission.id,
+    missionTitle: result.mission.title,
+    status: result.mission.status,
+    destination: result.mission.goal.destination,
+    purpose: result.mission.goal.purpose,
+    taskCount: result.mission.tasks.length,
+    completedCount: result.execution.completedTaskIds.length,
+    primaryTool: result.toolDecision.tool,
+    replanned: result.replanned,
+    clarificationCount: result.clarifications.length,
+    recoveryCount: result.recoveries.length,
+    decisionCount: result.decisions.length,
+    replyPreview: result.replyPreview.slice(0, 180),
+    timeline: result.timeline.map((e) => ({
+      at: e.at,
+      kind: e.kind,
+      label: e.label,
+      detail: e.detail,
     })),
   }
 }
@@ -1484,6 +1520,7 @@ export function createTravelAgentService(
 
       let conversationIntelligenceResult: ConversationIntelligenceResult | null = null
       let llmBrainResult: LlmBrainResult | null = null
+      let autonomousOrchestratorResult: AutonomousOrchestratorResult | null = null
 
       // Recovery Phase 4 — Conversation Intelligence (default OFF). Soft enrich only.
       if (isConversationIntelligenceEnabled({ enabled: options.conversationIntelligenceEnabled })) {
@@ -1522,6 +1559,28 @@ export function createTravelAgentService(
         })
         memory = enrichedBrain.memory
         llmBrainResult = enrichedBrain.llmBrain
+        memory.missingFields = filterInterviewMissingFields(
+          missingRequirementFields(memory.requirements).map(String),
+        ) as Array<keyof TripRequirements>
+      }
+
+      // Recovery Phase 6 — Autonomous Agent Orchestrator (default OFF). Mission planning only.
+      if (isAutonomousAgentOrchestratorEnabled({
+        enabled: options.autonomousAgentOrchestratorEnabled,
+      })) {
+        const recentTexts = input.messages
+          .slice(0, -1)
+          .slice(-6)
+          .map((m) => m.content)
+        const enrichedMission = enrichWithAutonomousAgentOrchestrator({
+          userText,
+          memory,
+          recentTexts,
+          enabled: true,
+          locale: memory.locale,
+        })
+        memory = enrichedMission.memory
+        autonomousOrchestratorResult = enrichedMission.autonomousOrchestrator
         memory.missingFields = filterInterviewMissingFields(
           missingRequirementFields(memory.requirements).map(String),
         ) as Array<keyof TripRequirements>
@@ -1993,12 +2052,18 @@ export function createTravelAgentService(
             llmBrain: toMetaLlmBrain(llmBrainResult),
           }
           : withConversationIntelligence
-        const withPersonalization = travelerPersonalizationResult
+        const withAutonomousOrchestrator = autonomousOrchestratorResult
           ? {
             ...withLlmBrain,
-            travelerPersonalization: toMetaTravelerPersonalization(travelerPersonalizationResult),
+            autonomousOrchestrator: toMetaAutonomousOrchestrator(autonomousOrchestratorResult),
           }
           : withLlmBrain
+        const withPersonalization = travelerPersonalizationResult
+          ? {
+            ...withAutonomousOrchestrator,
+            travelerPersonalization: toMetaTravelerPersonalization(travelerPersonalizationResult),
+          }
+          : withAutonomousOrchestrator
         const withOptimizer = tripOptimizerResult
           ? { ...withPersonalization, tripOptimizer: toMetaTripOptimizer(tripOptimizerResult) }
           : withPersonalization
