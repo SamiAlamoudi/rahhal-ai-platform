@@ -1,6 +1,7 @@
 # OpenAI Realtime Voice — Integration Sprint 1 Validation Report
 
 **Branch:** `cursor/openai-realtime-voice-7518`  
+**Draft PR:** [#266](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/266)  
 **Continues from:** Draft PR [#265](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/265) (RC-3 Foundation Complete)  
 **Generated:** 2026-07-25  
 **Constraints:** Additive · Feature flag OFF by default · No UI redesign · No architecture rewrite · **No merge**

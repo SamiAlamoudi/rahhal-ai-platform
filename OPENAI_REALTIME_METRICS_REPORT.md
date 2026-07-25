@@ -2,6 +2,7 @@
 
 **Sprint:** Integration Program · Sprint 1  
 **Branch:** `cursor/openai-realtime-voice-7518`  
+**Draft PR:** [#266](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/266)  
 **Generated:** 2026-07-25  
 
 ---
