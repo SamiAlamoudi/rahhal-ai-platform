@@ -159,6 +159,7 @@ export type FeatureId =
   | 'brain.llm_adapter'
   | 'brain.runtime_orchestrator'
   | 'brain.traveler_profile'
+  | 'brain.loyalty_platform'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'
