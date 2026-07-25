@@ -47,7 +47,7 @@ export interface PlanningEngineContract {
   execution: 'none'
 }
 
-export interface PlanningPipelineStageId =
+export type PlanningPipelineStageId =
   | 'attach_context'
   | 'match_preferences'
   | 'apply_constraints'
