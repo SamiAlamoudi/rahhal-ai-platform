@@ -1528,6 +1528,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_conversation_orchestrator. Contracts/types/blueprints only — never calls OpenAI/Claude/Gemini or agent runtime.',
   },
+  {
+    id: 'brain.planning_engine',
+    name: 'AI Planning Engine Architecture (Phase 6 Stage 3)',
+    description:
+      'Additive architecture-only Planning Engine: pipeline, itinerary/budget/schedule/transport/accommodation/activity planners, constraints, alternatives, confidence. Contracts/types only — no planning execution, LLM, Runtime, booking APIs, or production wiring. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.conversation_orchestrator'],
+    notes:
+      'Product alias: brain_planning_engine. Blueprints only — never plans trips or calls providers.',
+  },
 ]
 
 export class FeatureRegistry {
