@@ -169,6 +169,7 @@ export type FeatureId =
   | 'brain.travel_recommendation'
   | 'brain.offer_decision_engine'
   | 'brain.booking_orchestrator'
+  | 'brain.conversation_brain'
   | 'providers.hotel_foundation'
   | 'payments.live'
   | 'providers.live_master'

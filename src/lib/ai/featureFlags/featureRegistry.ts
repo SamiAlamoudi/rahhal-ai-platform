@@ -1726,6 +1726,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_booking_orchestrator. Blueprints only — booking preparation architecture only; never executes bookings. Does not replace booking.orchestrator or existing booking engines.',
   },
+  {
+    id: 'brain.conversation_brain',
+    name: 'AI Conversation Brain Orchestrator Architecture (Phase 7 Stage 12)',
+    description:
+      'Additive architecture-only Conversation Brain Orchestrator: coordinates personalization → preference extraction → context → intent → planning → search → recommendation → offer decision → booking draft through contracts into ConversationBrainResult. Blueprints only — NEVER invokes engines, LLM, providers, HTTP, booking, DB, or UI. Distinct from agent/conversationBrain, brain.conversation_orchestrator, and ai.conversation_orchestrator. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.booking_orchestrator'],
+    notes:
+      'Product alias: brain_conversation_brain. Blueprints only — contract coordination architecture only; does not replace agent conversationBrain or brain.conversation_orchestrator.',
+  },
 ]
 
 export class FeatureRegistry {
