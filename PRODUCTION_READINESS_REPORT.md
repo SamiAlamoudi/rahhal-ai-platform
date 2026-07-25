@@ -1,13 +1,13 @@
 # Production Readiness Report — Sprint 17
 
-**Status:** Draft PR (not merged)  
+**Status:** Draft PR #280 (not merged)  
 **Nature:** Audit only — no product features, UI redesign, conversation/provider/architecture rewrites  
 **Base:** Draft PR #279 (Sprint 16 load testing)  
 **Feature flag:** `production_audit.platform` — **OFF by default**
 
 ## Executive verdict
 
-Rahhal is **staging / controlled-beta ready** with a strong additive production stack (SecretManager, Observability, Load Testing). Overall release score **93/100**. One open **security warning**: high-severity `react-router` advisory (see Final Security Audit). Critical experimental flags remain **OFF**. ChatPage bundle **unchanged at 139.29 kB**.
+Rahhal is **staging / controlled-beta ready** with a strong additive production stack (SecretManager, Observability, Load Testing). Overall release score **94/100**. CI-blocking `react-router` advisory remediated via `react-router@8.3.0` override. Critical experimental flags remain **OFF**. ChatPage bundle **139.28 kB** (no increase vs 139.29 baseline).
 
 ## Gate evidence (this audit run)
 
@@ -18,14 +18,14 @@ Rahhal is **staging / controlled-beta ready** with a strong additive production 
 | `npm run arch:circular` | PASS (no cycles under `src/`) |
 | `npm run security:gate` | PASS |
 | `npm run test:run` | **2866** tests / **248** files PASS |
-| `npm run build` | PASS · ChatPage **139.29 kB** |
-| `npm run audit` | **WARN** — 2 high (react-router / react-router-dom) |
+| `npm run build` | PASS · ChatPage **139.28 kB** |
+| `npm run audit` | **PASS** (0 high) |
 
 ## Production checklist
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Security | WARN | SecretManager + CI secret gate PASS; dependency advisory open |
+| Security | PASS | SecretManager + CI secret gate; dependency audit clean |
 | Performance | PASS | ChatPage stable; lazy loading present |
 | Scalability | PASS | LoadTesting 100/500/1000 profiles (simulated) |
 | Reliability | PASS | Resilience retry/circuit/fallback/continuity |
@@ -43,7 +43,7 @@ Rahhal is **staging / controlled-beta ready** with a strong additive production 
 |--------|---------|
 | Architecture | PASS — boundaries + no circular imports |
 | Performance | PASS — no ChatPage regression |
-| Security | WARN — deps |
+| Security | PASS — advisory remediated |
 | AI | PASS — engines reviewed; experimental integrations OFF |
 | Quality | PASS — lint/typecheck/tests/docs |
 
@@ -61,4 +61,4 @@ CLI aid: `node scripts/production-readiness-audit.mjs`
 
 ## Explicit non-changes
 
-No Conversation Brain / Journey / Planner / Action / Provider / UI / SecretManager / Observability / LoadTesting code modifications in this sprint beyond flag registration for the audit harness.
+No Conversation Brain / Journey / Planner / Action / Provider / UI / SecretManager / Observability / LoadTesting engine modifications. Only audit harness + dependency pin required by the security audit finding.

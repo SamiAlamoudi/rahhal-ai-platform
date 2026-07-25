@@ -8,7 +8,7 @@ Bundle sizes, lazy loading, memory, render cost, cold/warm start, tree shaking, 
 
 | Asset | Size | gzip |
 |-------|------|------|
-| ChatPage | **139.29 kB** | 39.14 kB |
+| ChatPage | **139.28 kB** | 39.13 kB |
 | agent-impl | 192.87 kB | 56.97 kB |
 | vendor-react | 189.63 kB | 59.65 kB |
 | vendor-supabase | 202.92 kB | 51.83 kB |
@@ -22,7 +22,7 @@ Build time (this run): ~0.8s transform/bundle after tsc.
 
 | Check | Status | Notes |
 |-------|--------|-------|
-| ChatPage regression | **PASS** | 139.29 kB unchanged vs Sprint 14–16 |
+| ChatPage regression | **PASS** | 139.28 kB (≤ 139.29 baseline; no increase) |
 | Lazy loading | **PASS** | Voice panels, ResultsExperience, agent impl deferred imports |
 | Tree shaking | **PASS** | Vite production build; additive audit/load/obs not in ChatPage |
 | Dead code risk | **INFO** | Large agent surface area; mitigated by deferred loaders + flags |

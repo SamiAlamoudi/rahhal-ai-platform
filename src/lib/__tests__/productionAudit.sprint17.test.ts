@@ -62,7 +62,7 @@ describe('Sprint 17 — Production Readiness Audit', () => {
     for (const key of PRODUCTION_CHECKLIST_KEYS) {
       expect(report!.checklist[key]).toBeTruthy()
     }
-    expect(report!.findings.some((f) => f.id === 'security_dependency_audit' && f.status === 'warn')).toBe(true)
+    expect(report!.findings.some((f) => f.id === 'security_dependency_audit' && f.status === 'pass')).toBe(true)
     expect(report!.findings.some((f) => f.id === 'performance_chatpage_bundle' && f.status === 'pass')).toBe(true)
     expect(report!.findings.some((f) => f.id === 'architecture_circular' && f.status === 'pass')).toBe(true)
   })

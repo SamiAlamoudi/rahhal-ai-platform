@@ -266,8 +266,8 @@ export const SPRINT17_AUDIT_EVIDENCE: AuditorEvidence = {
   testsPassed: 2866,
   testFilesPassed: 248,
   securityGatePass: true,
-  chatPageBundleKb: 139.29,
+  chatPageBundleKb: 139.28,
   chatPageBundleBaselineKb: 139.29,
-  npmAuditHighCount: 2,
+  npmAuditHighCount: 0,
   buildPass: true,
 }

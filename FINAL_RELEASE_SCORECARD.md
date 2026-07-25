@@ -8,8 +8,8 @@
 | Dimension | Score | Weight | Notes |
 |-----------|------:|-------:|-------|
 | Architecture | **96** | 0.12 | No circular deps; additive packages |
-| Performance | **95** | 0.12 | ChatPage 139.29 kB; lazy loading |
-| Security | **90** | 0.14 | SecretManager + CI gate; react-router advisory |
+| Performance | **95** | 0.12 | ChatPage 139.28 kB; lazy loading |
+| Security | **94** | 0.14 | SecretManager + CI gate; react-router pin |
 | AI Quality | **93** | 0.12 | Engines present; experimental flags OFF |
 | Maintainability | **94** | 0.10 | Lint/typecheck/2866 tests/docs |
 | Scalability | **91** | 0.10 | LoadTesting + capacity estimator |
@@ -21,13 +21,13 @@
 
 | Metric | Value |
 |--------|------:|
-| **Overall Readiness** | **93** |
+| **Overall Readiness** | **94** |
 | Production ready (staging/beta) | **YES** (no hard blockers) |
-| GA blockers | Dependency advisory upgrade plan |
+| GA blockers | none |
 
-> Weighted overall **93/100**. Treat as **ready for staging / controlled beta**; complete react-router remediation before broad GA.
+> Weighted overall **94/100**. Ready for staging / controlled beta.
 
-## AI subsystem review (no code changes)
+## AI subsystem review (no engine changes)
 
 | Subsystem | Audit note |
 |-----------|------------|
@@ -45,10 +45,10 @@
 
 ## Blockers / recommendations
 
-**Blockers:** none (fail-level)
+**Blockers:** none
 
 **Recommendations:**
-1. Upgrade `react-router` / `react-router-dom` to a non-vulnerable release (dedicated PR).  
+1. Consolidate `react-router-dom` when an 8.3+-aligned release is available.  
 2. Keep critical experimental flags OFF until soak.  
 3. Execute unscaled load profiles in staging before capacity commitments.
 
@@ -56,6 +56,6 @@
 
 | Item | Value |
 |------|-------|
-| Draft PR | Sprint 17 only — do not merge until program owner reviews |
+| Draft PR | #280 — do not merge until program owner reviews |
 | Feature flags | OFF for audit/security/observability/load/live providers |
-| Bundle | No ChatPage regression |
+| Bundle | No ChatPage regression (139.28 kB) |
