@@ -1,20 +1,20 @@
 # Maps & Live Mobility — Performance Report (Sprint 8)
 
 **Branch:** `cursor/maps-live-mobility-7518`  
-**Draft PR:** _(pending)_  
+**Draft PR:** [#272](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/272)  
 **Generated:** 2026-07-25  
 
 ---
 
 ## Bundle impact
 
-| Chunk | Sprint 7 (#271) | Sprint 8 |
+| Chunk | Sprint 7 (#271) | Sprint 8 (#272) |
 |---|---|---|
-| ChatPage | 139.20 kB | _(pending build)_ |
-| agent-impl | 234.90 kB | _(pending build)_ |
-| integrationMapsMobility | — | _(pending build)_ |
+| ChatPage | 139.20 kB | **139.20 kB** (unchanged) |
+| agent-impl | 234.90 kB | **236.90 kB** (+~2.0 kB gate/import; maps deferred) |
+| integrationMapsMobility | — | **16.08 kB** (lazy chunk) |
 
-Performance score target **≥ 90**. Maps mobility loads via `deferredLoaders` only when the flag is ON.
+Performance score target **≥ 90** maintained. Maps mobility loads via `deferredLoaders` only when the flag is ON.
 
 ---
 
@@ -33,7 +33,7 @@ Performance score target **≥ 90**. Maps mobility loads via `deferredLoaders` o
 
 | Check | Result |
 |---|---|
-| lint / typecheck / arch:circular | _(pending)_ |
-| test:run | Sprint 8 unit: **9 passed**; full suite _(pending)_ |
-| build | _(pending)_ |
-| secret hygiene | _(pending)_ |
+| lint / typecheck / arch:circular | **pass** |
+| test:run | **239 files / 2764 tests** |
+| build | **pass** |
+| secret hygiene | **pass** |

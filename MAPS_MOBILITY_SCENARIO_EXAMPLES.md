@@ -1,6 +1,6 @@
 # Maps & Live Mobility — Scenario Examples (Sprint 8)
 
-**Draft PR:** _(pending)_  
+**Draft PR:** [#272](https://github.com/SamiAlamoudi/rahhal-ai-platform/pull/272)  
 Flag `ai.integration_maps_mobility` remains **OFF** by default.
 
 ---
