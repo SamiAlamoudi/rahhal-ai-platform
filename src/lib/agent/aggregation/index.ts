@@ -24,14 +24,16 @@ export { createProviderRegistry } from './providerRegistry'
 export { createAggregationEngine } from './engine'
 export {
   createDefaultAggregationEngine,
-  createDefaultProviderRegistry,
   createActiveMockProviderRegistry,
+} from './factory'
+export {
+  createDefaultProviderRegistry,
   createDefaultProviderAdapters,
   createLiveIntegration,
   createLiveIntegrationEngine,
   createLiveProviderRegistry,
   createLiveProviderAdapters,
-} from './factory'
+} from './defaultProviders'
 export {
   resolveProviderFeatureFlags,
   isLiveProviderFlagEnabled,

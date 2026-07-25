@@ -95,6 +95,24 @@ export default defineConfig({
               name: 'vendor-supabase',
               test: /node_modules[\\/]@supabase/,
             },
+            {
+              // RC-2 — keep motion out of route entry chunks when possible
+              name: 'vendor-motion',
+              test: /node_modules[\\/](framer-motion|motion)([\\/]|$)/,
+            },
+            {
+              // RC-2 — live provider adapters only when live integration is imported
+              name: 'provider-amadeus',
+              test: /[\\/]src[\\/](lib[\\/]agent[\\/]aggregation[\\/]providers[\\/]amadeus|integrations[\\/]providers[\\/]amadeus)/,
+            },
+            {
+              name: 'provider-booking',
+              test: /[\\/]src[\\/](lib[\\/]agent[\\/]aggregation[\\/]providers[\\/]booking|integrations[\\/]providers[\\/]booking)/,
+            },
+            {
+              name: 'agent-impl',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]travelAgentService\.impl/,
+            },
           ],
         },
       },

@@ -1,9 +1,9 @@
 import {
   aggregationResultToToolData,
-  createDefaultAggregationEngine,
   type AggregatableDomain,
   type AggregationEngine,
 } from '../aggregation'
+import { createDefaultAggregationEngine } from '../aggregation/factory'
 import {
   getDefaultFlightSearchEngine,
   type FlightSearchEngine,

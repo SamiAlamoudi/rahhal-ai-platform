@@ -2,14 +2,16 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { useLocation, useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
-import VoiceComposer from '../components/chat/VoiceComposer'
 import LiveNotificationsBanner from '../components/chat/experience/LiveNotificationsBanner'
 import VirtualizedMessageList from '../components/chat/experience/VirtualizedMessageList'
 import { ChatWelcome } from '../components/premium'
 
+/** RC-2 — voice UI loads only when the user switches to voice mode. */
 const VoicePanel = lazy(() =>
   import('../components/premium/VoicePanel').then((m) => ({ default: m.VoicePanel })),
 )
+const VoiceComposer = lazy(() => import('../components/chat/VoiceComposer'))
+
 import { travelAgentService } from '../lib/agent/travelAgentService'
 import { detectAgentLocale } from '../lib/agent/locale'
 import type { TripPlan } from '../lib/agent/types'
@@ -42,9 +44,7 @@ import {
   type ConversationLiveEvent,
   type ConversationTimelineEvent,
 } from '../lib/chat/conversationExperienceUi'
-import { createSpeechToTextProvider, createTextToSpeechProvider } from '../lib/chat/voice/voiceProviderFactory'
-import { createVoiceSession, type CreateVoiceSessionOptions, type VoiceSession } from '../lib/chat/voice/voiceSession'
-import { subscribeMicrophonePermission } from '../lib/chat/voice/microphonePermission'
+import type { CreateVoiceSessionOptions, VoiceSession } from '../lib/chat/voice/voiceSession'
 import type { VoiceInputMode, VoiceLocale, VoiceSessionStatus } from '../lib/chat/voice/voiceTypes'
 import {
   EXPERIENCE_STATE_LABELS,
@@ -63,7 +63,15 @@ import {
 
 type ComposerMode = 'text' | 'voice'
 
-function buildVoiceSession(callbacks: CreateVoiceSessionOptions['callbacks']): VoiceSession {
+/** RC-2 — voice stack (STT/TTS/session) is dynamically imported on first voice use. */
+async function buildVoiceSession(
+  callbacks: CreateVoiceSessionOptions['callbacks'],
+): Promise<VoiceSession> {
+  const [{ createSpeechToTextProvider, createTextToSpeechProvider }, { createVoiceSession }] =
+    await Promise.all([
+      import('../lib/chat/voice/voiceProviderFactory'),
+      import('../lib/chat/voice/voiceSession'),
+    ])
   return createVoiceSession({
     stt: createSpeechToTextProvider(),
     tts: createTextToSpeechProvider(),
@@ -118,6 +126,19 @@ function LegacyChatPage() {
   const [experienceState, setExperienceState] = useState<ChatGptExperienceState>('idle')
   const [pinnedIds, setPinnedIds] = useState<string[]>(() => readSessionUiRecovery()?.pinnedIds ?? [])
   const stickToBottomRef = useRef(true)
+
+  // RC-2 — warm agent impl during idle so first planTurn avoids a cold dynamic import.
+  useEffect(() => {
+    const warm = () => {
+      void import('../lib/agent/travelAgentService.impl')
+    }
+    if (typeof requestIdleCallback === 'function') {
+      const id = requestIdleCallback(warm, { timeout: 2500 })
+      return () => cancelIdleCallback(id)
+    }
+    const timer = window.setTimeout(warm, 1200)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const filtered = useMemo(
     () => chatEngine.searchConversations(conversations, query),
@@ -365,18 +386,36 @@ function LegacyChatPage() {
   }, [loadConversations])
 
   useEffect(() => {
+    if (composerMode !== 'voice') return
     let unsubscribe = () => {}
-    void subscribeMicrophonePermission((state) => {
-      setPermissionState(state.state)
-      if (state.state === 'granted') setMicError(null)
-    }).then((fn) => {
-      unsubscribe = fn
+    let cancelled = false
+    void import('../lib/chat/voice/microphonePermission').then(({ subscribeMicrophonePermission }) => {
+      if (cancelled) return
+      void subscribeMicrophonePermission((state) => {
+        setPermissionState(state.state)
+        if (state.state === 'granted') setMicError(null)
+      }).then((fn) => {
+        if (!cancelled) unsubscribe = fn
+        else fn()
+      })
     })
-    return () => unsubscribe()
-  }, [])
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
+  }, [composerMode])
 
   useEffect(() => {
-    const session = buildVoiceSession({
+    if (composerMode !== 'voice') {
+      if (voiceRef.current) {
+        voiceRef.current.dispose()
+        voiceRef.current = null
+      }
+      return
+    }
+    let disposed = false
+    let session: VoiceSession | null = null
+    void buildVoiceSession({
       onStatus: setVoiceStatus,
       onPartialTranscript: setPartialTranscript,
       onFinalTranscript: setPartialTranscript,
@@ -399,13 +438,20 @@ function LegacyChatPage() {
         upsertMessage(message)
         if (!isBenignChatError(error)) setActionError(error)
       },
+    }).then((created) => {
+      if (disposed) {
+        created.dispose()
+        return
+      }
+      session = created
+      voiceRef.current = created
     })
-    voiceRef.current = session
     return () => {
-      session.dispose()
-      voiceRef.current = null
+      disposed = true
+      session?.dispose()
+      if (voiceRef.current === session) voiceRef.current = null
     }
-  }, [loadConversations, upsertMessage])
+  }, [composerMode, loadConversations, upsertMessage])
 
   useEffect(() => {
     voiceRef.current?.setLocale(voiceLocale)
@@ -1162,25 +1208,33 @@ function LegacyChatPage() {
                 }`}
               >
                 {composerMode === 'voice' ? (
-                  <VoiceComposer
-                    enabled={!!activeId && !isStreaming && !voiceMuted}
-                    status={voiceStatus}
-                    mode={voiceMode}
-                    locale={voiceLocale}
-                    partialTranscript={partialTranscript}
-                    permissionError={micError}
-                    permissionState={permissionState}
-                    busy={isStreaming || voiceBusy}
-                    online={online}
-                    level={voiceLevel}
-                    onModeChange={setVoiceMode}
-                    onLocaleChange={setVoiceLocale}
-                    onPushStart={() => void handlePushStart()}
-                    onPushEnd={() => void handlePushEnd()}
-                    onToggleHandsFree={() => void handleToggleHandsFree()}
-                    onInterrupt={stopGeneration}
-                    onRequestPermission={() => void voiceRef.current?.ensureMicPermission()}
-                  />
+                  <Suspense
+                    fallback={
+                      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
+                        جاري تحميل الصوت…
+                      </div>
+                    }
+                  >
+                    <VoiceComposer
+                      enabled={!!activeId && !isStreaming && !voiceMuted}
+                      status={voiceStatus}
+                      mode={voiceMode}
+                      locale={voiceLocale}
+                      partialTranscript={partialTranscript}
+                      permissionError={micError}
+                      permissionState={permissionState}
+                      busy={isStreaming || voiceBusy}
+                      online={online}
+                      level={voiceLevel}
+                      onModeChange={setVoiceMode}
+                      onLocaleChange={setVoiceLocale}
+                      onPushStart={() => void handlePushStart()}
+                      onPushEnd={() => void handlePushEnd()}
+                      onToggleHandsFree={() => void handleToggleHandsFree()}
+                      onInterrupt={stopGeneration}
+                      onRequestPermission={() => void voiceRef.current?.ensureMicPermission()}
+                    />
+                  </Suspense>
                 ) : (
                   <form onSubmit={(e) => void handleSend(e)}>
                     <div className="rounded-[1.5rem] border border-slate-200/90 bg-white p-2 shadow-lg shadow-slate-900/5 sm:p-3">

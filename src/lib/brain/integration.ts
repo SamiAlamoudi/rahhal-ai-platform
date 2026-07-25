@@ -3,8 +3,17 @@
  * Flag-gated; default OFF. No LLM providers or external APIs.
  */
 
-import { getFeatureRegistry } from '../ai'
 import type { AgentLocale, AgentProviderMeta, TripRequirements } from '../agent/types'
+import {
+  isBrainConciergeIntegrationEnabled,
+  isBrainAgentHandoffEnabled,
+  isBrainVoiceIntegrationEnabled,
+  isBrainTravelEngineEnabled,
+  isBrainTripPlanningEnabled,
+  isBrainExecutionEnabled,
+  isBrainSearchEnabled,
+  isBrainRealProvidersEnabled,
+} from './integrationFlags'
 import type {
   BrainLocale,
   BrainResponsePlan,
@@ -90,120 +99,15 @@ export function resetBrainIntegrationSessions(): void {
   resetMemoryContextEngine()
 }
 
-export function isBrainConciergeIntegrationEnabled(options?: {
-  brainEnabled?: boolean
-}): boolean {
-  if (typeof options?.brainEnabled === 'boolean') return options.brainEnabled
-  const registry = getFeatureRegistry()
-  return registry.isEnabled('brain.enabled') && registry.isEnabled('brain.concierge')
-}
-
-export function isBrainAgentHandoffEnabled(options?: {
-  brainHandoffEnabled?: boolean
-}): boolean {
-  if (typeof options?.brainHandoffEnabled === 'boolean') return options.brainHandoffEnabled
-  const registry = getFeatureRegistry()
-  return (
-    registry.isEnabled('brain.enabled') &&
-    registry.isEnabled('brain.concierge') &&
-    registry.isEnabled('brain.agent_handoff')
-  )
-}
-
-export function isBrainVoiceIntegrationEnabled(options?: {
-  brainVoiceEnabled?: boolean
-}): boolean {
-  if (typeof options?.brainVoiceEnabled === 'boolean') return options.brainVoiceEnabled
-  const registry = getFeatureRegistry()
-  return (
-    registry.isEnabled('brain.enabled') &&
-    registry.isEnabled('brain.concierge') &&
-    registry.isEnabled('brain.voice')
-  )
-}
-
-/** Sprint 21 — Real Travel Conversation Engine. */
-export function isBrainTravelEngineEnabled(options?: {
-  brainTravelEngineEnabled?: boolean
-}): boolean {
-  if (typeof options?.brainTravelEngineEnabled === 'boolean') {
-    return options.brainTravelEngineEnabled
-  }
-  const registry = getFeatureRegistry()
-  return (
-    registry.isEnabled('brain.enabled') &&
-    registry.isEnabled('brain.concierge') &&
-    registry.isEnabled('brain.travel_engine')
-  )
-}
-
-/** Sprint 22 — Multi-Step Trip Planning Engine. */
-export function isBrainTripPlanningEnabled(options?: {
-  brainTripPlanningEnabled?: boolean
-}): boolean {
-  if (typeof options?.brainTripPlanningEnabled === 'boolean') {
-    return options.brainTripPlanningEnabled
-  }
-  const registry = getFeatureRegistry()
-  return (
-    registry.isEnabled('brain.enabled') &&
-    registry.isEnabled('brain.concierge') &&
-    registry.isEnabled('brain.travel_engine') &&
-    registry.isEnabled('brain.trip_planning')
-  )
-}
-
-/** Sprint 23 — Travel Execution Engine. */
-export function isBrainExecutionEnabled(options?: {
-  brainExecutionEnabled?: boolean
-}): boolean {
-  if (typeof options?.brainExecutionEnabled === 'boolean') {
-    return options.brainExecutionEnabled
-  }
-  const registry = getFeatureRegistry()
-  return (
-    registry.isEnabled('brain.enabled') &&
-    registry.isEnabled('brain.concierge') &&
-    registry.isEnabled('brain.travel_engine') &&
-    registry.isEnabled('brain.trip_planning') &&
-    registry.isEnabled('brain.execution')
-  )
-}
-
-/** Sprint 24 — Search Aggregation Engine. */
-export function isBrainSearchEnabled(options?: {
-  brainSearchEnabled?: boolean
-}): boolean {
-  if (typeof options?.brainSearchEnabled === 'boolean') {
-    return options.brainSearchEnabled
-  }
-  const registry = getFeatureRegistry()
-  return (
-    registry.isEnabled('brain.enabled') &&
-    registry.isEnabled('brain.concierge') &&
-    registry.isEnabled('brain.travel_engine') &&
-    registry.isEnabled('brain.trip_planning') &&
-    registry.isEnabled('brain.execution') &&
-    registry.isEnabled('brain.search')
-  )
-}
-
-/** Sprint 26 — Real provider adapters for execution (mocks remain default). */
-export function isBrainRealProvidersEnabled(options?: {
-  brainRealProvidersEnabled?: boolean
-}): boolean {
-  if (typeof options?.brainRealProvidersEnabled === 'boolean') {
-    return options.brainRealProvidersEnabled
-  }
-  const registry = getFeatureRegistry()
-  return (
-    registry.isEnabled('brain.enabled') &&
-    registry.isEnabled('brain.concierge') &&
-    registry.isEnabled('brain.travel_engine') &&
-    registry.isEnabled('brain.trip_planning') &&
-    registry.isEnabled('brain.execution') &&
-    registry.isEnabled('brain.real_providers')
-  )
+export {
+  isBrainConciergeIntegrationEnabled,
+  isBrainAgentHandoffEnabled,
+  isBrainVoiceIntegrationEnabled,
+  isBrainTravelEngineEnabled,
+  isBrainTripPlanningEnabled,
+  isBrainExecutionEnabled,
+  isBrainSearchEnabled,
+  isBrainRealProvidersEnabled,
 }
 
 /** Sprint 27 — AI Trip Orchestrator (coordinates search + optional booking + providers). */
