@@ -1550,6 +1550,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes:
       'Product alias: brain_decision_engine. Blueprints only — never ranks or recommends via models/APIs.',
   },
+  {
+    id: 'brain.memory_engine',
+    name: 'AI Memory Engine Architecture (Phase 6 Stage 5)',
+    description:
+      'Additive architecture-only Memory Engine: conversational/long-term memory store contracts, retrieval/ranking/merge/lifecycle/retention, confidence, audit. Contracts/types/blueprints only — no embeddings, vector DB, storage, Runtime, or production wiring. Default OFF.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['brain.decision_engine'],
+    notes:
+      'Product alias: brain_memory_engine. Blueprints only — never persists or embeds memory.',
+  },
 ]
 
 export class FeatureRegistry {
