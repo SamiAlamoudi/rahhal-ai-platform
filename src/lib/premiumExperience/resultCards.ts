@@ -166,7 +166,10 @@ export function buildDynamicResultCards(seedText: string, limit = 4): DynamicRes
   if (/visa|تأشير|تاشير/.test(text)) kinds.add('visa')
   if (/timeline|جدول|itinerary|خط.?زمني|أيام|days/.test(text)) kinds.add('timeline')
 
-  if (kinds.size === 0) {
+  const isTripSeed = /سفر|رحلة|travel|trip|مغرب|morocco|دبي|dubai|إسطنبول|اسطنبول|istanbul|أكادير|مراكش/.test(
+    text,
+  )
+  if (kinds.size === 0 || isTripSeed) {
     kinds.add('flight')
     kinds.add('hotel')
     kinds.add('weather')
