@@ -32,14 +32,20 @@ export interface VoiceLocaleConfig {
   labelEn: string
 }
 
+/** Arabic-first STT tags — never start Arabic UI on en-US. */
+export const DEFAULT_ARABIC_SPEECH_LANG = 'ar-SA'
+export const FALLBACK_ARABIC_SPEECH_LANG = 'ar'
+
 export const VOICE_LOCALES: Record<VoiceLocale, VoiceLocaleConfig> = {
-  ar: { locale: 'ar', speechLang: 'ar-SA', labelAr: 'العربية', labelEn: 'Arabic' },
+  ar: { locale: 'ar', speechLang: DEFAULT_ARABIC_SPEECH_LANG, labelAr: 'العربية', labelEn: 'Arabic' },
   en: { locale: 'en', speechLang: 'en-US', labelAr: 'الإنجليزية', labelEn: 'English' },
 }
 
 export interface SpeechRecognitionResultEvent {
   transcript: string
   isFinal: boolean
+  /** Web Speech API confidence 0–1 when the browser provides it. */
+  confidence?: number
 }
 
 export interface SpeechToTextStartOptions {
@@ -81,6 +87,12 @@ export interface MicrophonePermissionState {
 
 export function speechLangForLocale(locale: VoiceLocale): string {
   return VOICE_LOCALES[locale].speechLang
+}
+
+/** Ordered STT language tags to try for a locale (Arabic: ar-SA → ar). */
+export function speechLangFallbacksForLocale(locale: VoiceLocale): string[] {
+  if (locale === 'en') return ['en-US', 'en']
+  return [DEFAULT_ARABIC_SPEECH_LANG, FALLBACK_ARABIC_SPEECH_LANG]
 }
 
 export function normalizeVoiceLocale(value: string | null | undefined): VoiceLocale {
