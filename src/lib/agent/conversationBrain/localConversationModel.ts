@@ -126,12 +126,13 @@ function askForSlot(slot: string, facts: TravelFacts, seed: number, ar: boolean)
   return pick(seed, ar ? pack.ar : pack.en)
 }
 
-function acknowledge(facts: TravelFacts, seed: number, ar: boolean): string {
+/** Brief lead-in only — never return this alone; always pair with an action. */
+function reflectKnown(facts: TravelFacts, seed: number, ar: boolean): string {
   const bits = knownBits(facts, ar)
   if (bits.length === 0) {
     return pick(seed, ar
-      ? ['تمام — نبني الرحلة معاً خطوة بخطوة.', 'خلّنا نضبط الأساسيات بهدوء.', 'جاهز نبدأ التخطيط.']
-      : ['Of course — let’s build the trip together step by step.', 'Let’s lock the essentials calmly.', 'Ready to plan.'])
+      ? ['نبني الرحلة معاً خطوة بخطوة.', 'نضبط الأساسيات بهدوء.', 'نبدأ التخطيط من الآن.']
+      : ['Let’s build the trip together step by step.', 'Let’s lock the essentials calmly.', 'We start planning from here.'])
   }
   const joined = bits.slice(0, 4).join(ar ? ' · ' : ' · ')
   return pick(seed + 3, ar
@@ -145,6 +146,58 @@ function acknowledge(facts: TravelFacts, seed: number, ar: boolean): string {
       `${joined} — we can build on that.`,
       `${joined} — that is the base.`,
     ])
+}
+
+/** Concrete Advance / Recommend / Collect closer tied to Current Goal. */
+function advanceForGoal(facts: TravelFacts, seed: number, ar: boolean): string {
+  const dest = facts.known.destination || facts.known.destinations?.[0]
+  switch (facts.currentGoal) {
+    case 'Collect destination':
+      return pick(seed + 5, ar
+        ? ['أي وجهة تميل لها الآن — مدينة، بلد، ولا أسلوب رحلة (بحر/مدينة)؟', 'خلّنا نثبّت الوجهة: بحر وهدوء، ولا مدينة وثقافة؟']
+        : ['Which destination are you leaning toward — a city, a country, or a trip style (beach vs city)?', 'Let’s lock a destination: beach and calm, or city and culture?'])
+    case 'Compare hotels':
+      return pick(seed + 5, ar
+        ? [
+          dest
+            ? `لـ${dest}، تفضّل إقامة وسط المدينة ولا أقرب للشاطئ/المطار؟`
+            : 'تفضّل إقامة وسط المدينة ولا أقرب للشاطئ/المطار؟',
+          'أقارن لك فندقين مناسبين للميزانية — تميل لهدوء ولا موقع مركزي؟',
+        ]
+        : [
+          dest
+            ? `For ${dest}, do you prefer a central stay or closer to the beach/airport?`
+            : 'Do you prefer a central stay or closer to the beach/airport?',
+          'I can compare two lodging fits for your budget — quiet, or central?',
+        ])
+    case 'Finalize booking':
+      return pick(seed + 5, ar
+        ? ['جاهز نكمّل الحجز — تبي أراجع ملخص الدفع قبل التأكيد؟', 'الخطوة الجاية تثبيت الحجز — نمشي على الملخص؟']
+        : ['Ready to close the booking — want a quick payment summary before confirm?', 'Next step is locking the booking — shall we walk the summary?'])
+    case 'Confirm itinerary':
+      return pick(seed + 5, ar
+        ? ['راجع المسودة وقل لي وش نثبّت أو نعدّل أولاً.', 'الخطة جاهزة للمراجعة — نثبّت الأيام ولا نعدّل الفندق أولاً؟']
+        : ['Review the draft and tell me what to lock or change first.', 'The outline is ready — lock the days, or tune the hotel first?'])
+    case 'Recommend flights':
+    default:
+      return pick(seed + 5, ar
+        ? [
+          dest
+            ? `مع ${dest}، أقدر أقترح نافذة رحلات مناسبة — تميل لصباح ولا مساء؟`
+            : 'أقدر أقترح اتجاه رحلات مناسب — تميل لصباح ولا مساء؟',
+          dest
+            ? `خلّيني أوجّهك لخيارات طيران لـ${dest} — أي أسبوع تقريباً؟`
+            : 'خلّيني أوجّهك لخيارات الطيران — أي أسبوع تقريباً؟',
+        ]
+        : [
+          dest
+            ? `With ${dest} set, I can outline useful flight windows — morning or evening departures?`
+            : 'I can outline useful flight windows — morning or evening departures?',
+          dest
+            ? `Let me steer flight options for ${dest} — roughly which week?`
+            : 'Let me steer flight options — roughly which week?',
+        ])
+  }
 }
 
 function renderPlanDisplay(facts: TravelFacts, ar: boolean): string {
@@ -235,7 +288,7 @@ function renderPlanDisplay(facts: TravelFacts, ar: boolean): string {
 function spokenPlan(facts: TravelFacts, seed: number, ar: boolean): string {
   const plan = facts.plan
   if (!plan) {
-    return acknowledge(facts, seed, ar)
+    return `${reflectKnown(facts, seed, ar)} ${advanceForGoal(facts, seed + 1, ar)}`
   }
   const dest = plan.destinations[0] || (ar ? 'وجهتك' : 'your trip')
   const hotel = plan.hotels[0]?.name
@@ -272,26 +325,28 @@ export function generateLocalConversation(input: {
     }
     case 'acknowledge_save': {
       const title = input.facts.savedTitle || (ar ? 'رحلتك' : 'your trip')
+      const next = advanceForGoal(input.facts, seed + 2, ar)
       const spokenText = pick(seed, ar
-        ? [`حفظت «${title}» لك.`, `تم — «${title}» صارت في المحفوظات.`]
-        : [`I saved “${title}” for you.`, `Done — “${title}” is in Saved Trips.`])
+        ? [`حفظت «${title}» لك. ${next}`, `تم تنفيذ الحفظ لـ«${title}». ${next}`]
+        : [`I saved “${title}” for you. ${next}`, `Executed — “${title}” is in Saved Trips. ${next}`])
       return { displayText: spokenText, spokenText }
     }
     case 'acknowledge_edit': {
       const spokenText = pick(seed, ar
-        ? ['تمام — قل لي وش تبي نغيّر وأعدّل الخطة.', 'جاهز للتعديل — الميزانية، الوجهة، التواريخ، أو أي تفصيل.']
-        : ['Of course — tell me what to change and I will reshape the plan.', 'Ready when you are — budget, place, dates, or any detail.'])
+        ? ['قل لي وش تبي نغيّر وأعدّل الخطة الآن — الميزانية، الوجهة، التواريخ، أو أي تفصيل.', 'جاهز للتعديل: وش أول تغيير نسويه في الخطة؟']
+        : ['Tell me what to change and I will reshape the plan now — budget, place, dates, or any detail.', 'Ready to edit: what is the first change we make to the plan?'])
       return { displayText: spokenText, spokenText }
     }
     case 'explain_unavailable': {
+      const next = advanceForGoal(input.facts, seed + 2, ar)
       const spokenText = pick(seed, ar
-        ? ['لسه ما ثبّتنا الخطة للحفظ — نكمّل التفاصيل أولاً ثم نحفظ.', 'كمّل معي شوي وبعدين نحفظ الرحلة بثقة.']
-        : ['We have not locked a plan to save yet — let’s finish shaping it first.', 'A little more detail and we can save with confidence.'])
+        ? [`لسه ما ثبّتنا خطة للحفظ. ${next}`, `نكمل تشكيل الرحلة أولاً ثم نحفظ بثقة. ${next}`]
+        : [`We have not locked a plan to save yet. ${next}`, `Let’s finish shaping the trip first, then save with confidence. ${next}`])
       return { displayText: spokenText, spokenText }
     }
     case 'propose_options':
     case 'advise': {
-      const ack = acknowledge(input.facts, seed, ar)
+      const ack = reflectKnown(input.facts, seed, ar)
       const draft = input.facts.planningDraft
       const framing = draft?.rankingNote
         || input.facts.recommendations?.[0]
@@ -328,10 +383,11 @@ export function generateLocalConversation(input: {
       return { displayText, spokenText }
     }
     case 'confirm_understanding': {
-      const heard = input.facts.heardSummary?.join(ar ? ' · ' : ' · ') || acknowledge(input.facts, seed, ar)
+      const heard = input.facts.heardSummary?.join(ar ? ' · ' : ' · ') || reflectKnown(input.facts, seed, ar)
+      const next = advanceForGoal(input.facts, seed + 3, ar)
       const spokenText = pick(seed, ar
-        ? [`قبل ما أكمّل: ${heard}. إذا تمام، قل نعم.`, `هذا فهمي: ${heard}. نكمّل؟`]
-        : [`Before I continue: ${heard}. If that is right, say yes.`, `Here is what I have: ${heard}. Shall I continue?`])
+        ? [`أؤكّد فهمي: ${heard}. ${next}`, `هذا تثبيتي: ${heard}. ${next}`]
+        : [`Confirming what I have: ${heard}. ${next}`, `Locked in: ${heard}. ${next}`])
       return { displayText: spokenText, spokenText }
     }
     case 'collect_missing':
@@ -341,28 +397,23 @@ export function generateLocalConversation(input: {
       if (input.facts.recommendations?.length && !input.facts.missingSlots[0]) {
         // Domain facts / notes — rewrite into advisor voice (never echo form labels).
         const seedNote = input.facts.recommendations.join(' · ')
+        const next = advanceForGoal(input.facts, seed + 2, ar)
         const spokenText = pick(seed, ar
           ? [
-            `هذا وضع الرحلة الآن: ${seedNote.slice(0, 180)}. نكمّل من هنا؟`,
-            `خلّيني ألخّص لك الوضع: ${seedNote.slice(0, 180)}.`,
+            `هذا وضع الرحلة الآن: ${seedNote.slice(0, 180)}. ${next}`,
+            `خلّيني ألخّص لك الوضع: ${seedNote.slice(0, 180)}. ${next}`,
           ]
           : [
-            `Here is where the trip stands: ${seedNote.slice(0, 200)}. Shall we continue from here?`,
-            `Quickly — ${seedNote.slice(0, 200)}.`,
+            `Here is where the trip stands: ${seedNote.slice(0, 200)}. ${next}`,
+            `Quickly — ${seedNote.slice(0, 200)}. ${next}`,
           ])
         return { displayText: spokenText, spokenText }
       }
-      const ack = acknowledge(input.facts, seed, ar)
+      const ack = reflectKnown(input.facts, seed, ar)
       const slot = input.facts.missingSlots[0]
       if (!slot) {
-        const bits = knownBits(input.facts, ar)
-        const spokenText = bits.length
-          ? pick(seed + 7, ar
-            ? [`${ack} نقدر نبني على هذا الأساس متى ما جاهز.`, `${ack} قل «ابني الخطة» وأكمل لك.`]
-            : [`${ack} We can build on this whenever you are ready.`, `${ack} Say “build the plan” and I will continue.`])
-          : pick(seed + 7, ar
-            ? ['الصورة كافية للبدء — قل «ابني الخطة» متى ما جاهز.', 'الصورة مكتملة تقريباً. نجهّز الخيارات؟']
-            : ['We have enough to begin — say “build the plan” when you are ready.', 'The picture is nearly complete. Shall I put options together?'])
+        const next = advanceForGoal(input.facts, seed + 7, ar)
+        const spokenText = `${ack} ${next}`
         return { displayText: spokenText, spokenText }
       }
       const question = askForSlot(slot, input.facts, seed + 11, ar)

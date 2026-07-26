@@ -74,6 +74,7 @@ describe('Executive Current Goal', () => {
     })
     expect(payload).toMatch(/^Current Goal: Collect destination/)
     expect(payload).toMatch(/Advance the Current Goal/)
+    expect(payload).toMatch(/Never acknowledge-only|Advance, Collect, Recommend, Confirm, or Execute/)
   })
 
   it('Collect destination when destination is unknown', () => {

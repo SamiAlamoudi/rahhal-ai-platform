@@ -37,6 +37,29 @@ describe('Executive AI Travel Consultant', () => {
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/VALUE FIRST|Recommend when confidence is high/i)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/CURRENT GOAL/)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Collect destination|Recommend flights|Compare hotels/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/RESPONSE CONTRACT|only acknowledges/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Advance the trip/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Collect information/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Recommend/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Confirm/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Execute/)
+  })
+
+  it('never returns acknowledgement-only replies', async () => {
+    const service = createTravelAgentService()
+    const turn = await service.planTurn({
+      conversationId: 'c-ack',
+      messages: [user('Okay.', 'c-ack')],
+    })
+    const reply = turn.reply.trim()
+    expect(reply.length).toBeGreaterThan(25)
+    // Bare ack / filler alone is forbidden.
+    expect(reply.toLowerCase()).not.toMatch(/^(got it|understood|okay|ok|noted|sure|تمام|حسناً|مفهوم)[.!…]?\s*$/i)
+    // Must still move: question, recommendation cue, or concrete next step.
+    const advances =
+      /\?|؟/.test(reply)
+      || /flight|hotel|destination|budget|season|trip|خطة|وجهة|طيران|فندق|ميزانية/i.test(reply)
+    expect(advances).toBe(true)
   })
 
   it('Japan opener leads with seasonal value — not a bare When?', async () => {
