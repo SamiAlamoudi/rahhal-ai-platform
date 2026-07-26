@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
+import { voiceStage } from '../lib/chat/voice/voiceDebugTrace'
 
 export type SpeechRecognitionStatus =
   | 'idle'
@@ -444,6 +445,12 @@ export function createSpeechRecognitionSession(
       error = null
       errorMessage = null
       emit()
+      voiceStage({
+        stage: 'STT_START',
+        previousState: 'LISTENING',
+        currentState: 'LISTENING',
+        meta: { lang, continuous: next.continuous },
+      })
       // Do NOT arm silence on start — waiting to begin speaking must not auto-stop.
       // Silence arms only after the first speech result (see onresult).
     }
@@ -462,6 +469,14 @@ export function createSpeechRecognitionSession(
         // Append — never replace prior finals in this session.
         finalBuffer = `${finalBuffer} ${finalChunk}`.trim()
         finalTranscript = finalBuffer
+        voiceStage({
+          stage: 'FINAL_RESULT',
+          transcriptLen: finalBuffer.length,
+          preview: finalBuffer,
+          previousState: 'LISTENING',
+          currentState: 'LISTENING',
+          meta: { source: 'webkit_or_speech_recognition', isFinal: true },
+        })
       }
       interimBuffer = interim
       interimTranscript = interim
@@ -470,6 +485,15 @@ export function createSpeechRecognitionSession(
       if (finalChunk || interim) {
         heardSpeech = true
         bumpSilenceTimer()
+        if (interim && !finalChunk) {
+          voiceStage({
+            stage: 'INTERIM_RESULT',
+            transcriptLen: interim.length,
+            preview: interim,
+            previousState: 'LISTENING',
+            currentState: 'LISTENING',
+          })
+        }
       }
     }
 
@@ -499,6 +523,15 @@ export function createSpeechRecognitionSession(
       error = mapped.kind
       errorMessage = mapped.message
       status = mapped.status === 'idle' ? 'idle' : mapped.status
+      voiceStage({
+        stage: 'FAILURE',
+        success: false,
+        reason: event.error || mapped.kind,
+        previousState: 'LISTENING',
+        currentState: 'ERROR',
+        recoveryAction: 'retry_mic_or_type',
+        meta: { mappedKind: mapped.kind },
+      })
       if (mapped.kind === 'timeout') {
         deliverResult(sessionTranscript())
       } else if (mapped.kind === 'no-speech') {

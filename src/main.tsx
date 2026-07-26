@@ -45,6 +45,8 @@ const CheckoutPaymentPage = lazy(() => import('./pages/CheckoutPaymentPage.tsx')
 const CheckoutReturnPage = lazy(() => import('./pages/CheckoutReturnPage.tsx'))
 const CheckoutSuccessPage = lazy(() => import('./pages/CheckoutSuccessPage.tsx'))
 const CheckoutFailurePage = lazy(() => import('./pages/CheckoutFailurePage.tsx'))
+/** Phase 2.5 — Preview/DEV floating voice trace console (no-op when VITE_VOICE_TRACE unset). */
+const VoiceDebugConsole = lazy(() => import('./components/debug/VoiceDebugConsole.tsx'))
 
 function RouteFallback() {
   return (
@@ -306,6 +308,11 @@ createRoot(document.getElementById('root')!).render(
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
+        {(import.meta.env.DEV || import.meta.env.VITE_VOICE_TRACE === 'true') ? (
+          <Suspense fallback={null}>
+            <VoiceDebugConsole />
+          </Suspense>
+        ) : null}
       </AuthProvider>
     </BrowserRouter>
     </AppErrorBoundary>

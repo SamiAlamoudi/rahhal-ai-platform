@@ -27,7 +27,7 @@ import {
   normalizeVoiceLocale,
 } from './voiceTypes'
 import { extractSpokenAnswer, stripMarkdownForSpeech } from './spokenAnswer'
-import { voiceTrace } from './voiceDebugTrace'
+import { voiceStage, voiceTrace } from './voiceDebugTrace'
 
 export { stripMarkdownForSpeech } from './spokenAnswer'
 
@@ -192,6 +192,13 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   const ensureMicPermission = async (): Promise<MicrophonePermissionState> => {
     setStatus('requesting_permission')
     logPipeline({ stage: 'microphone', event: 'permission_request' })
+    voiceStage({
+      stage: 'MIC_PERMISSION',
+      previousState: status,
+      currentState: 'requesting_permission',
+      conversationId: handsFreeConversationId,
+      meta: { phase: 'start' },
+    })
     const state = await requestPermission()
     callbacks.onPermission?.(state)
     if (state.state !== 'granted') {
@@ -201,12 +208,28 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         event: 'permission_denied',
         message: state.error ?? 'denied',
       })
+      voiceStage({
+        stage: 'MIC_PERMISSION',
+        success: false,
+        previousState: 'requesting_permission',
+        currentState: 'ERROR',
+        conversationId: handsFreeConversationId,
+        reason: state.error ?? state.state,
+        recoveryAction: 'allow_microphone_in_safari_settings',
+      })
       if (!isBenignChatError(state.error)) {
         callbacks.onError?.(state.error || 'يلزم إذن الميكروفون للمتابعة')
       }
     } else if (status === 'requesting_permission') {
       setStatus('idle')
       logPipeline({ stage: 'microphone', event: 'permission_granted' })
+      voiceStage({
+        stage: 'MIC_PERMISSION',
+        previousState: 'requesting_permission',
+        currentState: 'IDLE',
+        conversationId: handsFreeConversationId,
+        meta: { phase: 'granted' },
+      })
     }
     return state
   }

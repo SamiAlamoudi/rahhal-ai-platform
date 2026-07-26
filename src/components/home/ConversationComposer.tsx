@@ -2,7 +2,11 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { motion } from 'framer-motion'
 import type { HomeLocale } from '../../lib/aiHome'
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition'
-import { voiceTrace } from '../../lib/chat/voice/voiceDebugTrace'
+import {
+  resetVoiceSessionId,
+  voiceStage,
+  voiceTrace,
+} from '../../lib/chat/voice/voiceDebugTrace'
 import { consultantLine } from '../../lib/premiumExperience'
 import { HomeButton } from './HomeButton'
 
@@ -123,18 +127,22 @@ export function ConversationComposer({
 
   const commitVoiceFinal = (raw: string, origin: 'onResult' | 'listening_ended') => {
     const cleaned = normalizeVoiceTranscript(raw)
-    voiceTrace({
-      event: 'final_transcript_received',
+    voiceStage({
+      stage: 'FINAL_RESULT',
       turnId: turnIdRef.current,
       transcriptLen: cleaned.length,
       preview: cleaned,
+      previousState: 'LISTENING',
+      currentState: 'FINAL_TRANSCRIPT',
       meta: { origin },
     })
-    voiceTrace({
-      event: 'cleaned_transcript',
+    voiceStage({
+      stage: 'TRANSCRIPT_CLEANED',
       turnId: turnIdRef.current,
       transcriptLen: cleaned.length,
       preview: cleaned,
+      previousState: 'FINAL_TRANSCRIPT',
+      currentState: 'TRANSCRIPT_CLEANED',
     })
 
     setLiveCaption('')
@@ -149,9 +157,29 @@ export function ConversationComposer({
     setPreservedTranscript(cleaned)
     setSubmitError(null)
     setVoiceUi('submitting')
+    voiceStage({
+      stage: 'VOICE_SUBMIT',
+      turnId: turnIdRef.current,
+      transcriptLen: cleaned.length,
+      preview: cleaned,
+      previousState: 'TRANSCRIPT_CLEANED',
+      currentState: 'SUBMITTING',
+      meta: { phase: 'start' },
+    })
     const ok = submitFrom(cleaned, 'voice')
     if (!ok) {
       setVoiceUi('error')
+      voiceStage({
+        stage: 'FAILURE',
+        success: false,
+        turnId: turnIdRef.current,
+        reason: 'voice_submit_rejected',
+        previousState: 'SUBMITTING',
+        currentState: 'ERROR',
+        recoveryAction: 'retry_voice_or_type',
+        transcriptLen: cleaned.length,
+        preview: cleaned,
+      })
       setSubmitError(
         t(
           'تعذر إرسال الرسالة الصوتية. اضغط إعادة المحاولة أو اكتب طلبك.',
@@ -169,7 +197,17 @@ export function ConversationComposer({
     onInterim: (interim) => {
       const text = normalizeVoiceTranscript(interim)
       setLiveCaption(text)
-      if (text) setVoiceUi('listening')
+      if (text) {
+        setVoiceUi('listening')
+        voiceStage({
+          stage: 'INTERIM_RESULT',
+          turnId: turnIdRef.current,
+          transcriptLen: text.length,
+          preview: text,
+          previousState: 'LISTENING',
+          currentState: 'LISTENING',
+        })
+      }
     },
     onResult: (transcript) => {
       commitVoiceFinal(transcript, 'onResult')
@@ -292,13 +330,31 @@ export function ConversationComposer({
     submittedRef.current = false
     lastVoiceKeyRef.current = ''
     turnIdRef.current = `home_${Date.now().toString(36)}`
+    resetVoiceSessionId()
     setLiveCaption('')
     setPreservedTranscript('')
     setSubmitError(null)
     setVoiceUi('listening')
     onChange('')
     speech.clearError()
+    voiceStage({
+      stage: 'MIC_PERMISSION',
+      turnId: turnIdRef.current,
+      previousState: 'IDLE',
+      currentState: 'LISTENING',
+      meta: { phase: 'home_mic_tap', supported: speech.isSupported },
+      success: speech.isSupported,
+      reason: speech.isSupported ? null : 'speech_recognition_unsupported',
+      recoveryAction: speech.isSupported ? null : 'fallback_to_text',
+    })
     speech.start()
+    voiceStage({
+      stage: 'STT_START',
+      turnId: turnIdRef.current,
+      previousState: 'LISTENING',
+      currentState: 'LISTENING',
+      meta: { source: 'home_composer' },
+    })
   }
 
   const listening = !onVoiceClick && speech.isListening

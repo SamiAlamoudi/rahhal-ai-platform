@@ -21,7 +21,7 @@ import { travelAgentService } from '../lib/agent/travelAgentService'
 import { detectAgentLocale } from '../lib/agent/locale'
 import type { TripPlan } from '../lib/agent/types'
 import { chatEngine } from '../lib/chat/chatEngine'
-import { voiceTrace } from '../lib/chat/voice/voiceDebugTrace'
+import { voiceStage, voiceTrace } from '../lib/chat/voice/voiceDebugTrace'
 import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
 import { validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
 import { isBenignChatError, logChatError } from '../lib/chat/chatLogger'
@@ -832,11 +832,13 @@ function LegacyChatPage() {
     const startVoice = resolved.startVoice
     const turnId = resolved.turnId
     clearVoiceEntryHandoff()
-    voiceTrace({
-      event: 'submission_accepted',
+    voiceStage({
+      stage: 'VOICE_SUBMIT',
       turnId,
       transcriptLen: seed.length,
       preview: seed,
+      previousState: 'SUBMITTING',
+      currentState: 'SUBMITTING',
       meta: { handoffSource: resolved.source, startVoice },
     })
 
@@ -848,6 +850,14 @@ function LegacyChatPage() {
           setVoiceLocale('ar')
         }
         const created = await chatEngine.createConversation()
+        voiceStage({
+          stage: 'MESSAGE_CREATED',
+          turnId,
+          conversationId: created.id,
+          previousState: 'SUBMITTING',
+          currentState: 'THINKING',
+          meta: { phase: 'conversation_created' },
+        })
         voiceTrace({
           event: 'conversation_id',
           turnId,
