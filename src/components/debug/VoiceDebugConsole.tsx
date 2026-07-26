@@ -7,6 +7,7 @@ import {
   clearVoiceTrace,
   getVoiceSessionId,
   getVoiceTraceRecords,
+  getVoiceTraceTimeline,
   isVoiceTracingEnabled,
   subscribeVoiceTrace,
   type VoiceTraceRecord,
@@ -30,6 +31,17 @@ export default function VoiceDebugConsole() {
 
   const latest = records[records.length - 1]
   const failed = [...records].reverse().find((r) => !r.success)
+  const timeline = getVoiceTraceTimeline()
+  const chain = [
+    'STT_START',
+    'INTERIM_RESULT',
+    'FINAL_RESULT',
+    'TRANSCRIPT_CLEANED',
+    'VOICE_SUBMIT',
+    'MESSAGE_CREATED',
+    'CHAT_REQUEST',
+  ] as const
+  const seen = new Set(timeline.map((t) => t.stage))
 
   return (
     <div
@@ -65,45 +77,59 @@ export default function VoiceDebugConsole() {
           </div>
         </div>
         {open ? (
-          <ol
-            className="max-h-56 list-none space-y-1 overflow-y-auto px-2 py-2 font-mono"
-            aria-label="Voice pipeline events"
-          >
-            {records.length === 0 ? (
-              <li className="px-1 py-2 text-amber-100/60">Waiting for mic tap…</li>
-            ) : (
-              records.map((r) => (
-                <li
-                  key={r.id}
-                  className={`rounded px-1.5 py-1 ${
-                    r.success ? 'bg-white/5' : 'bg-rose-500/25 text-rose-50'
-                  }`}
-                >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-semibold">{r.stage}</span>
-                    <span className="text-[10px] opacity-70">
-                      {r.success ? 'ok' : 'FAIL'}
-                      {r.durationMs != null ? ` · ${r.durationMs}ms` : ''}
-                    </span>
-                  </div>
-                  <div className="opacity-80">
-                    {r.timestamp.slice(11, 23)}
-                    {r.previousState || r.currentState
-                      ? ` · ${r.previousState ?? '?'}→${r.currentState ?? '?'}`
-                      : ''}
-                  </div>
-                  {r.reason ? <div className="text-rose-100">reason: {r.reason}</div> : null}
-                  {r.recoveryAction && !r.success ? (
-                    <div className="opacity-80">recovery: {r.recoveryAction}</div>
-                  ) : null}
-                  {r.preview ? <div className="opacity-70">preview: {r.preview}</div> : null}
-                  {r.conversationId ? (
-                    <div className="opacity-60">conv: {r.conversationId.slice(0, 8)}…</div>
-                  ) : null}
-                </li>
-              ))
-            )}
-          </ol>
+          <div className="max-h-64 overflow-y-auto">
+            <div className="border-b border-amber-500/20 px-2 py-1.5 font-mono text-[10px] text-amber-100/80">
+              chain:{' '}
+              {chain.map((stage, i) => (
+                <span key={stage}>
+                  {i > 0 ? ' → ' : ''}
+                  <span className={seen.has(stage) ? 'text-emerald-300' : 'text-amber-100/40'}>
+                    {stage}
+                  </span>
+                </span>
+              ))}
+            </div>
+            <ol
+              className="list-none space-y-1 px-2 py-2 font-mono"
+              aria-label="Voice pipeline events"
+            >
+              {records.length === 0 ? (
+                <li className="px-1 py-2 text-amber-100/60">Waiting for mic tap…</li>
+              ) : (
+                records.map((r, idx) => (
+                  <li
+                    key={r.id}
+                    className={`rounded px-1.5 py-1 ${
+                      r.success ? 'bg-white/5' : 'bg-rose-500/25 text-rose-50'
+                    }`}
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="font-semibold">{r.stage}</span>
+                      <span className="text-[10px] opacity-70">
+                        {r.success ? 'ok' : 'FAIL'}
+                        {timeline[idx] != null ? ` · +${timeline[idx].msFromStart}ms` : ''}
+                        {r.durationMs != null ? ` · ${r.durationMs}ms` : ''}
+                      </span>
+                    </div>
+                    <div className="opacity-80">
+                      {r.timestamp.slice(11, 23)}
+                      {r.previousState || r.currentState
+                        ? ` · ${r.previousState ?? '?'}→${r.currentState ?? '?'}`
+                        : ''}
+                    </div>
+                    {r.reason ? <div className="text-rose-100">reason: {r.reason}</div> : null}
+                    {r.recoveryAction && !r.success ? (
+                      <div className="opacity-80">recovery: {r.recoveryAction}</div>
+                    ) : null}
+                    {r.preview ? <div className="opacity-70">preview: {r.preview}</div> : null}
+                    {r.conversationId ? (
+                      <div className="opacity-60">conv: {r.conversationId.slice(0, 8)}…</div>
+                    ) : null}
+                  </li>
+                ))
+              )}
+            </ol>
+          </div>
         ) : null}
       </div>
     </div>

@@ -29,6 +29,9 @@ export interface ConversationComposerProps {
 
 type VoiceUiStatus = 'idle' | 'listening' | 'submitting' | 'error'
 
+/** Never remain forever in submitting/thinking after a voice final. */
+const VOICE_SUBMIT_WATCHDOG_MS = 12_000
+
 const VOICE_STATUS_AR: Record<VoiceUiStatus, string> = {
   idle: 'جاهز',
   listening: 'أستمع إليك…',
@@ -55,39 +58,73 @@ export function ConversationComposer({
   const [preservedTranscript, setPreservedTranscript] = useState('')
   const valueRef = useRef(value)
   valueRef.current = value
+  const liveCaptionRef = useRef('')
+  const preservedTranscriptRef = useRef('')
+  const voiceUiRef = useRef<VoiceUiStatus>('idle')
+  voiceUiRef.current = voiceUi
   const submittedRef = useRef(false)
   const lastVoiceKeyRef = useRef('')
   const turnIdRef = useRef<string | null>(null)
+  const sessionHeardRef = useRef(false)
+  const submitWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const t = (ar: string, en: string) => (locale === 'ar' ? ar : en)
+
+  const clearSubmitWatchdog = () => {
+    if (submitWatchdogRef.current) {
+      clearTimeout(submitWatchdogRef.current)
+      submitWatchdogRef.current = null
+    }
+  }
+
+  const markSubmitSkipped = (reason: string, transcriptLen = 0, preview?: string) => {
+    voiceStage({
+      stage: 'FAILURE',
+      success: false,
+      turnId: turnIdRef.current,
+      reason,
+      previousState: 'TRANSCRIPT_CLEANED',
+      currentState: 'ERROR',
+      recoveryAction: 'retry_voice_or_type',
+      transcriptLen,
+      preview,
+      meta: { failedStage: 'VOICE_SUBMIT' },
+    })
+  }
 
   const submitFrom = (raw: string, source: ComposerSubmitSource): boolean => {
     const trimmed = normalizeVoiceTranscript(raw)
     if (!trimmed || disabled) {
+      const reason = !trimmed ? 'onSubmit_skipped_empty' : 'onSubmit_skipped_disabled'
       voiceTrace({
         event: 'submission_rejected',
         turnId: turnIdRef.current,
-        reason: !trimmed ? 'empty' : 'disabled',
+        reason,
         transcriptLen: trimmed.length,
       })
+      if (source === 'voice') markSubmitSkipped(reason, trimmed.length)
       return false
     }
     if (submittedRef.current) {
+      const reason = 'onSubmit_skipped_already_submitted'
       voiceTrace({
         event: 'submission_rejected',
         turnId: turnIdRef.current,
-        reason: 'already_submitted',
+        reason,
         transcriptLen: trimmed.length,
       })
+      if (source === 'voice') markSubmitSkipped(reason, trimmed.length, trimmed)
       return false
     }
     const key = `${source}:${trimmed}`
     if (source === 'voice' && key === lastVoiceKeyRef.current) {
+      const reason = 'onSubmit_skipped_duplicate_final'
       voiceTrace({
         event: 'submission_rejected',
         turnId: turnIdRef.current,
-        reason: 'duplicate_final',
+        reason,
         transcriptLen: trimmed.length,
       })
+      markSubmitSkipped(reason, trimmed.length, trimmed)
       return false
     }
 
@@ -114,12 +151,25 @@ export function ConversationComposer({
       return true
     } catch (e) {
       submittedRef.current = false
-      const reason = e instanceof Error ? e.message : 'submit_threw'
+      const reason = e instanceof Error ? e.message : 'onSubmit_threw'
       voiceTrace({
         event: 'failure',
         turnId: turnIdRef.current,
         reason,
         transcriptLen: trimmed.length,
+      })
+      voiceStage({
+        stage: 'FAILURE',
+        success: false,
+        turnId: turnIdRef.current,
+        reason,
+        previousState: 'SUBMITTING',
+        currentState: 'ERROR',
+        recoveryAction: 'retry_voice_or_type',
+        transcriptLen: trimmed.length,
+        preview: trimmed,
+        meta: { failedStage: 'VOICE_SUBMIT' },
+        error: e,
       })
       return false
     }
@@ -146,17 +196,57 @@ export function ConversationComposer({
     })
 
     setLiveCaption('')
+    liveCaptionRef.current = ''
     if (!cleaned) {
-      // Never silently READY after a voice session with no usable text.
-      if (origin === 'listening_ended') {
-        setVoiceUi('idle')
-      }
+      voiceStage({
+        stage: 'FAILURE',
+        success: false,
+        turnId: turnIdRef.current,
+        reason: 'transcript_cleaned_empty',
+        previousState: 'TRANSCRIPT_CLEANED',
+        currentState: 'ERROR',
+        recoveryAction: 'retry_mic_or_type',
+        meta: { failedStage: 'TRANSCRIPT_CLEANED', origin },
+      })
+      setVoiceUi('error')
+      setSubmitError(
+        t(
+          'لم يتم التقاط كلام واضح. أعد المحاولة أو اكتب طلبك.',
+          'No clear speech captured. Retry or type your request.',
+        ),
+      )
       return
     }
 
     setPreservedTranscript(cleaned)
+    preservedTranscriptRef.current = cleaned
     setSubmitError(null)
     setVoiceUi('submitting')
+    clearSubmitWatchdog()
+    submitWatchdogRef.current = setTimeout(() => {
+      submitWatchdogRef.current = null
+      if (voiceUiRef.current !== 'submitting') return
+      voiceStage({
+        stage: 'FAILURE',
+        success: false,
+        turnId: turnIdRef.current,
+        reason: 'voice_submit_watchdog_timeout',
+        previousState: 'SUBMITTING',
+        currentState: 'ERROR',
+        recoveryAction: 'retry_voice_or_type',
+        transcriptLen: cleaned.length,
+        preview: cleaned,
+        meta: { failedStage: 'CHAT_REQUEST', watchdogMs: VOICE_SUBMIT_WATCHDOG_MS },
+      })
+      setVoiceUi('error')
+      setSubmitError(
+        t(
+          'تعذر إكمال الإرسال الصوتي. اضغط إعادة المحاولة أو اكتب طلبك.',
+          'Voice send timed out. Retry or type your request.',
+        ),
+      )
+    }, VOICE_SUBMIT_WATCHDOG_MS)
+
     voiceStage({
       stage: 'VOICE_SUBMIT',
       turnId: turnIdRef.current,
@@ -164,22 +254,12 @@ export function ConversationComposer({
       preview: cleaned,
       previousState: 'TRANSCRIPT_CLEANED',
       currentState: 'SUBMITTING',
-      meta: { phase: 'start' },
+      meta: { phase: 'start', origin },
     })
     const ok = submitFrom(cleaned, 'voice')
     if (!ok) {
+      clearSubmitWatchdog()
       setVoiceUi('error')
-      voiceStage({
-        stage: 'FAILURE',
-        success: false,
-        turnId: turnIdRef.current,
-        reason: 'voice_submit_rejected',
-        previousState: 'SUBMITTING',
-        currentState: 'ERROR',
-        recoveryAction: 'retry_voice_or_type',
-        transcriptLen: cleaned.length,
-        preview: cleaned,
-      })
       setSubmitError(
         t(
           'تعذر إرسال الرسالة الصوتية. اضغط إعادة المحاولة أو اكتب طلبك.',
@@ -197,7 +277,11 @@ export function ConversationComposer({
     onInterim: (interim) => {
       const text = normalizeVoiceTranscript(interim)
       setLiveCaption(text)
+      liveCaptionRef.current = text
       if (text) {
+        sessionHeardRef.current = true
+        // Keep composer value in sync so listening_ended can recover via valueRef.
+        onChange(text)
         setVoiceUi('listening')
         voiceStage({
           stage: 'INTERIM_RESULT',
@@ -219,35 +303,65 @@ export function ConversationComposer({
     if (voiceUi === 'submitting' && submittedRef.current) {
       speech.cancel()
     }
+    if (voiceUi !== 'submitting') clearSubmitWatchdog()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- edge on submitting only
   }, [voiceUi])
 
+  useEffect(() => () => clearSubmitWatchdog(), [])
+
   useEffect(() => {
     if (speech.isListening) {
+      sessionHeardRef.current = sessionHeardRef.current || Boolean(speech.interimTranscript)
       setVoiceUi((prev) => (prev === 'submitting' || prev === 'error' ? prev : 'listening'))
       return
     }
 
     // Listening ended — Safari/WebKit sometimes skips onResult after interim-only results.
-    if (submittedRef.current || voiceUi === 'submitting') return
+    if (submittedRef.current || voiceUiRef.current === 'submitting') return
+    if (speech.error === 'user-cancelled') {
+      setVoiceUi('idle')
+      return
+    }
 
     const leftover = normalizeVoiceTranscript(
       speech.finalTranscript
-        || liveCaption
+        || liveCaptionRef.current
         || speech.interimTranscript
-        || preservedTranscript
+        || preservedTranscriptRef.current
         || valueRef.current,
     )
 
-    if (leftover && (voiceUi === 'listening' || !!liveCaption || !!speech.interimTranscript)) {
+    if (leftover) {
       commitVoiceFinal(leftover, 'listening_ended')
       return
     }
 
-    if (voiceUi === 'listening' && !submittedRef.current) {
-      // Ended with no transcript — idle is OK; do not pretend we submitted.
-      setVoiceUi('idle')
+    if (sessionHeardRef.current || voiceUiRef.current === 'listening') {
+      // Hook may already have staged FAILURE (empty deliver / watchdog).
+      if (speech.status !== 'error' && speech.status !== 'permission-denied') {
+        voiceStage({
+          stage: 'FAILURE',
+          success: false,
+          turnId: turnIdRef.current,
+          reason: 'listening_ended_without_transcript',
+          previousState: 'LISTENING',
+          currentState: 'ERROR',
+          recoveryAction: 'retry_mic_or_type',
+          meta: { failedStage: 'FINAL_RESULT' },
+        })
+      }
+      setVoiceUi('error')
+      setSubmitError(
+        speech.errorMessage
+          || t(
+            'انتهت الجلسة دون نص. أعد المحاولة أو اكتب طلبك.',
+            'Listening ended with no transcript. Retry or type your request.',
+          ),
+      )
+      return
     }
+
+    setVoiceUi('idle')
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional edge on isListening
   }, [speech.isListening])
 
@@ -329,10 +443,14 @@ export function ConversationComposer({
     }
     submittedRef.current = false
     lastVoiceKeyRef.current = ''
+    sessionHeardRef.current = false
+    clearSubmitWatchdog()
     turnIdRef.current = `home_${Date.now().toString(36)}`
     resetVoiceSessionId()
     setLiveCaption('')
+    liveCaptionRef.current = ''
     setPreservedTranscript('')
+    preservedTranscriptRef.current = ''
     setSubmitError(null)
     setVoiceUi('listening')
     onChange('')
@@ -353,7 +471,7 @@ export function ConversationComposer({
       turnId: turnIdRef.current,
       previousState: 'LISTENING',
       currentState: 'LISTENING',
-      meta: { source: 'home_composer' },
+      meta: { source: 'home_composer', note: 'start_invoked_await_engine_onstart' },
     })
   }
 

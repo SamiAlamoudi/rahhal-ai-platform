@@ -826,10 +826,35 @@ function LegacyChatPage() {
     } | null
     const resolved = resolveChatEntrySeed({ state, search: location.search })
     const seed = resolved.seed
-    if (!seed) return
+    const voiceIntent =
+      resolved.startVoice
+      || new URLSearchParams(location.search).get('startVoice') === '1'
+      || Boolean(state?.startVoice)
+
+    if (!seed) {
+      if (voiceIntent) {
+        seedConsumedRef.current = true
+        clearVoiceEntryHandoff()
+        voiceStage({
+          stage: 'FAILURE',
+          success: false,
+          turnId: resolved.turnId,
+          reason: 'chat_entry_missing_seed',
+          previousState: 'SUBMITTING',
+          currentState: 'ERROR',
+          recoveryAction: 'return_home_retry_voice',
+          meta: {
+            failedStage: 'VOICE_SUBMIT',
+            handoffSource: resolved.source,
+          },
+        })
+        setActionError('تعذر استلام الرسالة الصوتية — ارجع للرئيسية وأعد المحاولة.')
+      }
+      return
+    }
 
     seedConsumedRef.current = true
-    const startVoice = resolved.startVoice
+    const startVoice = resolved.startVoice || voiceIntent
     const turnId = resolved.turnId
     clearVoiceEntryHandoff()
     voiceStage({
@@ -839,7 +864,7 @@ function LegacyChatPage() {
       preview: seed,
       previousState: 'SUBMITTING',
       currentState: 'SUBMITTING',
-      meta: { handoffSource: resolved.source, startVoice },
+      meta: { handoffSource: resolved.source, startVoice, phase: 'chat_entry_seed' },
     })
 
     void (async () => {
@@ -878,6 +903,16 @@ function LegacyChatPage() {
           if (session?.beginContinuousWithSeed) {
             setSending(true)
             try {
+              voiceStage({
+                stage: 'CHAT_REQUEST',
+                turnId,
+                conversationId: created.id,
+                transcriptLen: seed.length,
+                preview: seed,
+                previousState: 'THINKING',
+                currentState: 'THINKING',
+                meta: { path: 'beginContinuousWithSeed' },
+              })
               voiceTrace({
                 event: 'chat_engine_started',
                 turnId,
@@ -895,6 +930,17 @@ function LegacyChatPage() {
               await loadDetail(created.id)
               void loadConversations(created.id)
               if (!assistant) {
+                voiceStage({
+                  stage: 'FAILURE',
+                  success: false,
+                  turnId,
+                  conversationId: created.id,
+                  reason: 'chat_request_returned_null',
+                  previousState: 'THINKING',
+                  currentState: 'ERROR',
+                  recoveryAction: 'retry_voice_or_type',
+                  meta: { failedStage: 'CHAT_RESPONSE', path: 'beginContinuousWithSeed' },
+                })
                 setActionError('تعذر إرسال الرسالة الصوتية — أعد المحاولة أو اكتب طلبك.')
               }
             } finally {
@@ -902,9 +948,30 @@ function LegacyChatPage() {
             }
             return
           }
+          voiceStage({
+            stage: 'FAILURE',
+            success: false,
+            turnId,
+            conversationId: created.id,
+            reason: 'voice_session_not_ready_fallback_sendMessage',
+            previousState: 'THINKING',
+            currentState: 'THINKING',
+            recoveryAction: 'fallback_text_send',
+            meta: { failedStage: 'CHAT_REQUEST', recoverable: true },
+          })
         }
 
         // Text path, or voice session not ready — still commit via ChatEngine (never drop seed).
+        voiceStage({
+          stage: 'CHAT_REQUEST',
+          turnId,
+          conversationId: created.id,
+          transcriptLen: seed.length,
+          preview: seed,
+          previousState: 'THINKING',
+          currentState: 'THINKING',
+          meta: { path: 'sendMessage', startVoice },
+        })
         voiceTrace({
           event: 'chat_engine_started',
           turnId,

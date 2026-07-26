@@ -309,3 +309,21 @@ export function clearVoiceTrace(): void {
   lastState = 'IDLE'
   notify()
 }
+
+/** Compact timestamped timeline for Preview / tests. */
+export function getVoiceTraceTimeline(): Array<{
+  at: string
+  stage: VoicePipelineStage
+  success: boolean
+  reason: string | null
+  msFromStart: number
+}> {
+  const start = records[0] ? Date.parse(records[0].timestamp) : Date.now()
+  return records.map((r) => ({
+    at: r.timestamp,
+    stage: r.stage,
+    success: r.success,
+    reason: r.reason,
+    msFromStart: Math.max(0, Date.parse(r.timestamp) - start),
+  }))
+}

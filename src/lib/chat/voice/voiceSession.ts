@@ -122,6 +122,15 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   let earlySpeakPromise: Promise<boolean> | null = null
   let lastSubmittedKey = ''
   let lastSubmittedAt = 0
+  let thinkingWatchdog: ReturnType<typeof setTimeout> | null = null
+  const THINKING_WATCHDOG_MS = 20_000
+
+  const clearThinkingWatchdog = () => {
+    if (thinkingWatchdog) {
+      clearTimeout(thinkingWatchdog)
+      thinkingWatchdog = null
+    }
+  }
 
   const activityMonitor =
     options.activityMonitor
@@ -142,8 +151,31 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
 
   const setStatus = (next: VoiceSessionStatus) => {
     if (disposed) return
+    if (next !== 'thinking') clearThinkingWatchdog()
     status = next
     callbacks.onStatus?.(next)
+    if (next === 'thinking') {
+      clearThinkingWatchdog()
+      thinkingWatchdog = setTimeout(() => {
+        thinkingWatchdog = null
+        if (disposed || status !== 'thinking') return
+        sending = false
+        activeAbort?.abort()
+        activeAbort = null
+        voiceStage({
+          stage: 'FAILURE',
+          success: false,
+          conversationId: handsFreeConversationId,
+          reason: 'thinking_watchdog_timeout',
+          previousState: 'THINKING',
+          currentState: 'ERROR',
+          recoveryAction: 'retry_voice_or_type',
+          meta: { failedStage: 'CHAT_RESPONSE', watchdogMs: THINKING_WATCHDOG_MS },
+        })
+        callbacks.onError?.('انتهت مهلة التفكير — أعد المحاولة')
+        setStatus('error')
+      }, THINKING_WATCHDOG_MS)
+    }
   }
 
   const clearSilenceTimer = () => {
@@ -349,6 +381,25 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   const sendTranscript = async (conversationId: string, transcript: string): Promise<ChatMessage | null> => {
     const content = transcript.trim()
     if (!content || sending || disposed) {
+      const reason = !content
+        ? 'chat_request_skipped_empty'
+        : disposed
+          ? 'chat_request_skipped_disposed'
+          : 'chat_request_skipped_already_sending'
+      voiceStage({
+        stage: 'FAILURE',
+        success: false,
+        conversationId,
+        reason,
+        previousState: status.toUpperCase(),
+        currentState: !content
+          ? (mode === 'hands_free' && handsFreeConversationId ? 'LISTENING' : 'IDLE')
+          : status.toUpperCase(),
+        recoveryAction: !content ? 'retry_mic_or_type' : 'wait_then_retry',
+        transcriptLen: content.length,
+        preview: content || undefined,
+        meta: { failedStage: 'CHAT_REQUEST', recoverable: Boolean(content) },
+      })
       if (!content) setStatus(mode === 'hands_free' && handsFreeConversationId ? 'listening' : 'idle')
       return null
     }
@@ -357,6 +408,18 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     const now = Date.now()
     if (submitKey === lastSubmittedKey && now - lastSubmittedAt < 4000) {
       logPipeline({ stage: 'conversation', event: 'duplicate_transcript_ignored', meta: { length: content.length } })
+      voiceStage({
+        stage: 'FAILURE',
+        success: false,
+        conversationId,
+        reason: 'chat_request_skipped_duplicate',
+        previousState: status.toUpperCase(),
+        currentState: status.toUpperCase(),
+        recoveryAction: 'wait_or_rephrase',
+        transcriptLen: content.length,
+        preview: content,
+        meta: { failedStage: 'CHAT_REQUEST', recoverable: true },
+      })
       return null
     }
     lastSubmittedKey = submitKey
@@ -385,6 +448,15 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       stage: 'conversation',
       event: 'turn_send_started',
       meta: { conversationId, modality: 'audio', length: content.length },
+    })
+    voiceStage({
+      stage: 'CHAT_REQUEST',
+      conversationId,
+      transcriptLen: content.length,
+      preview: content,
+      previousState: 'THINKING',
+      currentState: 'THINKING',
+      meta: { modality: 'audio', path: 'sendTranscript' },
     })
     voiceTrace({
       event: 'chat_engine_started',
@@ -763,6 +835,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       resumeHandsFreeAfterInterrupt = false
       handsFreeConversationId = null
       clearSilenceTimer()
+      clearThinkingWatchdog()
       utteranceBuffer = ''
       utterancePrefix = ''
       stopVad()
