@@ -22,6 +22,11 @@ import { detectAgentLocale } from '../lib/agent/locale'
 import type { TripPlan } from '../lib/agent/types'
 import { chatEngine } from '../lib/chat/chatEngine'
 import { voiceStage, voiceTrace } from '../lib/chat/voice/voiceDebugTrace'
+import {
+  armThinkingEvidence,
+  setThinkingEvidenceContext,
+  thinkingEvidence,
+} from '../lib/chat/voice/thinkingStuckEvidence'
 import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
 import { validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
 import { isBenignChatError, logChatError } from '../lib/chat/chatLogger'
@@ -172,9 +177,57 @@ function LegacyChatPage() {
   const applyMessage = useCallback((message: ChatMessage) => {
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.id === message.id)
-      if (idx === -1) return [...prev, message]
-      const next = [...prev]
-      next[idx] = message
+      const next =
+        idx === -1
+          ? [...prev, message]
+          : (() => {
+              const copy = [...prev]
+              copy[idx] = message
+              return copy
+            })()
+      const assistantId =
+        message.role === 'assistant'
+          ? message.id
+          : [...next].reverse().find((m) => m.role === 'assistant')?.id ?? null
+      setThinkingEvidenceContext({
+        conversationId: activeIdRef.current,
+        messageCount: next.length,
+        assistantMessageId: assistantId,
+        reactState: {
+          activeId: activeIdRef.current,
+          messageRoles: next.map((m) => m.role).join(','),
+        },
+      })
+      thinkingEvidence(idx === -1 ? 'MESSAGE_ADDED' : 'CONVERSATION_UPDATED', {
+        conversationId: activeIdRef.current,
+        messageCount: next.length,
+        assistantMessageId: assistantId,
+        reactState: {
+          activeId: activeIdRef.current,
+          messageRoles: next.map((m) => `${m.role}:${m.status}`).join('|'),
+          waitingComponent: 'ChatPage.applyMessage→setMessages',
+        },
+        meta: {
+          op: idx === -1 ? 'insert' : 'update',
+          role: message.role,
+          status: message.status,
+          messageId: message.id,
+          contentLen: message.content.length,
+        },
+      })
+      if (message.role === 'assistant' && message.status === 'complete') {
+        thinkingEvidence('ASSISTANT_RENDERED', {
+          conversationId: activeIdRef.current,
+          messageCount: next.length,
+          assistantMessageId: message.id,
+          reactState: {
+            activeId: activeIdRef.current,
+            messageRoles: next.map((m) => `${m.role}:${m.status}`).join('|'),
+            waitingComponent: 'ChatPage.applyMessage(assistant complete in state)',
+          },
+          meta: { phase: 'react_state_has_assistant_complete', contentLen: message.content.length },
+        })
+      }
       return next
     })
   }, [])
@@ -422,7 +475,22 @@ function LegacyChatPage() {
     let disposed = false
     let session: VoiceSession | null = null
     void buildVoiceSession({
-      onStatus: setVoiceStatus,
+      onStatus: (status) => {
+        setVoiceStatus(status)
+        thinkingEvidence('STATE_CHANGED', {
+          conversationId: activeIdRef.current,
+          messageCount: null,
+          reactState: {
+            voiceStatus: status,
+            activeId: activeIdRef.current,
+            waitingComponent:
+              status === 'thinking'
+                ? 'ChatPage.setVoiceStatus←VoiceSession (Thinking badge)'
+                : 'ChatPage.setVoiceStatus←VoiceSession',
+          },
+          meta: { source: 'ChatPage.voice.onStatus' },
+        })
+      },
       onPartialTranscript: setPartialTranscript,
       onFinalTranscript: setPartialTranscript,
       onLevel: setVoiceLevel,
@@ -437,8 +505,26 @@ function LegacyChatPage() {
       onAssistantCreate: upsertMessage,
       onDelta: upsertMessage,
       onComplete: (message) => {
+        thinkingEvidence('ASSISTANT_RENDERED', {
+          conversationId: activeIdRef.current,
+          assistantMessageId: message.id,
+          reactState: {
+            activeId: activeIdRef.current,
+            waitingComponent: 'ChatPage.voice.onComplete→upsertMessage',
+          },
+          meta: { phase: 'ui_onComplete_received', contentLen: message.content.length },
+        })
         upsertMessage(message)
         void loadConversations(activeIdRef.current)
+        thinkingEvidence('CONVERSATION_UPDATED', {
+          conversationId: activeIdRef.current,
+          assistantMessageId: message.id,
+          reactState: {
+            activeId: activeIdRef.current,
+            waitingComponent: 'ChatPage.voice.onComplete→loadConversations',
+          },
+          meta: { phase: 'loadConversations_scheduled' },
+        })
       },
       onStreamError: (message, error) => {
         upsertMessage(message)
@@ -857,6 +943,11 @@ function LegacyChatPage() {
     const startVoice = resolved.startVoice || voiceIntent
     const turnId = resolved.turnId
     clearVoiceEntryHandoff()
+    armThinkingEvidence({ threadId: turnId })
+    setThinkingEvidenceContext({
+      threadId: turnId,
+      reactState: { composerMode: startVoice ? 'voice' : 'text', sending: true },
+    })
     voiceStage({
       stage: 'VOICE_SUBMIT',
       turnId,
@@ -875,6 +966,21 @@ function LegacyChatPage() {
           setVoiceLocale('ar')
         }
         const created = await chatEngine.createConversation()
+        setThinkingEvidenceContext({
+          threadId: turnId,
+          conversationId: created.id,
+        })
+        thinkingEvidence('CONVERSATION_UPDATED', {
+          threadId: turnId,
+          conversationId: created.id,
+          messageCount: 0,
+          reactState: {
+            activeId: created.id,
+            composerMode: startVoice ? 'voice' : 'text',
+            waitingComponent: 'ChatPage.seed→createConversation',
+          },
+          meta: { phase: 'conversation_created' },
+        })
         voiceStage({
           stage: 'MESSAGE_CREATED',
           turnId,
@@ -903,6 +1009,18 @@ function LegacyChatPage() {
           if (session?.beginContinuousWithSeed) {
             setSending(true)
             try {
+              thinkingEvidence('CHAT_REQUEST', {
+                threadId: turnId,
+                conversationId: created.id,
+                reactState: {
+                  voiceStatus: 'thinking',
+                  sending: true,
+                  composerMode: 'voice',
+                  activeId: created.id,
+                  waitingComponent: 'ChatPage.seed→beginContinuousWithSeed',
+                },
+                meta: { path: 'beginContinuousWithSeed' },
+              })
               voiceStage({
                 stage: 'CHAT_REQUEST',
                 turnId,
@@ -921,6 +1039,22 @@ function LegacyChatPage() {
               })
               // Same chatEngine path as typed turns; speaks reply then resumes listening.
               const assistant = await session.beginContinuousWithSeed(created.id, seed)
+              thinkingEvidence('CHAT_RESPONSE', {
+                threadId: turnId,
+                conversationId: created.id,
+                assistantMessageId: assistant?.id ?? null,
+                reactState: {
+                  sending: true,
+                  composerMode: 'voice',
+                  activeId: created.id,
+                  waitingComponent: 'ChatPage.seed←beginContinuousWithSeed returned',
+                },
+                meta: {
+                  path: 'beginContinuousWithSeed',
+                  hasAssistant: !!assistant,
+                  assistantLen: assistant?.content.length ?? 0,
+                },
+              })
               voiceTrace({
                 event: 'chat_engine_completed',
                 turnId,
@@ -929,6 +1063,16 @@ function LegacyChatPage() {
               })
               await loadDetail(created.id)
               void loadConversations(created.id)
+              thinkingEvidence('CONVERSATION_UPDATED', {
+                threadId: turnId,
+                conversationId: created.id,
+                assistantMessageId: assistant?.id ?? null,
+                reactState: {
+                  activeId: created.id,
+                  waitingComponent: 'ChatPage.seed→loadDetail',
+                },
+                meta: { phase: 'post_seed_loadDetail' },
+              })
               if (!assistant) {
                 voiceStage({
                   stage: 'FAILURE',
@@ -1138,6 +1282,29 @@ function LegacyChatPage() {
             : !online
               ? 'offline'
               : 'ready'
+
+  // Evidence: prove whether React keeps painting “Thinking…” and with what state.
+  thinkingEvidence('REACT_RENDER', {
+    conversationId: activeId,
+    messageCount: messages.length,
+    assistantMessageId: [...messages].reverse().find((m) => m.role === 'assistant')?.id ?? null,
+    reactState: {
+      voiceStatus,
+      voiceUiState,
+      sending,
+      composerMode,
+      isStreaming,
+      activeId,
+      waitingComponent:
+        voiceUiState === 'thinking'
+          ? 'VoiceStateBadge (label=Thinking) / VoiceComposer'
+          : sending
+            ? 'ChatPage.sending=true'
+            : 'ChatPage.render',
+      messageRoles: messages.map((m) => `${m.role}:${m.status}`).join('|') || null,
+    },
+    meta: { component: 'LegacyChatPage' },
+  })
 
   const chatHeaderTrailing = (
     <div className="flex shrink-0 items-center gap-2">

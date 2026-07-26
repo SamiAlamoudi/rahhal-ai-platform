@@ -28,6 +28,7 @@ import {
 } from './voiceTypes'
 import { extractSpokenAnswer, stripMarkdownForSpeech } from './spokenAnswer'
 import { voiceStage, voiceTrace } from './voiceDebugTrace'
+import { setThinkingEvidenceContext, thinkingEvidence } from './thinkingStuckEvidence'
 
 export { stripMarkdownForSpeech } from './spokenAnswer'
 
@@ -151,8 +152,27 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
 
   const setStatus = (next: VoiceSessionStatus) => {
     if (disposed) return
+    const previous = status
     if (next !== 'thinking') clearThinkingWatchdog()
     status = next
+    setThinkingEvidenceContext({
+      conversationId: handsFreeConversationId,
+      reactState: {
+        voiceStatus: next,
+        waitingComponent: next === 'thinking' ? 'VoiceSession.setStatus(thinking)' : null,
+      },
+    })
+    thinkingEvidence('STATE_CHANGED', {
+      conversationId: handsFreeConversationId,
+      reactState: {
+        voiceStatus: next,
+        waitingComponent:
+          next === 'thinking'
+            ? 'VoiceStateBadge/VoiceComposer (voiceStatus=thinking)'
+            : null,
+      },
+      meta: { previousVoiceStatus: previous, source: 'VoiceSession.setStatus' },
+    })
     callbacks.onStatus?.(next)
     if (next === 'thinking') {
       clearThinkingWatchdog()
@@ -171,6 +191,14 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           currentState: 'ERROR',
           recoveryAction: 'retry_voice_or_type',
           meta: { failedStage: 'CHAT_RESPONSE', watchdogMs: THINKING_WATCHDOG_MS },
+        })
+        thinkingEvidence('STATE_CHANGED', {
+          conversationId: handsFreeConversationId,
+          reactState: {
+            voiceStatus: 'error',
+            waitingComponent: 'thinking_watchdog_timeout',
+          },
+          meta: { previousVoiceStatus: 'thinking', source: 'thinking_watchdog' },
         })
         callbacks.onError?.('انتهت مهلة التفكير — أعد المحاولة')
         setStatus('error')
@@ -458,6 +486,14 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       currentState: 'THINKING',
       meta: { modality: 'audio', path: 'sendTranscript' },
     })
+    thinkingEvidence('CHAT_REQUEST', {
+      conversationId,
+      reactState: {
+        voiceStatus: status,
+        waitingComponent: 'VoiceSession.sendTranscript→chatEngine.sendMessage',
+      },
+      meta: { modality: 'audio', path: 'sendTranscript', contentLen: content.length },
+    })
     voiceTrace({
       event: 'chat_engine_started',
       conversationId,
@@ -468,6 +504,19 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     const handlers: StreamHandlers = {
       signal: controller.signal,
       onAssistantCreate: (message) => {
+        setThinkingEvidenceContext({
+          conversationId,
+          assistantMessageId: message.id,
+        })
+        thinkingEvidence('MESSAGE_ADDED', {
+          conversationId,
+          assistantMessageId: message.id,
+          reactState: {
+            voiceStatus: status,
+            waitingComponent: 'onAssistantCreate→ChatPage.upsertMessage',
+          },
+          meta: { role: message.role, status: message.status, phase: 'assistant_seed' },
+        })
         if (!sawDelta) setStatus('thinking')
         callbacks.onAssistantCreate?.(message)
       },
@@ -477,6 +526,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           setStatus('responding')
           logPipeline({ stage: 'streaming', event: 'first_delta' })
         }
+        setThinkingEvidenceContext({ assistantMessageId: message.id })
         callbacks.onDelta?.(message)
 
         // Start speaking as soon as a spoken bridge/summary is available.
@@ -496,6 +546,34 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         }
       },
       onComplete: async (message) => {
+        setThinkingEvidenceContext({
+          conversationId,
+          assistantMessageId: message.id,
+        })
+        thinkingEvidence('CHAT_RESPONSE', {
+          conversationId,
+          assistantMessageId: message.id,
+          reactState: {
+            voiceStatus: status,
+            waitingComponent: 'VoiceSession.onComplete',
+          },
+          meta: {
+            contentLen: message.content.length,
+            status: message.status,
+          },
+        })
+        thinkingEvidence('ASSISTANT_RENDERED', {
+          conversationId,
+          assistantMessageId: message.id,
+          reactState: {
+            voiceStatus: status,
+            waitingComponent: 'VoiceSession.onComplete→callbacks.onComplete',
+          },
+          meta: {
+            phase: 'session_onComplete_before_ui_callback',
+            contentLen: message.content.length,
+          },
+        })
         callbacks.onComplete?.(message)
         logPipeline({
           stage: 'ai',
