@@ -22,8 +22,8 @@ export function buildFollowUpQuestion(
 
   if (!next) {
     return t(locale, {
-      ar: 'عندي ما يكفي لنبدأ. قل «ابني الخطة» وسأجهّز الخيارات.',
-      en: 'I have enough to begin. Say “build the plan” and I will put options together.',
+      ar: 'الصورة كافية لنبدأ. قل «ابني الخطة» وأجهّز أفضل خيار في حالتك.',
+      en: 'We have enough to begin. Say “build the plan” and I will assemble the best fit for your case.',
     })
   }
 
@@ -95,8 +95,8 @@ export function formatTripPlanReply(plan: TripPlan, locale: AgentLocale): string
 /** Bridge line spoken immediately while planning runs (ChatGPT-Voice feel). */
 export function buildThinkingBridge(locale: AgentLocale): string {
   return t(locale, {
-    ar: 'لحظة — عندي أفكار أولية، خلّني أقارن أفضل الخيارات.',
-    en: 'Give me a second — I already have a few ideas. Let me compare the best options.',
+    ar: 'لحظة — خلّني أقارن أفضل الخيارات لحالتك.',
+    en: 'Give me a second — let me compare the best options for your case.',
   })
 }
 

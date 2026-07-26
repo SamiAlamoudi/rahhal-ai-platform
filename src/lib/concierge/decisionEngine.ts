@@ -41,14 +41,14 @@ const BROAD_DESTINATIONS = new Set([
 const CITY_PACKS: Record<string, { en: Array<{ title: string; why: string }>; ar: Array<{ title: string; why: string }> }> = {
   morocco: {
     en: [
-      { title: 'Agadir', why: 'Great beaches and typically lower hotel costs.' },
-      { title: 'Marrakech', why: 'Culture, souks, and food-led evenings.' },
-      { title: 'Casablanca', why: 'Urban pace, modern dining, coastal walks.' },
+      { title: 'Agadir', why: 'calmer in summer, with resort pricing that usually beats Marrakech.' },
+      { title: 'Marrakech', why: 'richer culture and souks — busier, but unforgettable evenings.' },
+      { title: 'Casablanca', why: 'modern dining and coastal walks if you want an urban base.' },
     ],
     ar: [
-      { title: 'أكادير', why: 'شواطئ ممتازة وتكلفة فنادق عادةً أخف.' },
-      { title: 'مراكش', why: 'ثقافة وأسواق وأجواء طعام غنية.' },
-      { title: 'الدار البيضاء', why: 'تجربة مدنية عصرية على الساحل.' },
+      { title: 'أكادير', why: 'أكثر هدوءاً في الصيف، وأسعار المنتجعات فيها عادة أفضل من مراكش.' },
+      { title: 'مراكش', why: 'أغنى ثقافياً بأسواقها — أكثر حركة، لكن أمسياتها لا تُنسى.' },
+      { title: 'الدار البيضاء', why: 'قاعدة حضرية عصرية مع مطاعم وتمشية ساحلية.' },
     ],
   },
   japan: {
@@ -197,14 +197,25 @@ function preferenceQuestionFor(
     return SEASON_PACKS[normalizeDestKey(dest)]!.question[ar ? 'ar' : 'en']
   }
   if (mode === 'destination_cities' || mode === 'budget_framed_cities') {
+    const key = normalizeDestKey(dest)
+    if (key === 'morocco') {
+      return ar
+        ? 'هل تميل أكثر للأجواء الشاطئية مثل أغادير، أم المدن التاريخية مثل مراكش؟'
+        : 'Are you leaning more toward beach vibes like Agadir, or historic cities like Marrakech?'
+    }
+    if (key === 'japan') {
+      return ar
+        ? 'تميل لطوكيو الحيوية، أم كيوتو الأهدأ ثقافياً؟'
+        : 'Are you leaning energetic Tokyo, or quieter cultural Kyoto?'
+    }
     return ar
-      ? 'من هذه الاتجاهات، أيّها يشدّك أكثر؟'
-      : 'From these directions, which interests you most?'
+      ? 'من هذه الاتجاهات، أيّها يشدّك أكثر — ولماذا؟'
+      : 'Which of these directions fits you best — and why?'
   }
   if (mode === 'style_narrow') {
     return ar
-      ? 'تميل لبحر وهدوء، ولا مدينة وثقافة؟'
-      : 'Are you leaning beach and calm, or city and culture?'
+      ? 'إذا كان هدفك الاسترخاء: بحر وهدوء، ولا مدينة وثقافة؟'
+      : 'If the goal is recovery: beach and calm, or city and culture?'
   }
   return ar
     ? 'أي اتجاه نقرّب عليه؟'
@@ -296,8 +307,8 @@ export function evaluateConciergeValueOpportunity(input: {
       action: 'propose_options',
       valueBrief: brief,
       framingNote: ar
-        ? `${dest} يتيح أنماطاً مختلفة جداً — هذه أبرز الاتجاهات.`
-        : `${dest} supports very different trip styles — here are the strongest directions.`,
+        ? `${dest} اختيار رائع — يفتح أنماطاً مختلفة جداً.`
+        : `${dest} is an excellent choice — and it supports very different trip styles.`,
       preferenceQuestion: preferenceQuestionFor('destination_cities', locale, dest),
       rationale: 'Broad destination known — compare cities before asking census fields.',
     }
@@ -313,8 +324,8 @@ export function evaluateConciergeValueOpportunity(input: {
         ar ? `${dest}: ${line}` : `${dest}: ${line}`,
       ),
       framingNote: ar
-        ? `ممتاز — ${dest} قاعدة قوية. خلّينا نضبط طابع الرحلة.`
-        : `Strong base — ${dest}. Let us shape the character of the trip.`,
+        ? `${dest} قاعدة قوية. حتى أساعدك بالشكل المناسب، نضبط طابع الرحلة.`
+        : `${dest} is a strong base. To help you properly, let’s shape the character of the trip.`,
       preferenceQuestion: preferenceQuestionFor('style_narrow', locale, dest),
       rationale: 'Specific destination known — inspire with trip character before form fields.',
     }

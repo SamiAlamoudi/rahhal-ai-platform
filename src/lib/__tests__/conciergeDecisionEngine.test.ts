@@ -82,7 +82,7 @@ describe('Concierge Decision Engine — unit', () => {
     expect(assessment.canProvideValue).toBe(true)
     expect(assessment.mode).toBe('destination_cities')
     expect(assessment.valueBrief.join(' ')).toMatch(/Agadir|Marrakech|Casablanca/)
-    expect(assessment.preferenceQuestion).toMatch(/interests you most|which/i)
+    expect(assessment.preferenceQuestion).toMatch(/Agadir|Marrakech|beach|historic|which|interests you most/i)
   })
 
   it('frames Morocco cities with budget + August timing', () => {
@@ -210,7 +210,7 @@ describe('Concierge Decision Engine — live planTurn feel', () => {
     expect(t2.reply).not.toMatch(/\bHow many days\b|\bHow many travelers\b|\bBudget\?\b/i)
   })
 
-  it('Japan next year → season guidance with context', async () => {
+  it('Japan next year → city clarification first (TripState one question)', async () => {
     const service = createTravelAgentService({
       tools: createMockAgentToolRegistry(),
       smartClarificationEnabled: true,
@@ -221,7 +221,9 @@ describe('Concierge Decision Engine — live planTurn feel', () => {
       messages: [user('I want Japan next year.', 'intel-japan')],
     })
     expect(turn.memory.requirements.destination).toBe('Japan')
-    expect(turn.reply).toMatch(/season|cherry blossom|autumn|spring|winter/i)
+    expect(turn.meta.tripState?.destinationCountry).toBe('Japan')
+    expect(turn.meta.tripState?.primaryMissing).toBe('destinationCity')
+    expect(turn.reply).toMatch(/Tokyo|Kyoto|Osaka/i)
     expect(turn.reply).not.toMatch(/\bBudget\?\b|\bHow many days\b/i)
   })
 })
