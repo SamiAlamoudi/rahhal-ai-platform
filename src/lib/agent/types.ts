@@ -264,6 +264,34 @@ export interface AgentProviderMeta {
     turnCount: number
   }
   /**
+   * Persistent Trip Planning State — structured consultant memory.
+   * Additive; rebuilt from prior assistant meta each turn.
+   */
+  tripState?: {
+    destinationCountry: string | null
+    destinationCity: string | null
+    travelDates: { start: string | null; end: string | null }
+    duration: number | null
+    travelers: number | null
+    relationship: string | null
+    budget: number | null
+    currency: string | null
+    travelStyle: string | null
+    hotelPreference: string | null
+    flightPreference: string | null
+    activities: string[]
+    foodPreferences: string[]
+    visaRequired: boolean | null
+    specialNeeds: string | null
+    conversationStage: string
+    completionPercentage: number
+    missingFields: string[]
+    confidenceScore: number
+    primaryMissing: string | null
+    cardsAllowed: boolean
+    updatedAt: string
+  }
+  /**
    * Sprint 45 — autonomous travel reasoning snapshot (open-ended destination discovery).
    * Additive; never replaces TripPlan. Present when `ai.travel_reasoning` produced a turn.
    */

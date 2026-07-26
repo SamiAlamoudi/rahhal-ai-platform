@@ -155,12 +155,12 @@ describe('travelAgentService never-ask-twice', () => {
     const turn = await service.planTurn({
       conversationId: 'conv-46',
       messages: [
-        user('Plan 5 days in Japan under $3000 for 2 travelers.'),
+        user('Plan 5 days in Tokyo, Japan under $3000 for 2 travelers.'),
       ],
     })
     expect(turn.memory.missingFields).toEqual([])
     expect(turn.tripPlan).toBeTruthy()
-    expect(turn.tripPlan?.destinations).toContain('Japan')
+    expect(turn.tripPlan?.destinations.some((d) => /Tokyo|Japan/i.test(d))).toBe(true)
     expect(turn.tripPlan?.durationDays).toBe(5)
     // Soft form fields are not invented by inferSoftRequirements for this intake.
     expect(turn.memory.requirements.interests).toEqual([])

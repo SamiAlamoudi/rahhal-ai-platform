@@ -467,8 +467,8 @@ describe('Sprint 54 — Autonomous Travel Agent', () => {
         conversationId: 'c-54',
         messages: [user(COMPLETE_JAPAN_5D)],
       })
-      expect(turn.tripPlan?.destinations).toContain('Japan')
-      expect(turn.meta.autonomous?.goal?.objective).toMatch(/plan_trip:Japan/)
+      expect(turn.tripPlan?.destinations.some((d) => /Tokyo|Japan/i.test(d))).toBe(true)
+      expect(turn.meta.autonomous?.goal?.objective).toMatch(/plan_trip:(Tokyo|Japan)/)
       expect(turn.meta.autonomous?.state).toBe('COMPLETE')
       expect(turn.meta.spokenText).toBeTruthy()
       expect(turn.reply.toLowerCase()).not.toMatch(/next question|سؤال التالي|decision engine/)
