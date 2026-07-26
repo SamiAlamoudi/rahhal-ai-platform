@@ -265,23 +265,25 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   const speakAloud = async (text: string, phase: string) => {
     const spoken = text.trim()
     if (!spoken || disposed) return
+    const realTts = tts.providerId === 'web-speech-tts' && tts.isSupported()
     // Echo protection: never leave recognition running during TTS.
     intentionalAbort = true
     stt.abort()
     listening = false
     stopVad()
     clearSilenceTimer()
-    logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase } })
+    logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase, realTts } })
     try {
       await tts.speak({
         locale,
         text: spoken,
         interrupt: true,
         onStart: () => {
-          if (!disposed) setStatus('speaking')
+          // Never claim “Speaking” unless a real utterance started.
+          if (!disposed && realTts) setStatus('speaking')
         },
       })
-      logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase } })
+      logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase, realTts } })
     } catch (e) {
       if (!isBenignChatError(e) && !disposed) {
         diagnosePipelineError('tts', phase, e)
