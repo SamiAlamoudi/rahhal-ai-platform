@@ -111,6 +111,7 @@ function LegacyChatPage() {
   const [voiceMuted, setVoiceMuted] = useState(false)
   const [micError, setMicError] = useState<string | null>(null)
   const [permissionState, setPermissionState] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null)
+  const [speechRecognitionSupported, setSpeechRecognitionSupported] = useState(true)
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine)
   const [themePreference, setThemePreference] = useState<ChatThemeMode | 'system'>(() => readStoredChatTheme())
   const [theme, setTheme] = useState<ChatThemeMode>(() => resolveChatTheme(readStoredChatTheme()))
@@ -419,6 +420,9 @@ function LegacyChatPage() {
     }
     let disposed = false
     let session: VoiceSession | null = null
+    void import('../lib/chat/voice/voiceProviderFactory').then(({ isBrowserSpeechRecognitionAvailable }) => {
+      if (!disposed) setSpeechRecognitionSupported(isBrowserSpeechRecognitionAvailable())
+    })
     void buildVoiceSession({
       onStatus: setVoiceStatus,
       onPartialTranscript: setPartialTranscript,
@@ -432,10 +436,33 @@ function LegacyChatPage() {
       onError: (error) => {
         if (!isBenignChatError(error)) setActionError(error)
       },
+      onNeedsClarification: (prompt) => {
+        // Never guess — show clarification in-thread without Conversation Brain.
+        const conversationId = activeIdRef.current
+        if (!conversationId) return
+        const now = new Date().toISOString()
+        upsertMessage({
+          id: `voice-clarify-${Date.now()}`,
+          conversationId,
+          role: 'assistant',
+          modality: 'text',
+          content: prompt,
+          audioUrl: null,
+          imageUrl: null,
+          attachments: [],
+          status: 'complete',
+          error: null,
+          providerMeta: { voiceClarification: true, skipBrain: true },
+          createdAt: now,
+          updatedAt: now,
+        })
+        setPartialTranscript('')
+      },
       onAssistantCreate: upsertMessage,
       onDelta: upsertMessage,
       onComplete: (message) => {
         upsertMessage(message)
+        setPartialTranscript('')
         void loadConversations(activeIdRef.current)
       },
       onStreamError: (message, error) => {
@@ -1293,6 +1320,7 @@ function LegacyChatPage() {
                       partialTranscript={partialTranscript}
                       permissionError={micError}
                       permissionState={permissionState}
+                      speechRecognitionSupported={speechRecognitionSupported}
                       busy={isStreaming || voiceBusy}
                       online={online}
                       level={voiceLevel}

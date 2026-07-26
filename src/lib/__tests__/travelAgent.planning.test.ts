@@ -26,7 +26,7 @@ function user(content: string): ChatMessage {
 }
 
 describe('Phase L intelligent trip planning', () => {
-  it('asks when/duration instead of generating for destination-only Japan', async () => {
+  it('asks for city first instead of generating for destination-only Japan', async () => {
     const service = createTravelAgentService({ tools: createMockAgentToolRegistry() })
     const turn = await service.planTurn({
       conversationId: 'c1',
@@ -34,8 +34,8 @@ describe('Phase L intelligent trip planning', () => {
     })
     expect(turn.tripPlan).toBeNull()
     expect(turn.memory.phase).toBe('collecting')
-    expect(turn.memory.missingFields[0]).toBe('durationDays')
-    expect(turn.reply.toLowerCase()).toMatch(/when|day|مدة|متى/)
+    expect(turn.meta.tripState?.primaryMissing).toBe('destinationCity')
+    expect(turn.reply.toLowerCase()).toMatch(/tokyo|kyoto|osaka|city|مدينة/)
     expect(turn.reply.toLowerCase()).toMatch(/japan|اليابان/)
   })
 
@@ -49,6 +49,18 @@ describe('Phase L intelligent trip planning', () => {
       role: 'assistant',
       content: t1.reply,
       providerMeta: t1.meta as unknown as Record<string, unknown>,
+    })
+
+    history.push(user('Tokyo'))
+    const tCity = await service.planTurn({ conversationId: 'c1', messages: history })
+    expect(tCity.tripPlan).toBeNull()
+    expect(tCity.meta.tripState?.destinationCity).toBe('Tokyo')
+    history.push({
+      ...user('a-city'),
+      id: 'a-city',
+      role: 'assistant',
+      content: tCity.reply,
+      providerMeta: tCity.meta as unknown as Record<string, unknown>,
     })
 
     history.push(user('5 days next April'))
@@ -90,7 +102,7 @@ describe('Phase L intelligent trip planning', () => {
       messages: [user(COMPLETE_JAPAN_5D)],
     })
     expect(turn.memory.missingFields).toEqual([])
-    expect(turn.tripPlan?.destinations).toContain('Japan')
+    expect(turn.tripPlan?.destinations.some((d) => /Tokyo|Japan/i.test(d))).toBe(true)
     expect(turn.tripPlan?.requirements.packageScope).toBe('full_package')
     expect(turn.tripPlan?.requirements.budgetStyle).toBe('midrange')
   })
@@ -115,7 +127,7 @@ describe('Phase L intelligent trip planning', () => {
     })
     expect(dayTurn.tripPlan?.dailyItinerary.find((d) => d.day === 2)?.title).toMatch(/refreshed|محدّث/)
     expect(dayTurn.tripPlan?.durationDays).toBe(5)
-    expect(dayTurn.memory.requirements.destination).toBe('Japan')
+    expect(dayTurn.memory.requirements.destination).toMatch(/Tokyo|Japan/)
   })
 
   it('edits budget destination dates and travelers through chat', async () => {

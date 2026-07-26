@@ -13,6 +13,8 @@ interface VoiceComposerProps {
   partialTranscript: string
   permissionError: string | null
   permissionState?: 'granted' | 'denied' | 'prompt' | 'unsupported' | null
+  /** False when SpeechRecognition API is unavailable (Safari older / unsupported). */
+  speechRecognitionSupported?: boolean
   busy: boolean
   online?: boolean
   level?: number
@@ -28,10 +30,10 @@ interface VoiceComposerProps {
 const STATUS_LABELS: Record<VoiceSessionStatus, string> = {
   idle: 'جاهز للاستماع',
   requesting_permission: 'طلب إذن الميكروفون…',
-  listening: 'أستمع إليك…',
-  thinking: 'أفكّر في أفضل خيار لك…',
-  responding: 'أجهّز الرد…',
-  processing: 'أفكّر في أفضل خيار لك…',
+  listening: 'أستمع إليك — عند التوقف أرسل تلقائياً',
+  thinking: 'أفكر في أفضل الخيارات…',
+  responding: 'أقارن بين الوجهات…',
+  processing: 'أراجع الميزانية…',
   speaking: 'أتحدث…',
   reconnecting: 'أعيد الاتصال…',
   error: 'حدث خطأ',
@@ -45,6 +47,7 @@ export default function VoiceComposer({
   partialTranscript,
   permissionError,
   permissionState = null,
+  speechRecognitionSupported = true,
   busy,
   online = true,
   level = 0,
@@ -65,6 +68,9 @@ export default function VoiceComposer({
   const holdRef = useRef(false)
   const [smoothLevel, setSmoothLevel] = useState(0)
   const showMicHelp = !!permissionError || permissionState === 'denied' || permissionState === 'unsupported'
+  // Live caption only while listening — never keep raw transcript permanently after send.
+  const liveCaption = listening ? partialTranscript.trim() : ''
+  const controlsDisabled = !enabled || busy || !speechRecognitionSupported
   const voiceAdapter = useMemo(() => createVoiceAdapter(), [])
 
   useEffect(() => {
@@ -148,7 +154,7 @@ export default function VoiceComposer({
             id="voice-mode"
             value={mode}
             onChange={(e) => onModeChange(e.target.value as VoiceInputMode)}
-            disabled={!enabled || busy}
+            disabled={controlsDisabled}
             className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
           >
             <option value="push_to_talk">اضغط للتحدث</option>
@@ -161,7 +167,7 @@ export default function VoiceComposer({
             id="voice-locale"
             value={locale}
             onChange={(e) => onLocaleChange(e.target.value as VoiceLocale)}
-            disabled={!enabled || busy}
+            disabled={controlsDisabled}
             className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
           >
             <option value="ar">{VOICE_LOCALES.ar.labelAr}</option>
@@ -170,7 +176,17 @@ export default function VoiceComposer({
         </label>
       </div>
 
-      {showMicHelp && (
+      {!speechRecognitionSupported && (
+        <div
+          className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+          role="status"
+          data-testid="voice-unsupported-fallback"
+        >
+          التعرف على الكلام غير متاح في هذا المتصفح. جرّب Chrome أو Edge، أو استخدم الكتابة من وضع النص.
+        </div>
+      )}
+
+      {showMicHelp && speechRecognitionSupported && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           <p>{permissionError || 'يلزم إذن الميكروفون لاستخدام الصوت'}</p>
           <button
@@ -226,22 +242,25 @@ export default function VoiceComposer({
         />
       </div>
 
-      <div
-        className="min-h-[3rem] rounded-2xl bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-100"
-        aria-live="polite"
-      >
-        {partialTranscript.trim()
-          ? partialTranscript
-          : listening
-            ? '…تحدث الآن — التوقف القصير لن يقطع التسجيل'
-            : 'سيظهر نص كلامك هنا ويُحفظ في سجل المحادثة'}
-      </div>
+      {(listening || liveCaption) && (
+        <div
+          className="min-h-[2.5rem] px-1 text-center text-sm text-slate-600"
+          aria-live="polite"
+          data-testid="voice-live-caption"
+        >
+          {liveCaption
+            ? liveCaption
+            : mode === 'hands_free'
+              ? '…تحدث الآن — عند التوقف يُرسل تلقائياً'
+              : '…تحدث الآن — أفلت للإرسال التلقائي'}
+        </div>
+      )}
 
       <div className="flex flex-col gap-2 sm:flex-row">
         {mode === 'push_to_talk' ? (
           <button
             type="button"
-            disabled={!enabled || processing || speaking || reconnecting || !online}
+            disabled={controlsDisabled || processing || speaking || reconnecting || !online}
             aria-label={listening ? 'أفلت لإرسال الرسالة الصوتية' : 'اضغط مع الاستمرار للتحدث'}
             aria-pressed={listening}
             onMouseDown={() => void onPushStart()}
@@ -253,20 +272,20 @@ export default function VoiceComposer({
               listening ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary-600 hover:bg-primary-700'
             } disabled:bg-slate-300`}
           >
-            {listening ? 'أفلت للإرسال' : 'اضغط مع الاستمرار للتحدث'}
+            {listening ? 'أفلت للإرسال التلقائي' : 'اضغط مع الاستمرار للتحدث'}
           </button>
         ) : (
           <button
             type="button"
-            disabled={!enabled || processing || !online}
+            disabled={controlsDisabled || processing || !online}
             aria-pressed={listening}
-            aria-label={listening ? 'إيقاف وضع حر اليدين' : 'تشغيل وضع حر اليدين'}
+            aria-label={listening ? 'إيقاف الميكروفون' : 'اضغط للتحدث — الإرسال تلقائي بعد الصمت'}
             onClick={onToggleHandsFree}
             className={`min-h-12 flex-1 rounded-2xl px-4 py-3 text-sm font-bold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
               listening ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary-600 hover:bg-primary-700'
             } disabled:bg-slate-300`}
           >
-            {listening ? 'إيقاف حر اليدين' : 'تشغيل حر اليدين'}
+            {listening ? 'الميكروفون يعمل · إرسال تلقائي' : 'اضغط الميكروفون للتحدث'}
           </button>
         )}
 
@@ -277,14 +296,18 @@ export default function VoiceComposer({
               voiceAdapter.interrupt()
               onInterrupt()
             }}
-            aria-label="مقاطعة الرد الصوتي"
+            aria-label="مقاطعة الرد فوراً"
             className="min-h-12 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
           >
             مقاطعة
           </button>
         )}
       </div>
-      {mode === 'push_to_talk' && (
+      {mode === 'hands_free' ? (
+        <p className="text-[10px] text-slate-400">
+          بدون زر إرسال — توقّف عن الكلام ويُرسل تلقائياً، ويبدأ رحّال بالرد فوراً. المقاطعة توقف الرد الحالي.
+        </p>
+      ) : (
         <p className="text-[10px] text-slate-400">اختصار لوحة المفاتيح: مسافة للضغط مع الاستمرار</p>
       )}
     </div>

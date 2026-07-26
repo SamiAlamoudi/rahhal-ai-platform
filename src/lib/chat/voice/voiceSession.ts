@@ -26,6 +26,7 @@ import {
   MIN_HANDS_FREE_SILENCE_MS,
   normalizeVoiceLocale,
 } from './voiceTypes'
+import { processSpeechTranscript } from './speechCleanup'
 
 export interface VoiceSessionCallbacks {
   onStatus?: (status: VoiceSessionStatus) => void
@@ -39,6 +40,11 @@ export interface VoiceSessionCallbacks {
   onStreamError?: (message: ChatMessage, error: string) => void
   /** Live mic level 0–1 for waveform UI while listening. */
   onLevel?: (level: number) => void
+  /**
+   * Low-confidence / ambiguous recognition — never guess.
+   * Present this assistant clarification without calling Conversation Brain.
+   */
+  onNeedsClarification?: (prompt: string) => void
 }
 
 export interface VoiceSession {
@@ -107,6 +113,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   )
   let utteranceBuffer = ''
   let utterancePrefix = ''
+  let utteranceConfidenceSamples: number[] = []
   let silenceTimer: ReturnType<typeof setTimeout> | null = null
   let vadSpeaking = false
   let earlySpokenText = ''
@@ -213,6 +220,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       partial = ''
       utteranceBuffer = ''
       utterancePrefix = ''
+      utteranceConfidenceSamples = []
+      callbacks.onPartialTranscript?.('')
     }
     intentionalAbort = false
     listening = true
@@ -252,10 +261,72 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     return stripMarkdownForSpeech(message.content).slice(0, 320)
   }
 
+  const averageUtteranceConfidence = (): number | null => {
+    if (!utteranceConfidenceSamples.length) return null
+    const sum = utteranceConfidenceSamples.reduce((a, b) => a + b, 0)
+    return sum / utteranceConfidenceSamples.length
+  }
+
+  const clearLiveTranscript = () => {
+    partial = ''
+    callbacks.onPartialTranscript?.('')
+    callbacks.onFinalTranscript?.('')
+  }
+
+  const presentClarification = async (prompt: string) => {
+    clearSilenceTimer()
+    stopVad()
+    intentionalAbort = true
+    stt.abort()
+    listening = false
+    utteranceBuffer = ''
+    utterancePrefix = ''
+    utteranceConfidenceSamples = []
+    clearLiveTranscript()
+    setStatus('speaking')
+    logPipeline({
+      stage: 'stt',
+      event: 'low_confidence_clarification',
+      meta: { promptLength: prompt.length },
+    })
+    callbacks.onNeedsClarification?.(prompt)
+    try {
+      await tts.speak({ locale, text: prompt, interrupt: true })
+    } catch (e) {
+      if (!isBenignChatError(e) && !disposed) {
+        diagnosePipelineError('tts', 'clarify', e)
+      }
+    }
+    if (disposed) return
+    setStatus('idle')
+    if (mode === 'hands_free' && handsFreeConversationId) {
+      await maybeResumeHandsFree()
+    }
+  }
+
   const sendTranscript = async (conversationId: string, transcript: string): Promise<ChatMessage | null> => {
-    const content = transcript.trim()
-    if (!content || sending || disposed) {
-      if (!content) setStatus(mode === 'hands_free' && handsFreeConversationId ? 'listening' : 'idle')
+    const raw = transcript.trim()
+    if (!raw || sending || disposed) {
+      if (!raw) setStatus(mode === 'hands_free' && handsFreeConversationId ? 'listening' : 'idle')
+      return null
+    }
+
+    // Speech Recognition → Cleanup → Language validation → Normalization → Brain
+    const cleaned = processSpeechTranscript(raw, {
+      uiLocale: locale,
+      confidence: averageUtteranceConfidence(),
+    })
+    utteranceConfidenceSamples = []
+
+    if (cleaned.needsClarification && cleaned.clarificationPrompt) {
+      await presentClarification(cleaned.clarificationPrompt)
+      return null
+    }
+
+    const content = cleaned.text.trim()
+    if (!content) {
+      setStatus(mode === 'hands_free' && handsFreeConversationId ? 'listening' : 'idle')
+      clearLiveTranscript()
       return null
     }
 
@@ -268,6 +339,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     listening = false
     utteranceBuffer = ''
     utterancePrefix = ''
+    clearLiveTranscript()
     earlySpokenText = ''
     earlySpeakPromise = null
     activeAbort?.abort()
@@ -278,7 +350,13 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     logPipeline({
       stage: 'conversation',
       event: 'turn_send_started',
-      meta: { conversationId, modality: 'audio', length: content.length },
+      meta: {
+        conversationId,
+        modality: 'audio',
+        length: content.length,
+        speechLanguage: cleaned.language,
+        confidence: cleaned.confidence,
+      },
     })
 
     const handlers: StreamHandlers = {
@@ -417,6 +495,10 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   stt.onPartial = (event) => {
     if (disposed) return
     const chunk = event.transcript
+    if (typeof event.confidence === 'number' && event.confidence > 0) {
+      utteranceConfidenceSamples.push(event.confidence)
+    }
+    // Live transcription while speaking (interim); finalized chunks replace via onFinal.
     partial = utterancePrefix ? `${utterancePrefix} ${chunk}`.trim() : chunk
     callbacks.onPartialTranscript?.(partial)
     // Live speech → reset end-of-utterance timer (tolerate short pauses).
@@ -428,7 +510,11 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     if (disposed) return
     const chunk = event.transcript.trim()
     if (!chunk) return
+    if (typeof event.confidence === 'number' && event.confidence > 0) {
+      utteranceConfidenceSamples.push(event.confidence)
+    }
     // Accumulate across STT restarts; never auto-send mid-sentence.
+    // Finalized text replaces interim preview for this utterance.
     utteranceBuffer = utterancePrefix
       ? `${utterancePrefix} ${chunk}`.trim()
       : chunk
@@ -477,6 +563,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         clearSilenceTimer()
         utteranceBuffer = ''
         utterancePrefix = ''
+        utteranceConfidenceSamples = []
       }
     },
     setLocale(next) {
@@ -500,6 +587,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       clearSilenceTimer()
       utteranceBuffer = ''
       utterancePrefix = ''
+      utteranceConfidenceSamples = []
       await startListening(false)
     },
     async stopPushToTalkAndSend(conversationId) {
@@ -523,6 +611,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       clearSilenceTimer()
       utteranceBuffer = ''
       utterancePrefix = ''
+      utteranceConfidenceSamples = []
       await startListening(true)
     },
     async stopListening() {
@@ -532,6 +621,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       clearSilenceTimer()
       utteranceBuffer = ''
       utterancePrefix = ''
+      utteranceConfidenceSamples = []
       stopVad()
       if (listening) {
         try {
@@ -564,6 +654,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       sending = false
       utteranceBuffer = ''
       utterancePrefix = ''
+      utteranceConfidenceSamples = []
+      clearLiveTranscript()
       activeAbort?.abort()
       activeAbort = null
       abortStream?.()

@@ -85,11 +85,24 @@ describe('detectSpeechLang', () => {
     expect(detectSpeechLang('AR-sa')).toBe('ar-SA')
   })
 
-  it('maps other languages to en-US', () => {
+  it('maps clearly English browser language to en-US; unknown locales stay Arabic-first', () => {
     expect(detectSpeechLang('en')).toBe('en-US')
-    expect(detectSpeechLang('en-US')).toBe('en-US')
     expect(detectSpeechLang('en-GB')).toBe('en-US')
-    expect(detectSpeechLang('fr-FR')).toBe('en-US')
+    // Never assume en-US for non-English / unknown locales.
+    expect(detectSpeechLang('fr-FR')).toBe('ar-SA')
+    expect(detectSpeechLang('de-DE')).toBe('ar-SA')
+  })
+
+  it('Arabic UI (lang/dir) never starts in en-US when document is available', () => {
+    if (typeof document === 'undefined') return
+    const prevLang = document.documentElement.lang
+    const prevDir = document.documentElement.dir
+    document.documentElement.lang = 'ar'
+    document.documentElement.dir = 'rtl'
+    expect(detectSpeechLang('en-US')).toBe('ar-SA')
+    expect(detectSpeechLang('fr-FR')).toBe('ar-SA')
+    document.documentElement.lang = prevLang
+    document.documentElement.dir = prevDir
   })
 })
 

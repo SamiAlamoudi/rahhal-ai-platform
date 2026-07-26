@@ -13,17 +13,18 @@ import {
 } from '../premiumExperience'
 
 describe('Recovery Phase 2 — premium experience', () => {
-  it('selects user-friendly thinking steps without CoT', () => {
+  it('selects natural consultant thinking steps without CoT', () => {
     const steps = selectThinkingSteps('أريد رحلة طيران وفندق في دبي بميزانية جيدة')
     expect(steps.map((s) => s.id)).toEqual(
       expect.arrayContaining([
-        'searching_flights',
-        'comparing_hotels',
-        'finding_offers',
+        'considering_options',
+        'comparing_destinations',
+        'reviewing_budget',
         'crafting_reply',
       ]),
     )
-    expect(thinkingLabel(steps[0]!, 'ar')).not.toMatch(/chain|reason|think hard/i)
+    expect(thinkingLabel(steps[0]!, 'ar')).toMatch(/أفكر|أقارن|أراجع/)
+    expect(thinkingLabel(steps[0]!, 'ar')).not.toMatch(/chain|reason|think hard|spinner/i)
   })
 
   it('builds dynamic result cards from seed text', () => {

@@ -218,6 +218,77 @@ describe('voiceSession', () => {
     session.dispose()
   })
 
+  it('cleans speech before sendTurn and never sends raw duplicates', async () => {
+    const { provider: stt } = createMockSpeechToTextProvider('أريد رحلة إلى dubai dubai thank you')
+    const tts = createMockTextToSpeechProvider()
+    const sendTurn = vi.fn(async (_input, handlers) => {
+      const assistant = assistantMessage('حسناً')
+      await handlers.onComplete?.(assistant)
+      return {
+        user: { ...assistant, id: 'u1', role: 'user' as const, modality: 'audio' as const, content: 'x' },
+        assistant,
+      }
+    })
+
+    const session = createVoiceSession({
+      stt,
+      tts,
+      sendTurn: sendTurn as never,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      locale: 'ar',
+    })
+
+    await session.startPushToTalk()
+    await session.stopPushToTalkAndSend('c1')
+    expect(sendTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modality: 'audio',
+        content: expect.stringContaining('دبي'),
+      }),
+      expect.any(Object),
+    )
+    const sent = sendTurn.mock.calls[0]?.[0]?.content as string
+    expect(sent.toLowerCase()).not.toContain('thank')
+    expect(sent).not.toMatch(/دبي دبي/)
+    session.dispose()
+  })
+
+  it('asks clarification on low confidence instead of guessing via brain', async () => {
+    const { provider: stt, controller } = createMockSpeechToTextProvider('')
+    const tts = createMockTextToSpeechProvider()
+    const sendTurn = vi.fn()
+    const onNeedsClarification = vi.fn()
+
+    const session = createVoiceSession({
+      stt,
+      tts,
+      sendTurn: sendTurn as never,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      locale: 'ar',
+      silenceTimeoutMs: 2200,
+      activityMonitor: {
+        start: async () => {},
+        stop: () => {},
+        isSpeaking: () => false,
+        getLevel: () => 0,
+        isActive: () => false,
+      },
+      callbacks: { onNeedsClarification },
+    })
+
+    vi.useFakeTimers()
+    await session.startHandsFree('c1')
+    controller.emitFinal('أريد السفر', 0.2)
+    await vi.advanceTimersByTimeAsync(2300)
+    expect(sendTurn).not.toHaveBeenCalled()
+    expect(onNeedsClarification).toHaveBeenCalledWith(
+      'لم ألتقط آخر جزء بوضوح، هل تقصد المغرب أم مصر؟',
+    )
+    expect(tts.spoken.some((t) => t.includes('لم ألتقط'))).toBe(true)
+    session.dispose()
+    vi.useRealTimers()
+  })
+
   it('speaks meta.spokenText instead of full itinerary markdown', async () => {
     const { provider: stt } = createMockSpeechToTextProvider('خطة')
     const tts = createMockTextToSpeechProvider()

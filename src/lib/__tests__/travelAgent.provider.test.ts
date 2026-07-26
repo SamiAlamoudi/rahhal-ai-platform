@@ -36,14 +36,16 @@ async function collect(provider: ReturnType<typeof createTravelAgentProvider>, m
 }
 
 describe('travelAgentProvider', () => {
-  it('asks follow-up when duration is missing', async () => {
+  it('asks follow-up when city is missing for broad Japan', async () => {
     const provider = createTravelAgentProvider()
     const { text, meta } = await collect(provider, [user('Plan a trip to Japan')])
-    expect(text.toLowerCase()).toMatch(/day|يوم|duration|مدة|when|متى|timing|window|توقيت/)
+    expect(text.toLowerCase()).toMatch(/tokyo|kyoto|osaka|city|مدينة/)
     expect(meta?.kind).toBe('travel_agent')
     const memory = meta?.memory as { phase?: string; missingFields?: string[] }
     expect(memory.phase).toBe('collecting')
     expect(memory.missingFields).toContain('durationDays')
+    const tripState = meta?.tripState as { primaryMissing?: string } | undefined
+    expect(tripState?.primaryMissing).toBe('destinationCity')
   })
 
   it('produces itinerary after memory answers the remaining intake fields', async () => {
@@ -69,7 +71,7 @@ describe('travelAgentProvider', () => {
       accommodations?: unknown[]
     }
     expect(tripPlan.durationDays).toBe(7)
-    expect(tripPlan.destinations?.[0]).toBe('Japan')
+    expect(tripPlan.destinations?.[0]).toMatch(/Tokyo|Japan/)
     expect(tripPlan.accommodations?.length).toBeGreaterThan(0)
   })
 

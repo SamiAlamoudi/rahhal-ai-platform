@@ -109,18 +109,37 @@ export function isSpeechRecognitionSupported(): boolean {
   return getSpeechRecognitionCtor() !== null
 }
 
-/** Detect ar-SA vs en-US from browser / document language. */
+/**
+ * Arabic-first speech language detection.
+ * Arabic UI (lang=ar / dir=rtl) never starts in en-US.
+ * English only when the UI is clearly English (or browser is en and UI is not Arabic).
+ */
 export function detectSpeechLang(navigatorLang?: string): SpeechLang {
+  if (typeof document !== 'undefined') {
+    const htmlLang = (document.documentElement.lang || '').toLowerCase()
+    const dir = document.documentElement.dir
+    if (htmlLang.startsWith('ar') || dir === 'rtl') {
+      return 'ar-SA'
+    }
+    if (htmlLang.startsWith('en')) {
+      return 'en-US'
+    }
+  }
+
   const raw =
     navigatorLang ??
     (typeof navigator !== 'undefined'
-      ? navigator.language || navigator.languages?.[0] || 'en'
-      : 'en')
+      ? navigator.language || navigator.languages?.[0] || 'ar'
+      : 'ar')
   const lower = raw.toLowerCase()
   if (lower.startsWith('ar') || lower.includes('ar-sa')) {
     return 'ar-SA'
   }
-  return 'en-US'
+  // Clearly English browser language only — never default unknown locales to en-US.
+  if (lower.startsWith('en')) {
+    return 'en-US'
+  }
+  return 'ar-SA'
 }
 
 function mapError(code: string): {

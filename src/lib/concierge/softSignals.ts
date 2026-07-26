@@ -4,6 +4,7 @@
  */
 
 import type { AgentLocale } from '../agent/types'
+import { inferDiscoveryFromText } from '../consultantIntelligence'
 import { emptySoftSignals, type ConciergeSoftSignals } from './types'
 import { mergeSoftSignals } from './dialogueState'
 
@@ -14,12 +15,13 @@ export function extractSoftSignals(
 ): ConciergeSoftSignals {
   const normalized = text.trim()
   const lower = normalized.toLowerCase()
+  const discovery = inferDiscoveryFromText(normalized)
   const patch: Partial<ConciergeSoftSignals> = {
-    mustHaves: [],
-    dealBreakers: [],
+    mustHaves: [...discovery.mustHaves],
+    dealBreakers: [...discovery.dealBreakers],
     flexibleDimensions: [],
     tradeoffs: [],
-    notes: [],
+    notes: [...discovery.notes],
   }
 
   if (/(?:\brelaxed\b|\bslow\b|هادئ|مريح|على مهل)/i.test(lower) || /على\s*مهل/.test(normalized)) {
@@ -32,7 +34,7 @@ export function extractSoftSignals(
 
   if (/(?:\bmust\b|\bneed\b|\bessential\b|ضروري|لازم|مهم)/i.test(lower)) {
     for (const item of matchListedPreferences(lower, normalized, locale)) {
-      patch.mustHaves!.push(item)
+      if (!patch.mustHaves!.includes(item)) patch.mustHaves!.push(item)
     }
   }
 
@@ -42,9 +44,10 @@ export function extractSoftSignals(
   }
 
   if (/(?:\bavoid\b|\bno\b|\bdon't want\b|\bhate\b|تجنب|لا أريد|ما أبي|أكره)/i.test(lower)
-    || /لا\s*أريد/.test(normalized)) {
+    || /لا\s*أريد/.test(normalized)
+    || discovery.dealBreakers.length > 0) {
     for (const item of matchAvoidCues(lower, normalized)) {
-      patch.dealBreakers!.push(item)
+      if (!patch.dealBreakers!.includes(item)) patch.dealBreakers!.push(item)
     }
   }
 
@@ -73,12 +76,14 @@ function matchInterestCues(lower: string, normalized: string): string[] {
   const cues: Array<{ re: RegExp; value: string }> = [
     { re: /\bbeach\b|شاطئ|بحر/, value: 'beach' },
     { re: /\bfood\b|\bculinary\b|طعام|مأكولات|مطاعم/, value: 'food' },
-    { re: /\bculture\b|\bmuseum\b|ثقافة|متاحف/, value: 'culture' },
-    { re: /\bnature\b|\bhike\b|طبيعة|مشي/, value: 'nature' },
+    { re: /\bculture\b|\bmuseum\b|ثقافة|متاحف|أسواق\s*شعبية|سوق|souk/, value: 'culture' },
+    { re: /\bnature\b|\bhike\b|طبيعة|مشي|walking/, value: 'nature' },
     { re: /\bshopping\b|تسوق/, value: 'shopping' },
     { re: /\badventure\b|مغامرة/, value: 'adventure' },
     { re: /\bnightlife\b|سهر|ليل/, value: 'nightlife' },
     { re: /\bfamily[- ]?friendly\b|عائلي/, value: 'family-friendly' },
+    { re: /شهر\s*عسل|honeymoon|romantic/, value: 'romantic' },
+    { re: /هدوء|quiet|privacy|خصوصية/, value: 'privacy' },
   ]
   const out: string[] = []
   for (const cue of cues) {
@@ -91,9 +96,11 @@ function matchAvoidCues(lower: string, _normalized: string): string[] {
   const out: string[] = []
   if (/\blayover|توقف|ترانزيت/.test(lower)) out.push('long layovers')
   if (/\bearly flight|رحلة مبكرة/.test(lower)) out.push('early flights')
-  if (/\bcrowded|ازدحام|زحمة/.test(lower)) out.push('crowds')
+  if (/\bcrowded|ازدحام|زحمة|أكره\s*الزحام/.test(lower)) {
+    out.push('crowds', 'peak_season_crowds', 'noisy_hotels')
+  }
   if (/\bhostel|نزل/.test(lower)) out.push('hostels')
-  if (out.length === 0) out.push('stated avoidance')
+  if (out.length === 0 && /avoid|hate|تجنب|أكره/.test(lower)) out.push('stated avoidance')
   return out
 }
 
