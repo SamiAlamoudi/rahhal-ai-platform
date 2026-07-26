@@ -106,23 +106,21 @@ describe('chat & voice polish e2e-style', () => {
     expect(stt.onPartial).toBeUndefined()
   })
 
-  it('hands-free resumes listening after idle interrupt', async () => {
+  it('hands-free stays listening when barge-in is ignored without TTS audio', async () => {
     const { provider: stt } = createMockSpeechToTextProvider('')
     const tts = createMockTextToSpeechProvider()
-    const statuses: string[] = []
     const session = createVoiceSession({
       stt,
       tts,
       requestPermission: async () => ({ state: 'granted', error: null }),
-      callbacks: { onStatus: (s) => statuses.push(s) },
     })
 
     await session.startHandsFree('c1')
     expect(session.getStatus()).toBe('listening')
-    session.interrupt(undefined, { resumeHandsFree: true })
-    await new Promise((r) => setTimeout(r, 0))
+    // Phase 2.3 — do not simulate interruption when no assistant audio is playing.
+    expect(session.interrupt(undefined, { resumeHandsFree: true })).toBe(false)
     expect(session.getStatus()).toBe('listening')
-    expect(statuses).toContain('reconnecting')
+    expect(session.isContinuousActive()).toBe(true)
     session.dispose()
   })
 })

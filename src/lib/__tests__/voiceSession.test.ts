@@ -127,7 +127,7 @@ describe('voiceSession', () => {
     vi.useRealTimers()
   })
 
-  it('hands-free interrupt while sending resumes after benign abort', async () => {
+  it('cancelInFlight while processing resumes continuous listening', async () => {
     vi.useFakeTimers()
     const { provider: stt, controller } = createMockSpeechToTextProvider('')
     const tts = createMockTextToSpeechProvider()
@@ -143,6 +143,7 @@ describe('voiceSession', () => {
       sendTurn: sendTurn as never,
       requestPermission: async () => ({ state: 'granted', error: null }),
       silenceTimeoutMs: 2500,
+      readyHoldMs: 0,
       activityMonitor: {
         start: async () => {},
         stop: () => {},
@@ -154,32 +155,32 @@ describe('voiceSession', () => {
     })
 
     await session.startHandsFree('c1')
-    controller.emitFinal('متابعة الرحلة')
+    controller.emitFinal('متابعة الرحلة', 0.9)
     await vi.advanceTimersByTimeAsync(2600)
     expect(sendTurn).toHaveBeenCalled()
-    expect(session.getStatus()).toBe('thinking')
+    expect(session.getStatus()).toBe('processing')
 
-    session.interrupt()
+    // Barge-in is ignored without real TTS audio; cancelInFlight handles processing.
+    expect(session.interrupt()).toBe(false)
+    session.cancelInFlight()
     deferred.reject?.(new Error('aborted'))
     await Promise.resolve()
     await Promise.resolve()
     await vi.advanceTimersByTimeAsync(0)
     await Promise.resolve()
     expect(statuses).toContain('reconnecting')
-    // Resume is async; after reconnect settles we should be listening again.
-    expect(['listening', 'reconnecting', 'idle']).toContain(session.getStatus())
+    expect(['listening', 'reconnecting', 'ready']).toContain(session.getStatus())
     session.dispose()
     vi.useRealTimers()
   })
 
-  it('interrupt stops TTS and aborts stream', () => {
+  it('interrupt is ignored when no assistant audio is playing', () => {
     const { provider: stt } = createMockSpeechToTextProvider('hello')
     const tts = createMockTextToSpeechProvider()
     const abortStream = vi.fn()
     const session = createVoiceSession({ stt, tts })
-    session.interrupt(abortStream)
-    expect(abortStream).toHaveBeenCalled()
-    expect(session.getStatus()).toBe('idle')
+    expect(session.interrupt(abortStream)).toBe(false)
+    expect(abortStream).not.toHaveBeenCalled()
     session.dispose()
   })
 

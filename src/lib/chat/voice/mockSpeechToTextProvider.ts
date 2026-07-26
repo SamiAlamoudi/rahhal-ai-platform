@@ -5,8 +5,8 @@ import type {
 } from './voiceTypes'
 
 export interface MockSpeechToTextController {
-  emitPartial: (transcript: string) => void
-  emitFinal: (transcript: string) => void
+  emitPartial: (transcript: string, confidence?: number) => void
+  emitFinal: (transcript: string, confidence?: number) => void
   emitError: (error: string) => void
   emitEnd: () => void
 }
@@ -41,16 +41,24 @@ export function createMockSpeechToTextProvider(
   }
 
   const controller: MockSpeechToTextController = {
-    emitPartial(transcript) {
+    emitPartial(transcript, confidence?: number) {
       if (!listening) return
       lastTranscript = transcript
-      const event: SpeechRecognitionResultEvent = { transcript, isFinal: false }
+      const event: SpeechRecognitionResultEvent = {
+        transcript,
+        isFinal: false,
+        ...(confidence != null ? { confidence } : {}),
+      }
       provider.onPartial?.(event)
     },
-    emitFinal(transcript) {
+    emitFinal(transcript, confidence?: number) {
       if (!listening && !options) return
       lastTranscript = transcript
-      provider.onFinal?.({ transcript, isFinal: true })
+      provider.onFinal?.({
+        transcript,
+        isFinal: true,
+        ...(confidence != null ? { confidence } : {}),
+      })
     },
     emitError(error) {
       provider.onError?.(error)

@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import type { VoiceInputMode, VoiceLocale, VoiceSessionStatus } from '../../lib/chat/voice/voiceTypes'
-import { VOICE_LOCALES } from '../../lib/chat/voice/voiceTypes'
-import { createVoiceAdapter } from '../../lib/premiumExperience'
+import { VOICE_LOCALES, VOICE_UX_LABELS_AR } from '../../lib/chat/voice/voiceTypes'
 import VoiceWaveform from './VoiceWaveform'
 
 interface VoiceComposerProps {
@@ -16,25 +15,23 @@ interface VoiceComposerProps {
   busy: boolean
   online?: boolean
   level?: number
+  /** Continuous session is the default experience. */
+  continuousActive?: boolean
+  speechSupported?: boolean
+  realTtsAvailable?: boolean
   onModeChange: (mode: VoiceInputMode) => void
   onLocaleChange: (locale: VoiceLocale) => void
   onPushStart: () => void
   onPushEnd: () => void
-  onToggleHandsFree: () => void
+  /** One-tap start / toggle for continuous voice session. */
+  onToggleContinuous: () => void
+  onStopSession: () => void
   onInterrupt: () => void
   onRequestPermission: () => void
 }
 
-const STATUS_LABELS: Record<VoiceSessionStatus, string> = {
-  idle: 'جاهز للاستماع',
-  requesting_permission: 'طلب إذن الميكروفون…',
-  listening: 'أستمع إليك…',
-  thinking: 'أفكّر في أفضل خيار لك…',
-  responding: 'أجهّز الرد…',
-  processing: 'أفكّر في أفضل خيار لك…',
-  speaking: 'أتحدث…',
-  reconnecting: 'أعيد الاتصال…',
-  error: 'حدث خطأ',
+function uxLabel(status: VoiceSessionStatus): string {
+  return VOICE_UX_LABELS_AR[status] ?? 'جاهز'
 }
 
 export default function VoiceComposer({
@@ -48,41 +45,42 @@ export default function VoiceComposer({
   busy,
   online = true,
   level = 0,
+  continuousActive = false,
+  speechSupported = true,
+  realTtsAvailable = false,
   onModeChange,
   onLocaleChange,
   onPushStart,
   onPushEnd,
-  onToggleHandsFree,
+  onToggleContinuous,
+  onStopSession,
   onInterrupt,
   onRequestPermission,
 }: VoiceComposerProps) {
-  const listening = status === 'listening'
+  const listening = status === 'listening' || status === 'reconnecting'
   const speaking = status === 'speaking'
-  const thinking = status === 'thinking' || status === 'processing'
-  const responding = status === 'responding'
-  const processing = thinking || responding
-  const reconnecting = status === 'reconnecting'
+  const processing =
+    status === 'thinking' || status === 'processing' || status === 'responding'
+  const ready = status === 'ready' || status === 'idle'
+  const ended = status === 'ended'
   const holdRef = useRef(false)
   const [smoothLevel, setSmoothLevel] = useState(0)
-  const showMicHelp = !!permissionError || permissionState === 'denied' || permissionState === 'unsupported'
-  const voiceAdapter = useMemo(() => createVoiceAdapter(), [])
+  const showMicHelp =
+    !!permissionError
+    || permissionState === 'denied'
+    || permissionState === 'unsupported'
+    || !speechSupported
+  const sessionLive = continuousActive && !ended && status !== 'error' && status !== 'idle'
 
   useEffect(() => {
     setSmoothLevel((prev) => prev * 0.55 + level * 0.45)
   }, [level])
 
   useEffect(() => {
-    void voiceAdapter.connect()
-    return () => {
-      void voiceAdapter.disconnect()
-    }
-  }, [voiceAdapter])
-
-  useEffect(() => {
     if (mode !== 'push_to_talk') return
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code !== 'Space' && e.key !== ' ') return
-      if (e.repeat || !enabled || processing || speaking || reconnecting) return
+      if (e.repeat || !enabled || processing || speaking) return
       const target = e.target as HTMLElement | null
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
       e.preventDefault()
@@ -102,36 +100,42 @@ export default function VoiceComposer({
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
     }
-  }, [mode, enabled, processing, speaking, reconnecting, onPushStart, onPushEnd])
+  }, [mode, enabled, processing, speaking, onPushStart, onPushEnd])
+
+  const statusTone =
+    status === 'error'
+      ? 'bg-rose-100 text-rose-700'
+      : listening || speaking || processing
+        ? 'bg-primary-50 text-primary-700'
+        : ended
+          ? 'bg-slate-200 text-slate-600'
+          : 'bg-slate-100 text-slate-600'
 
   return (
     <div
       className="space-y-3 rounded-[1.75rem] border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/80 p-4 shadow-lg shadow-slate-900/5 sm:p-5"
       data-testid="premium-voice-composer"
-      data-voice-adapter={voiceAdapter.id}
+      data-voice-continuous={continuousActive ? 'true' : 'false'}
+      data-real-tts={realTtsAvailable ? 'true' : 'false'}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-bold text-slate-900">المحادثة الصوتية</p>
           <p className="text-[11px] text-slate-400">
-            {voiceAdapter.label} · Mock · جاهز للمزوّدين لاحقاً
+            اضغط الميكروفون مرة واحدة — ثم تحدّث بحرية دون إرسال يدوي
           </p>
         </div>
         <span
           role="status"
           aria-live="polite"
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${
-            status === 'error'
-              ? 'bg-rose-100 text-rose-700'
-              : listening || speaking || reconnecting || thinking || responding
-                ? 'bg-primary-50 text-primary-700'
-                : 'bg-slate-100 text-slate-600'
-          }`}
+          data-testid="voice-session-status"
+          data-state={status}
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${statusTone}`}
         >
-          {(listening || speaking || thinking || responding) && (
+          {(listening || speaking || processing) && (
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" aria-hidden="true" />
           )}
-          {STATUS_LABELS[status]}
+          {uxLabel(status)}
         </span>
       </div>
 
@@ -148,11 +152,11 @@ export default function VoiceComposer({
             id="voice-mode"
             value={mode}
             onChange={(e) => onModeChange(e.target.value as VoiceInputMode)}
-            disabled={!enabled || busy}
+            disabled={!enabled || busy || sessionLive}
             className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
           >
+            <option value="hands_free">محادثة مستمرة</option>
             <option value="push_to_talk">اضغط للتحدث</option>
-            <option value="hands_free">حر اليدين</option>
           </select>
         </label>
         <label className="text-xs text-slate-600" htmlFor="voice-locale">
@@ -161,7 +165,7 @@ export default function VoiceComposer({
             id="voice-locale"
             value={locale}
             onChange={(e) => onLocaleChange(e.target.value as VoiceLocale)}
-            disabled={!enabled || busy}
+            disabled={!enabled || busy || sessionLive}
             className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
           >
             <option value="ar">{VOICE_LOCALES.ar.labelAr}</option>
@@ -172,14 +176,20 @@ export default function VoiceComposer({
 
       {showMicHelp && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          <p>{permissionError || 'يلزم إذن الميكروفون لاستخدام الصوت'}</p>
-          <button
-            type="button"
-            onClick={onRequestPermission}
-            className="mt-1 min-h-10 font-medium underline"
-          >
-            إعادة طلب إذن الميكروفون
-          </button>
+          <p>
+            {!speechSupported
+              ? 'التعرف على الكلام غير مدعوم في هذا المتصفح — استخدم الكتابة.'
+              : permissionError || 'يلزم إذن الميكروفون لاستخدام الصوت'}
+          </p>
+          {speechSupported && (
+            <button
+              type="button"
+              onClick={onRequestPermission}
+              className="mt-1 min-h-10 font-medium underline"
+            >
+              إعادة طلب إذن الميكروفون
+            </button>
+          )}
         </div>
       )}
 
@@ -190,19 +200,24 @@ export default function VoiceComposer({
               ? { scale: [1, 1.06, 1] }
               : speaking
                 ? { scale: [1, 1.03, 1] }
-                : thinking
+                : processing
                   ? { opacity: [0.7, 1, 0.7] }
                   : { scale: 1, opacity: 1 }
           }
-          transition={{ duration: listening || speaking || thinking ? 1.4 : 0.2, repeat: listening || speaking || thinking ? Infinity : 0 }}
+          transition={{
+            duration: listening || speaking || processing ? 1.4 : 0.2,
+            repeat: listening || speaking || processing ? Infinity : 0,
+          }}
           className={`flex h-20 w-20 items-center justify-center rounded-full shadow-xl ${
             listening
               ? 'voice-mic-pulse bg-rose-500 text-white shadow-rose-500/30'
               : speaking
                 ? 'bg-primary-600 text-white shadow-primary-600/30'
-                : thinking
+                : processing
                   ? 'bg-slate-800 text-white'
-                  : 'bg-slate-900 text-white shadow-slate-900/25'
+                  : ready || ended
+                    ? 'bg-slate-900 text-white shadow-slate-900/25'
+                    : 'bg-slate-900 text-white shadow-slate-900/25'
           }`}
           aria-hidden
         >
@@ -222,26 +237,29 @@ export default function VoiceComposer({
         <VoiceWaveform
           active={listening || speaking}
           level={smoothLevel}
-          label={listening ? 'Recording waveform' : speaking ? 'Speaking waveform' : 'Idle waveform'}
+          label={listening ? 'Listening waveform' : speaking ? 'Speaking waveform' : 'Idle waveform'}
         />
       </div>
 
       <div
         className="min-h-[3rem] rounded-2xl bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-100"
         aria-live="polite"
+        data-testid="voice-live-transcript"
       >
         {partialTranscript.trim()
           ? partialTranscript
           : listening
-            ? '…تحدث الآن — التوقف القصير لن يقطع التسجيل'
-            : 'سيظهر نص كلامك هنا ويُحفظ في سجل المحادثة'}
+            ? '…تحدث الآن — التوقف القصير لن يقطع الدور'
+            : ended
+              ? 'انتهت الجلسة — اضغط لبدء جلسة جديدة أو اكتب رسالتك'
+              : 'سيظهر نص كلامك هنا أثناء الاستماع، ثم يُرسل تلقائياً'}
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row">
         {mode === 'push_to_talk' ? (
           <button
             type="button"
-            disabled={!enabled || processing || speaking || reconnecting || !online}
+            disabled={!enabled || processing || speaking || !online || !speechSupported}
             aria-label={listening ? 'أفلت لإرسال الرسالة الصوتية' : 'اضغط مع الاستمرار للتحدث'}
             aria-pressed={listening}
             onMouseDown={() => void onPushStart()}
@@ -258,32 +276,39 @@ export default function VoiceComposer({
         ) : (
           <button
             type="button"
-            disabled={!enabled || processing || !online}
-            aria-pressed={listening}
-            aria-label={listening ? 'إيقاف وضع حر اليدين' : 'تشغيل وضع حر اليدين'}
-            onClick={onToggleHandsFree}
+            disabled={!enabled || processing || !online || !speechSupported}
+            aria-pressed={sessionLive}
+            aria-label={sessionLive ? 'إيقاف الجلسة الصوتية' : 'بدء الجلسة الصوتية'}
+            data-testid="voice-session-primary"
+            onClick={() => {
+              if (sessionLive) onStopSession()
+              else void onToggleContinuous()
+            }}
             className={`min-h-12 flex-1 rounded-2xl px-4 py-3 text-sm font-bold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
-              listening ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary-600 hover:bg-primary-700'
+              sessionLive ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary-600 hover:bg-primary-700'
             } disabled:bg-slate-300`}
           >
-            {listening ? 'إيقاف حر اليدين' : 'تشغيل حر اليدين'}
+            {sessionLive ? 'إيقاف الجلسة الصوتية' : 'بدء الجلسة الصوتية'}
           </button>
         )}
 
-        {(speaking || processing || listening || reconnecting) && (
+        {speaking && (
           <button
             type="button"
-            onClick={() => {
-              voiceAdapter.interrupt()
-              onInterrupt()
-            }}
+            onClick={onInterrupt}
             aria-label="مقاطعة الرد الصوتي"
+            data-testid="voice-barge-in"
             className="min-h-12 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
           >
             مقاطعة
           </button>
         )}
       </div>
+      {mode === 'hands_free' && (
+        <p className="text-[10px] text-slate-400">
+          بعد رد رحّال يعود الاستماع تلقائياً. لا حاجة لزر إرسال بعد انتهاء الكلام.
+        </p>
+      )}
       {mode === 'push_to_talk' && (
         <p className="text-[10px] text-slate-400">اختصار لوحة المفاتيح: مسافة للضغط مع الاستمرار</p>
       )}
