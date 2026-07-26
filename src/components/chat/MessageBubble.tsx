@@ -1,6 +1,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import { copyTextToClipboard } from '../../lib/chat/chatHelpers'
+import { splitConsultantReply } from '../../lib/chat/replyExperience'
 import { tripPlanFromMeta } from '../../lib/agent/memory'
 import type { TripPlan } from '../../lib/agent/types'
 import { isConversationExperienceEnabled } from '../../lib/chat/conversationExperienceUi'
@@ -64,6 +65,7 @@ export default function MessageBubble({
   onOpenTimelineEvent,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const isUser = message.role === 'user'
   const showActions = message.role === 'assistant' && message.status !== 'streaming' && !isStreaming
   const imageUrl = safeMediaUrl(
@@ -83,6 +85,12 @@ export default function MessageBubble({
         : ''
     return metaSeed || message.content || ''
   }, [message.content, message.providerMeta])
+  const splitReply = useMemo(
+    () => (isUser ? null : splitConsultantReply(message.content || '')),
+    [isUser, message.content],
+  )
+  const summaryText = splitReply?.summary || message.content || ''
+  const detailsText = splitReply?.details || null
   const streamingCardLimit = progressiveCardLimit(message.content.length)
   const cardsReady = shouldShowTravelerResultCards(message)
   const showResultCards =
@@ -93,6 +101,7 @@ export default function MessageBubble({
       || (!isStreaming && message.status === 'complete')
     )
   const cardLimit = isStreaming ? streamingCardLimit : 5
+  const showThinkingRail = !isUser && isStreaming && summaryText.trim().length < 40
 
   const handleCopy = async () => {
     const ok = await copyTextToClipboard(message.content)
@@ -182,26 +191,47 @@ export default function MessageBubble({
           <>
             {isStreaming ? (
               <div className="space-y-3">
-                {!message.content ? (
+                {showThinkingRail ? (
                   <AiThinkingRail active seedText={seedForUi} locale={locale} />
                 ) : null}
-                {message.content ? (
-                  <MarkdownContent content={message.content} />
+                {summaryText ? (
+                  <div className="transition-opacity duration-300">
+                    <MarkdownContent content={summaryText} />
+                    <span
+                      className="ms-1 inline-block h-3 w-1.5 animate-pulse rounded-sm bg-primary-500 align-middle"
+                      aria-hidden
+                    />
+                  </div>
                 ) : (
                   <TypingIndicator />
                 )}
-                {message.content ? (
-                  <span
-                    className="inline-block h-3 w-1.5 animate-pulse rounded-sm bg-primary-500 align-middle"
-                    aria-hidden
-                  />
-                ) : null}
               </div>
             ) : (
-              <MarkdownContent content={message.content || ''} />
+              <div className="space-y-2">
+                <MarkdownContent content={summaryText || ''} />
+                {detailsText ? (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setDetailsOpen((v) => !v)}
+                      className="mt-1 rounded-lg px-2 py-1 text-[11px] font-medium text-primary-700 transition-colors hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-slate-800"
+                      aria-expanded={detailsOpen}
+                    >
+                      {detailsOpen
+                        ? (locale === 'ar' ? 'إخفاء التفاصيل' : 'Hide details')
+                        : (locale === 'ar' ? 'عرض التفاصيل' : 'Show details')}
+                    </button>
+                    {detailsOpen ? (
+                      <div className="mt-2 border-t border-slate-100 pt-2 dark:border-slate-700">
+                        <MarkdownContent content={detailsText} />
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             )}
             {showResultCards ? (
-              <div className="mt-3">
+              <div className="mt-3 transition-all duration-500 ease-out">
                 {newExperienceOn ? (
                   <Suspense fallback={null}>
                     <NewExperienceResultsBridge

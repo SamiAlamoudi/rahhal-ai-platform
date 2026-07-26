@@ -1,13 +1,13 @@
 /**
- * User-facing AI progress steps — never chain-of-thought.
+ * User-facing AI progress — natural consultant feedback (never chain-of-thought).
  */
 
 export type ThinkingStepId =
-  | 'searching_flights'
-  | 'comparing_hotels'
-  | 'checking_weather'
-  | 'finding_offers'
-  | 'building_itinerary'
+  | 'considering_options'
+  | 'comparing_destinations'
+  | 'reviewing_budget'
+  | 'checking_pace'
+  | 'shaping_stay'
   | 'crafting_reply'
 
 export interface ThinkingStep {
@@ -18,38 +18,38 @@ export interface ThinkingStep {
 
 export const THINKING_STEPS: readonly ThinkingStep[] = [
   {
-    id: 'searching_flights',
-    labelAr: 'أبحث عن أفضل الرحلات…',
-    labelEn: 'Searching flights…',
+    id: 'considering_options',
+    labelAr: 'أفكر في أفضل الخيارات…',
+    labelEn: 'Thinking through the best options…',
   },
   {
-    id: 'comparing_hotels',
-    labelAr: 'أقارن الفنادق…',
-    labelEn: 'Comparing hotels…',
+    id: 'comparing_destinations',
+    labelAr: 'أقارن بين الوجهات…',
+    labelEn: 'Comparing destinations…',
   },
   {
-    id: 'checking_weather',
-    labelAr: 'أتحقق من الطقس…',
-    labelEn: 'Checking weather…',
+    id: 'reviewing_budget',
+    labelAr: 'أراجع الميزانية…',
+    labelEn: 'Reviewing the budget…',
   },
   {
-    id: 'finding_offers',
-    labelAr: 'أبحث عن أفضل العروض…',
-    labelEn: 'Finding best offers…',
+    id: 'checking_pace',
+    labelAr: 'أضبط إيقاع الرحلة…',
+    labelEn: 'Tuning the pace of the trip…',
   },
   {
-    id: 'building_itinerary',
-    labelAr: 'أبني خطة الرحلة…',
-    labelEn: 'Building itinerary…',
+    id: 'shaping_stay',
+    labelAr: 'أختار إقامة تناسب أسلوبك…',
+    labelEn: 'Shaping a stay that fits your style…',
   },
   {
     id: 'crafting_reply',
-    labelAr: 'أصيغ توصيتي لك…',
-    labelEn: 'Preparing your recommendation…',
+    labelAr: 'أجهّز توصيتي لك…',
+    labelEn: 'Preparing my recommendation…',
   },
 ] as const
 
-/** Pick progressive steps from user/assistant text hints (friendly only). */
+/** Pick progressive consultant steps from user/assistant text hints. */
 export function selectThinkingSteps(seedText: string): ThinkingStep[] {
   const text = seedText.toLowerCase()
   const picked: ThinkingStep[] = []
@@ -58,17 +58,17 @@ export function selectThinkingSteps(seedText: string): ThinkingStep[] {
     if (step && !picked.some((p) => p.id === id)) picked.push(step)
   }
 
-  if (/flight|طيران|رحلة|ticket|تذكر/.test(text)) take('searching_flights')
-  if (/hotel|فندق|إقامة|stay/.test(text)) take('comparing_hotels')
-  if (/weather|طقس|climate/.test(text)) take('checking_weather')
-  if (/budget|ميزانية|offer|عرض|price|سعر/.test(text)) take('finding_offers')
-  if (/itinerary|خطة|plan|أيام|days/.test(text)) take('building_itinerary')
+  take('considering_options')
+  if (/morocco|japan|italy|spain|dubai|paris|tokyo|مراكش|المغرب|اليابان|باريس|دبي|وجهة|destination/.test(text)) {
+    take('comparing_destinations')
+  }
+  if (/budget|ميزانية|ريال|sar|usd|\$|price|سعر/.test(text)) take('reviewing_budget')
+  if (/beach|بحر|شاطئ|quiet|هدوء|family|عائلت|honeymoon|شهر/.test(text)) take('checking_pace')
+  if (/hotel|فندق|إقامة|stay|resort/.test(text)) take('shaping_stay')
 
-  if (picked.length === 0) {
-    take('searching_flights')
-    take('comparing_hotels')
-    take('finding_offers')
-    take('building_itinerary')
+  if (picked.length === 1) {
+    take('comparing_destinations')
+    take('reviewing_budget')
   }
   take('crafting_reply')
   return picked

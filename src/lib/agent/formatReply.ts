@@ -5,6 +5,7 @@ import type {
   TripRequirements,
   TravelerType,
 } from './types'
+import { DETAILS_MARKER } from '../chat/replyExperience'
 import { nextMissingIntakeField } from './memory'
 import { t } from './locale'
 
@@ -78,13 +79,13 @@ export function buildSpokenPlanSummary(plan: TripPlan, locale: AgentLocale): str
 }
 
 /**
- * Screen content: conversational opener + rich visual itinerary.
- * Voice should use buildSpokenPlanSummary / meta.spokenText — not this whole string.
+ * Screen content: short consultant summary + expandable itinerary details.
+ * Voice should use buildSpokenPlanSummary / meta.spokenText — not the details block.
  */
 export function composeTripPlanDisplay(plan: TripPlan, locale: AgentLocale): string {
   const spoken = buildSpokenPlanSummary(plan, locale)
   const details = formatTripPlanDetails(plan, locale)
-  return `${spoken}\n\n${details}`
+  return `${spoken}${DETAILS_MARKER}${details}`
 }
 
 /** @deprecated Prefer composeTripPlanDisplay for chat; keep details helper for tests. */

@@ -7,6 +7,7 @@ export {
   CONSULTANT_BANNED_EN,
   CONSULTANT_PERSONALITY_RULES,
   consultantAck,
+  memoryReflectLine,
 } from './personality'
 
 import type { AgentLocale } from '../agent/types'
