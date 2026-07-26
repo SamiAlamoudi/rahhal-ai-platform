@@ -176,10 +176,13 @@ test.describe('Phase 2.4 home voice continuous', () => {
 
     // Auto-submit navigates to /chat without second CTA.
     await expect(page).toHaveURL(/\/chat/, { timeout: 45_000 })
-    await expect(page.getByText(/المغرب|ميزاني/)).toBeVisible({ timeout: 45_000 })
+    await expect(page.getByText(/أريد السفر إلى المغرب/).first()).toBeVisible({ timeout: 45_000 })
 
     // No stale Riyadh→Dubai demo cards for a Morocco trip.
     await expect(page.getByText('الرياض → دبي')).toHaveCount(0)
+    await expect(page.getByText(/الرياض → المغرب|الرياض → أكادير/).first()).toBeVisible({
+      timeout: 30_000,
+    })
 
     const voiceTab = page.getByRole('tab', { name: 'صوت' })
     if (await voiceTab.count()) {
@@ -187,7 +190,7 @@ test.describe('Phase 2.4 home voice continuous', () => {
     }
 
     await expect(
-      page.locator('text=/\\؟|مدينة|مغادرة|مدة|ميزانية|أكادير|مراكش|الوجهة|شاطئ/').first(),
+      page.locator('text=/\\؟|مدينة|مغادرة|مدة|أكادير|مراكش|الوجهة|شاطئ/').first(),
     ).toBeVisible({ timeout: 60_000 })
 
     await expect
@@ -199,7 +202,7 @@ test.describe('Phase 2.4 home voice continuous', () => {
       .toBeGreaterThan(0)
 
     // Turn 2 without touching mic / send.
-    await expect(page.getByText(TURN2).or(page.getByText(/أكادير/))).toBeVisible({
+    await expect(page.getByText(TURN2).first().or(page.getByText(/أكادير والرحلة من الرياض/).first())).toBeVisible({
       timeout: 90_000,
     })
 
