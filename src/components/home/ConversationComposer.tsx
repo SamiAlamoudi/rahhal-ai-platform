@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { motion } from 'framer-motion'
 import type { HomeLocale } from '../../lib/aiHome'
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition'
+import { voiceTrace } from '../../lib/chat/voice/voiceDebugTrace'
 import { consultantLine } from '../../lib/premiumExperience'
 import { HomeButton } from './HomeButton'
 
@@ -14,6 +15,7 @@ export interface ConversationComposerProps {
   /**
    * Same handler for typed CTA and voice auto-submit.
    * Voice source must not require a second “ابدأ المحادثة” click.
+   * onChange alone is NEVER submission.
    */
   onSubmit: (value: string, meta?: { source: ComposerSubmitSource }) => void
   /** Optional override; when omitted, built-in speech recognition is used. */
@@ -21,13 +23,17 @@ export interface ConversationComposerProps {
   disabled?: boolean
 }
 
-type VoiceUiStatus = 'idle' | 'listening' | 'processing' | 'error'
+type VoiceUiStatus = 'idle' | 'listening' | 'submitting' | 'error'
 
 const VOICE_STATUS_AR: Record<VoiceUiStatus, string> = {
   idle: 'جاهز',
   listening: 'أستمع إليك…',
-  processing: 'أفكر…',
-  error: 'تعذر تشغيل الصوت',
+  submitting: 'جاري إرسال طلبك…',
+  error: 'تعذر إرسال الرسالة الصوتية',
+}
+
+function normalizeVoiceTranscript(raw: string): string {
+  return raw.replace(/\s+/g, ' ').trim()
 }
 
 export function ConversationComposer({
@@ -41,62 +47,171 @@ export function ConversationComposer({
   const [focused, setFocused] = useState(false)
   const [voiceUi, setVoiceUi] = useState<VoiceUiStatus>('idle')
   const [liveCaption, setLiveCaption] = useState('')
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [preservedTranscript, setPreservedTranscript] = useState('')
   const valueRef = useRef(value)
   valueRef.current = value
   const submittedRef = useRef(false)
   const lastVoiceKeyRef = useRef('')
+  const turnIdRef = useRef<string | null>(null)
   const t = (ar: string, en: string) => (locale === 'ar' ? ar : en)
 
-  const submitFrom = (raw: string, source: ComposerSubmitSource) => {
-    const trimmed = raw.trim()
-    if (!trimmed || disabled || submittedRef.current) return false
+  const submitFrom = (raw: string, source: ComposerSubmitSource): boolean => {
+    const trimmed = normalizeVoiceTranscript(raw)
+    if (!trimmed || disabled) {
+      voiceTrace({
+        event: 'submission_rejected',
+        turnId: turnIdRef.current,
+        reason: !trimmed ? 'empty' : 'disabled',
+        transcriptLen: trimmed.length,
+      })
+      return false
+    }
+    if (submittedRef.current) {
+      voiceTrace({
+        event: 'submission_rejected',
+        turnId: turnIdRef.current,
+        reason: 'already_submitted',
+        transcriptLen: trimmed.length,
+      })
+      return false
+    }
     const key = `${source}:${trimmed}`
-    if (source === 'voice' && key === lastVoiceKeyRef.current) return false
+    if (source === 'voice' && key === lastVoiceKeyRef.current) {
+      voiceTrace({
+        event: 'submission_rejected',
+        turnId: turnIdRef.current,
+        reason: 'duplicate_final',
+        transcriptLen: trimmed.length,
+      })
+      return false
+    }
+
+    voiceTrace({
+      event: 'submission_requested',
+      turnId: turnIdRef.current,
+      transcriptLen: trimmed.length,
+      preview: trimmed,
+      meta: { source },
+    })
+
     submittedRef.current = true
     if (source === 'voice') lastVoiceKeyRef.current = key
+    // Preview/composer value update is NOT submission — onSubmit is.
     onChange(trimmed)
-    onSubmit(trimmed, { source })
-    return true
+    try {
+      onSubmit(trimmed, { source })
+      voiceTrace({
+        event: 'submission_accepted',
+        turnId: turnIdRef.current,
+        transcriptLen: trimmed.length,
+        meta: { source },
+      })
+      return true
+    } catch (e) {
+      submittedRef.current = false
+      const reason = e instanceof Error ? e.message : 'submit_threw'
+      voiceTrace({
+        event: 'failure',
+        turnId: turnIdRef.current,
+        reason,
+        transcriptLen: trimmed.length,
+      })
+      return false
+    }
+  }
+
+  const commitVoiceFinal = (raw: string, origin: 'onResult' | 'listening_ended') => {
+    const cleaned = normalizeVoiceTranscript(raw)
+    voiceTrace({
+      event: 'final_transcript_received',
+      turnId: turnIdRef.current,
+      transcriptLen: cleaned.length,
+      preview: cleaned,
+      meta: { origin },
+    })
+    voiceTrace({
+      event: 'cleaned_transcript',
+      turnId: turnIdRef.current,
+      transcriptLen: cleaned.length,
+      preview: cleaned,
+    })
+
+    setLiveCaption('')
+    if (!cleaned) {
+      // Never silently READY after a voice session with no usable text.
+      if (origin === 'listening_ended') {
+        setVoiceUi('idle')
+      }
+      return
+    }
+
+    setPreservedTranscript(cleaned)
+    setSubmitError(null)
+    setVoiceUi('submitting')
+    const ok = submitFrom(cleaned, 'voice')
+    if (!ok) {
+      setVoiceUi('error')
+      setSubmitError(
+        t(
+          'تعذر إرسال الرسالة الصوتية. اضغط إعادة المحاولة أو اكتب طلبك.',
+          'Could not send the voice message. Retry or type your request.',
+        ),
+      )
+      // Preserve transcript in the composer for retry without refresh.
+      onChange(cleaned)
+    }
   }
 
   const speech = useSpeechRecognition({
     lang: locale === 'ar' ? 'ar-SA' : 'en-US',
-    silenceMs: 2200,
+    silenceMs: 1800,
     onInterim: (interim) => {
-      setLiveCaption(interim)
-      if (interim.trim()) setVoiceUi('listening')
+      const text = normalizeVoiceTranscript(interim)
+      setLiveCaption(text)
+      if (text) setVoiceUi('listening')
     },
     onResult: (transcript) => {
-      const trimmed = transcript.trim()
-      setLiveCaption('')
-      if (!trimmed) {
-        setVoiceUi('idle')
-        return
-      }
-      // Temporary caption only — do not leave a permanent editable draft requiring CTA.
-      setVoiceUi('processing')
-      const ok = submitFrom(trimmed, 'voice')
-      if (!ok) setVoiceUi('idle')
+      commitVoiceFinal(transcript, 'onResult')
     },
   })
 
   useEffect(() => {
-    // After voice auto-submit, ensure the home STT session cannot restart and steal
-    // the next transcript intended for the /chat continuous loop.
-    if (voiceUi === 'processing') {
+    // After voice submit is accepted, stop home STT so it cannot steal the next turn.
+    if (voiceUi === 'submitting' && submittedRef.current) {
       speech.cancel()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- cancel on processing edge only
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- edge on submitting only
   }, [voiceUi])
 
   useEffect(() => {
     if (speech.isListening) {
-      setVoiceUi('listening')
-      submittedRef.current = false
-    } else if (voiceUi === 'listening' && !submittedRef.current) {
-      setVoiceUi((prev) => (prev === 'processing' ? prev : 'idle'))
+      setVoiceUi((prev) => (prev === 'submitting' || prev === 'error' ? prev : 'listening'))
+      return
     }
-  }, [speech.isListening, voiceUi])
+
+    // Listening ended — Safari/WebKit sometimes skips onResult after interim-only results.
+    if (submittedRef.current || voiceUi === 'submitting') return
+
+    const leftover = normalizeVoiceTranscript(
+      speech.finalTranscript
+        || liveCaption
+        || speech.interimTranscript
+        || preservedTranscript
+        || valueRef.current,
+    )
+
+    if (leftover && (voiceUi === 'listening' || !!liveCaption || !!speech.interimTranscript)) {
+      commitVoiceFinal(leftover, 'listening_ended')
+      return
+    }
+
+    if (voiceUi === 'listening' && !submittedRef.current) {
+      // Ended with no transcript — idle is OK; do not pretend we submitted.
+      setVoiceUi('idle')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional edge on isListening
+  }, [speech.isListening])
 
   useEffect(() => {
     if (
@@ -104,24 +219,53 @@ export function ConversationComposer({
       || speech.error === 'permission-denied'
       || speech.status === 'error'
     ) {
-      setVoiceUi('error')
+      if (!submittedRef.current) setVoiceUi('error')
     }
   }, [speech.error, speech.status])
 
   const submit = () => {
-    submitFrom(value, 'text')
+    setSubmitError(null)
+    const ok = submitFrom(value, 'text')
+    if (!ok && value.trim()) {
+      setSubmitError(
+        t('تعذر بدء المحادثة. حاول مرة أخرى.', 'Could not start the conversation. Try again.'),
+      )
+    }
+  }
+
+  const retryVoiceSubmit = () => {
+    const text = normalizeVoiceTranscript(preservedTranscript || value)
+    if (!text) return
+    submittedRef.current = false
+    lastVoiceKeyRef.current = ''
+    setSubmitError(null)
+    setVoiceUi('submitting')
+    const ok = submitFrom(text, 'voice')
+    if (!ok) {
+      setVoiceUi('error')
+      setSubmitError(
+        t(
+          'تعذر إرسال الرسالة الصوتية. اضغط إعادة المحاولة أو اكتب طلبك.',
+          'Could not send the voice message. Retry or type your request.',
+        ),
+      )
+    }
   }
 
   const onForm = (e: FormEvent) => {
     e.preventDefault()
-    if (speech.isListening) return
+    if (speech.isListening || voiceUi === 'submitting') return
+    if (voiceUi === 'error' && preservedTranscript) {
+      retryVoiceSubmit()
+      return
+    }
     submit()
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      if (speech.isListening) return
+      if (speech.isListening || voiceUi === 'submitting') return
       submit()
     }
   }
@@ -137,13 +281,20 @@ export function ConversationComposer({
       return
     }
     if (speech.isListening) {
-      // Explicit stop — end listening; onResult may still fire with final buffer.
+      // Explicit stop — onResult / listening_ended will commit if there is text.
       speech.stop()
+      return
+    }
+    if (voiceUi === 'error' && preservedTranscript.trim()) {
+      retryVoiceSubmit()
       return
     }
     submittedRef.current = false
     lastVoiceKeyRef.current = ''
+    turnIdRef.current = `home_${Date.now().toString(36)}`
     setLiveCaption('')
+    setPreservedTranscript('')
+    setSubmitError(null)
     setVoiceUi('listening')
     onChange('')
     speech.clearError()
@@ -151,15 +302,16 @@ export function ConversationComposer({
   }
 
   const listening = !onVoiceClick && speech.isListening
-  const voiceSessionActive = listening || voiceUi === 'processing'
+  const voiceSessionActive =
+    listening || voiceUi === 'submitting' || (voiceUi === 'error' && !!preservedTranscript)
   const showVoiceError =
     !onVoiceClick &&
-    (voiceUi === 'error' ||
-      (!!speech.errorMessage &&
+    (voiceUi === 'error'
+      || (!!speech.errorMessage &&
         speech.error !== 'user-cancelled' &&
-        (speech.status === 'error' ||
-          speech.status === 'permission-denied' ||
-          speech.status === 'unsupported')))
+        (speech.status === 'error'
+          || speech.status === 'permission-denied'
+          || speech.status === 'unsupported')))
 
   const micLabel = listening
     ? t('إيقاف الجلسة الصوتية', 'Stop voice session')
@@ -170,10 +322,10 @@ export function ConversationComposer({
       ? VOICE_STATUS_AR[voiceUi === 'error' || showVoiceError ? 'error' : voiceUi]
       : voiceUi === 'listening'
         ? 'Listening…'
-        : voiceUi === 'processing'
-          ? 'Thinking…'
+        : voiceUi === 'submitting'
+          ? 'Sending…'
           : voiceUi === 'error' || showVoiceError
-            ? 'Voice unavailable'
+            ? 'Voice send failed'
             : 'Ready'
 
   return (
@@ -224,9 +376,12 @@ export function ConversationComposer({
             {statusLabel}
           </p>
           <p className="mt-1 text-slate-500">
-            {liveCaption || speech.interimTranscript || (voiceUi === 'processing'
-              ? t('جاري بدء المحادثة…', 'Starting conversation…')
-              : t('…تحدث الآن', '…speak now'))}
+            {liveCaption
+              || speech.interimTranscript
+              || preservedTranscript
+              || (voiceUi === 'submitting'
+                ? t('جاري بدء المحادثة…', 'Starting conversation…')
+                : t('…تحدث الآن', '…speak now'))}
           </p>
         </div>
       )}
@@ -235,7 +390,7 @@ export function ConversationComposer({
           <button
             type="button"
             onClick={onMicClick}
-            disabled={disabled || voiceUi === 'processing'}
+            disabled={disabled || voiceUi === 'submitting'}
             data-testid="ai-home-voice"
             data-listening={listening ? 'true' : 'false'}
             aria-label={micLabel}
@@ -298,6 +453,15 @@ export function ConversationComposer({
               <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </HomeButton>
+        ) : voiceUi === 'error' && preservedTranscript ? (
+          <button
+            type="button"
+            onClick={retryVoiceSubmit}
+            data-testid="ai-home-voice-retry"
+            className="min-h-11 rounded-2xl bg-primary-600 px-4 text-sm font-bold text-white hover:bg-primary-700"
+          >
+            {t('إعادة المحاولة', 'Retry')}
+          </button>
         ) : (
           <button
             type="button"
@@ -307,7 +471,7 @@ export function ConversationComposer({
                 speech.cancel()
                 setVoiceUi('idle')
                 setLiveCaption('')
-                submittedRef.current = false
+                setSubmitError(null)
               }
             }}
             data-testid="ai-home-voice-stop"
@@ -317,31 +481,32 @@ export function ConversationComposer({
           </button>
         )}
       </div>
-      {showVoiceError ? (
+      {showVoiceError || submitError ? (
         <p
           className="mt-2 px-1 text-[11px] text-rose-600"
           role="alert"
           data-testid="ai-home-voice-error"
         >
-          {speech.error === 'unsupported'
-            ? t(
-                'الإدخال الصوتي غير مدعوم في هذا المتصفح — استخدم الكتابة.',
-                'Voice input is not supported in this browser — use typing.',
-              )
-            : speech.error === 'permission-denied'
+          {submitError
+            || (speech.error === 'unsupported'
               ? t(
-                  'تم رفض إذن الميكروفون. اسمح بالوصول وحاول مرة أخرى.',
-                  speech.errorMessage ?? 'Microphone permission denied.',
+                  'الإدخال الصوتي غير مدعوم في هذا المتصفح — استخدم الكتابة.',
+                  'Voice input is not supported in this browser — use typing.',
                 )
-              : speech.error === 'no-speech'
+              : speech.error === 'permission-denied'
                 ? t(
-                    'لم يتم رصد كلام. اضغط الميكروفون وحاول مرة أخرى.',
-                    speech.errorMessage ?? 'No speech detected.',
+                    'تم رفض إذن الميكروفون. اسمح بالوصول وحاول مرة أخرى.',
+                    speech.errorMessage ?? 'Microphone permission denied.',
                   )
-                : t(
-                    'تعذر تشغيل الصوت. يمكنك الكتابة بدلًا من ذلك.',
-                    speech.errorMessage ?? 'Voice failed — you can type instead.',
-                  )}
+                : speech.error === 'no-speech'
+                  ? t(
+                      'لم يتم رصد كلام. اضغط الميكروفون وحاول مرة أخرى.',
+                      speech.errorMessage ?? 'No speech detected.',
+                    )
+                  : t(
+                      'تعذر تشغيل الصوت. يمكنك الكتابة بدلًا من ذلك.',
+                      speech.errorMessage ?? 'Voice failed — you can type instead.',
+                    ))}
         </p>
       ) : null}
     </motion.form>

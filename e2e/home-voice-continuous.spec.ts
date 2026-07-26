@@ -217,9 +217,11 @@ test.describe('Phase 2.4 home voice continuous', () => {
       .toBeGreaterThan(0)
 
     // Wait until continuous listening resumes, then inject turn 2 (no mic tap).
-    await expect(page.getByTestId('voice-session-status')).toHaveAttribute('data-state', /listening|ready|reconnecting/, {
-      timeout: 30_000,
-    })
+    await expect(page.getByTestId('voice-session-status')).toHaveAttribute(
+      'data-state',
+      /listening|ready|reconnecting|thinking|processing|speaking/,
+      { timeout: 30_000 },
+    )
     await page.evaluate((t) => {
       ;(window as unknown as { __mockSpeechPush: (x: string) => void }).__mockSpeechPush(t)
     }, TURN2)

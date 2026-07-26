@@ -27,6 +27,7 @@ import {
   normalizeVoiceLocale,
 } from './voiceTypes'
 import { extractSpokenAnswer, stripMarkdownForSpeech } from './spokenAnswer'
+import { voiceTrace } from './voiceDebugTrace'
 
 export { stripMarkdownForSpeech } from './spokenAnswer'
 
@@ -252,10 +253,19 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       setStatus('reconnecting')
       // Keep mid-thought speech across browser STT restarts (ChatGPT-like continuity).
       await startListening(true, { preserveUtterance: true })
+      voiceTrace({
+        event: 'listening_resumed',
+        conversationId: handsFreeConversationId,
+      })
     } catch (e) {
       diagnosePipelineError('stt', 'resume', e)
       callbacks.onError?.(e instanceof Error ? e.message : 'تعذر استئناف الاستماع')
       setStatus('error')
+      voiceTrace({
+        event: 'failure',
+        conversationId: handsFreeConversationId,
+        reason: e instanceof Error ? e.message : 'resume_failed',
+      })
     }
   }
 
@@ -278,6 +288,11 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     stopVad()
     clearSilenceTimer()
     logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase, realTts } })
+    voiceTrace({
+      event: 'tts_started',
+      transcriptLen: spoken.length,
+      meta: { phase, realTts },
+    })
     let ttsOk = false
     try {
       await tts.speak({
@@ -291,12 +306,18 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       })
       ttsOk = true
       logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase, realTts } })
+      voiceTrace({ event: 'tts_ended', transcriptLen: spoken.length, meta: { phase } })
     } catch (e) {
       if (!isBenignChatError(e) && !disposed) {
         diagnosePipelineError('tts', phase, e)
         callbacks.onError?.(e instanceof Error ? e.message : 'تعذر تشغيل الصوت')
         // Keep a clear failure signal; caller may still resume listening.
         setStatus('error')
+        voiceTrace({
+          event: 'failure',
+          reason: e instanceof Error ? e.message : 'tts_failed',
+          meta: { phase },
+        })
       }
     }
     return ttsOk
@@ -342,6 +363,12 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       event: 'turn_send_started',
       meta: { conversationId, modality: 'audio', length: content.length },
     })
+    voiceTrace({
+      event: 'chat_engine_started',
+      conversationId,
+      transcriptLen: content.length,
+      meta: { modality: 'audio' },
+    })
 
     const handlers: StreamHandlers = {
       signal: controller.signal,
@@ -379,6 +406,16 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           stage: 'ai',
           event: 'turn_complete',
           meta: { length: message.content.length },
+        })
+        voiceTrace({
+          event: 'assistant_message_committed',
+          conversationId,
+          transcriptLen: message.content.length,
+        })
+        voiceTrace({
+          event: 'chat_engine_completed',
+          conversationId,
+          transcriptLen: message.content.length,
         })
         let ttsFailed = false
         if (!controller.signal.aborted && !disposed) {
@@ -433,6 +470,12 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     }
 
     try {
+      voiceTrace({
+        event: 'user_message_committed',
+        conversationId,
+        transcriptLen: content.length,
+        preview: content,
+      })
       const result = await sendTurn({
         conversationId,
         content,

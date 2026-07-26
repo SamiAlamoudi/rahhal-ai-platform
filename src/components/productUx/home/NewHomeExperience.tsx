@@ -11,6 +11,7 @@ import {
   suggestionText,
   type ProductLocale,
 } from '../../../lib/productUx'
+import { buildVoiceAwareChatNavigation } from '../../../lib/aiHome/voiceEntryHandoff'
 import { ConversationComposer } from '../../home/ConversationComposer'
 import { AppShell } from '../AppShell'
 import { BrandMark } from '../BrandMark'
@@ -72,14 +73,12 @@ export function NewHomeExperience() {
       const trimmed = text.trim()
       if (!trimmed) return
       const startVoice = meta?.source === 'voice'
-      navigate('/chat', {
-        state: {
-          initialPrompt: trimmed,
-          tripText: trimmed,
-          seedMessage: trimmed,
-          ...(startVoice ? { startVoice: true } : {}),
-        },
-      })
+      // Durable handoff — do not rely on location.state alone (iPhone Safari drops it).
+      const entry = buildVoiceAwareChatNavigation(trimmed, { startVoice })
+      navigate(
+        { pathname: entry.pathname, search: entry.search },
+        { state: entry.state },
+      )
     },
     [navigate],
   )

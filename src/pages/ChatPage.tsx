@@ -16,10 +16,12 @@ const VoicePanel = lazy(() =>
 )
 const VoiceComposer = lazy(() => import('../components/chat/VoiceComposer'))
 
+import { clearVoiceEntryHandoff, resolveChatEntrySeed } from '../lib/aiHome/voiceEntryHandoff'
 import { travelAgentService } from '../lib/agent/travelAgentService'
 import { detectAgentLocale } from '../lib/agent/locale'
 import type { TripPlan } from '../lib/agent/types'
 import { chatEngine } from '../lib/chat/chatEngine'
+import { voiceTrace } from '../lib/chat/voice/voiceDebugTrace'
 import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
 import { validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
 import { isBenignChatError, logChatError } from '../lib/chat/chatLogger'
@@ -812,6 +814,7 @@ function LegacyChatPage() {
   }
 
   // Sprint 16 / Phase 2.4 — seed from AI Home (text CTA or voice auto-submit).
+  // iPhone Safari often drops location.state — also read query + sessionStorage.
   useEffect(() => {
     if (seedConsumedRef.current || listLoading || !online) return
     const state = location.state as {
@@ -819,14 +822,23 @@ function LegacyChatPage() {
       tripText?: string
       initialPrompt?: string
       startVoice?: boolean
+      voiceTurnId?: string
     } | null
-    const stateSeed = state?.seedMessage ?? state?.tripText ?? state?.initialPrompt
-    const querySeed = new URLSearchParams(location.search).get('seed')
-    const seed = (stateSeed || querySeed || '').trim()
+    const resolved = resolveChatEntrySeed({ state, search: location.search })
+    const seed = resolved.seed
     if (!seed) return
 
     seedConsumedRef.current = true
-    const startVoice = state?.startVoice === true
+    const startVoice = resolved.startVoice
+    const turnId = resolved.turnId
+    clearVoiceEntryHandoff()
+    voiceTrace({
+      event: 'submission_accepted',
+      turnId,
+      transcriptLen: seed.length,
+      preview: seed,
+      meta: { handoffSource: resolved.source, startVoice },
+    })
 
     void (async () => {
       try {
@@ -836,6 +848,11 @@ function LegacyChatPage() {
           setVoiceLocale('ar')
         }
         const created = await chatEngine.createConversation()
+        voiceTrace({
+          event: 'conversation_id',
+          turnId,
+          conversationId: created.id,
+        })
         setConversations((prev) => [created, ...prev])
         selectConversation(created.id)
         navigate({ pathname: '/chat', search: buildChatSearch(created.id, '') }, { replace: true, state: {} })
@@ -844,17 +861,32 @@ function LegacyChatPage() {
         if (startVoice) {
           // Wait for VoiceSession mount (composerMode=voice effect).
           let session = voiceRef.current
-          for (let i = 0; i < 40 && !session; i += 1) {
+          for (let i = 0; i < 60 && !session; i += 1) {
             await new Promise((r) => setTimeout(r, 50))
             session = voiceRef.current
           }
           if (session?.beginContinuousWithSeed) {
             setSending(true)
             try {
+              voiceTrace({
+                event: 'chat_engine_started',
+                turnId,
+                conversationId: created.id,
+                meta: { path: 'beginContinuousWithSeed' },
+              })
               // Same chatEngine path as typed turns; speaks reply then resumes listening.
-              await session.beginContinuousWithSeed(created.id, seed)
+              const assistant = await session.beginContinuousWithSeed(created.id, seed)
+              voiceTrace({
+                event: 'chat_engine_completed',
+                turnId,
+                conversationId: created.id,
+                meta: { path: 'beginContinuousWithSeed', hasAssistant: !!assistant },
+              })
               await loadDetail(created.id)
               void loadConversations(created.id)
+              if (!assistant) {
+                setActionError('تعذر إرسال الرسالة الصوتية — أعد المحاولة أو اكتب طلبك.')
+              }
             } finally {
               setSending(false)
             }
@@ -862,22 +894,64 @@ function LegacyChatPage() {
           }
         }
 
+        // Text path, or voice session not ready — still commit via ChatEngine (never drop seed).
+        voiceTrace({
+          event: 'chat_engine_started',
+          turnId,
+          conversationId: created.id,
+          meta: { path: 'sendMessage', startVoice },
+        })
         await runGeneration(async (handlers) => {
           const result = await chatEngine.sendMessage({
             conversationId: created.id,
             content: seed,
-            modality: 'text',
+            modality: startVoice ? 'audio' : 'text',
           }, handlers)
+          voiceTrace({
+            event: 'user_message_committed',
+            turnId,
+            conversationId: created.id,
+            transcriptLen: result.user.content.length,
+          })
+          voiceTrace({
+            event: 'assistant_message_committed',
+            turnId,
+            conversationId: created.id,
+            transcriptLen: result.assistant.content.length,
+          })
           setMessages((prev) => {
             const withoutAssistant = prev.filter((m) => m.id !== result.assistant.id)
             return [...withoutAssistant, result.user, result.assistant]
           })
         })
+        voiceTrace({
+          event: 'chat_engine_completed',
+          turnId,
+          conversationId: created.id,
+          meta: { path: 'sendMessage' },
+        })
         if (startVoice && voiceRef.current) {
+          // Speak the latest assistant reply then enter continuous listening.
+          const detail = await chatEngine.getConversationDetail(created.id)
+          const lastAssistant = [...detail.messages].reverse().find((m) => m.role === 'assistant')
+          if (lastAssistant?.content) {
+            await voiceRef.current.speakText(lastAssistant.content)
+          }
           await voiceRef.current.startHandsFree(created.id)
+          voiceTrace({
+            event: 'listening_resumed',
+            turnId,
+            conversationId: created.id,
+            meta: { path: 'fallback_startHandsFree' },
+          })
         }
       } catch (e) {
         logChatError('chat.seed', e)
+        voiceTrace({
+          event: 'failure',
+          turnId,
+          reason: e instanceof Error ? e.message : 'seed_failed',
+        })
         setActionError(e instanceof Error ? e.message : 'تعذر بدء المحادثة')
       }
     })()

@@ -41,11 +41,13 @@ describe('Recovery Phase 2.4 — home voice end-to-end', () => {
     expect(textEntry.pathname).toBe('/chat')
     expect(textEntry.state.seedMessage).toBe('أريد المغرب')
     expect(textEntry.state.startVoice).toBeUndefined()
+    expect(textEntry.search).not.toContain('startVoice=1')
 
     const voiceEntry = conversationEntryPath('أريد المغرب', { startVoice: true })
     expect(voiceEntry.state.startVoice).toBe(true)
     expect(voiceEntry.state.seedMessage).toBe(voiceEntry.state.tripText)
     expect(voiceEntry.state.initialPrompt).toBe('أريد المغرب')
+    expect(voiceEntry.search).toContain('startVoice=1')
   })
 
   it('beginContinuousWithSeed auto-submits once through chatEngine (no second CTA)', async () => {
