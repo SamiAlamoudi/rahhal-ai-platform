@@ -134,8 +134,9 @@ describe('Recovery Phase 2.4 — home voice end-to-end', () => {
     await session.beginContinuousWithSeed('c1', 'أريد المغرب')
     expect(speakOrder).toBeGreaterThan(0)
     expect(statuses).toContain('ready')
-    // After TTS, continuous listening resumes.
-    await Promise.resolve()
+    // After TTS, continuous listening resumes once (authorized delay).
+    const { HANDS_FREE_LISTEN_RESTART_MS } = await import('../chat/voice/voiceSession')
+    await vi.advanceTimersByTimeAsync(HANDS_FREE_LISTEN_RESTART_MS)
     expect(statuses).toContain('listening')
     expect(session.getMode()).toBe('hands_free')
     // READY must precede the next STT session; no fake IDLE from mic re-check.
@@ -187,6 +188,8 @@ describe('Recovery Phase 2.4 — home voice end-to-end', () => {
 
     await session.beginContinuousWithSeed('c1', 'أريد المغرب')
     expect(sendTurn).toHaveBeenCalledTimes(1)
+    const { HANDS_FREE_LISTEN_RESTART_MS: restartMs } = await import('../chat/voice/voiceSession')
+    await vi.advanceTimersByTimeAsync(restartMs)
 
     // Simulate browser STT: final chunk then immediate onend (restart thrash).
     controller.emitFinal('أفضل أكادير والرحلة من الرياض')

@@ -337,6 +337,12 @@ export function ConversationComposer({
     }
 
     if (sessionHeardRef.current || voiceUiRef.current === 'listening') {
+      // Empty automatic WebKit/watchdog end with no speech → idle, not permanent ERROR.
+      if (!leftover && !sessionHeardRef.current) {
+        setVoiceUi('idle')
+        setSubmitError(null)
+        return
+      }
       // Hook may already have staged FAILURE (empty deliver / watchdog).
       if (speech.status !== 'error' && speech.status !== 'permission-denied') {
         voiceStage({

@@ -82,6 +82,7 @@ describe('voiceSession', () => {
   })
 
   it('post-turn hands-free resume is READY → LISTENING with no fake IDLE', async () => {
+    vi.useFakeTimers()
     const { provider: stt } = createMockSpeechToTextProvider('')
     const tts = createMockTextToSpeechProvider()
     const statuses: string[] = []
@@ -117,6 +118,9 @@ describe('voiceSession', () => {
     })
 
     await session.beginContinuousWithSeed('c1', 'أريد المغرب')
+    expect(session.getStatus()).toBe('ready')
+    const { HANDS_FREE_LISTEN_RESTART_MS } = await import('../chat/voice/voiceSession')
+    await vi.advanceTimersByTimeAsync(HANDS_FREE_LISTEN_RESTART_MS)
 
     const readyIdx = statuses.indexOf('ready')
     expect(readyIdx).toBeGreaterThanOrEqual(0)
@@ -134,6 +138,7 @@ describe('voiceSession', () => {
     expect(session.getMode()).toBe('hands_free')
 
     session.dispose()
+    vi.useRealTimers()
   })
 
   it('hands-free waits for silence timeout before sending (tolerates short pauses)', async () => {
@@ -218,11 +223,12 @@ describe('voiceSession', () => {
     deferred.reject?.(new Error('aborted'))
     await Promise.resolve()
     await Promise.resolve()
-    await vi.advanceTimersByTimeAsync(0)
+    const { HANDS_FREE_LISTEN_RESTART_MS } = await import('../chat/voice/voiceSession')
+    await vi.advanceTimersByTimeAsync(HANDS_FREE_LISTEN_RESTART_MS)
     await Promise.resolve()
     expect(statuses).toContain('reconnecting')
     // Resume is async; after reconnect settles we should be listening again.
-    expect(['listening', 'reconnecting', 'idle']).toContain(session.getStatus())
+    expect(['listening', 'reconnecting', 'ready']).toContain(session.getStatus())
     session.dispose()
     vi.useRealTimers()
   })

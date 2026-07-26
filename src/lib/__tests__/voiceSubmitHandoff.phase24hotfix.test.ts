@@ -147,6 +147,8 @@ describe('Phase 2.4 hotfix — voice submit handoff', () => {
     )
     expect(sendTurn).toHaveBeenCalledTimes(1)
     expect(tts.spoken.length).toBeGreaterThan(0)
+    const { HANDS_FREE_LISTEN_RESTART_MS } = await import('../chat/voice/voiceSession')
+    await vi.advanceTimersByTimeAsync(HANDS_FREE_LISTEN_RESTART_MS)
 
     // Empty final must not create another turn.
     controller.emitFinal('   ')
@@ -225,6 +227,8 @@ describe('Phase 2.4 hotfix — voice submit handoff', () => {
 
     await session.beginContinuousWithSeed('c1', 'أريد المغرب')
     expect(tts.spoken.some((t) => t.includes('أكادير'))).toBe(true)
+    const { HANDS_FREE_LISTEN_RESTART_MS: restartMs } = await import('../chat/voice/voiceSession')
+    await vi.advanceTimersByTimeAsync(restartMs)
     expect(statuses).toContain('listening')
 
     controller.emitFinal('نعم أكادير')

@@ -397,6 +397,9 @@ export function createSpeechRecognitionSession(
           : heardSpeech
             ? 'empty_transcript_after_final'
             : 'final_result_never_arrived'
+      const recoverableEmptyAuto =
+        !heardSpeech
+        && (reason === 'stt_no_result_watchdog' || reason === 'stt_onstart_never_fired')
       if (error == null) {
         failStage(
           reason,
@@ -409,7 +412,7 @@ export function createSpeechRecognitionSession(
           success: false,
           reason,
           previousState: 'LISTENING',
-          currentState: 'ERROR',
+          currentState: recoverableEmptyAuto ? 'IDLE' : 'ERROR',
           recoveryAction: 'retry_mic_speak_clearly_or_type',
           meta: {
             failedStage: 'FINAL_RESULT',
@@ -419,7 +422,16 @@ export function createSpeechRecognitionSession(
             sttStarted,
           },
         })
-        if (status === 'listening' || status === 'idle') status = 'error'
+        if (!recoverableEmptyAuto && (status === 'listening' || status === 'idle')) {
+          status = 'error'
+        }
+      }
+      // Empty automatic restart / watchdog: return to idle (READY equivalent),
+      // never trap the mic in permanent ERROR.
+      if (recoverableEmptyAuto) {
+        status = 'idle'
+        error = null
+        errorMessage = null
       }
       emit()
       return
@@ -463,7 +475,18 @@ export function createSpeechRecognitionSession(
     }
     interimTranscript = ''
     interimBuffer = ''
-    if (finalTranscript.trim() && delivered && error == null) {
+    const recoverableWatchdog =
+      !heardSpeech
+      && (
+        opts?.commitReason === 'stt_no_result_watchdog'
+        || opts?.commitReason === 'stt_onstart_never_fired'
+      )
+    if (recoverableWatchdog) {
+      // Empty automatic restart: stay idle (READY equivalent), not permanent ERROR.
+      status = 'idle'
+      error = null
+      errorMessage = null
+    } else if (finalTranscript.trim() && delivered && error == null) {
       status = 'idle'
     } else if (opts?.errorKind && status !== 'error' && status !== 'permission-denied') {
       const mapped = mapError(

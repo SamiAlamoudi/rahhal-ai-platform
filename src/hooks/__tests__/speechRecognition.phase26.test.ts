@@ -190,7 +190,8 @@ describe('Phase 2.6 speech recognition STT pipeline', () => {
 
     expect(onResult).not.toHaveBeenCalled()
     expect(session.getSnapshot().isListening).toBe(false)
-    expect(session.getSnapshot().status).toBe('error')
+    // Phase 2.7: empty watchdog recovers to idle — not permanent ERROR.
+    expect(session.getSnapshot().status).toBe('idle')
     const fail = getVoiceTraceRecords().find(
       (r) => r.stage === 'FAILURE' && r.reason === 'stt_no_result_watchdog',
     )
