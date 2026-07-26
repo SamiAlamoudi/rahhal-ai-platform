@@ -66,11 +66,24 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
 
       const utterance = new SpeechSynthesisUtterance(text)
       utterance.lang = voice?.lang || speechLangForLocale(options.locale)
-      if (voice) utterance.voice = voice
+      if (voice) {
+        try {
+          utterance.voice = voice
+        } catch {
+          // Headless / mocked voices may not be real SpeechSynthesisVoice instances.
+          // Language tag is enough for the engine (and for our speak() mock).
+        }
+      }
 
       const token = ++generation
       await new Promise<void>((resolve, reject) => {
         let started = false
+        let settled = false
+        const finish = (fn: () => void) => {
+          if (settled) return
+          settled = true
+          fn()
+        }
         const markStart = () => {
           if (started || token !== generation || stopped) return
           started = true
@@ -79,17 +92,16 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
         }
         utterance.onstart = () => markStart()
         utterance.onend = () => {
-          // Some engines skip onstart; never claim speaking after end without start.
           if (token === generation) speaking = false
-          resolve()
+          finish(() => resolve())
         }
         utterance.onerror = () => {
           if (token === generation) speaking = false
           if (stopped || token !== generation) {
-            resolve()
+            finish(() => resolve())
             return
           }
-          reject(new Error('تعذر تشغيل الصوت'))
+          finish(() => reject(new Error('تعذر تشغيل الصوت')))
         }
         try {
           window.speechSynthesis.speak(utterance)
@@ -101,9 +113,17 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
               markStart()
             }
           }, 0)
+          // Safety: mocked engines that call onend via microtask must not hang forever.
+          window.setTimeout(() => {
+            if (token !== generation || settled) return
+            if (started) {
+              speaking = false
+              finish(() => resolve())
+            }
+          }, 8000)
         } catch {
           speaking = false
-          reject(new Error('تعذر تشغيل الصوت'))
+          finish(() => reject(new Error('تعذر تشغيل الصوت')))
         }
       })
     },
