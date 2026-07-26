@@ -70,12 +70,16 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
 
       const token = ++generation
       await new Promise<void>((resolve, reject) => {
-        utterance.onstart = () => {
-          if (token !== generation || stopped) return
+        let started = false
+        const markStart = () => {
+          if (started || token !== generation || stopped) return
+          started = true
           speaking = true
           options.onStart?.()
         }
+        utterance.onstart = () => markStart()
         utterance.onend = () => {
+          // Some engines skip onstart; never claim speaking after end without start.
           if (token === generation) speaking = false
           resolve()
         }
@@ -89,6 +93,14 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
         }
         try {
           window.speechSynthesis.speak(utterance)
+          // Chromium occasionally omits onstart for short utterances; treat speak() as start
+          // only when the engine reports speaking / pending shortly after enqueue.
+          window.setTimeout(() => {
+            if (token !== generation || stopped || started) return
+            if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+              markStart()
+            }
+          }, 0)
         } catch {
           speaking = false
           reject(new Error('تعذر تشغيل الصوت'))

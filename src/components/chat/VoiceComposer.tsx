@@ -116,12 +116,14 @@ export default function VoiceComposer({
         <div>
           <p className="text-sm font-bold text-slate-900">المحادثة الصوتية</p>
           <p className="text-[11px] text-slate-400">
-            {voiceAdapter.label} · Mock · جاهز للمزوّدين لاحقاً
+            جلسة مستمرة — استمع → أفكر → أتحدث → جاهز
           </p>
         </div>
         <span
           role="status"
           aria-live="polite"
+          data-testid="voice-session-status"
+          data-state={status}
           className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${
             status === 'error'
               ? 'bg-rose-100 text-rose-700'
@@ -261,14 +263,23 @@ export default function VoiceComposer({
           <button
             type="button"
             disabled={!enabled || processing || !online}
-            aria-pressed={listening}
-            aria-label={listening ? 'إيقاف وضع حر اليدين' : 'تشغيل وضع حر اليدين'}
+            aria-pressed={listening || status === 'ready' || status === 'speaking'}
+            aria-label={
+              listening || status === 'ready' || status === 'speaking' || status === 'thinking'
+                ? 'إيقاف الجلسة الصوتية'
+                : 'تشغيل وضع حر اليدين'
+            }
+            data-testid="voice-session-primary"
             onClick={onToggleHandsFree}
             className={`min-h-12 flex-1 rounded-2xl px-4 py-3 text-sm font-bold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
-              listening ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary-600 hover:bg-primary-700'
+              listening || status === 'ready' || status === 'speaking'
+                ? 'bg-rose-600 hover:bg-rose-700'
+                : 'bg-primary-600 hover:bg-primary-700'
             } disabled:bg-slate-300`}
           >
-            {listening ? 'إيقاف حر اليدين' : 'تشغيل حر اليدين'}
+            {listening || status === 'ready' || status === 'speaking' || status === 'thinking'
+              ? 'إيقاف الجلسة الصوتية'
+              : 'تشغيل حر اليدين'}
           </button>
         )}
 

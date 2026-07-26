@@ -273,6 +273,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     stopVad()
     clearSilenceTimer()
     logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase, realTts } })
+    let ttsOk = false
     try {
       await tts.speak({
         locale,
@@ -283,14 +284,17 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           if (!disposed && realTts) setStatus('speaking')
         },
       })
+      ttsOk = true
       logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase, realTts } })
     } catch (e) {
       if (!isBenignChatError(e) && !disposed) {
         diagnosePipelineError('tts', phase, e)
         callbacks.onError?.(e instanceof Error ? e.message : 'تعذر تشغيل الصوت')
+        // Keep a clear failure signal; caller may still resume listening.
         setStatus('error')
       }
     }
+    return ttsOk
   }
 
   const sendTranscript = async (conversationId: string, transcript: string): Promise<ChatMessage | null> => {
@@ -371,11 +375,13 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           event: 'turn_complete',
           meta: { length: message.content.length },
         })
+        let ttsFailed = false
         if (!controller.signal.aborted && !disposed) {
           const spoken = readSpokenText(message)
           if (spoken) {
             if (spoken !== earlySpokenText || !earlySpeakPromise) {
-              await speakAloud(spoken, 'final')
+              const ok = await speakAloud(spoken, 'final')
+              if (!ok) ttsFailed = true
             } else if (earlySpeakPromise) {
               await earlySpeakPromise
             }
@@ -393,10 +399,11 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           }
           return
         }
-        setStatus('ready')
+        // READY after a successful turn; keep ERROR visible when TTS cannot speak Arabic.
+        if (!ttsFailed) setStatus('ready')
         if (mode === 'hands_free' && handsFreeConversationId) {
           await maybeResumeHandsFree()
-        } else {
+        } else if (!ttsFailed) {
           setStatus('idle')
         }
       },

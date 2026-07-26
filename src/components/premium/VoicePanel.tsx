@@ -87,10 +87,14 @@ function VoicePanelComponent({
 
           <div className="relative z-10 flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-medium tracking-wide text-slate-300 uppercase">
-                {adapter.label}
+              <p className="text-[11px] font-medium tracking-wide text-slate-300">
+                {locale === 'ar' ? 'محادثة صوتية' : 'Voice conversation'}
               </p>
-              <p className="truncate text-sm font-semibold text-white">
+              <p
+                className="truncate text-sm font-semibold text-white"
+                data-testid="voice-panel-status"
+                data-state={panelState}
+              >
                 {voicePanelStateLabel(panelState, locale)}
               </p>
             </div>

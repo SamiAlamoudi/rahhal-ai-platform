@@ -33,6 +33,16 @@ describe('Recovery Phase 2 — premium experience', () => {
     expect(cards.some((c) => c.kind === 'hotel')).toBe(true)
   })
 
+  it('does not show Riyadh→Dubai cards for a Morocco seed', () => {
+    const cards = buildDynamicResultCards(
+      'أريد السفر إلى المغرب لمدة أسبوع من الرياض ميزانية عشرة آلاف',
+      4,
+    )
+    const flight = cards.find((c) => c.kind === 'flight')
+    expect(flight?.titleAr).toMatch(/المغرب|أكادير|مراكش/)
+    expect(flight?.titleAr).not.toContain('دبي')
+  })
+
   it('uses mock realtime voice when keys are absent', () => {
     expect(resolveRealtimeVoiceProviderId()).toBe('mock')
     const adapter = createRealtimeVoiceAdapter()
