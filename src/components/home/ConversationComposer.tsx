@@ -33,7 +33,10 @@ export function ConversationComposer({
     silenceMs: 3000,
     onResult: (transcript) => {
       const current = valueRef.current.trim()
-      onChange(current ? `${current} ${transcript}` : transcript)
+      const next = (current ? `${current} ${transcript}` : transcript).trim()
+      onChange(next)
+      // Voice continues naturally — no manual "Start conversation" step.
+      if (!disabled && next) onSubmit(next)
     },
   })
 

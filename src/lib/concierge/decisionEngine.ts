@@ -41,13 +41,15 @@ const BROAD_DESTINATIONS = new Set([
 const CITY_PACKS: Record<string, { en: Array<{ title: string; why: string }>; ar: Array<{ title: string; why: string }> }> = {
   morocco: {
     en: [
-      { title: 'Agadir', why: 'Great beaches and typically lower hotel costs.' },
       { title: 'Marrakech', why: 'Culture, souks, and food-led evenings.' },
+      { title: 'Agadir', why: 'Great beaches and typically lower hotel costs.' },
+      { title: 'Tangier', why: 'Mediterranean blend and northern gateway.' },
       { title: 'Casablanca', why: 'Urban pace, modern dining, coastal walks.' },
     ],
     ar: [
-      { title: 'أكادير', why: 'شواطئ ممتازة وتكلفة فنادق عادةً أخف.' },
       { title: 'مراكش', why: 'ثقافة وأسواق وأجواء طعام غنية.' },
+      { title: 'أكادير', why: 'شواطئ ممتازة وتكلفة فنادق عادةً أخف.' },
+      { title: 'طنجة', why: 'مزيج متوسطي وبوابة الشمال.' },
       { title: 'الدار البيضاء', why: 'تجربة مدنية عصرية على الساحل.' },
     ],
   },
@@ -198,13 +200,13 @@ function preferenceQuestionFor(
   }
   if (mode === 'destination_cities' || mode === 'budget_framed_cities') {
     return ar
-      ? 'من هذه الاتجاهات، أيّها يشدّك أكثر؟'
-      : 'From these directions, which interests you most?'
+      ? 'أي مدينة تفضل؟'
+      : 'Which city do you prefer?'
   }
   if (mode === 'style_narrow') {
     return ar
-      ? 'تميل لبحر وهدوء، ولا مدينة وثقافة؟'
-      : 'Are you leaning beach and calm, or city and culture?'
+      ? 'هل تفضل رحلة للاسترخاء أم تجربة ثقافية أكثر؟'
+      : 'Would you prefer a relaxing trip, or a more cultural experience?'
   }
   return ar
     ? 'أي اتجاه نقرّب عليه؟'
@@ -215,7 +217,8 @@ function cityBrief(destKey: string, locale: AgentLocale): string[] | null {
   const pack = CITY_PACKS[destKey]
   if (!pack) return null
   const rows = locale === 'ar' ? pack.ar : pack.en
-  return rows.map((row) => `${row.title} — ${row.why}`)
+  // Conversation-first: city names only — never dump why/hotel/flight blurbs yet.
+  return rows.map((row) => row.title)
 }
 
 /**
@@ -281,13 +284,13 @@ export function evaluateConciergeValueOpportunity(input: {
         valueBrief: brief,
         framingNote: amount != null
           ? (ar
-            ? `بميزانية حول ${amount} ${currency} والسفر ${when}، ${dest} يفتح عدة خيارات قوية.`
-            : `With a budget around ${amount} ${currency} and travel ${when}, ${dest} opens several strong options.`)
+            ? `رائع.\n\nبناءً على ميزانية حوالي ${amount} ${currency} والسفر ${when}، بقيت لدي نقطة واحدة فقط.`
+            : `Wonderful.\n\nBased on about ${amount} ${currency} and travel ${when}, just one detail remains.`)
           : (ar
-            ? `مع مرونة بالميزانية والسفر ${when}، هذه اتجاهات ${dest} الأنسب للبداية.`
-            : `With flexible budget and travel ${when}, these ${dest} directions are the strongest start.`),
+            ? `رائع.\n\nمع مرونة الميزانية والسفر ${when}، بقيت لدي نقطة واحدة فقط.`
+            : `Wonderful.\n\nWith a flexible budget and travel ${when}, just one detail remains.`),
         preferenceQuestion: preferenceQuestionFor('budget_framed_cities', locale, dest),
-        rationale: 'Country + budget + timing — recommend cities before more intake.',
+        rationale: 'Country + budget + timing — still one city clarification before dumps.',
       }
     }
     return {
@@ -296,27 +299,25 @@ export function evaluateConciergeValueOpportunity(input: {
       action: 'propose_options',
       valueBrief: brief,
       framingNote: ar
-        ? `${dest} يتيح أنماطاً مختلفة جداً — هذه أبرز الاتجاهات.`
-        : `${dest} supports very different trip styles — here are the strongest directions.`,
+        ? 'رائع.\n\nيسعدني مساعدتك في التخطيط.\n\nبقيت لدي نقطة واحدة فقط.'
+        : 'Wonderful.\n\nI am glad to help you plan.\n\nJust one detail remains.',
       preferenceQuestion: preferenceQuestionFor('destination_cities', locale, dest),
-      rationale: 'Broad destination known — compare cities before asking census fields.',
+      rationale: 'Broad destination — ask one city clarification and wait.',
     }
   }
 
   if (dest) {
-    // Specific city/destination — still provide itinerary / style value.
+    // Specific city — one style question; do not dump itinerary ideas yet.
     return {
       canProvideValue: true,
-      mode: 'itinerary_ideas',
+      mode: 'style_narrow',
       action: 'advise',
-      valueBrief: styleOptions(locale, dest).map((line) =>
-        ar ? `${dest}: ${line}` : `${dest}: ${line}`,
-      ),
+      valueBrief: [],
       framingNote: ar
-        ? `ممتاز — ${dest} قاعدة قوية. خلّينا نضبط طابع الرحلة.`
-        : `Strong base — ${dest}. Let us shape the character of the trip.`,
+        ? 'ممتاز.'
+        : 'Excellent.',
       preferenceQuestion: preferenceQuestionFor('style_narrow', locale, dest),
-      rationale: 'Specific destination known — inspire with trip character before form fields.',
+      rationale: 'City known — one style clarification before recommendations.',
     }
   }
 

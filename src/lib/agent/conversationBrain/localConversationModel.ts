@@ -137,19 +137,19 @@ function acknowledge(facts: TravelFacts, seed: number, ar: boolean): string {
   return pick(seed + 3, ar
     ? [
       `فهمت: ${joined}.`,
-      `عندي: ${joined}.`,
+      `بناءً على تفضيلاتك: ${joined}.`,
       `${joined} — هذا الأساس.`,
     ]
     : [
       `Understood: ${joined}.`,
-      `I have: ${joined}.`,
+      `Based on your preferences: ${joined}.`,
       `${joined} — that is the base.`,
     ])
 }
 
 function renderPlanDisplay(facts: TravelFacts, ar: boolean): string {
   const plan = facts.plan
-  if (!plan) return ar ? 'ما عندي خطة جاهزة بعد.' : 'I do not have a finished plan yet.'
+  if (!plan) return ar ? 'لم نجهّز خطة بعد.' : 'A finished plan is not ready yet.'
   const lines: string[] = []
   lines.push(ar
     ? `جهّزت تصوّراً لـ${plan.destinations.join('، ')} — التفاصيل تحت، وقل لي لو تبي نعدّل.`
@@ -239,7 +239,7 @@ function spokenPlan(facts: TravelFacts, seed: number, ar: boolean): string {
   if (ar) {
     return pick(seed, [
       `جهّزت تصوّراً لـ${dest} لمدة ${plan.durationDays} أيام${hotel ? ` مع إقامة في ${hotel}` : ''}${total ? `، بتقدير حوالي ${total.amount.toLocaleString('en-US')} ${total.currency}` : ''}. التفاصيل على الشاشة.`,
-      `عندي مسودة قوية لـ${dest}. ${hotel ? `أميل لـ${hotel}. ` : ''}راجع التفاصيل وقل لي وش نعدّل.`,
+      `وجدت مسودة قوية لـ${dest}. ${hotel ? `أرشح ${hotel}. ` : ''}راجع التفاصيل وقل لي وش نعدّل.`,
       `${dest} صارت أوضح الآن — خطة ${plan.durationDays} أيام جاهزة للمراجعة على الشاشة.`,
     ])
   }
@@ -281,22 +281,24 @@ export function generateLocalConversation(input: {
     }
     case 'explain_unavailable': {
       const spokenText = pick(seed, ar
-        ? ['ما عندي خطة جاهزة للحفظ بعد — خلّنا نكمّل التفاصيل أولاً.', 'لسه ما جهّزنا الخطة — كمّل معي شوي وبعدين نحفظ.']
+        ? ['لم نجهّز خطة للحفظ بعد — خلّنا نكمّل التفاصيل أولاً.', 'لسه ما جهّزنا الخطة — كمّل معي شوي وبعدين نحفظ.']
         : ['There is no plan to save yet — let’s finish shaping it first.', 'We have not drafted the plan yet — a little more detail and we can save.'])
       return { displayText: spokenText, spokenText }
     }
     case 'propose_options':
     case 'advise': {
-      const ack = acknowledge(input.facts, seed, ar)
       const draft = input.facts.planningDraft
       const framing = draft?.rankingNote
         || input.facts.recommendations?.[0]
         || pick(seed + 2, ar
-          ? ['هذه قراءة مستشار على ما عندنا الآن.', 'خلّيني أضيّق لك الاتجاه قبل ما نسأل تفاصيل إضافية.']
-          : ['Here is a consultant read on what we already know.', 'Let me narrow direction before asking for more detail.'])
+          ? ['بناءً على تفضيلاتك، خلّيني أضيّق الاتجاه.', 'وجدت خيارات تناسب رحلتك — نختار معاً.']
+          : ['Based on your preferences, let me narrow the direction.', 'I found options that fit your trip — let’s choose together.'])
+      // Framing already carries the consultant openers — avoid a second ack dump.
+      const ack = framing ? '' : acknowledge(input.facts, seed, ar)
 
       let hints = ''
       if (draft && draft.cities.length > 0) {
+        // Full draft is only attached after clarifying modes are done.
         const cityLines = draft.cities.slice(0, 3).map((city) => `• ${city.name} — ${city.why}`)
         const b = draft.breakdown
         const fmt = (est: { low: number; high: number; mid: number; currency: string }) =>
@@ -329,22 +331,14 @@ export function generateLocalConversation(input: {
         hints = input.facts.optionHints.map((h) => `• ${h}`).join('\n')
       }
 
-      const beachCity = draft?.cities.some((c) =>
-        /agadir|antalya|bali|beach|شاطئ|أكادير|أنطاليا|بالي/i.test(`${c.name} ${c.why}`),
-      )
-      const styleCloser = beachCity
-        ? (ar
-          ? 'تميل لرحلة شاطئ واسترخاء، ولا تجربة مدينة وثقافة؟'
-          : 'Would you like a relaxing beach trip or a city experience?')
-        : null
       const questionFromFacts = input.facts.recommendations?.find((row) => /[?؟]\s*$/.test(row.trim()))
-      const closer = styleCloser
-        || questionFromFacts
+      const closer = questionFromFacts
         || pick(seed + 1, ar
-          ? ['من هذه الاتجاهات، أيّها يشدّك أكثر؟', 'بحر وهدوء، ولا مدينة وثقافة؟']
-          : ['From these directions, which interests you most?', 'Beach and calm, or city and culture?'])
+          ? ['أي مدينة تفضل؟', 'هل تفضل رحلة للاسترخاء أم تجربة ثقافية أكثر؟']
+          : ['Which city do you prefer?', 'Would you prefer a relaxing trip, or a more cultural experience?'])
       const displayText = [ack, framing, hints, closer].filter(Boolean).join('\n\n')
-      return { displayText, spokenText: `${ack} ${framing} ${closer}` }
+      const spokenBits = [ack, framing, closer].filter(Boolean).join(' ')
+      return { displayText, spokenText: spokenBits }
     }
     case 'confirm_understanding': {
       const heard = input.facts.heardSummary?.join(ar ? ' · ' : ' · ') || acknowledge(input.facts, seed, ar)
@@ -362,11 +356,11 @@ export function generateLocalConversation(input: {
         const seedNote = input.facts.recommendations.join(' · ')
         const spokenText = pick(seed, ar
           ? [
-            `هذا اللي عندي الآن: ${seedNote.slice(0, 180)}. تبي نكمّل من هنا؟`,
+            `بناءً على تفضيلاتك: ${seedNote.slice(0, 180)}. تبي نكمّل من هنا؟`,
             `خلّيني ألخّص لك الوضع: ${seedNote.slice(0, 180)}.`,
           ]
           : [
-            `Here is where things stand: ${seedNote.slice(0, 200)}. Shall we continue from here?`,
+            `Based on your preferences: ${seedNote.slice(0, 200)}. Shall we continue from here?`,
             `Quickly — ${seedNote.slice(0, 200)}.`,
           ])
         return { displayText: spokenText, spokenText }
@@ -380,8 +374,8 @@ export function generateLocalConversation(input: {
             ? [`${ack} نقدر نبني على هذا الأساس متى ما جاهز.`, `${ack} قل «ابني الخطة» وأكمل لك.`]
             : [`${ack} We can build on this whenever you are ready.`, `${ack} Say “build the plan” and I will continue.`])
           : pick(seed + 7, ar
-            ? ['عندي ما يكفي لنبدأ — قل «ابني الخطة» متى ما جاهز.', 'الصورة مكتملة تقريباً. نجهّز الخيارات؟']
-            : ['I have enough to begin — say “build the plan” when you are ready.', 'The picture is nearly complete. Shall I put options together?'])
+            ? ['بناءً على تفضيلاتك نستطيع البدء — قل «ابني الخطة» متى ما جاهز.', 'الصورة مكتملة تقريباً. نجهّز الخيارات؟']
+            : ['Based on your preferences we can begin — say “build the plan” when you are ready.', 'The picture is nearly complete. Shall I put options together?'])
         return { displayText: spokenText, spokenText }
       }
       const question = askForSlot(slot, input.facts, seed + 11, ar)

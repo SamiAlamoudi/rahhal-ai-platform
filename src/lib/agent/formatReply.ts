@@ -22,8 +22,8 @@ export function buildFollowUpQuestion(
 
   if (!next) {
     return t(locale, {
-      ar: 'عندي ما يكفي لنبدأ. قل «ابني الخطة» وسأجهّز الخيارات.',
-      en: 'I have enough to begin. Say “build the plan” and I will put options together.',
+      ar: 'بناءً على تفضيلاتك، نستطيع البدء. قل «ابني الخطة» وسأجهّز الخيارات.',
+      en: 'Based on your preferences, we can begin. Say “build the plan” and I will put options together.',
     })
   }
 
@@ -64,7 +64,7 @@ export function buildSpokenPlanSummary(plan: TripPlan, locale: AgentLocale): str
   }
 
   const bits = [
-    `I have a first cut for ${dest} — ${daysLabel}${party ? ` for a ${party}` : ''}.`,
+    `I prepared a first cut for ${dest} — ${daysLabel}${party ? ` for a ${party}` : ''}.`,
   ]
   if (hotel) bits.push(`I am leaning toward ${hotel} for the stay.`)
   if (flight?.from && flight?.to) {
@@ -95,8 +95,8 @@ export function formatTripPlanReply(plan: TripPlan, locale: AgentLocale): string
 /** Bridge line spoken immediately while planning runs (ChatGPT-Voice feel). */
 export function buildThinkingBridge(locale: AgentLocale): string {
   return t(locale, {
-    ar: 'لحظة — عندي أفكار أولية، خلّني أقارن أفضل الخيارات.',
-    en: 'Give me a second — I already have a few ideas. Let me compare the best options.',
+    ar: 'لحظة — أراجع أفضل الخيارات لرحلتك.',
+    en: 'Give me a second — I am comparing the strongest options for your trip.',
   })
 }
 

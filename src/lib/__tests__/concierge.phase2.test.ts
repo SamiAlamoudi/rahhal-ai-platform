@@ -126,7 +126,8 @@ describe('Concierge Phase 2 — turn policy', () => {
     expect(['propose_options', 'advise']).toContain(decision.action)
     expect(decision.shouldExecuteAgent).toBe(false)
     expect(decision.askFields).toEqual([])
-    expect(decision.valueBrief?.length).toBeGreaterThan(0)
+    // Conversation-first: one style clarification — not an inventory dump.
+    expect(decision.preferenceQuestion).toMatch(/relax|cultural|beach|city/i)
   })
 
   it('proposes options on an advisory beat when intake is complete', () => {

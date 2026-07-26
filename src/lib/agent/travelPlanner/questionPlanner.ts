@@ -89,21 +89,10 @@ export function planRequiredQuestions(input: {
   if (requiredQuestions.length === 0) {
     return { requiredQuestions: [], combinedQuestion: null }
   }
-  if (requiredQuestions.length === 1) {
-    return { requiredQuestions, combinedQuestion: requiredQuestions[0]! }
+  // Conversation-first: never combine multiple missing slots into one question.
+  return {
+    requiredQuestions: requiredQuestions.slice(0, 1),
+    combinedQuestion: requiredQuestions[0]!,
   }
-
-  const prompts = input.missingInformation
-    .map((field) => FIELD_PROMPTS[field]?.[locale === 'ar' ? 'ar' : 'en'] ?? field)
-  const combinedQuestion = locale === 'ar'
-    ? `هل يمكنك توضيح ${prompts.join(' و')}؟`
-    : `What ${joinNatural(prompts)}?`
-
-  return { requiredQuestions, combinedQuestion }
 }
 
-function joinNatural(parts: string[]): string {
-  if (parts.length === 1) return parts[0]!
-  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`
-  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
-}

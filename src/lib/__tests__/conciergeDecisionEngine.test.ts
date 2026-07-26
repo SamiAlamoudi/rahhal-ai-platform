@@ -81,8 +81,9 @@ describe('Concierge Decision Engine — unit', () => {
     })
     expect(assessment.canProvideValue).toBe(true)
     expect(assessment.mode).toBe('destination_cities')
-    expect(assessment.valueBrief.join(' ')).toMatch(/Agadir|Marrakech|Casablanca/)
-    expect(assessment.preferenceQuestion).toMatch(/interests you most|which/i)
+    expect(assessment.valueBrief.join(' ')).toMatch(/Agadir|Marrakech|Casablanca|Tangier/)
+    expect(assessment.valueBrief.every((line) => !line.includes('—'))).toBe(true)
+    expect(assessment.preferenceQuestion).toMatch(/which city|prefer/i)
   })
 
   it('frames Morocco cities with budget + August timing', () => {
@@ -179,10 +180,12 @@ describe('Concierge Decision Engine — live planTurn feel', () => {
       messages: [user('I want to travel to Morocco.', 'intel-morocco')],
     })
     expect(turn.memory.requirements.destination).toBe('Morocco')
-    expect(turn.reply).toMatch(/Agadir|Marrakech|Casablanca/i)
+    expect(turn.reply).toMatch(/Agadir|Marrakech|Casablanca|Tangier/i)
     expect(turn.reply.toLowerCase()).not.toMatch(/^(understood:[^.]*\.\s*)?(when\?|budget\?|how many)/i)
     expect(turn.reply).not.toMatch(/\bHow many (days|travelers|people)\b/i)
-    expect(turn.reply).toMatch(/which|beach|city|interests you|direction/i)
+    expect(turn.reply).toMatch(/which city|prefer/i)
+    expect(turn.reply).not.toMatch(/First-pass ranges|Flights |Hotels |Food |Transport |Activities /i)
+    expect(turn.reply).not.toMatch(/\bI have\b|عندي/)
   })
 
   it('Morocco + August + 5000 → value with cities, not duration census', async () => {
@@ -205,9 +208,10 @@ describe('Concierge Decision Engine — live planTurn feel', () => {
     })
     expect(t2.memory.requirements.destination).toBe('Morocco')
     expect(t2.memory.requirements.budgetAmount).toBe(5000)
-    expect(t2.reply).toMatch(/Agadir|Marrakech|Casablanca/i)
-    expect(t2.reply).toMatch(/5000|August|2026-08/i)
+    expect(t2.reply).toMatch(/Agadir|Marrakech|Casablanca|Tangier/i)
+    expect(t2.reply).toMatch(/5000|August|2026-08|which city|prefer/i)
     expect(t2.reply).not.toMatch(/\bHow many days\b|\bHow many travelers\b|\bBudget\?\b/i)
+    expect(t2.reply).not.toMatch(/First-pass ranges|• Flights |• Hotels /i)
   })
 
   it('Japan next year → season guidance with context', async () => {

@@ -279,7 +279,7 @@ describe('Planning Draft — ranged estimates with confidence + reason', () => {
 describe('Planning Draft — planTurn integration', () => {
   beforeEach(() => resetFeatureRegistry())
 
-  it('attaches honest draft meta (null travelers, ranged breakdown)', async () => {
+  it('keeps Morocco clarifying turns free of planning-draft dumps', async () => {
     const service = createTravelAgentService({
       tools: createMockAgentToolRegistry(),
       smartClarificationEnabled: true,
@@ -298,23 +298,16 @@ describe('Planning Draft — planTurn integration', () => {
       ],
     })
 
-    expect(turn.meta.planningDraft).toBeTruthy()
-    expect(turn.meta.planningDraft?.destination).toBe('Morocco')
-    expect(turn.meta.planningDraft?.travelerCount).toBeNull()
-    expect(turn.meta.planningDraft?.breakdown.flights.low).toBeLessThan(
-      turn.meta.planningDraft!.breakdown.flights.high,
-    )
-    expect(turn.meta.planningDraft?.breakdown.flights.reason).toMatch(/departure city unknown/i)
-    expect(turn.meta.planningDraft?.missingAssumptions).toContain('traveler count unknown')
+    // Conversation-first: still ask for a city — do not dump flights/hotels/budget cards.
+    expect(turn.meta.planningDraft).toBeFalsy()
     expect(turn.tripPlan).toBeNull()
-
-    expect(turn.reply).toMatch(/Agadir|Marrakech/i)
-    expect(turn.reply).toMatch(/\d+–\d+|departure city unknown|party size unknown/i)
+    expect(turn.reply).toMatch(/Agadir|Marrakech|Casablanca|Tangier/i)
+    expect(turn.reply).toMatch(/which city|prefer|5000|August|2026-08/i)
+    expect(turn.reply).not.toMatch(/First-pass ranges|• Flights |• Hotels /i)
     expect(turn.reply).not.toMatch(/"kind"\s*:\s*"planning_draft"/)
-    expect(turn.reply).toMatch(/beach|city|relax|which interests|direction/i)
   })
 
-  it('uses draft ranking so Agadir is preferred over Marrakech on 5000 SAR / 7 nights August', async () => {
+  it('asks one city before ranking Agadir vs Marrakech on a budgeted Morocco trip', async () => {
     const service = createTravelAgentService({
       tools: createMockAgentToolRegistry(),
       smartClarificationEnabled: true,
@@ -329,9 +322,9 @@ describe('Planning Draft — planTurn integration', () => {
         ),
       ],
     })
-    expect(turn.meta.planningDraft?.rankedCities[0]).toBe('Agadir')
-    expect(turn.meta.planningDraft?.travelerCount).toBeNull()
+    expect(turn.meta.planningDraft).toBeFalsy()
     expect(turn.reply).toMatch(/Agadir/i)
     expect(turn.reply).toMatch(/Marrakech/i)
+    expect(turn.reply).toMatch(/which city|prefer/i)
   })
 })

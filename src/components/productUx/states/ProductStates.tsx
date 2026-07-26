@@ -24,8 +24,8 @@ const COPY: Record<
     titleEn: 'Start your first chat',
     bodyAr: 'أخبر رحّال بوجهتك أو ميزانيتك — بلا نماذج حجز.',
     bodyEn: 'Tell Rahhal your destination or budget — no booking forms.',
-    actionAr: 'ابدأ المحادثة',
-    actionEn: 'Start conversation',
+    actionAr: 'أرسل',
+    actionEn: 'Send',
   },
   no_trips: {
     titleAr: 'لا رحلات بعد',

@@ -118,8 +118,8 @@ export function smartFollowUp(input: {
 export function naturalToolFailureMessage(locale: 'ar' | 'en', detail?: string): string {
   if (locale === 'ar') {
     return detail
-      ? `صار عندي تعثر بسيط (${detail}). خلّني أعيد المحاولة أو نكمّل بطريقة ثانية.`
-      : 'صار عندي تعثر بسيط. خلّني أعيد المحاولة أو نكمّل بطريقة ثانية.'
+      ? `حدث تعثر بسيط (${detail}). خلّني أعيد المحاولة أو نكمّل بطريقة ثانية.`
+      : 'حدث تعثر بسيط. خلّني أعيد المحاولة أو نكمّل بطريقة ثانية.'
   }
   return detail
     ? `I hit a small snag (${detail}). I can retry, or we can take another path.`

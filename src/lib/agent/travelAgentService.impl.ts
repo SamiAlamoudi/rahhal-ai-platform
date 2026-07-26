@@ -3165,13 +3165,23 @@ export function createTravelAgentService(
         if (!conciergeResult.handoff.shouldExecuteAgent) {
           // Experience Sprint 2 — Concierge decides policy/facts only; LLM writes the reply.
           memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
+          // Clarifying turns (city / style) must not dump recommendations or planning drafts.
+          const clarifyingMode = new Set([
+            'destination_cities',
+            'budget_framed_cities',
+            'style_narrow',
+          ]).has(conciergeResult.decision.valueMode ?? 'none')
+
           let optionHints: string[] | undefined
           const decisionBrief = conciergeResult.decision.valueBrief
           if (decisionBrief && decisionBrief.length > 0) {
             optionHints = decisionBrief
           } else if (
-            conciergeResult.decision.action === 'propose_options'
-            || conciergeResult.decision.action === 'advise'
+            !clarifyingMode
+            && (
+              conciergeResult.decision.action === 'propose_options'
+              || conciergeResult.decision.action === 'advise'
+            )
           ) {
             const __mod_buildConciergeRecommendations = await loadConciergeRecommendations()
 
@@ -3182,8 +3192,9 @@ export function createTravelAgentService(
             })
             optionHints = recs.optionLines
           }
+
           // Planning Draft — deterministic estimates for Conversation Brain (not TripPlan).
-          const planningDraft = canBuildPlanningDraft(memory.requirements)
+          const planningDraft = !clarifyingMode && canBuildPlanningDraft(memory.requirements)
             ? buildPlanningDraft({
               requirements: memory.requirements,
               locale: memory.locale,

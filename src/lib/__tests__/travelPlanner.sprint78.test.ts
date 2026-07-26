@@ -110,7 +110,7 @@ describe('Sprint 78 — AI Travel Strategy Planner', () => {
     expect(result.decisions.needMultiCity).toBe(true)
   })
 
-  it('handles incomplete requests with combined clarifying questions', () => {
+  it('handles incomplete requests with one clarifying question at a time', () => {
     const result = runTravelPlanner({
       userText: 'I want to travel somewhere nice',
       memory: emptyMemory('en'),
@@ -119,8 +119,8 @@ describe('Sprint 78 — AI Travel Strategy Planner', () => {
     expect(result.missingInformation.length).toBeGreaterThan(0)
     expect(result.decisions.shouldAskQuestion).toBe(true)
     expect(result.combinedQuestion).toBeTruthy()
-    expect(result.combinedQuestion).toMatch(/and|,/)
-    expect(result.requiredQuestions.length).toBeGreaterThan(1)
+    expect(result.requiredQuestions).toHaveLength(1)
+    expect((result.combinedQuestion!.match(/\?/g) ?? []).length).toBe(1)
   })
 
   it('marks missing budget when destination and dates exist', () => {
@@ -194,14 +194,14 @@ describe('Sprint 78 — AI Travel Strategy Planner', () => {
     expect(result.riskFlags).toContain('hard_arrival_deadline')
   })
 
-  it('combines multiple missing items into one concise question', () => {
+  it('asks only the highest-priority missing item (one question)', () => {
     const planned = planRequiredQuestions({
       missingInformation: ['dates', 'travelers', 'destination'],
       locale: 'en',
     })
+    expect(planned.requiredQuestions).toHaveLength(1)
     expect(planned.combinedQuestion).toMatch(/dates/i)
-    expect(planned.combinedQuestion).toMatch(/people|joining/i)
-    expect(planned.combinedQuestion).not.toMatch(/\?\s*What/)
+    expect(planned.combinedQuestion).not.toMatch(/people|joining|destination/i)
   })
 
   it('handles complex mixed requests with preferences and budget', () => {

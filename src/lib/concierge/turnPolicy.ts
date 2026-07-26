@@ -58,6 +58,7 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
   let valueBrief: string[] | undefined
   let framingNote: string | null | undefined
   let preferenceQuestion: string | null | undefined
+  let valueMode: ConciergeTurnDecision['valueMode']
 
   const valueGate = shouldLeadWithValue({
     requirements: ctx.requirements,
@@ -74,6 +75,7 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
     valueBrief = valueGate.valueBrief
     framingNote = valueGate.framingNote
     preferenceQuestion = valueGate.preferenceQuestion
+    valueMode = valueGate.mode
     rationale = `${prefix}${valueGate.rationale}`
   }
 
@@ -113,6 +115,7 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
       valueBrief,
       framingNote,
       preferenceQuestion,
+      valueMode,
     }
   }
 
@@ -247,6 +250,7 @@ export function decideConciergeTurn(ctx: ConciergeTurnContext): ConciergeTurnDec
     valueBrief,
     framingNote,
     preferenceQuestion,
+    valueMode,
   }
 }
 
