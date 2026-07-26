@@ -250,15 +250,31 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   }
 
   const ensureMicPermission = async (): Promise<MicrophonePermissionState> => {
-    setStatus('requesting_permission')
-    logPipeline({ stage: 'microphone', event: 'permission_request' })
-    voiceStage({
-      stage: 'MIC_PERMISSION',
-      previousState: status,
-      currentState: 'requesting_permission',
-      conversationId: handsFreeConversationId,
-      meta: { phase: 'start' },
-    })
+    const previousStatus = status
+    // Live resume (READY / reconnecting / listening) must not thrash the session
+    // through requesting_permission → idle — that fake IDLE was wiping READY and
+    // appearing in traces immediately before the next STT_START.
+    const liveResume =
+      previousStatus === 'ready'
+      || previousStatus === 'reconnecting'
+      || previousStatus === 'listening'
+    if (!liveResume) {
+      setStatus('requesting_permission')
+      logPipeline({ stage: 'microphone', event: 'permission_request' })
+      voiceStage({
+        stage: 'MIC_PERMISSION',
+        previousState: previousStatus,
+        currentState: 'requesting_permission',
+        conversationId: handsFreeConversationId,
+        meta: { phase: 'start' },
+      })
+    } else {
+      logPipeline({
+        stage: 'microphone',
+        event: 'permission_recheck',
+        meta: { previousStatus, phase: 'live_resume' },
+      })
+    }
     const state = await requestPermission()
     callbacks.onPermission?.(state)
     if (state.state !== 'granted') {
@@ -271,7 +287,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       voiceStage({
         stage: 'MIC_PERMISSION',
         success: false,
-        previousState: 'requesting_permission',
+        previousState: liveResume ? previousStatus : 'requesting_permission',
         currentState: 'ERROR',
         conversationId: handsFreeConversationId,
         reason: state.error ?? state.state,
@@ -280,7 +296,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       if (!isBenignChatError(state.error)) {
         callbacks.onError?.(state.error || 'يلزم إذن الميكروفون للمتابعة')
       }
-    } else if (status === 'requesting_permission') {
+    } else if (!liveResume && status === 'requesting_permission') {
       setStatus('idle')
       logPipeline({ stage: 'microphone', event: 'permission_granted' })
       voiceStage({
@@ -289,6 +305,12 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         currentState: 'IDLE',
         conversationId: handsFreeConversationId,
         meta: { phase: 'granted' },
+      })
+    } else if (liveResume) {
+      logPipeline({
+        stage: 'microphone',
+        event: 'permission_granted',
+        meta: { previousStatus, phase: 'live_resume' },
       })
     }
     return state
@@ -333,7 +355,13 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   const maybeResumeHandsFree = async () => {
     if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
     try {
-      setStatus('reconnecting')
+      // After a successful turn the session is READY. Resume READY → LISTENING
+      // without inserting reconnecting/idle in the same turn (READY must remain
+      // the settled state immediately before the next STT session).
+      // Reconnecting is only for recovering a live listen (browser onEnd / interrupt).
+      if (status !== 'ready') {
+        setStatus('reconnecting')
+      }
       // Keep mid-thought speech across browser STT restarts (ChatGPT-like continuity).
       await startListening(true, { preserveUtterance: true })
       voiceTrace({

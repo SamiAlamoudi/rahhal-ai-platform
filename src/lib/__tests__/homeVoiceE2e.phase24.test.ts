@@ -138,6 +138,11 @@ describe('Recovery Phase 2.4 — home voice end-to-end', () => {
     await Promise.resolve()
     expect(statuses).toContain('listening')
     expect(session.getMode()).toBe('hands_free')
+    // READY must precede the next STT session; no fake IDLE from mic re-check.
+    const readyIdx = statuses.indexOf('ready')
+    const listenIdx = statuses.indexOf('listening', readyIdx + 1)
+    expect(listenIdx).toBeGreaterThan(readyIdx)
+    expect(statuses.slice(readyIdx, listenIdx)).not.toContain('idle')
 
     // Turn 2 without pressing mic again.
     controller.emitFinal('أفضل أكادير والرحلة من الرياض')
