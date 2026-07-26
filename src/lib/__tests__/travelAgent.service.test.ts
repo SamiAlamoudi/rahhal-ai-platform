@@ -22,7 +22,7 @@ function user(content: string): ChatMessage {
 }
 
 describe('travelAgentService orchestration', () => {
-  it('asks follow-up instead of guessing duration for honeymoon Bali', async () => {
+  it('asks one style clarification instead of dumping a Bali plan', async () => {
     const service = createTravelAgentService()
     const turn = await service.planTurn({
       conversationId: 'c1',
@@ -30,7 +30,8 @@ describe('travelAgentService orchestration', () => {
     })
     expect(turn.memory.missingFields).toContain('durationDays')
     expect(turn.tripPlan).toBeNull()
-    expect(turn.reply.toLowerCase()).toMatch(/day|مدة|duration|when|متى/)
+    expect(turn.reply.toLowerCase()).toMatch(/relax|cultural|استرخاء|ثقاف|excellent|ممتاز/)
+    expect(turn.reply).not.toMatch(/عندي|\bI have\b/)
     expect(turn.meta.version).toBe(2)
   })
 

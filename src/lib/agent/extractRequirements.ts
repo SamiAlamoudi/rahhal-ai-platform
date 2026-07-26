@@ -34,13 +34,14 @@ const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
   { keys: ['cairo', 'القاهرة', 'egypt', 'مصر'], value: 'Cairo' },
   { keys: ['maldives', 'المالديف'], value: 'Maldives' },
   { keys: ['bali', 'بالي', 'indonesia', 'اندونيسيا', 'إندونيسيا'], value: 'Bali' },
-  {
-    keys: [
-      'morocco', 'marrakech', 'casablanca', 'agadir', 'rabat',
-      'المغرب', 'مراكش', 'الدار البيضاء', 'اكادير', 'أكادير', 'الرباط',
-    ],
-    value: 'Morocco',
-  },
+  // Moroccan cities before the country — so a city answer advances past country clarify.
+  { keys: ['marrakech', 'marrakesh', 'مراكش'], value: 'Marrakech' },
+  { keys: ['casablanca', 'الدار البيضاء'], value: 'Casablanca' },
+  { keys: ['agadir', 'اكادير', 'أكادير'], value: 'Agadir' },
+  { keys: ['tangier', 'tanger', 'طنجة'], value: 'Tangier' },
+  { keys: ['rabat', 'الرباط'], value: 'Rabat' },
+  { keys: ['fes', 'fez', 'فاس'], value: 'Fes' },
+  { keys: ['morocco', 'المغرب'], value: 'Morocco' },
 ]
 
 export interface ExtractionResult {

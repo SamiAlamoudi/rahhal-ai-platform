@@ -57,8 +57,8 @@ const COPY: Record<ProductCopyKey, { ar: string; en: string }> = {
     en: 'Private chat · explained picks · confirm before any booking',
   },
   startConversation: {
-    ar: 'ابدأ المحادثة',
-    en: 'Start conversation',
+    ar: 'أرسل',
+    en: 'Send',
   },
   authLoginTitle: {
     ar: 'أهلاً بك في رحّال',

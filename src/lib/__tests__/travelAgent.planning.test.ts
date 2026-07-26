@@ -26,7 +26,7 @@ function user(content: string): ChatMessage {
 }
 
 describe('Phase L intelligent trip planning', () => {
-  it('asks when/duration instead of generating for destination-only Japan', async () => {
+  it('asks one city/season clarification instead of generating for destination-only Japan', async () => {
     const service = createTravelAgentService({ tools: createMockAgentToolRegistry() })
     const turn = await service.planTurn({
       conversationId: 'c1',
@@ -35,8 +35,9 @@ describe('Phase L intelligent trip planning', () => {
     expect(turn.tripPlan).toBeNull()
     expect(turn.memory.phase).toBe('collecting')
     expect(turn.memory.missingFields[0]).toBe('durationDays')
-    expect(turn.reply.toLowerCase()).toMatch(/when|day|مدة|متى/)
-    expect(turn.reply.toLowerCase()).toMatch(/japan|اليابان/)
+    expect(turn.reply.toLowerCase()).toMatch(/tokyo|kyoto|osaka|which city|prefer|season/)
+    expect(turn.reply.toLowerCase()).toMatch(/japan|tokyo|kyoto|osaka/)
+    expect(turn.reply).not.toMatch(/First-pass ranges|• Flights /i)
   })
 
   it('remembers answers across intake turns then generates a full trip plan', async () => {

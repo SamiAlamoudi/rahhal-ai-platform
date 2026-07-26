@@ -71,7 +71,8 @@ export function planIntelligentQuestions(
     })
   }
 
-  return questions.sort((a, b) => a.priority - b.priority).slice(0, 2)
+  // Conversation-first: at most one intelligent question per turn.
+  return questions.sort((a, b) => a.priority - b.priority).slice(0, 1)
 }
 
 /** Fields that are OK to leave unknown — never force interview. */

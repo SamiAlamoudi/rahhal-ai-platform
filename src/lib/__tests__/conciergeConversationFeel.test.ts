@@ -211,7 +211,8 @@ describe('Concierge feel — consultant voice', () => {
       conversationId: 'voice-1',
     })
     expect(out.displayText.toLowerCase()).not.toMatch(/\b(great|excellent|wonderful|perfect|lovely)\b/)
-    expect(out.displayText).toMatch(/Understood|I have|Morocco/i)
+    expect(out.displayText).toMatch(/Understood|Based on your preferences|Morocco/i)
+    expect(out.displayText).not.toMatch(/\bI have\b|عندي/)
     expect((out.displayText.match(/\?/g) ?? []).length).toBeLessThanOrEqual(1)
   })
 })

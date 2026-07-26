@@ -67,8 +67,8 @@ export function buildConsultantReply(input: ConsultantVoiceInput): string {
     case 'search':
       // Agent will produce the structured plan reply; Concierge only bridges.
       return line(locale, {
-        ar: 'لحظة — عندي أفكار أولية، خلّني أقارن أفضل الخيارات.',
-        en: 'One moment — I already have a few ideas. Let me compare the best options.',
+        ar: 'لحظة — أراجع أفضل الخيارات لرحلتك.',
+        en: 'One moment — I am comparing the strongest options for your trip.',
       })
     case 'refine':
       return line(locale, {
@@ -181,8 +181,8 @@ function ackBlock(
   const bits: string[] = []
   if (heard.length) {
     bits.push(line(locale, {
-      ar: `واضح عندي: ${heard.join(' · ')}.`,
-      en: `I have this so far: ${heard.join(' · ')}.`,
+      ar: `بناءً على ما ذكرت: ${heard.join(' · ')}.`,
+      en: `Based on what you shared: ${heard.join(' · ')}.`,
     }))
   }
   if (soft.pace) {
@@ -257,8 +257,8 @@ function proposeBlock(
   if (optionLines && optionLines.length > 0) {
     return [
       line(locale, {
-        ar: 'عندي ثلاث اتجاهات منطقية:',
-        en: 'I see three sensible directions:',
+        ar: 'وجدت ثلاثة اتجاهات تناسب رحلتك:',
+        en: 'I found three directions that fit your trip:',
       }),
       ...optionLines.map((row, i) => `${i + 1}. ${row}`),
     ].join('\n')
@@ -279,8 +279,8 @@ function proposeBlock(
       ]
   return [
     line(locale, {
-      ar: 'عندي ثلاث اتجاهات منطقية:',
-      en: 'I see three sensible directions:',
+      ar: 'وجدت ثلاثة اتجاهات تناسب رحلتك:',
+      en: 'I found three directions that fit your trip:',
     }),
     ...lines.map((row, i) => `${i + 1}. ${row}`),
   ].join('\n')

@@ -21,8 +21,8 @@ export const RAHHAL_PERSONALITY = {
   interruptEn: 'Interrupt',
   emptyChatAr: 'أنا هنا لأصمّم رحلتك بعناية — ابدأ بأي تفصيلة تخطر ببالك.',
   emptyChatEn: 'I’m here to craft your trip with care — start with any detail you have.',
-  startChatAr: 'ابدأ المحادثة',
-  startChatEn: 'Start conversation',
+  startChatAr: 'أرسل',
+  startChatEn: 'Send',
 } as const
 
 type PersonalityPair =

@@ -89,6 +89,17 @@ export interface ConciergeTurnDecision {
   framingNote?: string | null
   /** Preference closer (beach vs city…), never a form census label. */
   preferenceQuestion?: string | null
+  /**
+   * Decision Engine mode — used to keep clarifying turns conversational
+   * (no planning-draft dumps of flights/hotels/budget).
+   */
+  valueMode?:
+    | 'none'
+    | 'destination_cities'
+    | 'season_guidance'
+    | 'budget_framed_cities'
+    | 'style_narrow'
+    | 'itinerary_ideas'
 }
 
 export function emptySoftSignals(): ConciergeSoftSignals {

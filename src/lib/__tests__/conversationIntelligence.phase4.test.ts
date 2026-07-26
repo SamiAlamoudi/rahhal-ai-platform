@@ -140,13 +140,13 @@ describe('Phase 4 — Conversation Intelligence', () => {
     expect(formatted).toMatch(/•/)
   })
 
-  it('plans only outcome-changing questions (max 2, never interview chain)', () => {
+  it('plans only outcome-changing questions (max 1, never interview chain)', () => {
     const memory = updateLiveTravelMemory(
       createEmptyLiveTravelMemory(),
       extractEntities('I want Tokyo in October with my wife around ten thousand'),
     )
     const questions = planIntelligentQuestions(memory, 'en')
-    expect(questions.length).toBeLessThanOrEqual(2)
+    expect(questions.length).toBeLessThanOrEqual(1)
     const joined = questions.map((q) => q.textEn.toLowerCase()).join(' ')
     expect(joined).not.toMatch(/\bwhat city\b/)
     expect(joined).not.toMatch(/\bwhat is your budget\b/)
