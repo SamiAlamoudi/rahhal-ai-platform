@@ -92,6 +92,7 @@ export default function MessageBubble({
       reactState: {
         waitingComponent: 'MessageBubble',
         isStreaming: Boolean(isStreaming || message.status === 'streaming'),
+        assistantBubbleRendered: true,
       },
       meta: {
         component: 'MessageBubble',

@@ -1,5 +1,5 @@
 import { productStatus, type ProductLocale } from '../../../lib/productUx'
-import { thinkingEvidence } from '../../../lib/chat/voice/thinkingStuckEvidence'
+import { noteThinkingUiEntered, thinkingEvidence } from '../../../lib/chat/voice/thinkingStuckEvidence'
 
 export type VoiceUiState =
   | 'listening'
@@ -21,9 +21,11 @@ export function VoiceStateBadge({ state, locale = 'ar' }: VoiceStateBadgeProps) 
   const label = locale === 'ar' ? meta.labelAr : meta.labelEn
 
   if (state === 'thinking') {
+    noteThinkingUiEntered('VoiceStateBadge')
     thinkingEvidence('REACT_RENDER', {
       reactState: {
         voiceUiState: state,
+        voiceStatus: 'thinking',
         waitingComponent: 'VoiceStateBadge',
       },
       meta: {

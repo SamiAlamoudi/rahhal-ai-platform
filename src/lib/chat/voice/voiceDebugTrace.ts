@@ -102,6 +102,12 @@ let voiceSessionId =
 let lastState: string | null = 'IDLE'
 const stageStartedAt = new Map<VoicePipelineStage, number>()
 
+function publishVoiceSessionId(): void {
+  if (typeof window === 'undefined') return
+  ;(window as Window & { __VOICE_SESSION_ID__?: string }).__VOICE_SESSION_ID__ = voiceSessionId
+}
+publishVoiceSessionId()
+
 const EVENT_TO_STAGE: Record<VoiceTraceEvent, VoicePipelineStage> = {
   final_transcript_received: 'FINAL_RESULT',
   cleaned_transcript: 'TRANSCRIPT_CLEANED',
@@ -136,6 +142,7 @@ export function resetVoiceSessionId(): string {
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? `vs_${crypto.randomUUID().slice(0, 8)}`
       : `vs_${Date.now().toString(36)}`
+  publishVoiceSessionId()
   return voiceSessionId
 }
 
@@ -238,6 +245,7 @@ export function voiceStage(payload: StagePayload): void {
   }
 
   const failed = !success || payload.stage === 'FAILURE'
+  const reason = payload.reason ?? (payload.error instanceof Error ? payload.error.message : null)
   pushRecord({
     id: `vt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
     timestamp: new Date().toISOString(),
@@ -249,7 +257,7 @@ export function voiceStage(payload: StagePayload): void {
     previousState,
     currentState,
     durationMs,
-    reason: payload.reason ?? (payload.error instanceof Error ? payload.error.message : null),
+    reason,
     stack: payload.stack ?? (failed ? stackFromError(payload.error) : null),
     browserCapability: failed ? collectBrowserVoiceCapability() : null,
     recoveryAction: payload.recoveryAction ?? (failed ? 'inspect_trace_and_retry_voice' : null),
@@ -257,6 +265,24 @@ export function voiceStage(payload: StagePayload): void {
     preview: redactPreview(payload.preview),
     meta: payload.meta ?? null,
   })
+
+  // Mirror executed stages into on-device Thinking evidence (no behavior change).
+  void import('./thinkingStuckEvidence')
+    .then(({ mirrorVoiceStageToThinkingEvidence }) => {
+      mirrorVoiceStageToThinkingEvidence({
+        stage: payload.stage,
+        success: !failed,
+        conversationId: payload.conversationId,
+        turnId: payload.turnId,
+        previousState,
+        currentState,
+        reason,
+        meta: payload.meta ?? null,
+      })
+    })
+    .catch(() => {
+      /* evidence optional */
+    })
 }
 
 /** Mark the start of a stage for duration measurement. */

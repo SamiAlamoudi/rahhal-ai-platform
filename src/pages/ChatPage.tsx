@@ -24,6 +24,7 @@ import { chatEngine } from '../lib/chat/chatEngine'
 import { voiceStage, voiceTrace } from '../lib/chat/voice/voiceDebugTrace'
 import {
   armThinkingEvidence,
+  noteThinkingUiEntered,
   setThinkingEvidenceContext,
   thinkingEvidence,
 } from '../lib/chat/voice/thinkingStuckEvidence'
@@ -1284,6 +1285,9 @@ function LegacyChatPage() {
               : 'ready'
 
   // Evidence: prove whether React keeps painting “Thinking…” and with what state.
+  if (voiceUiState === 'thinking') {
+    noteThinkingUiEntered('VoiceStateBadge (Thinking…)')
+  }
   thinkingEvidence('REACT_RENDER', {
     conversationId: activeId,
     messageCount: messages.length,
@@ -1302,6 +1306,9 @@ function LegacyChatPage() {
             ? 'ChatPage.sending=true'
             : 'ChatPage.render',
       messageRoles: messages.map((m) => `${m.role}:${m.status}`).join('|') || null,
+      assistantBubbleRendered: messages.some(
+        (m) => m.role === 'assistant' && m.status !== 'streaming' && m.content.trim().length > 0,
+      ),
     },
     meta: { component: 'LegacyChatPage' },
   })
