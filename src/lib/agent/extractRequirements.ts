@@ -34,13 +34,14 @@ const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
   { keys: ['cairo', 'القاهرة', 'egypt', 'مصر'], value: 'Cairo' },
   { keys: ['maldives', 'المالديف'], value: 'Maldives' },
   { keys: ['bali', 'بالي', 'indonesia', 'اندونيسيا', 'إندونيسيا'], value: 'Bali' },
-  {
-    keys: [
-      'morocco', 'marrakech', 'casablanca', 'agadir', 'rabat',
-      'المغرب', 'مراكش', 'الدار البيضاء', 'اكادير', 'أكادير', 'الرباط',
-    ],
-    value: 'Morocco',
-  },
+  // Cities before country so TripState can lock destinationCity across turns.
+  { keys: ['marrakech', 'marrakesh', 'مراكش'], value: 'Marrakech' },
+  { keys: ['casablanca', 'الدار البيضاء'], value: 'Casablanca' },
+  { keys: ['agadir', 'اكادير', 'أكادير'], value: 'Agadir' },
+  { keys: ['tangier', 'tanger', 'طنجة'], value: 'Tangier' },
+  { keys: ['rabat', 'الرباط'], value: 'Rabat' },
+  { keys: ['fes', 'fez', 'فاس'], value: 'Fes' },
+  { keys: ['morocco', 'المغرب'], value: 'Morocco' },
 ]
 
 export interface ExtractionResult {
@@ -420,6 +421,20 @@ function aliasForToken(token: string): string | null {
   return null
 }
 
+/**
+ * True when haystack mentions an alias key.
+ * Handles Arabic لـ + ال assimilation: للمغرب ↔ المغرب.
+ */
+function textMentionsAlias(lower: string, original: string, key: string): boolean {
+  if (lower.includes(key) || original.includes(key)) return true
+  // الX → للX (e.g. المغرب → للمغرب)
+  if (key.startsWith('ال') && key.length > 2) {
+    const assimilated = `لل${key.slice(2)}`
+    if (lower.includes(assimilated) || original.includes(assimilated)) return true
+  }
+  return false
+}
+
 /** Strip English/Arabic "from …" clauses so origin cities cannot steal the destination. */
 function stripOriginClauses(lower: string, original: string): { lower: string; original: string } {
   return {
@@ -449,7 +464,7 @@ function matchDestinations(
 
   // Alias scan first on destination-only text (origin clauses removed).
   for (const entry of DESTINATION_ALIASES) {
-    if (entry.keys.some((key) => stripped.lower.includes(key) || stripped.original.includes(key))) {
+    if (entry.keys.some((key) => textMentionsAlias(stripped.lower, stripped.original, key))) {
       push(entry.value)
     }
   }

@@ -24,6 +24,7 @@ import type {
   ConversationTimelineEvent,
 } from '../../lib/chat/conversationExperienceUi'
 import { safeMediaUrl } from '../../lib/ops/security/safeMediaUrl'
+import { shouldShowTravelerResultCards } from '../../lib/tripState'
 
 interface MessageBubbleProps {
   message: ChatMessage
@@ -83,11 +84,13 @@ export default function MessageBubble({
     return metaSeed || message.content || ''
   }, [message.content, message.providerMeta])
   const streamingCardLimit = progressiveCardLimit(message.content.length)
+  const cardsReady = shouldShowTravelerResultCards(message)
   const showResultCards =
     !isUser
+    && cardsReady
     && (
       (isStreaming && streamingCardLimit > 0)
-      || (!isStreaming && message.status === 'complete' && message.content.length > 40)
+      || (!isStreaming && message.status === 'complete')
     )
   const cardLimit = isStreaming ? streamingCardLimit : 5
 
