@@ -35,8 +35,18 @@ export {
 } from './chatRecovery'
 export { createDeltaCoalescer } from './streamUi'
 export { createVoiceSession, stripMarkdownForSpeech } from './voice/voiceSession'
-export { createSpeechToTextProvider, createTextToSpeechProvider } from './voice/voiceProviderFactory'
+export {
+  createVoiceSessionManager,
+  getActiveVoiceSessionManager,
+  mapStatusToUxLabel,
+} from './voice/voiceSessionManager'
+export {
+  createSpeechToTextProvider,
+  createTextToSpeechProvider,
+  isBrowserSpeechRecognitionAvailable,
+} from './voice/voiceProviderFactory'
 export { subscribeMicrophonePermission } from './voice/microphonePermission'
+export { processSpeechTranscript } from './voice/speechCleanup'
 export type {
   VoiceInputMode,
   VoiceLocale,
@@ -44,6 +54,7 @@ export type {
   SpeechToTextProvider,
   TextToSpeechProvider,
 } from './voice/voiceTypes'
+export type { VoiceSessionManager } from './voice/voiceSessionManager'
 
 /** Sprint 32 — AI Conversation Experience */
 export {

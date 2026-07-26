@@ -570,10 +570,12 @@ describe('Phase Y RC1 failure paths', () => {
 
     await session.startHandsFree('rc1-offline')
     expect(session.getStatus()).toBe('listening')
-    session.interrupt(undefined, { resumeHandsFree: true })
+    // Phase 2.3 — barge-in ignored without real TTS audio; session stays listening.
+    expect(session.interrupt(undefined, { resumeHandsFree: true })).toBe(false)
     await new Promise((r) => setTimeout(r, 0))
-    expect(statuses).toContain('reconnecting')
     expect(session.getStatus()).toBe('listening')
+    expect(session.isContinuousActive()).toBe(true)
+    expect(statuses).toContain('listening')
     session.dispose()
   })
 
@@ -625,8 +627,11 @@ describe('Phase Y RC1 failure paths', () => {
     })
     await session.startPushToTalk()
     expect(session.getStatus()).toBe('listening')
-    session.interrupt()
-    expect(session.getStatus()).toBe('idle')
+    // Phase 2.3 — interrupt without playing TTS must not fake a barge-in / force idle.
+    expect(session.interrupt()).toBe(false)
+    expect(session.getStatus()).toBe('listening')
+    await session.stopSession()
+    expect(session.getStatus()).toBe('ended')
     await session.startPushToTalk()
     expect(session.getStatus()).toBe('listening')
     session.dispose()

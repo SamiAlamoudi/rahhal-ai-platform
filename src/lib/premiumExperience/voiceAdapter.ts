@@ -232,6 +232,7 @@ export function mapSessionStatusToPanelState(
   switch (status) {
     case 'listening':
     case 'requesting_permission':
+    case 'reconnecting':
       return 'listening'
     case 'thinking':
     case 'processing':
@@ -241,8 +242,10 @@ export function mapSessionStatusToPanelState(
       return 'speaking'
     case 'error':
       return 'disconnected'
-    case 'reconnecting':
-      return 'disconnected'
+    case 'ready':
+    case 'ended':
+    case 'idle':
+      return 'idle'
     default:
       return 'idle'
   }

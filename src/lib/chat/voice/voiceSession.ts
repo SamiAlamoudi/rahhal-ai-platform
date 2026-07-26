@@ -1,8 +1,7 @@
 /**
- * Voice session orchestrator.
- * Uses the shared chatEngine only — no separate conversation/message system.
- * Production stabilization: end-of-utterance silence tolerance, VAD hold,
- * ChatGPT-like listening/thinking/responding/speaking states.
+ * Voice session orchestrator (shared chatEngine only).
+ * Recovery Phase 2.3 — continuous conversation loop, READY/ENDED states,
+ * speaking only when real TTS audio plays, speech cleanup before send.
  */
 
 import { chatEngine, type StreamHandlers } from '../chatEngine'
@@ -12,6 +11,7 @@ import { logPipeline, diagnosePipelineError } from '../pipelineDiagnostics'
 import { createSpeechToTextProvider, createTextToSpeechProvider } from './voiceProviderFactory'
 import { queryMicrophonePermission, requestMicrophoneAccess } from './microphonePermission'
 import { createVoiceActivityMonitor, type VoiceActivityMonitor } from './voiceActivityMonitor'
+import { processSpeechTranscript } from './speechCleanup'
 import type {
   MicrophonePermissionState,
   SpeechToTextProvider,
@@ -22,8 +22,11 @@ import type {
 } from './voiceTypes'
 import {
   DEFAULT_HANDS_FREE_SILENCE_MS,
+  DEFAULT_READY_HOLD_MS,
+  DEFAULT_VOICE_INACTIVITY_MS,
   MAX_HANDS_FREE_SILENCE_MS,
   MIN_HANDS_FREE_SILENCE_MS,
+  isRealTtsProvider,
   normalizeVoiceLocale,
 } from './voiceTypes'
 
@@ -37,8 +40,11 @@ export interface VoiceSessionCallbacks {
   onDelta?: (message: ChatMessage) => void
   onComplete?: (message: ChatMessage) => void
   onStreamError?: (message: ChatMessage, error: string) => void
-  /** Live mic level 0–1 for waveform UI while listening. */
   onLevel?: (level: number) => void
+  /**
+   * Low-confidence recognition — never guess via Conversation Brain.
+   */
+  onNeedsClarification?: (prompt: string) => void
 }
 
 export interface VoiceSession {
@@ -47,15 +53,28 @@ export interface VoiceSession {
   getLocale: () => VoiceLocale
   getPartialTranscript: () => string
   getLevel: () => number
+  isContinuousActive: () => boolean
+  isRealTtsAvailable: () => boolean
   setMode: (mode: VoiceInputMode) => void
   setLocale: (locale: VoiceLocale) => void
   setSilenceTimeoutMs: (ms: number) => void
+  setInactivityTimeoutMs: (ms: number) => void
   ensureMicPermission: () => Promise<MicrophonePermissionState>
+  /** Continuous mode — one tap starts the persistent voice session. */
+  startContinuous: (conversationId: string) => Promise<void>
+  /** Explicit stop — prevents automatic restart. */
+  stopSession: () => Promise<void>
   startPushToTalk: () => Promise<void>
   stopPushToTalkAndSend: (conversationId: string) => Promise<ChatMessage | null>
   startHandsFree: (conversationId: string) => Promise<void>
   stopListening: () => Promise<void>
-  interrupt: (abortStream?: () => void, opts?: { resumeHandsFree?: boolean }) => void
+  /**
+   * Interrupt only when assistant TTS audio is actually playing.
+   * Returns false when there is nothing to barge-in on.
+   */
+  interrupt: (abortStream?: () => void, opts?: { resumeHandsFree?: boolean }) => boolean
+  /** Cancel an in-flight turn (processing) without ending the continuous session. */
+  cancelInFlight: (abortStream?: () => void) => void
   speakText: (text: string) => Promise<void>
   dispose: () => void
 }
@@ -68,9 +87,9 @@ export interface CreateVoiceSessionOptions {
   callbacks?: VoiceSessionCallbacks
   sendTurn?: typeof chatEngine.sendMessage
   requestPermission?: () => Promise<MicrophonePermissionState>
-  /** Hands-free end-of-utterance silence (ms). Default 3500. */
   silenceTimeoutMs?: number
-  /** Inject VAD monitor (tests). */
+  inactivityTimeoutMs?: number
+  readyHoldMs?: number
   activityMonitor?: VoiceActivityMonitor
 }
 
@@ -89,28 +108,40 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     if (state.state === 'prompt') state = await requestMicrophoneAccess()
     return state
   })
+  const realTts = isRealTtsProvider(tts)
 
   let status: VoiceSessionStatus = 'idle'
-  let mode: VoiceInputMode = options.mode ?? 'push_to_talk'
+  let mode: VoiceInputMode = options.mode ?? 'hands_free'
   let locale: VoiceLocale = normalizeVoiceLocale(options.locale)
   let partial = ''
   let level = 0
   let disposed = false
+  let continuousActive = false
   let handsFreeConversationId: string | null = null
   let activeAbort: AbortController | null = null
-  let listening = false
   let sending = false
   let intentionalAbort = false
   let resumeHandsFreeAfterInterrupt = false
   let silenceTimeoutMs = clampSilenceMs(
     options.silenceTimeoutMs ?? DEFAULT_HANDS_FREE_SILENCE_MS,
   )
+  let inactivityTimeoutMs = Math.max(
+    5_000,
+    options.inactivityTimeoutMs ?? DEFAULT_VOICE_INACTIVITY_MS,
+  )
+  let readyHoldMs = Math.max(0, options.readyHoldMs ?? DEFAULT_READY_HOLD_MS)
   let utteranceBuffer = ''
   let utterancePrefix = ''
+  let utteranceConfidenceSamples: number[] = []
   let silenceTimer: ReturnType<typeof setTimeout> | null = null
+  let inactivityTimer: ReturnType<typeof setTimeout> | null = null
+  let readyTimer: ReturnType<typeof setTimeout> | null = null
   let vadSpeaking = false
   let earlySpokenText = ''
   let earlySpeakPromise: Promise<void> | null = null
+  let lastSubmittedKey = ''
+  let lastSubmittedAt = 0
+  let generation = 0
 
   const activityMonitor =
     options.activityMonitor
@@ -121,9 +152,9 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       },
       onSpeakingChange: (speakingNow) => {
         vadSpeaking = speakingNow
-        // While energy is present, keep extending the end-of-utterance window.
         if (speakingNow && mode === 'hands_free' && status === 'listening') {
           bumpUtteranceSilenceTimer()
+          bumpInactivityTimer()
         }
       },
       log: (entry) => logPipeline({ stage: 'microphone', event: String(entry.event), meta: entry }),
@@ -142,6 +173,26 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     }
   }
 
+  const clearInactivityTimer = () => {
+    if (inactivityTimer) {
+      clearTimeout(inactivityTimer)
+      inactivityTimer = null
+    }
+  }
+
+  const clearReadyTimer = () => {
+    if (readyTimer) {
+      clearTimeout(readyTimer)
+      readyTimer = null
+    }
+  }
+
+  const clearAllTimers = () => {
+    clearSilenceTimer()
+    clearInactivityTimer()
+    clearReadyTimer()
+  }
+
   const clearSttHandlers = () => {
     stt.onPartial = undefined
     stt.onFinal = undefined
@@ -155,12 +206,34 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     vadSpeaking = false
   }
 
+  const clearLiveTranscript = () => {
+    partial = ''
+    callbacks.onPartialTranscript?.('')
+    callbacks.onFinalTranscript?.('')
+  }
+
+  const bumpInactivityTimer = () => {
+    clearInactivityTimer()
+    if (!continuousActive || disposed || sending) return
+    if (status !== 'listening' && status !== 'ready') return
+    inactivityTimer = setTimeout(() => {
+      if (disposed || !continuousActive || sending) return
+      if (vadSpeaking || utteranceBuffer.trim() || partial.trim()) {
+        bumpInactivityTimer()
+        return
+      }
+      logPipeline({ stage: 'voice', event: 'inactivity_ended', meta: { inactivityTimeoutMs } })
+      void endSession('inactivity')
+    }, inactivityTimeoutMs)
+  }
+
   const bumpUtteranceSilenceTimer = () => {
     if (mode !== 'hands_free' || !handsFreeConversationId || sending || disposed) return
+    if (!continuousActive && mode === 'hands_free' && !handsFreeConversationId) return
     if (status !== 'listening') return
     clearSilenceTimer()
+    bumpInactivityTimer()
     silenceTimer = setTimeout(() => {
-      // Never finalize while VAD still hears speech energy.
       if (vadSpeaking) {
         bumpUtteranceSilenceTimer()
         return
@@ -185,6 +258,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     callbacks.onPermission?.(state)
     if (state.state !== 'granted') {
       setStatus('error')
+      continuousActive = false
       logPipeline({
         stage: 'microphone',
         event: 'permission_denied',
@@ -203,7 +277,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   const startListening = async (continuous: boolean, opts?: { preserveUtterance?: boolean }) => {
     if (disposed) return
     if (!stt.isSupported()) {
-      throw new Error('التعرف على الكلام غير متاح')
+      throw new Error('التعرف على الكلام غير متاح في هذا المتصفح — يمكنك الكتابة بدلًا من ذلك')
     }
     const permission = await ensureMicPermission()
     if (permission.state !== 'granted') return
@@ -213,11 +287,14 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       partial = ''
       utteranceBuffer = ''
       utterancePrefix = ''
+      utteranceConfidenceSamples = []
+      callbacks.onPartialTranscript?.('')
     }
     intentionalAbort = false
-    listening = true
     clearSilenceTimer()
+    clearReadyTimer()
     setStatus('listening')
+    bumpInactivityTimer()
     logPipeline({
       stage: 'stt',
       event: 'listening_started',
@@ -231,43 +308,146 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     })
   }
 
-  const maybeResumeHandsFree = async () => {
-    if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
+  const maybeResumeHandsFree = async (token: number) => {
+    if (disposed || token !== generation) return
+    if (!continuousActive || mode !== 'hands_free' || !handsFreeConversationId) return
     try {
       setStatus('reconnecting')
-      // Keep mid-thought speech across browser STT restarts (ChatGPT-like continuity).
       await startListening(true, { preserveUtterance: true })
     } catch (e) {
+      if (token !== generation || disposed) return
       diagnosePipelineError('stt', 'resume', e)
       callbacks.onError?.(e instanceof Error ? e.message : 'تعذر استئناف الاستماع')
       setStatus('error')
+      continuousActive = false
     }
+  }
+
+  const enterReadyThenListen = async (token: number) => {
+    if (disposed || token !== generation) return
+    if (!continuousActive || mode !== 'hands_free' || !handsFreeConversationId) {
+      setStatus(continuousActive ? 'ready' : 'idle')
+      return
+    }
+    setStatus('ready')
+    bumpInactivityTimer()
+    clearReadyTimer()
+    if (readyHoldMs <= 0) {
+      await maybeResumeHandsFree(token)
+      return
+    }
+    await new Promise<void>((resolve) => {
+      readyTimer = setTimeout(() => resolve(), readyHoldMs)
+    })
+    if (disposed || token !== generation || !continuousActive) return
+    await maybeResumeHandsFree(token)
   }
 
   const readSpokenText = (message: ChatMessage): string => {
     const meta = message.providerMeta ?? {}
     const spoken = typeof meta.spokenText === 'string' ? meta.spokenText.trim() : ''
     if (spoken) return spoken
-    // Never read a long itinerary dump aloud.
     return stripMarkdownForSpeech(message.content).slice(0, 320)
   }
 
+  const averageUtteranceConfidence = (): number | null => {
+    if (!utteranceConfidenceSamples.length) return null
+    const sum = utteranceConfidenceSamples.reduce((a, b) => a + b, 0)
+    return sum / utteranceConfidenceSamples.length
+  }
+
+  const presentClarification = async (prompt: string) => {
+    const token = generation
+    clearSilenceTimer()
+    stopVad()
+    intentionalAbort = true
+    stt.abort()
+    utteranceBuffer = ''
+    utterancePrefix = ''
+    utteranceConfidenceSamples = []
+    clearLiveTranscript()
+    if (realTts) {
+      setStatus('speaking')
+      callbacks.onNeedsClarification?.(prompt)
+      try {
+        await tts.speak({ locale, text: prompt, interrupt: true })
+      } catch (e) {
+        if (!isBenignChatError(e) && !disposed) {
+          diagnosePipelineError('tts', 'clarify', e)
+        }
+      }
+    } else {
+      callbacks.onNeedsClarification?.(prompt)
+    }
+    if (disposed || token !== generation) return
+    await enterReadyThenListen(token)
+  }
+
+  const isDuplicateSubmit = (content: string): boolean => {
+    const key = content.replace(/\s+/g, ' ').trim()
+    const now = Date.now()
+    if (key && key === lastSubmittedKey && now - lastSubmittedAt < 4_000) {
+      return true
+    }
+    return false
+  }
+
+  const markSubmitted = (content: string) => {
+    lastSubmittedKey = content.replace(/\s+/g, ' ').trim()
+    lastSubmittedAt = Date.now()
+  }
+
   const sendTranscript = async (conversationId: string, transcript: string): Promise<ChatMessage | null> => {
-    const content = transcript.trim()
-    if (!content || sending || disposed) {
-      if (!content) setStatus(mode === 'hands_free' && handsFreeConversationId ? 'listening' : 'idle')
+    const raw = transcript.trim()
+    if (!raw || sending || disposed) {
+      if (!raw && continuousActive && handsFreeConversationId) setStatus('listening')
+      else if (!raw) setStatus(continuousActive ? 'ready' : 'idle')
       return null
     }
 
+    const cleaned = processSpeechTranscript(raw, {
+      uiLocale: locale,
+      confidence: averageUtteranceConfidence(),
+    })
+    utteranceConfidenceSamples = []
+
+    if (cleaned.needsClarification && cleaned.clarificationPrompt) {
+      await presentClarification(cleaned.clarificationPrompt)
+      return null
+    }
+
+    const content = cleaned.text.trim()
+    if (!content) {
+      clearLiveTranscript()
+      if (continuousActive && handsFreeConversationId) {
+        await enterReadyThenListen(generation)
+      } else {
+        setStatus('idle')
+      }
+      return null
+    }
+
+    if (isDuplicateSubmit(content)) {
+      logPipeline({ stage: 'conversation', event: 'duplicate_transcript_ignored', meta: { length: content.length } })
+      clearLiveTranscript()
+      if (continuousActive && handsFreeConversationId) {
+        await enterReadyThenListen(generation)
+      }
+      return null
+    }
+
+    const token = generation
     sending = true
+    markSubmitted(content)
     clearSilenceTimer()
+    clearInactivityTimer()
     stopVad()
-    setStatus('thinking')
+    setStatus('processing')
     intentionalAbort = true
     stt.abort()
-    listening = false
     utteranceBuffer = ''
     utterancePrefix = ''
+    clearLiveTranscript()
     earlySpokenText = ''
     earlySpeakPromise = null
     activeAbort?.abort()
@@ -278,34 +458,41 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     logPipeline({
       stage: 'conversation',
       event: 'turn_send_started',
-      meta: { conversationId, modality: 'audio', length: content.length },
+      meta: {
+        conversationId,
+        modality: 'audio',
+        length: content.length,
+        speechLanguage: cleaned.language,
+        confidence: cleaned.confidence,
+      },
     })
 
     const handlers: StreamHandlers = {
       signal: controller.signal,
       onAssistantCreate: (message) => {
-        if (!sawDelta) setStatus('thinking')
+        if (!sawDelta) setStatus('processing')
         callbacks.onAssistantCreate?.(message)
       },
       onDelta: (message) => {
         if (!sawDelta) {
           sawDelta = true
-          setStatus('responding')
+          setStatus('processing')
           logPipeline({ stage: 'streaming', event: 'first_delta' })
         }
         callbacks.onDelta?.(message)
 
-        // Start speaking as soon as a spoken bridge/summary is available.
         const phase = message.providerMeta?.voicePhase
         const spoken = typeof message.providerMeta?.spokenText === 'string'
           ? message.providerMeta.spokenText.trim()
           : ''
         if (
-          spoken
+          realTts
+          && spoken
           && spoken !== earlySpokenText
           && !controller.signal.aborted
           && !disposed
           && !earlySpeakPromise
+          && token === generation
         ) {
           earlySpokenText = spoken
           setStatus('speaking')
@@ -328,12 +515,11 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           event: 'turn_complete',
           meta: { length: message.content.length },
         })
-        if (!controller.signal.aborted && !disposed) {
+        if (!controller.signal.aborted && !disposed && token === generation) {
           const spoken = readSpokenText(message)
-          if (spoken) {
+          if (spoken && realTts) {
             setStatus('speaking')
             try {
-              // Interrupt bridge if still talking; speak the final short summary only.
               if (spoken !== earlySpokenText || !earlySpeakPromise) {
                 logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase: 'final' } })
                 await tts.speak({ locale, text: spoken, interrupt: true })
@@ -347,24 +533,33 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
                 callbacks.onError?.(e instanceof Error ? e.message : 'تعذر تشغيل الرد الصوتي')
               }
             }
+          } else if (spoken && !realTts) {
+            // Mock / unsupported TTS: never claim "Speaking".
+            try {
+              await tts.speak({ locale, text: spoken, interrupt: true })
+            } catch {
+              // ignore mock TTS failures
+            }
           }
         }
         sending = false
         activeAbort = null
         earlySpokenText = ''
         earlySpeakPromise = null
-        if (controller.signal.aborted || disposed) {
-          setStatus('idle')
-          if (resumeHandsFreeAfterInterrupt) {
-            resumeHandsFreeAfterInterrupt = false
-            await maybeResumeHandsFree()
+        if (controller.signal.aborted || disposed || token !== generation) {
+          if (!disposed && token === generation) {
+            setStatus(continuousActive ? 'ready' : 'idle')
+            if (resumeHandsFreeAfterInterrupt) {
+              resumeHandsFreeAfterInterrupt = false
+              await enterReadyThenListen(token)
+            }
           }
           return
         }
-        setStatus('idle')
-        if (mode === 'hands_free' && handsFreeConversationId) {
-          await maybeResumeHandsFree()
+        if (resumeHandsFreeAfterInterrupt) {
+          resumeHandsFreeAfterInterrupt = false
         }
+        await enterReadyThenListen(token)
       },
       onError: (message, error) => {
         sending = false
@@ -376,11 +571,15 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           diagnosePipelineError('streaming', 'assistant_stream', error)
           callbacks.onError?.(error)
           setStatus('error')
-        } else {
-          setStatus('idle')
+          // Recoverable — stay continuous-capable but stop mic until retry.
+          continuousActive = false
+          handsFreeConversationId = null
+        } else if (token === generation) {
           if (resumeHandsFreeAfterInterrupt) {
             resumeHandsFreeAfterInterrupt = false
-            void maybeResumeHandsFree()
+            void enterReadyThenListen(token)
+          } else {
+            void enterReadyThenListen(token)
           }
         }
       },
@@ -403,23 +602,53 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         const app = diagnosePipelineError('conversation', 'send_turn', e)
         callbacks.onError?.(app.userMessage)
         setStatus('error')
-      } else {
-        setStatus('idle')
+        continuousActive = false
+        handsFreeConversationId = null
+      } else if (token === generation) {
         if (resumeHandsFreeAfterInterrupt) {
           resumeHandsFreeAfterInterrupt = false
-          void maybeResumeHandsFree()
+          void enterReadyThenListen(token)
+        } else {
+          void enterReadyThenListen(token)
         }
       }
       return null
     }
   }
 
+  const endSession = async (reason: 'user' | 'inactivity' | 'dispose') => {
+    generation += 1
+    continuousActive = false
+    intentionalAbort = true
+    resumeHandsFreeAfterInterrupt = false
+    handsFreeConversationId = null
+    clearAllTimers()
+    utteranceBuffer = ''
+    utterancePrefix = ''
+    utteranceConfidenceSamples = []
+    stopVad()
+    tts.stop()
+    stt.abort()
+    activeAbort?.abort()
+    activeAbort = null
+    sending = false
+    clearLiveTranscript()
+    if (reason === 'dispose' || disposed) {
+      setStatus('idle')
+      return
+    }
+    setStatus('ended')
+    logPipeline({ stage: 'voice', event: 'session_ended', meta: { reason } })
+  }
+
   stt.onPartial = (event) => {
     if (disposed) return
     const chunk = event.transcript
+    if (typeof event.confidence === 'number' && event.confidence > 0) {
+      utteranceConfidenceSamples.push(event.confidence)
+    }
     partial = utterancePrefix ? `${utterancePrefix} ${chunk}`.trim() : chunk
     callbacks.onPartialTranscript?.(partial)
-    // Live speech → reset end-of-utterance timer (tolerate short pauses).
     if (mode === 'hands_free' && status === 'listening') {
       bumpUtteranceSilenceTimer()
     }
@@ -428,7 +657,9 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     if (disposed) return
     const chunk = event.transcript.trim()
     if (!chunk) return
-    // Accumulate across STT restarts; never auto-send mid-sentence.
+    if (typeof event.confidence === 'number' && event.confidence > 0) {
+      utteranceConfidenceSamples.push(event.confidence)
+    }
     utteranceBuffer = utterancePrefix
       ? `${utterancePrefix} ${chunk}`.trim()
       : chunk
@@ -440,6 +671,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       && handsFreeConversationId
       && !sending
       && status === 'listening'
+      && continuousActive
     ) {
       bumpUtteranceSilenceTimer()
     }
@@ -448,16 +680,24 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     if (disposed || intentionalAbort || isBenignChatError(error) || error === 'aborted') {
       return
     }
+    // no-speech: recover to listening in continuous mode instead of hard error
+    if (error === 'no-speech' && continuousActive && handsFreeConversationId && !sending) {
+      logPipeline({ stage: 'stt', event: 'no_speech_recover' })
+      void maybeResumeHandsFree(generation)
+      return
+    }
     diagnosePipelineError('stt', 'recognition', new Error(error))
     callbacks.onError?.(mapSttError(error))
     setStatus('error')
+    continuousActive = false
+    clearAllTimers()
+    stopVad()
+    stt.abort()
   }
   stt.onEnd = () => {
-    listening = false
     if (disposed) return
-    if (status === 'listening' && mode === 'hands_free' && handsFreeConversationId && !sending) {
-      // Browser ended recognition mid-session — resume without flushing utterance early.
-      void maybeResumeHandsFree()
+    if (status === 'listening' && continuousActive && mode === 'hands_free' && handsFreeConversationId && !sending) {
+      void maybeResumeHandsFree(generation)
       return
     }
     if (status === 'listening' && mode !== 'hands_free') setStatus('idle')
@@ -469,14 +709,18 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     getLocale: () => locale,
     getPartialTranscript: () => partial,
     getLevel: () => level,
+    isContinuousActive: () => continuousActive,
+    isRealTtsAvailable: () => realTts,
     setMode(next) {
       mode = next
       if (next !== 'hands_free') {
+        continuousActive = false
         handsFreeConversationId = null
         resumeHandsFreeAfterInterrupt = false
-        clearSilenceTimer()
+        clearAllTimers()
         utteranceBuffer = ''
         utterancePrefix = ''
+        utteranceConfidenceSamples = []
       }
     },
     setLocale(next) {
@@ -490,16 +734,47 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         meta: { silenceTimeoutMs },
       })
     },
+    setInactivityTimeoutMs(ms) {
+      if (Number.isFinite(ms) && ms >= 5_000) inactivityTimeoutMs = Math.round(ms)
+    },
     ensureMicPermission,
+    async startContinuous(conversationId) {
+      if (disposed) return
+      if (!stt.isSupported()) {
+        setStatus('error')
+        callbacks.onError?.('التعرف على الكلام غير متاح في هذا المتصفح — يمكنك الكتابة بدلًا من ذلك')
+        return
+      }
+      generation += 1
+      tts.stop()
+      mode = 'hands_free'
+      continuousActive = true
+      handsFreeConversationId = conversationId
+      resumeHandsFreeAfterInterrupt = false
+      clearAllTimers()
+      utteranceBuffer = ''
+      utterancePrefix = ''
+      utteranceConfidenceSamples = []
+      lastSubmittedKey = ''
+      lastSubmittedAt = 0
+      logPipeline({ stage: 'voice', event: 'continuous_started', meta: { conversationId } })
+      await startListening(true)
+    },
+    async stopSession() {
+      if (disposed) return
+      await endSession('user')
+    },
     async startPushToTalk() {
       if (disposed) return
       tts.stop()
       mode = 'push_to_talk'
+      continuousActive = false
       handsFreeConversationId = null
       resumeHandsFreeAfterInterrupt = false
-      clearSilenceTimer()
+      clearAllTimers()
       utteranceBuffer = ''
       utterancePrefix = ''
+      utteranceConfidenceSamples = []
       await startListening(false)
     },
     async stopPushToTalkAndSend(conversationId) {
@@ -508,98 +783,111 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       clearSilenceTimer()
       stopVad()
       const transcript = ((await stt.stop()) || utteranceBuffer || partial).trim()
-      listening = false
       utteranceBuffer = ''
       utterancePrefix = ''
       callbacks.onFinalTranscript?.(transcript)
       return sendTranscript(conversationId, transcript)
     },
     async startHandsFree(conversationId) {
-      if (disposed) return
-      tts.stop()
-      mode = 'hands_free'
-      handsFreeConversationId = conversationId
-      resumeHandsFreeAfterInterrupt = false
-      clearSilenceTimer()
-      utteranceBuffer = ''
-      utterancePrefix = ''
-      await startListening(true)
+      return this.startContinuous(conversationId)
     },
     async stopListening() {
-      intentionalAbort = true
-      resumeHandsFreeAfterInterrupt = false
-      handsFreeConversationId = null
-      clearSilenceTimer()
-      utteranceBuffer = ''
-      utterancePrefix = ''
-      stopVad()
-      if (listening) {
-        try {
-          await stt.stop()
-        } catch {
-          stt.abort()
-        }
-      } else {
-        stt.abort()
-      }
-      listening = false
-      if (
-        status === 'listening'
-        || status === 'reconnecting'
-        || status === 'thinking'
-        || status === 'responding'
-      ) {
-        setStatus('idle')
-      }
+      return this.stopSession()
     },
     interrupt(abortStream, opts) {
+      // Only barge-in when assistant audio is genuinely playing.
+      const audioPlaying = realTts && (tts.isSpeaking() || status === 'speaking')
+      if (!audioPlaying) {
+        logPipeline({ stage: 'voice', event: 'interrupt_ignored', meta: { status, realTts } })
+        return false
+      }
+      const token = generation
       intentionalAbort = true
       clearSilenceTimer()
       stopVad()
-      const keepHandsFree = opts?.resumeHandsFree ?? (mode === 'hands_free' && !!handsFreeConversationId)
+      const keepHandsFree = opts?.resumeHandsFree ?? (continuousActive && mode === 'hands_free' && !!handsFreeConversationId)
       const wasSending = sending
       tts.stop()
       stt.abort()
-      listening = false
       sending = false
       utteranceBuffer = ''
       utterancePrefix = ''
+      utteranceConfidenceSamples = []
+      clearLiveTranscript()
       activeAbort?.abort()
       activeAbort = null
       abortStream?.()
-      setStatus('idle')
+      setStatus('ready')
       logPipeline({ stage: 'voice', event: 'interrupted', meta: { keepHandsFree, wasSending } })
-      if (keepHandsFree && wasSending) {
-        resumeHandsFreeAfterInterrupt = true
+      if (keepHandsFree && continuousActive && token === generation) {
+        if (wasSending) {
+          resumeHandsFreeAfterInterrupt = true
+        } else {
+          resumeHandsFreeAfterInterrupt = false
+          void enterReadyThenListen(token)
+        }
+      }
+      return true
+    },
+    cancelInFlight(abortStream) {
+      if (disposed) return
+      if (!sending && status !== 'processing' && status !== 'thinking' && status !== 'responding') {
+        return
+      }
+      const token = generation
+      intentionalAbort = true
+      clearSilenceTimer()
+      stopVad()
+      tts.stop()
+      stt.abort()
+      sending = false
+      utteranceBuffer = ''
+      utterancePrefix = ''
+      utteranceConfidenceSamples = []
+      clearLiveTranscript()
+      activeAbort?.abort()
+      activeAbort = null
+      abortStream?.()
+      resumeHandsFreeAfterInterrupt = false
+      logPipeline({ stage: 'voice', event: 'turn_cancelled' })
+      if (continuousActive && handsFreeConversationId) {
+        void enterReadyThenListen(token)
       } else {
-        resumeHandsFreeAfterInterrupt = false
-        if (keepHandsFree) void maybeResumeHandsFree()
+        setStatus('idle')
       }
     },
     async speakText(text) {
       if (disposed) return
+      if (!realTts) {
+        await tts.speak({ locale, text: stripMarkdownForSpeech(text), interrupt: true })
+        return
+      }
       setStatus('speaking')
       try {
         await tts.speak({ locale, text: stripMarkdownForSpeech(text), interrupt: true })
       } catch (e) {
         if (!isBenignChatError(e)) throw e
       }
-      if (!disposed) setStatus('idle')
+      if (!disposed) setStatus(continuousActive ? 'ready' : 'idle')
     },
     dispose() {
       disposed = true
       intentionalAbort = true
+      continuousActive = false
       resumeHandsFreeAfterInterrupt = false
       handsFreeConversationId = null
-      clearSilenceTimer()
+      generation += 1
+      clearAllTimers()
       utteranceBuffer = ''
       utterancePrefix = ''
+      utteranceConfidenceSamples = []
       stopVad()
       tts.stop()
       stt.abort()
       activeAbort?.abort()
       activeAbort = null
       clearSttHandlers()
+      clearLiveTranscript()
       status = 'idle'
     },
   }
@@ -621,5 +909,6 @@ function mapSttError(error: string): string {
   if (error === 'no-speech') return 'لم يتم التقاط كلام — حاول مجدداً'
   if (error === 'network') return 'مشكلة شبكة في التعرف على الكلام'
   if (error === 'aborted') return 'تم إيقاف الاستماع'
+  if (error === 'audio-capture') return 'الميكروفون غير متاح'
   return error || 'خطأ في التعرف على الكلام'
 }

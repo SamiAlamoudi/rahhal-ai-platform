@@ -48,7 +48,8 @@ import {
   type ConversationLiveEvent,
   type ConversationTimelineEvent,
 } from '../lib/chat/conversationExperienceUi'
-import type { CreateVoiceSessionOptions, VoiceSession } from '../lib/chat/voice/voiceSession'
+import type { VoiceSessionCallbacks } from '../lib/chat/voice/voiceSession'
+import type { VoiceSessionManager } from '../lib/chat/voice/voiceSessionManager'
 import type { VoiceInputMode, VoiceLocale, VoiceSessionStatus } from '../lib/chat/voice/voiceTypes'
 import {
   EXPERIENCE_STATE_LABELS,
@@ -69,16 +70,19 @@ type ComposerMode = 'text' | 'voice'
 
 /** RC-2 — voice stack (STT/TTS/session) is dynamically imported on first voice use. */
 async function buildVoiceSession(
-  callbacks: CreateVoiceSessionOptions['callbacks'],
-): Promise<VoiceSession> {
-  const [{ createSpeechToTextProvider, createTextToSpeechProvider }, { createVoiceSession }] =
-    await Promise.all([
-      import('../lib/chat/voice/voiceProviderFactory'),
-      import('../lib/chat/voice/voiceSession'),
-    ])
-  return createVoiceSession({
+  callbacks: VoiceSessionCallbacks,
+): Promise<VoiceSessionManager> {
+  const [
+    { createSpeechToTextProvider, createTextToSpeechProvider },
+    { createVoiceSessionManager },
+  ] = await Promise.all([
+    import('../lib/chat/voice/voiceProviderFactory'),
+    import('../lib/chat/voice/voiceSessionManager'),
+  ])
+  return createVoiceSessionManager({
     stt: createSpeechToTextProvider(),
     tts: createTextToSpeechProvider(),
+    mode: 'hands_free',
     callbacks,
   })
 }
@@ -120,7 +124,10 @@ function LegacyChatPage() {
   const seedConsumedRef = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
-  const voiceRef = useRef<VoiceSession | null>(null)
+  const voiceRef = useRef<VoiceSessionManager | null>(null)
+  const [voiceContinuousActive, setVoiceContinuousActive] = useState(false)
+  const [speechSupported, setSpeechSupported] = useState(true)
+  const [realTtsAvailable, setRealTtsAvailable] = useState(false)
   const activeIdRef = useRef<string | null>(null)
   const streamingRef = useRef(false)
   const detailRequestRef = useRef(0)
@@ -418,9 +425,12 @@ function LegacyChatPage() {
       return
     }
     let disposed = false
-    let session: VoiceSession | null = null
+    let session: VoiceSessionManager | null = null
     void buildVoiceSession({
-      onStatus: setVoiceStatus,
+      onStatus: (status) => {
+        setVoiceStatus(status)
+        setVoiceContinuousActive(voiceRef.current?.isContinuousActive() ?? false)
+      },
       onPartialTranscript: setPartialTranscript,
       onFinalTranscript: setPartialTranscript,
       onLevel: setVoiceLevel,
@@ -430,7 +440,12 @@ function LegacyChatPage() {
         else setMicError(null)
       },
       onError: (error) => {
+        setVoiceContinuousActive(false)
         if (!isBenignChatError(error)) setActionError(error)
+      },
+      onNeedsClarification: (prompt) => {
+        // Clarification is spoken/shown without calling Conversation Brain.
+        setActionError(prompt)
       },
       onAssistantCreate: upsertMessage,
       onDelta: upsertMessage,
@@ -449,11 +464,15 @@ function LegacyChatPage() {
       }
       session = created
       voiceRef.current = created
+      setSpeechSupported(created.isSpeechRecognitionSupported())
+      setRealTtsAvailable(created.isRealTtsAvailable())
+      setVoiceContinuousActive(created.isContinuousActive())
     })
     return () => {
       disposed = true
       session?.dispose()
       if (voiceRef.current === session) voiceRef.current = null
+      setVoiceContinuousActive(false)
     }
   }, [composerMode, loadConversations, upsertMessage])
 
@@ -550,9 +569,18 @@ function LegacyChatPage() {
     abortRef.current = null
     setSending(false)
     if (chatgptOn) setExperienceState('done')
-    voiceRef.current?.interrupt(() => {
+    const voice = voiceRef.current
+    if (!voice) return
+    // Real barge-in only while assistant audio is playing.
+    const barged = voice.interrupt(() => {
       abortRef.current?.abort()
     }, { resumeHandsFree: voiceMode === 'hands_free' })
+    if (!barged) {
+      voice.cancelInFlight(() => {
+        abortRef.current?.abort()
+      })
+    }
+    setVoiceContinuousActive(voice.isContinuousActive())
   }
 
   const runGeneration = async (
@@ -921,40 +949,50 @@ function LegacyChatPage() {
     }
   }
 
-  const handleToggleHandsFree = async () => {
+  const handleStartContinuousSession = async () => {
     if (!activeId || !voiceRef.current) return
     setActionError(null)
-    if (voiceStatus === 'listening' && voiceMode === 'hands_free') {
-      await voiceRef.current.stopListening()
-      return
-    }
+    setPartialTranscript('')
     try {
       voiceRef.current.setMode('hands_free')
       setVoiceMode('hands_free')
-      await voiceRef.current.startHandsFree(activeId)
+      await voiceRef.current.start(activeId)
+      setVoiceContinuousActive(voiceRef.current.isContinuousActive())
     } catch (e) {
-      logChatError('voice.handsfree', e)
-      setActionError(e instanceof Error ? e.message : 'تعذر تشغيل حر اليدين')
+      logChatError('voice.continuous.start', e)
+      setActionError(e instanceof Error ? e.message : 'تعذر بدء الجلسة الصوتية')
+      setVoiceContinuousActive(false)
     }
+  }
+
+  const handleStopVoiceSession = async () => {
+    if (!voiceRef.current) return
+    setActionError(null)
+    await voiceRef.current.stop()
+    setVoiceContinuousActive(false)
+    setPartialTranscript('')
   }
 
   const newExperienceOn = isUiNewExperienceEnabled()
   const voiceUiState =
-    voiceStatus === 'listening'
+    voiceStatus === 'listening' || voiceStatus === 'reconnecting'
       ? 'listening'
-      : voiceStatus === 'thinking' || voiceStatus === 'processing'
+      : voiceStatus === 'thinking' || voiceStatus === 'processing' || voiceStatus === 'responding'
         ? 'thinking'
-        : voiceStatus === 'speaking' || voiceStatus === 'responding'
+        : voiceStatus === 'speaking'
           ? 'speaking'
-          : voiceStatus === 'reconnecting'
-            ? 'reconnecting'
-            : !online
-              ? 'offline'
-              : 'ready'
+          : voiceStatus === 'ended'
+            ? 'ready'
+            : voiceStatus === 'error'
+              ? 'error'
+              : !online
+                ? 'offline'
+                : 'ready'
 
   const chatHeaderTrailing = (
     <div className="flex shrink-0 items-center gap-2">
-      {newExperienceOn && composerMode === 'voice' ? (
+      {/* Single status lives in VoiceComposer — avoid duplicate header badge. */}
+      {newExperienceOn && composerMode === 'voice' && voiceStatus === 'error' ? (
         <VoiceStateBadge state={voiceUiState} locale={chatLocale} />
       ) : null}
       <button
@@ -1248,7 +1286,7 @@ function LegacyChatPage() {
                     onInterrupt={stopGeneration}
                     onStopSpeaking={stopGeneration}
                     onRestartListening={() => {
-                      if (voiceMode === 'hands_free') void handleToggleHandsFree()
+                      if (voiceMode === 'hands_free') void handleStartContinuousSession()
                       else void handlePushStart()
                     }}
                     onToggleMute={() => setVoiceMuted((v) => !v)}
@@ -1296,11 +1334,15 @@ function LegacyChatPage() {
                       busy={isStreaming || voiceBusy}
                       online={online}
                       level={voiceLevel}
+                      continuousActive={voiceContinuousActive}
+                      speechSupported={speechSupported}
+                      realTtsAvailable={realTtsAvailable}
                       onModeChange={setVoiceMode}
                       onLocaleChange={setVoiceLocale}
                       onPushStart={() => void handlePushStart()}
                       onPushEnd={() => void handlePushEnd()}
-                      onToggleHandsFree={() => void handleToggleHandsFree()}
+                      onToggleContinuous={() => void handleStartContinuousSession()}
+                      onStopSession={() => void handleStopVoiceSession()}
                       onInterrupt={stopGeneration}
                       onRequestPermission={() => void voiceRef.current?.ensureMicPermission()}
                     />
