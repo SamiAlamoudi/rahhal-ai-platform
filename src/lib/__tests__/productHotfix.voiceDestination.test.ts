@@ -1,5 +1,5 @@
 /**
- * Product validation hotfixes — Safari STT restart + Morocco route cards.
+ * Product validation hotfixes — Safari STT restart + Morocco trip context.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -7,9 +7,26 @@ import {
   prefersSafariSpeechRestart,
 } from '../chat/voice/webSpeechToTextProvider'
 import {
+  createVoiceSession,
+  DEFAULT_NO_TRANSCRIPT_TIMEOUT_MS,
+} from '../chat/voice/voiceSession'
+import { createMockSpeechToTextProvider } from '../chat/voice/mockSpeechToTextProvider'
+import { createMockTextToSpeechProvider } from '../chat/voice/mockTextToSpeechProvider'
+import {
   buildDynamicResultCards,
   inferTravelRouteFromSeed,
 } from '../premiumExperience'
+import {
+  buildActiveTripContext,
+  demoItinerary,
+  isStaleTripRoute,
+  tripClarificationText,
+} from '../productUx'
+
+const MOROCCO_COUNTRY_SEED =
+  'أريد أن أسافر إلى المغرب مع زوجتي لمدة أسبوع بميزانية 10,000 ريال'
+const MOROCCO_CITY_SEED =
+  'أريد أن أسافر إلى مراكش مع زوجتي لمدة أسبوع بميزانية 10,000 ريال'
 
 type HandlerMap = {
   onresult: ((ev: unknown) => void) | null
@@ -102,7 +119,7 @@ describe('webSpeechToTextProvider Safari continuous restart', () => {
     vi.unstubAllGlobals()
   })
 
-  it('forces continuous=false on iPhone Safari and restarts without bubbling onEnd', async () => {
+  it('forces continuous=false on iPhone Safari, uses ar-SA, and restarts without bubbling onEnd', async () => {
     const provider = createWebSpeechToTextProvider()
     const ends: number[] = []
     const finals: string[] = []
@@ -124,7 +141,6 @@ describe('webSpeechToTextProvider Safari continuous restart', () => {
     expect(instances[0]!.lang).toBe('ar-SA')
     expect(instances[0]!.started).toBe(1)
 
-    // Simulate a final transcript then Safari ending the one-shot turn.
     instances[0]!.onresult?.({
       resultIndex: 0,
       results: {
@@ -167,21 +183,161 @@ describe('webSpeechToTextProvider Safari continuous restart', () => {
   })
 })
 
-describe('Morocco destination cards', () => {
-  it('infers Morocco from Arabic seed text', () => {
-    const route = inferTravelRouteFromSeed('خطّط رحلة خمسة أيام إلى المغرب')
-    expect(route.destinationAr).toBe('المغرب')
-    expect(route.destinationEn).toBe('Morocco')
-    expect(route.originAr).toBe('الرياض')
+describe('voiceSession no-transcript timeout + typed fallback', () => {
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
-  it('does not render Riyadh → Dubai for a Morocco trip seed', () => {
-    const cards = buildDynamicResultCards('خطّط رحلة خمسة أيام إلى المغرب', 4)
+  it('never stays stuck listening without a transcript; suggests typed input', async () => {
+    vi.useFakeTimers()
+    const { provider: stt } = createMockSpeechToTextProvider('')
+    const tts = createMockTextToSpeechProvider()
+    const statuses: string[] = []
+    const typedReasons: string[] = []
+
+    const session = createVoiceSession({
+      stt,
+      tts,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      noTranscriptTimeoutMs: DEFAULT_NO_TRANSCRIPT_TIMEOUT_MS,
+      activityMonitor: {
+        start: async () => {},
+        stop: () => {},
+        isSpeaking: () => false,
+        getLevel: () => 0,
+        isActive: () => false,
+      },
+      callbacks: {
+        onStatus: (s) => statuses.push(s),
+        onSuggestTypedInput: (reason) => typedReasons.push(reason),
+      },
+    })
+
+    await session.startHandsFree('c1')
+    expect(session.getStatus()).toBe('listening')
+
+    await vi.advanceTimersByTimeAsync(DEFAULT_NO_TRANSCRIPT_TIMEOUT_MS + 50)
+    expect(session.getStatus()).toBe('error')
+    expect(typedReasons.length).toBeGreaterThan(0)
+    expect(typedReasons[0]).toMatch(/الكتابة/)
+    expect(statuses).toContain('error')
+    session.dispose()
+  })
+
+  it('clears no-transcript timeout once speech is heard', async () => {
+    vi.useFakeTimers()
+    const { provider: stt, controller } = createMockSpeechToTextProvider('')
+    const tts = createMockTextToSpeechProvider()
+    const typedReasons: string[] = []
+
+    const session = createVoiceSession({
+      stt,
+      tts,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      silenceTimeoutMs: 2500,
+      noTranscriptTimeoutMs: 5000,
+      activityMonitor: {
+        start: async () => {},
+        stop: () => {},
+        isSpeaking: () => false,
+        getLevel: () => 0,
+        isActive: () => false,
+      },
+      callbacks: {
+        onSuggestTypedInput: (reason) => typedReasons.push(reason),
+      },
+      sendTurn: vi.fn(async (_input, handlers) => {
+        const assistant = {
+          id: 'a1',
+          conversationId: 'c1',
+          role: 'assistant' as const,
+          modality: 'text' as const,
+          content: 'ok',
+          audioUrl: null,
+          imageUrl: null,
+          attachments: [],
+          status: 'complete' as const,
+          error: null,
+          providerMeta: {},
+          createdAt: '2026-07-15T00:00:00.000Z',
+          updatedAt: '2026-07-15T00:00:00.000Z',
+        }
+        await handlers.onComplete?.(assistant)
+        return {
+          user: { ...assistant, id: 'u1', role: 'user' as const, modality: 'audio' as const, content: 'مرحبا' },
+          assistant,
+        }
+      }) as never,
+    })
+
+    await session.startHandsFree('c1')
+    controller.emitFinal('مرحبا')
+    await Promise.resolve()
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(typedReasons).toEqual([])
+    session.dispose()
+  })
+})
+
+describe('Morocco trip destination consistency', () => {
+  it('asks one city clarification for Morocco country-only seed (no invented RAK/Dubai)', () => {
+    const trip = buildActiveTripContext(MOROCCO_COUNTRY_SEED)
+    expect(trip.needsCityClarification).toBe(true)
+    expect(trip.budgetSar).toBe(10000)
+    expect(trip.currency).toBe('SAR')
+    expect(trip.travelers).toBe(2)
+    expect(trip.durationDays).toBe(7)
+    expect(trip.destinationCode).toBeNull()
+    expect(tripClarificationText(trip, 'ar')).toMatch(/مدينة/)
+
+    const route = inferTravelRouteFromSeed(MOROCCO_COUNTRY_SEED)
+    expect(route.needsCityClarification).toBe(true)
+    expect(buildDynamicResultCards(MOROCCO_COUNTRY_SEED, 6)).toEqual([])
+  })
+
+  it('never renders Riyadh → Dubai for the Morocco country seed', () => {
+    const cards = buildDynamicResultCards(MOROCCO_COUNTRY_SEED, 8)
+    expect(cards).toEqual([])
+    const trip = buildActiveTripContext(MOROCCO_COUNTRY_SEED)
+    expect(isStaleTripRoute(trip, 'الرياض → دبي', 'RUH → DXB')).toBe(true)
+  })
+
+  it('aligns flight/hotel/activity/restaurant/budget/itinerary to Marrakech + SAR', () => {
+    const trip = buildActiveTripContext(MOROCCO_CITY_SEED)
+    expect(trip.needsCityClarification).toBe(false)
+    expect(trip.destinationCode).toBe('RAK')
+    expect(trip.displayDestinationAr).toBe('مراكش')
+    expect(trip.budgetSar).toBe(10000)
+    expect(trip.currency).toBe('SAR')
+
+    const cards = buildDynamicResultCards(MOROCCO_CITY_SEED, 8)
+    const blob = cards.map((c) => `${c.titleAr} ${c.titleEn} ${c.metaAr} ${c.metaEn}`).join(' ')
+    expect(blob).not.toMatch(/دبي|Dubai|DXB/i)
+    expect(blob).toMatch(/مراكش|Marrakech|RAK/)
+    expect(blob).toMatch(/SAR|ر\.س/)
+
     const flight = cards.find((c) => c.kind === 'flight')
-    expect(flight).toBeTruthy()
-    expect(flight!.titleAr).toBe('الرياض → المغرب')
-    expect(flight!.titleEn).toBe('RUH → RAK')
-    expect(flight!.titleAr).not.toContain('دبي')
-    expect(flight!.titleEn).not.toMatch(/DXB|Dubai/i)
+    expect(flight?.titleAr).toBe('الرياض → مراكش')
+    expect(flight?.titleEn).toBe('RUH → RAK')
+
+    const hotel = cards.find((c) => c.kind === 'hotel')
+    expect(hotel?.titleAr).toContain('مراكش')
+
+    const activity = cards.find((c) => c.kind === 'activity')
+    const restaurant = cards.find((c) => c.kind === 'restaurant')
+    // kinds may be filtered by seed keywords; ensure route-level demos stay Morocco when present
+    if (activity) expect(activity.titleAr).toContain('مراكش')
+    if (restaurant) expect(restaurant.titleAr).toContain('مراكش')
+
+    const itinerary = demoItinerary('ar', trip)
+    const itineraryText = JSON.stringify(itinerary)
+    expect(itineraryText).toContain('مراكش')
+    expect(itineraryText).not.toMatch(/دبي|Dubai/)
+  })
+
+  it('rejects stale Dubai structured labels on a Morocco trip', () => {
+    const trip = buildActiveTripContext(MOROCCO_CITY_SEED)
+    expect(isStaleTripRoute(trip, 'Emirates', 'الرياض', 'دبي')).toBe(true)
+    expect(isStaleTripRoute(trip, 'فندق مراكش', 'مراكش', 'Marrakech')).toBe(false)
   })
 })

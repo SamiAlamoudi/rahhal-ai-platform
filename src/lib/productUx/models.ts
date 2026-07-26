@@ -6,6 +6,7 @@
 import type { FlightCardModel, HotelCardModel } from '../chat/conversationExperienceUi'
 import type { CostBreakdown, BudgetTier } from '../agent/integrationBudgetPricing/types'
 import type { ProductLocale } from './copy'
+import type { ActiveTripContext } from './tripContext'
 
 export type FlightCompareTag = 'best_value' | 'fastest' | 'cheapest' | 'recommended'
 
@@ -162,23 +163,36 @@ export function budgetFromBreakdown(
   }
 }
 
-export function demoItinerary(locale: ProductLocale): ItineraryDayView[] {
+export function demoItinerary(
+  locale: ProductLocale,
+  trip?: ActiveTripContext | null,
+): ItineraryDayView[] {
+  const dest =
+    locale === 'ar'
+      ? (trip?.displayDestinationAr ?? 'المدينة')
+      : (trip?.displayDestinationEn ?? 'the city')
   if (locale === 'ar') {
     return [
       {
         day: 1,
-        title: 'الوصول والاستقرار',
+        title: `الوصول إلى ${dest}`,
         items: [
-          { id: 'd1-f', kind: 'flight', title: 'وصول الطيران', timeLabel: '14:20', detail: 'المطار → الفندق' },
-          { id: 'd1-h', kind: 'hotel', title: 'تسجيل الوصول', timeLabel: '16:00' },
-          { id: 'd1-m', kind: 'meal', title: 'عشاء خفيف في الحي', timeLabel: '19:30' },
+          {
+            id: 'd1-f',
+            kind: 'flight',
+            title: `وصول الطيران إلى ${dest}`,
+            timeLabel: '14:20',
+            detail: `مطار ${dest} → الفندق`,
+          },
+          { id: 'd1-h', kind: 'hotel', title: `تسجيل الوصول في ${dest}`, timeLabel: '16:00' },
+          { id: 'd1-m', kind: 'meal', title: `عشاء محلي في ${dest}`, timeLabel: '19:30' },
         ],
       },
       {
         day: 2,
-        title: 'استكشاف المدينة',
+        title: `استكشاف ${dest}`,
         items: [
-          { id: 'd2-a', kind: 'activity', title: 'جولة صباحية', timeLabel: '09:00' },
+          { id: 'd2-a', kind: 'activity', title: `جولة صباحية في ${dest}`, timeLabel: '09:00' },
           { id: 'd2-t', kind: 'transport', title: 'انتقال داخلي', timeLabel: '13:00' },
           { id: 'd2-f', kind: 'free_time', title: 'وقت حر', timeLabel: '16:00' },
         ],
@@ -188,18 +202,24 @@ export function demoItinerary(locale: ProductLocale): ItineraryDayView[] {
   return [
     {
       day: 1,
-      title: 'Arrival & settle in',
+      title: `Arrival in ${dest}`,
       items: [
-        { id: 'd1-f', kind: 'flight', title: 'Flight arrival', timeLabel: '14:20', detail: 'Airport → hotel' },
-        { id: 'd1-h', kind: 'hotel', title: 'Hotel check-in', timeLabel: '16:00' },
-        { id: 'd1-m', kind: 'meal', title: 'Light dinner nearby', timeLabel: '19:30' },
+        {
+          id: 'd1-f',
+          kind: 'flight',
+          title: `Flight arrival to ${dest}`,
+          timeLabel: '14:20',
+          detail: `${dest} airport → hotel`,
+        },
+        { id: 'd1-h', kind: 'hotel', title: `Hotel check-in in ${dest}`, timeLabel: '16:00' },
+        { id: 'd1-m', kind: 'meal', title: `Local dinner in ${dest}`, timeLabel: '19:30' },
       ],
     },
     {
       day: 2,
-      title: 'City exploration',
+      title: `Exploring ${dest}`,
       items: [
-        { id: 'd2-a', kind: 'activity', title: 'Morning walk', timeLabel: '09:00' },
+        { id: 'd2-a', kind: 'activity', title: `Morning walk in ${dest}`, timeLabel: '09:00' },
         { id: 'd2-t', kind: 'transport', title: 'Local transfer', timeLabel: '13:00' },
         { id: 'd2-f', kind: 'free_time', title: 'Free time', timeLabel: '16:00' },
       ],
@@ -207,14 +227,47 @@ export function demoItinerary(locale: ProductLocale): ItineraryDayView[] {
   ]
 }
 
-export function demoActionConfirmation(locale: ProductLocale): ActionConfirmationView {
+export function demoActionConfirmation(
+  locale: ProductLocale,
+  trip?: ActiveTripContext | null,
+): ActionConfirmationView {
+  const dest =
+    locale === 'ar'
+      ? (trip?.displayDestinationAr ?? 'الوجهة')
+      : (trip?.displayDestinationEn ?? 'destination')
+  const travelers =
+    trip?.travelers && trip.travelers > 1
+      ? locale === 'ar'
+        ? `${trip.travelers} بالغين`
+        : `${trip.travelers} adults`
+      : locale === 'ar'
+        ? '١ بالغ'
+        : '1 adult'
+  const budget =
+    trip?.budgetSar != null
+      ? locale === 'ar'
+        ? `${trip.budgetSar.toLocaleString('en-US')} ر.س`
+        : `${trip.budgetSar.toLocaleString('en-US')} SAR`
+      : locale === 'ar'
+        ? '٨٬٤٥٠ ر.س'
+        : '8,450 SAR'
   return {
     kind: 'booking',
     title: locale === 'ar' ? 'تأكيد معاينة الحجز' : 'Booking preview confirmation',
-    selectedOption: locale === 'ar' ? 'الطيران الموصى به + فندق العائلة' : 'Recommended flight + family hotel',
-    travelers: locale === 'ar' ? '٢ بالغين' : '2 adults',
-    dates: locale === 'ar' ? '١٢–١٧ مايو' : '12–17 May',
-    totalAmount: locale === 'ar' ? '٨٬٤٥٠ ر.س' : '8,450 SAR',
+    selectedOption:
+      locale === 'ar'
+        ? `الطيران الموصى به + فندق في ${dest}`
+        : `Recommended flight + hotel in ${dest}`,
+    travelers,
+    dates:
+      trip?.durationDays != null
+        ? locale === 'ar'
+          ? `${trip.durationDays} أيام`
+          : `${trip.durationDays} days`
+        : locale === 'ar'
+          ? '١٢–١٧ مايو'
+          : '12–17 May',
+    totalAmount: budget,
     cancellationTerms:
       locale === 'ar'
         ? 'إلغاء مجاني حتى ٤٨ ساعة قبل المغادرة (حسب العرض).'

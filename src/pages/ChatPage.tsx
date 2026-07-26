@@ -430,7 +430,17 @@ function LegacyChatPage() {
         else setMicError(null)
       },
       onError: (error) => {
-        if (!isBenignChatError(error)) setActionError(error)
+        if (!isBenignChatError(error)) {
+          setMicError(error)
+          setActionError(error)
+        }
+      },
+      onSuggestTypedInput: (reason) => {
+        setMicError(reason)
+        setPartialTranscript('')
+        setVoiceStatus('error')
+        // Prefer typed input so the traveler is never stuck on a silent mic.
+        setComposerMode('text')
       },
       onAssistantCreate: upsertMessage,
       onDelta: upsertMessage,
@@ -1303,6 +1313,11 @@ function LegacyChatPage() {
                       onToggleHandsFree={() => void handleToggleHandsFree()}
                       onInterrupt={stopGeneration}
                       onRequestPermission={() => void voiceRef.current?.ensureMicPermission()}
+                      onUseTypedInput={() => {
+                        void voiceRef.current?.stopListening()
+                        setPartialTranscript('')
+                        setComposerMode('text')
+                      }}
                     />
                   </Suspense>
                 ) : (
