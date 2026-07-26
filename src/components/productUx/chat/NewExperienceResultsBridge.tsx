@@ -8,11 +8,17 @@ import {
 } from '../../../lib/chat/conversationExperienceUi'
 import {
   buildDynamicResultCards,
+  inferTravelRouteFromSeed,
   resultCardMeta,
   resultCardSubtitle,
   resultCardTitle,
 } from '../../../lib/premiumExperience'
-import type { ProductLocale } from '../../../lib/productUx'
+import {
+  buildActiveTripContext,
+  isStaleTripRoute,
+  tripClarificationText,
+  type ProductLocale,
+} from '../../../lib/productUx'
 import { ConversationResults } from '../results/ConversationResults'
 
 export interface NewExperienceResultsBridgeProps {
@@ -24,20 +30,26 @@ export interface NewExperienceResultsBridgeProps {
 }
 
 function seedFlights(seed: string, locale: ProductLocale): FlightCardModel[] {
+  const route = inferTravelRouteFromSeed(seed)
+  if (route.needsCityClarification || !route.destinationCode) return []
+  const departure =
+    locale === 'ar' ? route.originAr : (route.originCode ?? route.originEn)
+  const arrival =
+    locale === 'ar' ? route.destinationAr : (route.destinationCode ?? route.destinationEn)
   const cards = buildDynamicResultCards(seed, 3)
   return cards
     .filter((c) => c.kind === 'flight')
     .slice(0, 2)
     .map((c, i) => {
-      const title = resultCardTitle(c, locale)
       const subtitle = resultCardSubtitle(c, locale)
+      const airline = locale === 'ar' ? 'رحلة مقترحة' : 'Suggested flight'
       return {
         kind: 'flight' as const,
         id: c.id || `seed-flight-${i}`,
-        airline: title,
-        logoLabel: title.slice(0, 2).toUpperCase(),
-        departure: locale === 'ar' ? 'مغادرة' : 'DEP',
-        arrival: locale === 'ar' ? 'وصول' : 'ARR',
+        airline,
+        logoLabel: airline.slice(0, 2).toUpperCase(),
+        departure,
+        arrival,
         durationLabel: resultCardMeta(c, locale) || '—',
         stops: /مباشر|direct|nonstop/i.test(subtitle) ? 0 : 1,
         baggage: locale === 'ar' ? 'حقيبة مقصورة' : 'Cabin bag',
@@ -52,6 +64,8 @@ function seedFlights(seed: string, locale: ProductLocale): FlightCardModel[] {
 }
 
 function seedHotels(seed: string, locale: ProductLocale): HotelCardModel[] {
+  const route = inferTravelRouteFromSeed(seed)
+  if (route.needsCityClarification || !route.destinationCode) return []
   const cards = buildDynamicResultCards(seed, 3)
   return cards
     .filter((c) => c.kind === 'hotel')
@@ -63,7 +77,7 @@ function seedHotels(seed: string, locale: ProductLocale): HotelCardModel[] {
         id: c.id || `seed-hotel-${i}`,
         name: title,
         photos: [],
-        mapQuery: title,
+        mapQuery: `${title} ${route.destinationEn}`,
         stars: 4,
         rating: 8.2,
         reviewsLabel: resultCardSubtitle(c, locale),
@@ -74,7 +88,7 @@ function seedHotels(seed: string, locale: ProductLocale): HotelCardModel[] {
         loyaltyRewards: '',
         price: 450 + i * 90,
         currency: 'SAR',
-        area: resultCardMeta(c, locale) || (locale === 'ar' ? 'وسط المدينة' : 'City center'),
+        area: locale === 'ar' ? route.destinationAr : route.destinationEn,
       }
     })
 }
@@ -95,27 +109,57 @@ export function NewExperienceResultsBridge({
     || ''
 
   const view = useMemo(() => {
+    const trip = buildActiveTripContext(seed)
+    const clarification = tripClarificationText(trip, locale)
     const meta = extractConversationUiMeta(message.providerMeta)
     const fromStructured = meta.structured
       ? buildTravelCards(meta.structured, { locale })
       : []
-    const flights = fromStructured.filter((c): c is FlightCardModel => c.kind === 'flight')
-    const hotels = fromStructured.filter((c): c is HotelCardModel => c.kind === 'hotel')
+
+    const flights = fromStructured
+      .filter((c): c is FlightCardModel => c.kind === 'flight')
+      .filter((f) => !isStaleTripRoute(trip, f.airline, f.departure, f.arrival))
+    const hotels = fromStructured
+      .filter((c): c is HotelCardModel => c.kind === 'hotel')
+      .filter((h) => !isStaleTripRoute(trip, h.name, h.area, h.mapQuery))
+
+    // Morocco (or any country) without a city — ask one clarification, no invented cards.
+    if (trip.needsCityClarification) {
+      return {
+        trip,
+        clarification,
+        flights: [] as FlightCardModel[],
+        hotels: [] as HotelCardModel[],
+        destinations: [] as { id: string; name: string; reason: string }[],
+        showItinerary: false,
+        showConfirmation: false,
+        disruptionRecommendation: null as string | null,
+        mapLabel: null as string | null,
+        mapEta: null as string | null,
+        showBudget: false,
+      }
+    }
 
     const lower = seed.toLowerCase()
-    const wantsPlan = /خط[ةه]|itinerary|خطة|أوافق|accept|اقبل/.test(seed)
+    const wantsPlan = /خط[ةه]|itinerary|خطة|أوافق|accept|اقبل|أسبوع|اسبوع|week/i.test(seed)
     const wantsDisruption = /تعطيل|تأخير|delay|disrupt|إلغاء رحلة/.test(seed)
     const wantsConfirm = /احجز|أكد|book|confirm|ادفع/.test(seed)
+    const wantsTravelResults =
+      /سفر|أسافر|asafar|trip|flight|طيران|فندق|hotel|ميزانية|budget|المغرب|morocco|دبي|dubai/i.test(
+        seed,
+      )
 
     return {
-      flights: flights.length ? flights : seedFlights(seed, locale),
-      hotels: hotels.length ? hotels : seedHotels(seed, locale),
+      trip,
+      clarification: null as string | null,
+      flights: flights.length ? flights : wantsTravelResults ? seedFlights(seed, locale) : [],
+      hotels: hotels.length ? hotels : wantsTravelResults ? seedHotels(seed, locale) : [],
       destinations:
-        /وجهة|destination|المغرب|morocco|مراكش|أغادير|tokyo|دبي|istanbul/i.test(seed)
+        trip.destinationCityEn || trip.destinationCountryEn
           ? [
               {
                 id: 'dest-1',
-                name: locale === 'ar' ? 'المغرب' : 'Morocco',
+                name: locale === 'ar' ? trip.displayDestinationAr : trip.displayDestinationEn,
                 reason:
                   locale === 'ar'
                     ? 'تناسب الثقافة والطقس والميزانية المرنة'
@@ -132,14 +176,15 @@ export function NewExperienceResultsBridge({
         : null,
       mapLabel: /خريطة|map|eta|وصول/i.test(lower)
         ? locale === 'ar'
-          ? 'المطار → الفندق'
-          : 'Airport → hotel'
+          ? `المطار → فندق ${trip.displayDestinationAr}`
+          : `Airport → ${trip.displayDestinationEn} hotel`
         : null,
       mapEta: /خريطة|map|eta|وصول/i.test(lower)
         ? locale === 'ar'
           ? '٣٥ دقيقة'
           : '35 min'
         : null,
+      showBudget: trip.budgetSar != null || /ميزانية|budget/i.test(seed),
     }
   }, [locale, message.providerMeta, seed])
 
@@ -148,9 +193,13 @@ export function NewExperienceResultsBridge({
   return (
     <ConversationResults
       locale={locale}
+      trip={view.trip}
+      clarification={view.clarification}
       flights={view.flights}
       hotels={view.hotels}
       destinations={view.destinations}
+      totalBudget={view.showBudget ? view.trip.budgetSar : null}
+      budget={null}
       showItinerary={view.showItinerary}
       showConfirmation={view.showConfirmation}
       disruptionRecommendation={view.disruptionRecommendation}

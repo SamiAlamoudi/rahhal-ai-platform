@@ -50,3 +50,10 @@ export {
   type ItineraryDayView,
   type ItineraryItemView,
 } from './models'
+
+export {
+  buildActiveTripContext,
+  isStaleTripRoute,
+  tripClarificationText,
+  type ActiveTripContext,
+} from './tripContext'

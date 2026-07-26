@@ -4,6 +4,7 @@ import {
   demoItinerary,
   flightResultFromModel,
   hotelResultFromModel,
+  type ActiveTripContext,
   type ProductLocale,
 } from '../../../lib/productUx'
 import type { FlightCardModel, HotelCardModel } from '../../../lib/chat/conversationExperienceUi'
@@ -19,6 +20,8 @@ import { MapEtaCard } from './MapEtaCard'
 
 export interface ConversationResultsProps {
   locale?: ProductLocale
+  trip?: ActiveTripContext | null
+  clarification?: string | null
   flights?: FlightCardModel[]
   hotels?: HotelCardModel[]
   destinations?: { id: string; name: string; reason: string }[]
@@ -41,6 +44,8 @@ export interface ConversationResultsProps {
  */
 export function ConversationResults({
   locale = 'ar',
+  trip = null,
+  clarification = null,
   flights = [],
   hotels = [],
   destinations = [],
@@ -56,6 +61,19 @@ export function ConversationResults({
   onConfirmAction,
   onEditItinerary,
 }: ConversationResultsProps) {
+  if (clarification) {
+    return (
+      <div
+        className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        data-testid="trip-city-clarification"
+        dir={locale === 'ar' ? 'rtl' : 'ltr'}
+        role="status"
+      >
+        {clarification}
+      </div>
+    )
+  }
+
   const flightViews = flights.slice(0, 3).map((f, i) =>
     flightResultFromModel(
       f,
@@ -64,6 +82,22 @@ export function ConversationResults({
     ),
   )
   const hotelViews = hotels.slice(0, 2).map((h) => hotelResultFromModel(h, locale))
+  const resolvedBudget =
+    budget
+    ?? (trip?.budgetSar != null
+      ? ({
+          currency: 'SAR',
+          estimatedTotal: Math.round(trip.budgetSar * 0.84),
+          flights: Math.round(trip.budgetSar * 0.35),
+          hotels: Math.round(trip.budgetSar * 0.3),
+          transportation: Math.round(trip.budgetSar * 0.08),
+          meals: Math.round(trip.budgetSar * 0.1),
+          activities: Math.round(trip.budgetSar * 0.07),
+          reserveHeld: Math.round(trip.budgetSar * 0.1),
+          withinBudget: true,
+          overBy: 0,
+        } as CostBreakdown)
+      : null)
 
   return (
     <div className="mt-3 space-y-3" data-testid="conversation-results" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
@@ -76,9 +110,12 @@ export function ConversationResults({
       {hotelViews.map((h) => (
         <HotelResultCard key={h.id} hotel={h} locale={locale} onSelect={onSelectHotel} />
       ))}
-      {budget ? (
+      {resolvedBudget ? (
         <BudgetBreakdownCard
-          budget={budgetFromBreakdown(budget, { totalBudget, locale })}
+          budget={budgetFromBreakdown(resolvedBudget, {
+            totalBudget: totalBudget ?? trip?.budgetSar ?? null,
+            locale,
+          })}
           locale={locale}
         />
       ) : null}
@@ -87,7 +124,7 @@ export function ConversationResults({
       ) : null}
       {showItinerary ? (
         <ItineraryTimeline
-          days={demoItinerary(locale)}
+          days={demoItinerary(locale, trip)}
           locale={locale}
           onEditViaChat={onEditItinerary}
         />
@@ -97,7 +134,7 @@ export function ConversationResults({
       ) : null}
       {showConfirmation ? (
         <ActionConfirmationCard
-          confirmation={demoActionConfirmation(locale)}
+          confirmation={demoActionConfirmation(locale, trip)}
           locale={locale}
           onConfirm={onConfirmAction}
         />

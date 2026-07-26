@@ -33,6 +33,11 @@ export interface VoiceSessionCallbacks {
   onFinalTranscript?: (text: string) => void
   onPermission?: (state: MicrophonePermissionState) => void
   onError?: (error: string) => void
+  /**
+   * Fired when voice cannot produce a usable transcript (unsupported, permission,
+   * or listening timed out with no speech). UI should offer typed input.
+   */
+  onSuggestTypedInput?: (reason: string) => void
   onAssistantCreate?: (message: ChatMessage) => void
   onDelta?: (message: ChatMessage) => void
   onComplete?: (message: ChatMessage) => void
@@ -60,6 +65,11 @@ export interface VoiceSession {
   dispose: () => void
 }
 
+/** Hard stop when listening yields no transcript (prevents stuck "أستمع إليك…"). */
+export const DEFAULT_NO_TRANSCRIPT_TIMEOUT_MS = 12_000
+export const MIN_NO_TRANSCRIPT_TIMEOUT_MS = 4_000
+export const MAX_NO_TRANSCRIPT_TIMEOUT_MS = 30_000
+
 export interface CreateVoiceSessionOptions {
   stt?: SpeechToTextProvider
   tts?: TextToSpeechProvider
@@ -70,8 +80,18 @@ export interface CreateVoiceSessionOptions {
   requestPermission?: () => Promise<MicrophonePermissionState>
   /** Hands-free end-of-utterance silence (ms). Default 3500. */
   silenceTimeoutMs?: number
+  /** Abort listening if no partial/final transcript arrives (ms). Default 12000. */
+  noTranscriptTimeoutMs?: number
   /** Inject VAD monitor (tests). */
   activityMonitor?: VoiceActivityMonitor
+}
+
+function clampNoTranscriptMs(ms: number): number {
+  if (!Number.isFinite(ms)) return DEFAULT_NO_TRANSCRIPT_TIMEOUT_MS
+  return Math.max(
+    MIN_NO_TRANSCRIPT_TIMEOUT_MS,
+    Math.min(MAX_NO_TRANSCRIPT_TIMEOUT_MS, Math.round(ms)),
+  )
 }
 
 function clampSilenceMs(ms: number): number {
@@ -105,9 +125,14 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   let silenceTimeoutMs = clampSilenceMs(
     options.silenceTimeoutMs ?? DEFAULT_HANDS_FREE_SILENCE_MS,
   )
+  let noTranscriptTimeoutMs = clampNoTranscriptMs(
+    options.noTranscriptTimeoutMs ?? DEFAULT_NO_TRANSCRIPT_TIMEOUT_MS,
+  )
   let utteranceBuffer = ''
   let utterancePrefix = ''
   let silenceTimer: ReturnType<typeof setTimeout> | null = null
+  let noTranscriptTimer: ReturnType<typeof setTimeout> | null = null
+  let heardTranscript = false
   let vadSpeaking = false
   let earlySpokenText = ''
   let earlySpeakPromise: Promise<void> | null = null
@@ -140,6 +165,58 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       clearTimeout(silenceTimer)
       silenceTimer = null
     }
+  }
+
+  const clearNoTranscriptTimer = () => {
+    if (noTranscriptTimer) {
+      clearTimeout(noTranscriptTimer)
+      noTranscriptTimer = null
+    }
+  }
+
+  const suggestTypedFallback = (reason: string) => {
+    callbacks.onError?.(reason)
+    callbacks.onSuggestTypedInput?.(reason)
+  }
+
+  const failListeningNoTranscript = () => {
+    if (disposed) return
+    if (heardTranscript || utteranceBuffer.trim() || partial.trim()) return
+    logPipeline({
+      stage: 'stt',
+      event: 'no_transcript_timeout',
+      meta: { noTranscriptTimeoutMs, mode },
+    })
+    intentionalAbort = true
+    resumeHandsFreeAfterInterrupt = false
+    handsFreeConversationId = null
+    clearSilenceTimer()
+    clearNoTranscriptTimer()
+    stopVad()
+    try {
+      stt.abort()
+    } catch {
+      // ignore
+    }
+    listening = false
+    setStatus('error')
+    suggestTypedFallback(
+      'لم يتم التقاط كلام. يمكنك الكتابة بدل الصوت.',
+    )
+  }
+
+  const armNoTranscriptTimer = () => {
+    clearNoTranscriptTimer()
+    noTranscriptTimer = setTimeout(() => {
+      noTranscriptTimer = null
+      if (disposed || !listening || status !== 'listening') return
+      failListeningNoTranscript()
+    }, noTranscriptTimeoutMs)
+  }
+
+  const markTranscriptHeard = () => {
+    heardTranscript = true
+    clearNoTranscriptTimer()
   }
 
   const clearSttHandlers = () => {
@@ -191,7 +268,11 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         message: state.error ?? 'denied',
       })
       if (!isBenignChatError(state.error)) {
-        callbacks.onError?.(state.error || 'يلزم إذن الميكروفون للمتابعة')
+        const reason =
+          state.state === 'unsupported'
+            ? 'الميكروفون غير مدعوم في هذا المتصفح — استخدم الكتابة.'
+            : state.error || 'يلزم إذن الميكروفون للمتابعة'
+        suggestTypedFallback(reason)
       }
     } else if (status === 'requesting_permission') {
       setStatus('idle')
@@ -203,32 +284,61 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   const startListening = async (continuous: boolean, opts?: { preserveUtterance?: boolean }) => {
     if (disposed) return
     if (!stt.isSupported()) {
-      throw new Error('التعرف على الكلام غير متاح')
+      const reason = 'التعرف على الكلام غير مدعوم في هذا المتصفح — استخدم الكتابة.'
+      setStatus('error')
+      suggestTypedFallback(reason)
+      throw new Error(reason)
     }
     const permission = await ensureMicPermission()
     if (permission.state !== 'granted') return
     if (opts?.preserveUtterance) {
       utterancePrefix = utteranceBuffer.trim()
+      if (utterancePrefix || partial.trim()) heardTranscript = true
     } else {
       partial = ''
       utteranceBuffer = ''
       utterancePrefix = ''
+      heardTranscript = false
     }
     intentionalAbort = false
     listening = true
     clearSilenceTimer()
+    if (!opts?.preserveUtterance || !heardTranscript) {
+      armNoTranscriptTimer()
+    } else {
+      clearNoTranscriptTimer()
+    }
     setStatus('listening')
     logPipeline({
       stage: 'stt',
       event: 'listening_started',
-      meta: { continuous, silenceTimeoutMs, mode, preserveUtterance: !!opts?.preserveUtterance },
+      meta: {
+        continuous,
+        silenceTimeoutMs,
+        noTranscriptTimeoutMs,
+        mode,
+        preserveUtterance: !!opts?.preserveUtterance,
+      },
     })
     void activityMonitor.start()
-    await stt.start({
-      locale,
-      continuous,
-      interimResults: true,
-    })
+    try {
+      await stt.start({
+        locale,
+        continuous,
+        interimResults: true,
+      })
+    } catch (error) {
+      listening = false
+      clearNoTranscriptTimer()
+      stopVad()
+      setStatus('error')
+      const reason =
+        error instanceof Error
+          ? error.message
+          : 'تعذر بدء التعرف على الكلام — استخدم الكتابة.'
+      suggestTypedFallback(reason)
+      throw error
+    }
   }
 
   const maybeResumeHandsFree = async () => {
@@ -261,6 +371,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
 
     sending = true
     clearSilenceTimer()
+    clearNoTranscriptTimer()
     stopVad()
     setStatus('thinking')
     intentionalAbort = true
@@ -417,6 +528,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   stt.onPartial = (event) => {
     if (disposed) return
     const chunk = event.transcript
+    if (chunk.trim()) markTranscriptHeard()
     partial = utterancePrefix ? `${utterancePrefix} ${chunk}`.trim() : chunk
     callbacks.onPartialTranscript?.(partial)
     // Live speech → reset end-of-utterance timer (tolerate short pauses).
@@ -428,6 +540,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     if (disposed) return
     const chunk = event.transcript.trim()
     if (!chunk) return
+    markTranscriptHeard()
     // Accumulate across STT restarts; never auto-send mid-sentence.
     utteranceBuffer = utterancePrefix
       ? `${utterancePrefix} ${chunk}`.trim()
@@ -448,9 +561,20 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     if (disposed || intentionalAbort || isBenignChatError(error) || error === 'aborted') {
       return
     }
+    // Transient Safari no-speech between one-shot restarts — keep listening unless
+    // the no-transcript timer fires.
+    if (error === 'no-speech' && listening && status === 'listening') {
+      return
+    }
     diagnosePipelineError('stt', 'recognition', new Error(error))
-    callbacks.onError?.(mapSttError(error))
+    clearNoTranscriptTimer()
+    clearSilenceTimer()
+    stopVad()
+    listening = false
+    handsFreeConversationId = null
+    const mapped = mapSttError(error)
     setStatus('error')
+    suggestTypedFallback(mapped)
   }
   stt.onEnd = () => {
     listening = false
@@ -460,6 +584,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       void maybeResumeHandsFree()
       return
     }
+    clearNoTranscriptTimer()
     if (status === 'listening' && mode !== 'hands_free') setStatus('idle')
   }
 
@@ -475,6 +600,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         handsFreeConversationId = null
         resumeHandsFreeAfterInterrupt = false
         clearSilenceTimer()
+        clearNoTranscriptTimer()
         utteranceBuffer = ''
         utterancePrefix = ''
       }
@@ -498,6 +624,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       handsFreeConversationId = null
       resumeHandsFreeAfterInterrupt = false
       clearSilenceTimer()
+      clearNoTranscriptTimer()
       utteranceBuffer = ''
       utterancePrefix = ''
       await startListening(false)
@@ -506,6 +633,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       if (disposed) return null
       intentionalAbort = true
       clearSilenceTimer()
+      clearNoTranscriptTimer()
       stopVad()
       const transcript = ((await stt.stop()) || utteranceBuffer || partial).trim()
       listening = false
@@ -521,6 +649,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       handsFreeConversationId = conversationId
       resumeHandsFreeAfterInterrupt = false
       clearSilenceTimer()
+      clearNoTranscriptTimer()
       utteranceBuffer = ''
       utterancePrefix = ''
       await startListening(true)
@@ -530,6 +659,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       resumeHandsFreeAfterInterrupt = false
       handsFreeConversationId = null
       clearSilenceTimer()
+      clearNoTranscriptTimer()
       utteranceBuffer = ''
       utterancePrefix = ''
       stopVad()
@@ -548,6 +678,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         || status === 'reconnecting'
         || status === 'thinking'
         || status === 'responding'
+        || status === 'error'
       ) {
         setStatus('idle')
       }
@@ -555,6 +686,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     interrupt(abortStream, opts) {
       intentionalAbort = true
       clearSilenceTimer()
+      clearNoTranscriptTimer()
       stopVad()
       const keepHandsFree = opts?.resumeHandsFree ?? (mode === 'hands_free' && !!handsFreeConversationId)
       const wasSending = sending
@@ -592,6 +724,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       resumeHandsFreeAfterInterrupt = false
       handsFreeConversationId = null
       clearSilenceTimer()
+      clearNoTranscriptTimer()
       utteranceBuffer = ''
       utterancePrefix = ''
       stopVad()
@@ -617,9 +750,21 @@ export function stripMarkdownForSpeech(markdown: string): string {
 }
 
 function mapSttError(error: string): string {
-  if (error === 'not-allowed' || error === 'permission_denied') return 'تم رفض إذن الميكروفون'
-  if (error === 'no-speech') return 'لم يتم التقاط كلام — حاول مجدداً'
-  if (error === 'network') return 'مشكلة شبكة في التعرف على الكلام'
+  if (error === 'not-allowed' || error === 'permission_denied') {
+    return 'تم رفض إذن الميكروفون — يمكنك الكتابة بدل الصوت.'
+  }
+  if (error === 'no-speech') {
+    return 'لم يتم التقاط كلام — يمكنك الكتابة بدل الصوت.'
+  }
+  if (error === 'network') {
+    return 'مشكلة شبكة في التعرف على الكلام — يمكنك الكتابة بدل الصوت.'
+  }
+  if (error === 'audio-capture') {
+    return 'تعذر الوصول إلى الميكروفون — يمكنك الكتابة بدل الصوت.'
+  }
+  if (error === 'service-not-allowed') {
+    return 'خدمة التعرف على الكلام غير متاحة — يمكنك الكتابة بدل الصوت.'
+  }
   if (error === 'aborted') return 'تم إيقاف الاستماع'
-  return error || 'خطأ في التعرف على الكلام'
+  return error || 'خطأ في التعرف على الكلام — يمكنك الكتابة بدل الصوت.'
 }

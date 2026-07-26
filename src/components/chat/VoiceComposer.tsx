@@ -23,6 +23,8 @@ interface VoiceComposerProps {
   onToggleHandsFree: () => void
   onInterrupt: () => void
   onRequestPermission: () => void
+  /** Switch traveler to typed composer when voice cannot produce a transcript. */
+  onUseTypedInput?: () => void
 }
 
 const STATUS_LABELS: Record<VoiceSessionStatus, string> = {
@@ -55,6 +57,7 @@ export default function VoiceComposer({
   onToggleHandsFree,
   onInterrupt,
   onRequestPermission,
+  onUseTypedInput,
 }: VoiceComposerProps) {
   const listening = status === 'listening'
   const speaking = status === 'speaking'
@@ -171,17 +174,51 @@ export default function VoiceComposer({
       </div>
 
       {showMicHelp && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <div
+          className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+          data-testid="voice-mic-help"
+        >
           <p>{permissionError || 'يلزم إذن الميكروفون لاستخدام الصوت'}</p>
-          <button
-            type="button"
-            onClick={onRequestPermission}
-            className="mt-1 min-h-10 font-medium underline"
-          >
-            إعادة طلب إذن الميكروفون
-          </button>
+          <div className="mt-1 flex flex-wrap gap-3">
+            {permissionState !== 'unsupported' ? (
+              <button
+                type="button"
+                onClick={onRequestPermission}
+                className="min-h-10 font-medium underline"
+              >
+                إعادة طلب إذن الميكروفون
+              </button>
+            ) : null}
+            {onUseTypedInput ? (
+              <button
+                type="button"
+                onClick={onUseTypedInput}
+                className="min-h-10 font-medium underline"
+                data-testid="voice-typed-fallback"
+              >
+                استخدم الكتابة بدل الصوت
+              </button>
+            ) : null}
+          </div>
         </div>
       )}
+
+      {status === 'error' && onUseTypedInput && !showMicHelp ? (
+        <div
+          className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+          data-testid="voice-typed-fallback-banner"
+        >
+          <p>{permissionError || 'تعذر إكمال الإدخال الصوتي.'}</p>
+          <button
+            type="button"
+            onClick={onUseTypedInput}
+            className="mt-1 min-h-10 font-medium underline"
+            data-testid="voice-typed-fallback"
+          >
+            استخدم الكتابة بدل الصوت
+          </button>
+        </div>
+      ) : null}
 
       <div className="flex flex-col items-center gap-3 py-2">
         <motion.div
