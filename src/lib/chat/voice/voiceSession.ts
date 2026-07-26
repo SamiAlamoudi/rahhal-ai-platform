@@ -604,7 +604,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       previousState: previous.toUpperCase(),
       currentState: 'READY',
       reason,
-      transcriptLen: null,
       meta: {
         utteranceId,
         assistantMessageId,
