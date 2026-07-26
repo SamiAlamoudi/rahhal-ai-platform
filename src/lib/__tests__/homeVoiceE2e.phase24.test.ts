@@ -150,6 +150,49 @@ describe('Recovery Phase 2.4 — home voice end-to-end', () => {
     session.dispose()
   })
 
+  it('commits turn 2 after recognition onend without clearing the silence window', async () => {
+    vi.useFakeTimers()
+    const { provider: stt, controller } = createMockSpeechToTextProvider('')
+    const tts = createMockTextToSpeechProvider()
+    const sendTurn = vi.fn(async (_input, handlers) => {
+      const reply = assistant('حسناً، أكادير من الرياض.', 'حسناً، أكادير من الرياض.')
+      await handlers.onComplete?.(reply)
+      return {
+        user: { ...reply, id: 'u1', role: 'user' as const, modality: 'audio' as const, content: 'x' },
+        assistant: reply,
+      }
+    })
+
+    const session = createVoiceSession({
+      stt,
+      tts,
+      sendTurn: sendTurn as never,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      silenceTimeoutMs: 2200,
+      activityMonitor: {
+        start: async () => {},
+        stop: () => {},
+        isSpeaking: () => false,
+        getLevel: () => 0,
+        isActive: () => false,
+      },
+    })
+
+    await session.beginContinuousWithSeed('c1', 'أريد المغرب')
+    expect(sendTurn).toHaveBeenCalledTimes(1)
+
+    // Simulate browser STT: final chunk then immediate onend (restart thrash).
+    controller.emitFinal('أفضل أكادير والرحلة من الرياض')
+    controller.emitEnd()
+    controller.emitEnd()
+    await vi.advanceTimersByTimeAsync(2300)
+    expect(sendTurn).toHaveBeenCalledTimes(2)
+    expect(sendTurn.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({ content: 'أفضل أكادير والرحلة من الرياض' }),
+    )
+    session.dispose()
+  })
+
   it('stops recognition during TTS and ignores duplicate seed submissions', async () => {
     const { provider: stt } = createMockSpeechToTextProvider('echo')
     const abortSpy = vi.spyOn(stt, 'abort')

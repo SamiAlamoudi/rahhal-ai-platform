@@ -48,10 +48,13 @@ async function installVoiceMocks(page: Page, transcripts: string[]) {
       onerror: ((ev: unknown) => void) | null = null
       onend: (() => void) | null = null
       private timer: number | null = null
+      private aborted = false
       start() {
+        this.aborted = false
         this.onstart?.(new Event('start'))
         const transcript = pending.shift() ?? ''
         this.timer = window.setTimeout(() => {
+          if (this.aborted) return
           if (transcript) {
             const result = {
               0: { transcript, confidence: 0.93 },
@@ -68,14 +71,17 @@ async function installVoiceMocks(page: Page, transcripts: string[]) {
             }
             this.onresult?.(event)
           }
+          // Mimic browsers that end after a final even when continuous=true.
           this.onend?.()
         }, 700)
       }
       stop() {
+        this.aborted = true
         if (this.timer) window.clearTimeout(this.timer)
         this.onend?.()
       }
       abort() {
+        this.aborted = true
         if (this.timer) window.clearTimeout(this.timer)
         this.onend?.()
       }

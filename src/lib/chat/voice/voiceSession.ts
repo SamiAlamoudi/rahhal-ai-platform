@@ -226,12 +226,13 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     }
     intentionalAbort = false
     listening = true
-    clearSilenceTimer()
+    const keepSilence = !!(opts?.preserveUtterance && utteranceBuffer.trim())
+    if (!keepSilence) clearSilenceTimer()
     setStatus('listening')
     logPipeline({
       stage: 'stt',
       event: 'listening_started',
-      meta: { continuous, silenceTimeoutMs, mode, preserveUtterance: !!opts?.preserveUtterance },
+      meta: { continuous, silenceTimeoutMs, mode, preserveUtterance: !!opts?.preserveUtterance, keepSilence },
     })
     void activityMonitor.start()
     await stt.start({
@@ -239,6 +240,10 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       continuous,
       interimResults: true,
     })
+    // Browser STT often restarts after a final chunk — keep the end-of-utterance window alive.
+    if (keepSilence && mode === 'hands_free' && handsFreeConversationId && !sending) {
+      bumpUtteranceSilenceTimer()
+    }
   }
 
   const maybeResumeHandsFree = async () => {
@@ -497,6 +502,16 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     listening = false
     if (disposed) return
     if (status === 'listening' && mode === 'hands_free' && handsFreeConversationId && !sending) {
+      // A final transcript is waiting on the silence timer — do not thrash-restart STT
+      // (that would clear the commit window and drop the turn).
+      if (utteranceBuffer.trim() && silenceTimer) {
+        logPipeline({
+          stage: 'stt',
+          event: 'recognition_ended_awaiting_silence_commit',
+          meta: { length: utteranceBuffer.trim().length },
+        })
+        return
+      }
       // Browser ended recognition mid-session — resume without flushing utterance early.
       void maybeResumeHandsFree()
       return
