@@ -22,7 +22,6 @@ import {
   SuggestionBubble,
   TypingIndicator,
   VoiceButton,
-  AttachmentButton,
 } from '../chat'
 import {
   FlightCard,
@@ -379,7 +378,7 @@ export const ProductionConversationScreen = memo(
                   />
                 </div>
                 <VoiceButton disabled />
-                <AttachmentButton disabled />
+                {/* Recovery Phase 2.2 — attachment chrome hidden unless Brain requests one. */}
               </div>
               <UiStack direction="horizontal" gap="sm">
                 <UiButton disabled={running || !lines.length} onClick={onRegenerate}>
