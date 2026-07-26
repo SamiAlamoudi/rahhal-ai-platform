@@ -194,7 +194,7 @@ describe('Sprint 55 — planTurn consultant feel', () => {
     expect(t2.meta.tripState?.relationship).toBe('couple')
     expect(t2.meta.tripState?.primaryMissing).toBe('destinationCity')
     // Must not re-ask destination or run a form census; budget may appear in value framing.
-    expect(t2.reply).not.toMatch(/كم الميزانية|Budget\?|ما المدينة\؟|كم عدد الأيام/)
+    expect(t2.reply).not.toMatch(/كم الميزانية|Budget\?|ما المدينة؟|كم عدد الأيام/)
     expect(t2.reply).toMatch(/أغادير|أكادير|مراكش|Agadir|Marrakech|شاطئ|beach/i)
   })
 })
