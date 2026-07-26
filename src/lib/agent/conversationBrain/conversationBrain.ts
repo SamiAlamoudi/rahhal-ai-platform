@@ -65,6 +65,7 @@ export async function runConversationBrain(input: {
   const userMessage = latestUserText(input.messages)
   const factsJson = JSON.stringify(input.facts, null, 2)
   const payload = buildConversationUserPayload({
+    currentGoal: input.facts.currentGoal,
     objective: input.facts.objective,
     factsJson,
     recentHistory: historyLines(input.messages),

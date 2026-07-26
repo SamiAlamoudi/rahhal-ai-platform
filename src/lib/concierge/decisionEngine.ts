@@ -126,8 +126,8 @@ const SEASON_PACKS: Record<string, { en: string[]; ar: string[]; question: { en:
       'الشتاء — مدن أهدأ، وسهل دمجه مع وجهات ثلجية.',
     ],
     question: {
-      en: 'Are you planning spring for the cherry blossoms, or do you already have travel dates in mind?',
-      ar: 'تفكّر في الربيع لموسم الساكورا، أم عندك تواريخ سفر واضحة في بالك؟',
+      en: 'Which season are you aiming for — spring for the cherry blossoms — or do you already have travel dates in mind?',
+      ar: 'أي موسم يناسبك — الربيع لساكورا، أم عندك تواريخ سفر واضحة في بالك؟',
     },
   },
 }

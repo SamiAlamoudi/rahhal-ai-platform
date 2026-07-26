@@ -35,6 +35,8 @@ describe('Executive AI Travel Consultant', () => {
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Never ask more than ONE|never more than ONE/i)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/never ask for known facts twice|Never re-ask/i)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/VALUE FIRST|Recommend when confidence is high/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/CURRENT GOAL/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Collect destination|Recommend flights|Compare hotels/)
   })
 
   it('Japan opener leads with seasonal value — not a bare When?', async () => {

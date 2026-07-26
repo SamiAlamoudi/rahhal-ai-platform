@@ -6,6 +6,7 @@
 import type { ChatGptIntent, MemorySnapshot } from './types'
 import { generateLocalConversation } from '../../agent/conversationBrain/localConversationModel'
 import type { TravelFacts } from '../../agent/conversationBrain/travelFacts'
+import { deriveExecutiveCurrentGoal } from '../../agent/conversationBrain/executiveCurrentGoal'
 
 function factsFromMemory(input: {
   intent: ChatGptIntent
@@ -28,7 +29,7 @@ function factsFromMemory(input: {
     objective = dest ? 'greet_or_continue' : 'collect_missing'
   }
 
-  return {
+  const base = {
     locale: input.locale,
     objective,
     known: {
@@ -43,6 +44,11 @@ function factsFromMemory(input: {
         : undefined,
     },
     missingSlots: missing,
+    plan: null as TravelFacts['plan'],
+  }
+  return {
+    ...base,
+    currentGoal: deriveExecutiveCurrentGoal(base),
   }
 }
 
