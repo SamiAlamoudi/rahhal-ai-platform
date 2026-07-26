@@ -81,6 +81,15 @@ export function ConversationComposer({
   })
 
   useEffect(() => {
+    // After voice auto-submit, ensure the home STT session cannot restart and steal
+    // the next transcript intended for the /chat continuous loop.
+    if (voiceUi === 'processing') {
+      speech.cancel()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cancel on processing edge only
+  }, [voiceUi])
+
+  useEffect(() => {
     if (speech.isListening) {
       setVoiceUi('listening')
       submittedRef.current = false

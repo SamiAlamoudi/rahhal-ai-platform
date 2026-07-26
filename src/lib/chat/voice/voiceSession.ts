@@ -498,6 +498,9 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     callbacks.onError?.(mapSttError(error))
     setStatus('error')
   }
+  let emptyEndRestarts = 0
+  let emptyEndWindowStartedAt = 0
+
   stt.onEnd = () => {
     listening = false
     if (disposed) return
@@ -505,11 +508,42 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       // A final transcript is waiting on the silence timer — do not thrash-restart STT
       // (that would clear the commit window and drop the turn).
       if (utteranceBuffer.trim() && silenceTimer) {
+        emptyEndRestarts = 0
         logPipeline({
           stage: 'stt',
           event: 'recognition_ended_awaiting_silence_commit',
           meta: { length: utteranceBuffer.trim().length },
         })
+        return
+      }
+      // Empty recognition ends (no speech) — backoff instead of a tight restart loop.
+      const now = Date.now()
+      if (!emptyEndWindowStartedAt || now - emptyEndWindowStartedAt > 5000) {
+        emptyEndWindowStartedAt = now
+        emptyEndRestarts = 0
+      }
+      emptyEndRestarts += 1
+      if (emptyEndRestarts > 4) {
+        logPipeline({
+          stage: 'stt',
+          event: 'recognition_empty_end_backoff',
+          meta: { emptyEndRestarts },
+        })
+        // Stay LISTENING in UI but wait before the next provider start.
+        setTimeout(() => {
+          if (
+            disposed
+            || mode !== 'hands_free'
+            || !handsFreeConversationId
+            || sending
+            || status !== 'listening'
+            || utteranceBuffer.trim()
+          ) {
+            return
+          }
+          emptyEndRestarts = 0
+          void maybeResumeHandsFree()
+        }, 1500)
         return
       }
       // Browser ended recognition mid-session — resume without flushing utterance early.

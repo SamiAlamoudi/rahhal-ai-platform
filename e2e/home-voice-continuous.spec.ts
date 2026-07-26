@@ -11,15 +11,23 @@ const TURN2 = 'أفضل أكادير والرحلة من الرياض'
 
 const BYPASS = process.env.VERCEL_PROTECTION_BYPASS ?? ''
 
-async function installVoiceMocks(page: Page, transcripts: string[]) {
-  await page.addInitScript((queue) => {
-    const pending = [...queue]
+async function installVoiceMocks(page: Page) {
+  await page.addInitScript(() => {
+    const queue: string[] = []
     const spoken: string[] = []
     const events: string[] = []
-    ;(window as unknown as { __ttsSpoken: string[]; __ttsEvents: string[] }).__ttsSpoken = spoken
-    ;(window as unknown as { __ttsSpoken: string[]; __ttsEvents: string[] }).__ttsEvents = events
+    ;(window as unknown as {
+      __ttsSpoken: string[]
+      __ttsEvents: string[]
+      __mockSpeechPush: (t: string) => void
+      __mockSpeechQueue: string[]
+    }).__ttsSpoken = spoken
+    ;(window as unknown as { __ttsEvents: string[] }).__ttsEvents = events
+    ;(window as unknown as { __mockSpeechQueue: string[] }).__mockSpeechQueue = queue
+    ;(window as unknown as { __mockSpeechPush: (t: string) => void }).__mockSpeechPush = (t) => {
+      queue.push(t)
+    }
 
-    // Fake mic stream so permission + VAD do not fail headless Chrome.
     const fakeTrack = {
       stop() {},
       kind: 'audio',
@@ -52,7 +60,7 @@ async function installVoiceMocks(page: Page, transcripts: string[]) {
       start() {
         this.aborted = false
         this.onstart?.(new Event('start'))
-        const transcript = pending.shift() ?? ''
+        const transcript = queue.shift() ?? ''
         this.timer = window.setTimeout(() => {
           if (this.aborted) return
           if (transcript) {
@@ -71,7 +79,6 @@ async function installVoiceMocks(page: Page, transcripts: string[]) {
             }
             this.onresult?.(event)
           }
-          // Mimic browsers that end after a final even when continuous=true.
           this.onend?.()
         }, 700)
       }
@@ -147,7 +154,7 @@ async function installVoiceMocks(page: Page, transcripts: string[]) {
       writable: true,
       value: synth,
     })
-  }, transcripts)
+  })
 }
 
 test.describe('Phase 2.4 home voice continuous', () => {
@@ -160,7 +167,7 @@ test.describe('Phase 2.4 home voice continuous', () => {
     test.skip(isRemote && !BYPASS, 'VERCEL_PROTECTION_BYPASS required for Preview SSO protection')
 
     await context.grantPermissions(['microphone']).catch(() => {})
-    await installVoiceMocks(page, [TURN1, TURN2])
+    await installVoiceMocks(page)
 
     const loginPath = BYPASS
       ? `/login?x-vercel-protection-bypass=${BYPASS}&x-vercel-set-bypass-cookie=true`
@@ -175,16 +182,18 @@ test.describe('Phase 2.4 home voice continuous', () => {
     await expect(page).toHaveURL(/\/(\?.*)?$/)
     await expect(page.getByTestId('ai-home-composer')).toBeVisible({ timeout: 30_000 })
 
-    // One mic tap — do NOT click ابدأ المحادثة.
+    // Queue only turn 1 for the home mic — turn 2 is pushed after /chat listening resumes.
+    await page.evaluate((t) => {
+      ;(window as unknown as { __mockSpeechPush: (x: string) => void }).__mockSpeechPush(t)
+    }, TURN1)
+
     await page.getByTestId('ai-home-voice').click()
     await expect(page.getByTestId('ai-home-voice-status')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByTestId('ai-home-send')).toHaveCount(0)
 
-    // Auto-submit navigates to /chat without second CTA.
     await expect(page).toHaveURL(/\/chat/, { timeout: 45_000 })
     await expect(page.getByText(/أريد السفر إلى المغرب/).first()).toBeVisible({ timeout: 45_000 })
 
-    // No stale Riyadh→Dubai demo cards for a Morocco trip.
     await expect(page.getByText('الرياض → دبي')).toHaveCount(0)
     await expect(page.getByText(/الرياض → المغرب|الرياض → أكادير/).first()).toBeVisible({
       timeout: 30_000,
@@ -207,10 +216,16 @@ test.describe('Phase 2.4 home voice continuous', () => {
       )
       .toBeGreaterThan(0)
 
-    // Turn 2 without touching mic / send.
-    await expect(page.getByText(TURN2).first().or(page.getByText(/أكادير والرحلة من الرياض/).first())).toBeVisible({
-      timeout: 90_000,
+    // Wait until continuous listening resumes, then inject turn 2 (no mic tap).
+    await expect(page.getByTestId('voice-session-status')).toHaveAttribute('data-state', /listening|ready|reconnecting/, {
+      timeout: 30_000,
     })
+    await page.evaluate((t) => {
+      ;(window as unknown as { __mockSpeechPush: (x: string) => void }).__mockSpeechPush(t)
+    }, TURN2)
+
+    // Recognition may already be mid-cycle; nudge by waiting for auto-submit of TURN2.
+    await expect(page.getByText(TURN2).first()).toBeVisible({ timeout: 90_000 })
 
     await expect
       .poll(
