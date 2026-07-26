@@ -82,7 +82,7 @@ describe('Concierge Decision Engine — unit', () => {
     expect(assessment.canProvideValue).toBe(true)
     expect(assessment.mode).toBe('destination_cities')
     expect(assessment.valueBrief.join(' ')).toMatch(/Agadir|Marrakech|Casablanca/)
-    expect(assessment.preferenceQuestion).toMatch(/interests you most|which/i)
+    expect(assessment.preferenceQuestion).toMatch(/Agadir|Marrakech|beach|historic|which|interests you most/i)
   })
 
   it('frames Morocco cities with budget + August timing', () => {

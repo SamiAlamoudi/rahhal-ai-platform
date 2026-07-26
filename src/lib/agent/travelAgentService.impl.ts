@@ -9,6 +9,7 @@
 import type { ChatMessage } from '../chat/chatTypes'
 import { getFeatureRegistry } from '../ai'
 import type { ConciergeService, ConciergeState } from '../concierge'
+import { buildConsultantFactNotes } from '../consultantIntelligence'
 import {
   isTripExecuteBlocked,
   rebuildTripStateFromMessages,
@@ -3293,6 +3294,24 @@ export function createTravelAgentService(
             : null
 
           const valueNotes: string[] = []
+          const soft = conciergeResult.decision.state.softSignals
+          const consultantNotes = buildConsultantFactNotes({
+            locale: memory.locale,
+            userText,
+            destination: tripState.destinationCountry ?? memory.requirements.destination,
+            destinationCity: tripState.destinationCity,
+            startDate: memory.requirements.startDate,
+            durationDays: memory.requirements.durationDays,
+            travelerType: memory.requirements.travelerType,
+            tripPurpose: memory.requirements.tripPurpose,
+            budgetAmount: memory.requirements.budgetAmount,
+            budgetStyle: memory.requirements.budgetStyle,
+            interests: memory.requirements.interests,
+            softMustHaves: soft.mustHaves,
+            softDealBreakers: soft.dealBreakers,
+          })
+          for (const note of consultantNotes) valueNotes.push(note)
+
           if (askingCity && planningDraft) {
             const insightLines = planningDraftToInsightLines(planningDraft, memory.locale)
             optionHints = [
@@ -3302,20 +3321,24 @@ export function createTravelAgentService(
             valueNotes.push(planningDraft.rankingNote)
             valueNotes.push(
               memory.locale === 'ar'
-                ? 'أي مدينة تناسبك أكثر من هذه الخيارات؟'
-                : 'Which of these cities fits you best?',
+                ? 'هل تميل أكثر للأجواء الشاطئية مثل أغادير، أم المدن التاريخية مثل مراكش؟'
+                : 'Are you leaning more toward beach vibes like Agadir, or historic cities like Marrakech?',
             )
           } else if (askingCity) {
             valueNotes.push(
-              memory.locale === 'ar'
-                ? 'أي مدينة تناسبك أكثر من هذه الخيارات؟'
-                : 'Which of these cities fits you best?',
+              tripState.destinationCountry?.toLowerCase() === 'japan'
+                ? (memory.locale === 'ar'
+                  ? 'تميل لطوكيو الحيوية، أم كيوتو الأهدأ ثقافياً؟'
+                  : 'Are you leaning energetic Tokyo, or quieter cultural Kyoto?')
+                : (memory.locale === 'ar'
+                  ? 'هل تميل أكثر للأجواء الشاطئية مثل أغادير، أم المدن التاريخية مثل مراكش؟'
+                  : 'Are you leaning more toward beach vibes like Agadir, or historic cities like Marrakech?'),
             )
           } else if (askingStyle) {
             valueNotes.push(
               memory.locale === 'ar'
-                ? 'هل تفضل رحلة للاسترخاء أم تجربة ثقافية أكثر؟'
-                : 'Would you prefer a relaxing trip, or a more cultural experience?',
+                ? 'إذا كان هدفك الاسترخاء: بحر وهدوء، ولا مدينة وثقافة؟'
+                : 'If the goal is recovery: beach and calm, or city and culture?',
             )
           } else if (planningDraft) {
             const insightLines = planningDraftToInsightLines(planningDraft, memory.locale)

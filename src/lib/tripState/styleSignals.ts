@@ -4,20 +4,22 @@
 
 const STYLE_HINTS: Array<{ match: RegExp; style: string }> = [
   { match: /بحر|شاطئ|beach|relax|استرخاء|هدوء|quiet/i, style: 'Beach' },
-  { match: /ثقاف|culture|souk|سوق|heritage|متحف|museum/i, style: 'Culture' },
+  { match: /ثقاف|culture|souk|سوق|أسواق|heritage|متحف|museum|walking/i, style: 'Culture' },
   { match: /مغامر|adventure|hiking|trek|طبيعة|nature/i, style: 'Adventure' },
   { match: /عائلت|family|أطفال|kids/i, style: 'Family' },
-  { match: /فاخر|luxury|honeymoon|شهر عسل/i, style: 'Luxury' },
+  { match: /فاخر|luxury|honeymoon|شهر\s*عسل|romantic|رومانسي/i, style: 'Luxury' },
   { match: /طعام|food|culinary|gourmet/i, style: 'Food' },
 ]
 
-const FOOD_HINTS = /طعام|food|مطعم|restaurant|culinary|gourmet|أكل/i
+const FOOD_HINTS = /طعام|food|مطعم|restaurant|culinary|gourmet|أكل|سوق|souk/i
 const ACTIVITY_HINTS: Array<{ match: RegExp; label: string }> = [
   { match: /شاطئ|beach|سباح/i, label: 'beach' },
-  { match: /ثقاف|culture|souk|سوق/i, label: 'culture' },
+  { match: /ثقاف|culture|souk|سوق|أسواق/i, label: 'culture' },
+  { match: /مشي|walking/i, label: 'walking_tours' },
   { match: /مغامر|adventure|hiking/i, label: 'adventure' },
   { match: /تسوق|shopping/i, label: 'shopping' },
   { match: /ليل|nightlife/i, label: 'nightlife' },
+  { match: /شهر\s*عسل|honeymoon|romantic/i, label: 'special_experiences' },
 ]
 
 export function inferTravelStyle(
