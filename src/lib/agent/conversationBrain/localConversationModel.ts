@@ -60,61 +60,61 @@ function askForSlot(slot: string, facts: TravelFacts, seed: number, ar: boolean)
   const variants: Record<string, { ar: string[]; en: string[] }> = {
     destination: {
       ar: [
-        'تميل لبحر وهدوء، ولا مدينة وثقافة — أو عندك وجهة معيّنة؟',
-        'وش نوع الرحلة اللي في بالك: استرخاء، معالم، ولا مغامرة؟',
-        'لو تختار إحساساً للرحلة، أقدر أضيّق الوجهات بسرعة.',
+        'خلّينا نضيّق الإحساس أولاً: بحر وهدوء، ولا مدينة وثقافة — أو عندك وجهة معيّنة؟',
+        'وش طابع الرحلة في بالك: استرخاء، معالم، ولا مغامرة؟ هذا يكفي لأضيّق الوجهات.',
+        'لو وصفت لي إحساس الرحلة، أبني عليك اتجاهات واضحة بسرعة.',
       ],
       en: [
-        'Are you imagining beach and calm, city and culture — or do you already have a place in mind?',
-        'What kind of trip is taking shape: recovery, landmarks, or a bit of adventure?',
-        'Give me the feeling of the trip and I will narrow destinations quickly.',
+        'Let’s narrow the feeling first: beach and calm, or city and culture — or do you already have a place in mind?',
+        'What character of trip are you imagining: recovery, landmarks, or adventure? That is enough for me to narrow destinations.',
+        'Describe the feeling of the trip and I will put clear directions in front of you.',
       ],
     },
     durationDays: {
       ar: [
         dest
-          ? `لـ${dest}، هل تفكّر في عطلة قصيرة، ولا أسبوع كامل تقريباً؟`
-          : 'هل تميل لعطلة قصيرة، ولا أسبوع كامل تقريباً؟',
+          ? `${dest} يتغيّر كثيراً حسب مدة الإقامة. تميل لعطلة قصيرة مركّزة، ولا أسبوع كامل بهدوء؟`
+          : 'تميل لعطلة قصيرة مركّزة، ولا أسبوع كامل تقريباً؟',
         dest
-          ? `إيقاع ${dest}: أيام قليلة مركّزة، ولا إقامة أطول بهدوء؟`
+          ? `لـ${dest}: أيام قليلة بإيقاع سريع، ولا إقامة أطول أهدأ؟`
           : 'إيقاع الرحلة: أيام قليلة مركّزة، ولا إقامة أطول؟',
       ],
       en: [
         dest
-          ? `For ${dest}, are you thinking a short break, or closer to a full week?`
-          : 'Are you thinking a short break, or closer to a full week?',
+          ? `${dest} changes a lot with trip length. Are you thinking a short focused break, or closer to a full week?`
+          : 'Are you thinking a short focused break, or closer to a full week?',
         dest
-          ? `Pace for ${dest}: a few focused days, or a longer, slower stay?`
+          ? `For ${dest}: a few sharper days, or a longer, slower stay?`
           : 'A few focused days, or a longer, slower stay?',
       ],
     },
     budgetAmount: {
       ar: [
-        'نضبط الخيارات على سقف واضح، ولا نتركها مرنة ونقارن مستويات؟',
-        'تحب أريك شريحة مريحة، ولا أقصى قيمة مقابل السعر؟',
+        'نضبط الخيارات على سقف واضح عشان أحسّن توزيع الطيران والإقامة والأنشطة، ولا نتركها مرنة ونقارن مستويات؟',
+        'تحب أركّز على شريحة مريحة ومتوازنة، ولا أقصى قيمة مقابل السعر؟',
       ],
       en: [
-        'Shall I shape options around a clear ceiling, or keep it flexible and compare tiers?',
-        'Would you rather see a comfortable band, or stretch for maximum value?',
+        'Shall I shape options around a clear ceiling so I can optimize flights, stays and activities — or keep it flexible and compare tiers?',
+        'Would you rather see a comfortable balanced band, or stretch for maximum value?',
       ],
     },
     travelers: {
       ar: [
-        'الرحلة فردية، لاثنين، ولا أجواء عائلية؟',
+        'عشان أحسّن التوزيع بدقة: الرحلة فردية، لاثنين، ولا أجواء عائلية؟',
         'تميل لتجربة هادئة لشخصين، ولا مجموعة؟',
       ],
       en: [
-        'Is this solo, for two, or a family-style trip?',
+        'So I can optimize the split accurately: is this solo, for two, or a family-style trip?',
         'Are you imagining a quiet trip for two, or a larger group?',
       ],
     },
     origin: {
       ar: [
-        'من أي مدينة المغادرة؟',
-        'وين نقطة الإقلاع؟',
+        'من أي مدينة تبي الإقلاع؟ هذا يضبط تقدير الطيران فوراً.',
+        'وين نقطة المغادرة؟',
       ],
       en: [
-        'Which city will you depart from?',
+        'Which city will you depart from? That locks a realistic flight range immediately.',
         'Where are you flying out of?',
       ],
     },
@@ -130,26 +130,30 @@ function acknowledge(facts: TravelFacts, seed: number, ar: boolean): string {
   const bits = knownBits(facts, ar)
   if (bits.length === 0) {
     return pick(seed, ar
-      ? ['فهمت.', 'خلّنا نضبط الأساسيات.', 'جاهز نبدأ التخطيط.']
-      : ['Understood.', 'Let us lock the essentials.', 'Ready to plan.'])
+      ? ['تمام — نبني الرحلة معاً خطوة بخطوة.', 'خلّنا نضبط الأساسيات بهدوء.', 'جاهز نبدأ التخطيط.']
+      : ['Of course — let’s build the trip together step by step.', 'Let’s lock the essentials calmly.', 'Ready to plan.'])
   }
   const joined = bits.slice(0, 4).join(ar ? ' · ' : ' · ')
   return pick(seed + 3, ar
     ? [
       `فهمت: ${joined}.`,
-      `عندي: ${joined}.`,
+      `${joined} — نبني عليها.`,
       `${joined} — هذا الأساس.`,
     ]
     : [
       `Understood: ${joined}.`,
-      `I have: ${joined}.`,
+      `${joined} — we can build on that.`,
       `${joined} — that is the base.`,
     ])
 }
 
 function renderPlanDisplay(facts: TravelFacts, ar: boolean): string {
   const plan = facts.plan
-  if (!plan) return ar ? 'ما عندي خطة جاهزة بعد.' : 'I do not have a finished plan yet.'
+  if (!plan) {
+    return ar
+      ? 'لسه نكمّل التفاصيل قبل ما نثبّت الخطة.'
+      : 'We still need a little more detail before locking the plan.'
+  }
   const lines: string[] = []
   lines.push(ar
     ? `جهّزت تصوّراً لـ${plan.destinations.join('، ')} — التفاصيل تحت، وقل لي لو تبي نعدّل.`
@@ -239,13 +243,13 @@ function spokenPlan(facts: TravelFacts, seed: number, ar: boolean): string {
   if (ar) {
     return pick(seed, [
       `جهّزت تصوّراً لـ${dest} لمدة ${plan.durationDays} أيام${hotel ? ` مع إقامة في ${hotel}` : ''}${total ? `، بتقدير حوالي ${total.amount.toLocaleString('en-US')} ${total.currency}` : ''}. التفاصيل على الشاشة.`,
-      `عندي مسودة قوية لـ${dest}. ${hotel ? `أميل لـ${hotel}. ` : ''}راجع التفاصيل وقل لي وش نعدّل.`,
+      `مسودة قوية لـ${dest} جاهزة. ${hotel ? `أميل لـ${hotel}. ` : ''}راجع التفاصيل وقل لي وش نعدّل.`,
       `${dest} صارت أوضح الآن — خطة ${plan.durationDays} أيام جاهزة للمراجعة على الشاشة.`,
     ])
   }
   return pick(seed, [
-    `I have a first cut for ${dest} across ${plan.durationDays} days${hotel ? `, leaning toward ${hotel}` : ''}${total ? `, around ${total.amount.toLocaleString('en-US')} ${total.currency}` : ''}. Details are on screen.`,
-    `There is a solid draft for ${dest}. ${hotel ? `I like ${hotel} for the stay. ` : ''}Skim the details and tell me what to tune.`,
+    `I drafted ${dest} across ${plan.durationDays} days${hotel ? `, leaning toward ${hotel}` : ''}${total ? `, around ${total.amount.toLocaleString('en-US')} ${total.currency}` : ''}. Details are on screen.`,
+    `A solid draft for ${dest} is ready. ${hotel ? `I like ${hotel} for the stay. ` : ''}Skim the details and tell me what to tune.`,
     `${dest} is clearer now — a ${plan.durationDays}-day outline is ready on screen for you to react to.`,
   ])
 }
@@ -281,8 +285,8 @@ export function generateLocalConversation(input: {
     }
     case 'explain_unavailable': {
       const spokenText = pick(seed, ar
-        ? ['ما عندي خطة جاهزة للحفظ بعد — خلّنا نكمّل التفاصيل أولاً.', 'لسه ما جهّزنا الخطة — كمّل معي شوي وبعدين نحفظ.']
-        : ['There is no plan to save yet — let’s finish shaping it first.', 'We have not drafted the plan yet — a little more detail and we can save.'])
+        ? ['لسه ما ثبّتنا الخطة للحفظ — نكمّل التفاصيل أولاً ثم نحفظ.', 'كمّل معي شوي وبعدين نحفظ الرحلة بثقة.']
+        : ['We have not locked a plan to save yet — let’s finish shaping it first.', 'A little more detail and we can save with confidence.'])
       return { displayText: spokenText, spokenText }
     }
     case 'propose_options':
@@ -292,41 +296,17 @@ export function generateLocalConversation(input: {
       const framing = draft?.rankingNote
         || input.facts.recommendations?.[0]
         || pick(seed + 2, ar
-          ? ['هذه قراءة مستشار على ما عندنا الآن.', 'خلّيني أضيّق لك الاتجاه قبل ما نسأل تفاصيل إضافية.']
-          : ['Here is a consultant read on what we already know.', 'Let me narrow direction before asking for more detail.'])
+          ? ['خلّيني أضيّق لك الاتجاه قبل ما ندخل في تفاصيل أكثر.', 'هذه قراءة مستشار على ما عرفناه حتى الآن.']
+          : ['Let me narrow the direction before we go deeper.', 'Here is a consultant read on what we already know.'])
 
+      // Discovery stays conversational — light city comparisons, not a full cost report.
       let hints = ''
       if (draft && draft.cities.length > 0) {
         const cityLines = draft.cities.slice(0, 3).map((city) => `• ${city.name} — ${city.why}`)
-        const b = draft.breakdown
-        const fmt = (est: { low: number; high: number; mid: number; currency: string }) =>
-          est.low === est.high ? `≈${est.mid} ${est.currency}` : `${est.low}–${est.high} ${est.currency}`
-        const split = ar
-          ? [
-            `تقدير أوّلي (ثقة ${draft.confidence}):`,
-            `• طيران ${fmt(b.flights)} — ${b.flights.reason}`,
-            `• فنادق ${fmt(b.hotels)} — ${b.hotels.reason}`,
-            `• طعام ${fmt(b.food)} — ${b.food.reason}`,
-            `• تنقل ${fmt(b.transportation)} — ${b.transportation.reason}`,
-            `• أنشطة ${fmt(b.activities)} — ${b.activities.reason}`,
-          ].join('\n')
-          : [
-            `First-pass ranges (${draft.confidence} confidence):`,
-            `• Flights ${fmt(b.flights)} — ${b.flights.reason}`,
-            `• Hotels ${fmt(b.hotels)} — ${b.hotels.reason}`,
-            `• Food ${fmt(b.food)} — ${b.food.reason}`,
-            `• Transport ${fmt(b.transportation)} — ${b.transportation.reason}`,
-            `• Activities ${fmt(b.activities)} — ${b.activities.reason}`,
-          ].join('\n')
         const trade = draft.tradeoffs[0] ? `• ${draft.tradeoffs[0]}` : ''
-        const partyNote = draft.travelerCount == null
-          ? (ar
-            ? '• عدد المسافرين غير محدد — لذلك المبالغ كمديات.'
-            : '• Party size unknown — amounts are ranges, not point figures.')
-          : ''
-        hints = [...cityLines, '', split, trade, partyNote].filter(Boolean).join('\n')
+        hints = [...cityLines, trade].filter(Boolean).join('\n')
       } else if (input.facts.optionHints?.length) {
-        hints = input.facts.optionHints.map((h) => `• ${h}`).join('\n')
+        hints = input.facts.optionHints.slice(0, 3).map((h) => `• ${h}`).join('\n')
       }
 
       const beachCity = draft?.cities.some((c) =>
@@ -344,7 +324,8 @@ export function generateLocalConversation(input: {
           ? ['من هذه الاتجاهات، أيّها يشدّك أكثر؟', 'بحر وهدوء، ولا مدينة وثقافة؟']
           : ['From these directions, which interests you most?', 'Beach and calm, or city and culture?'])
       const displayText = [ack, framing, hints, closer].filter(Boolean).join('\n\n')
-      return { displayText, spokenText: `${ack} ${framing} ${closer}` }
+      const spokenText = [ack, framing, closer].filter(Boolean).join(' ')
+      return { displayText, spokenText }
     }
     case 'confirm_understanding': {
       const heard = input.facts.heardSummary?.join(ar ? ' · ' : ' · ') || acknowledge(input.facts, seed, ar)
@@ -362,11 +343,11 @@ export function generateLocalConversation(input: {
         const seedNote = input.facts.recommendations.join(' · ')
         const spokenText = pick(seed, ar
           ? [
-            `هذا اللي عندي الآن: ${seedNote.slice(0, 180)}. تبي نكمّل من هنا؟`,
+            `هذا وضع الرحلة الآن: ${seedNote.slice(0, 180)}. نكمّل من هنا؟`,
             `خلّيني ألخّص لك الوضع: ${seedNote.slice(0, 180)}.`,
           ]
           : [
-            `Here is where things stand: ${seedNote.slice(0, 200)}. Shall we continue from here?`,
+            `Here is where the trip stands: ${seedNote.slice(0, 200)}. Shall we continue from here?`,
             `Quickly — ${seedNote.slice(0, 200)}.`,
           ])
         return { displayText: spokenText, spokenText }
@@ -380,8 +361,8 @@ export function generateLocalConversation(input: {
             ? [`${ack} نقدر نبني على هذا الأساس متى ما جاهز.`, `${ack} قل «ابني الخطة» وأكمل لك.`]
             : [`${ack} We can build on this whenever you are ready.`, `${ack} Say “build the plan” and I will continue.`])
           : pick(seed + 7, ar
-            ? ['عندي ما يكفي لنبدأ — قل «ابني الخطة» متى ما جاهز.', 'الصورة مكتملة تقريباً. نجهّز الخيارات؟']
-            : ['I have enough to begin — say “build the plan” when you are ready.', 'The picture is nearly complete. Shall I put options together?'])
+            ? ['الصورة كافية للبدء — قل «ابني الخطة» متى ما جاهز.', 'الصورة مكتملة تقريباً. نجهّز الخيارات؟']
+            : ['We have enough to begin — say “build the plan” when you are ready.', 'The picture is nearly complete. Shall I put options together?'])
         return { displayText: spokenText, spokenText }
       }
       const question = askForSlot(slot, input.facts, seed + 11, ar)
