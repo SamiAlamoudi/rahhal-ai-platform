@@ -26,15 +26,17 @@ interface VoiceComposerProps {
 }
 
 const STATUS_LABELS: Record<VoiceSessionStatus, string> = {
-  idle: 'جاهز للاستماع',
+  idle: 'جاهز',
   requesting_permission: 'طلب إذن الميكروفون…',
   listening: 'أستمع إليك…',
-  thinking: 'أفكّر في أفضل خيار لك…',
-  responding: 'أجهّز الرد…',
-  processing: 'أفكّر في أفضل خيار لك…',
+  thinking: 'أفكر…',
+  responding: 'أفكر…',
+  processing: 'أفكر…',
   speaking: 'أتحدث…',
-  reconnecting: 'أعيد الاتصال…',
-  error: 'حدث خطأ',
+  ready: 'جاهز',
+  ended: 'انتهت الجلسة',
+  reconnecting: 'أستمع إليك…',
+  error: 'تعذر تشغيل الصوت',
 }
 
 export default function VoiceComposer({

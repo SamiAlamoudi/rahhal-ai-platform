@@ -811,24 +811,57 @@ function LegacyChatPage() {
     setThemePreference(order[(idx + 1) % order.length])
   }
 
-  // Sprint 16 — seed conversation from AI Home (location.state.seedMessage or ?seed=)
+  // Sprint 16 / Phase 2.4 — seed from AI Home (text CTA or voice auto-submit).
   useEffect(() => {
     if (seedConsumedRef.current || listLoading || !online) return
-    const state = location.state as { seedMessage?: string; tripText?: string } | null
-    const stateSeed = state?.seedMessage ?? state?.tripText
+    const state = location.state as {
+      seedMessage?: string
+      tripText?: string
+      initialPrompt?: string
+      startVoice?: boolean
+    } | null
+    const stateSeed = state?.seedMessage ?? state?.tripText ?? state?.initialPrompt
     const querySeed = new URLSearchParams(location.search).get('seed')
     const seed = (stateSeed || querySeed || '').trim()
     if (!seed) return
 
     seedConsumedRef.current = true
+    const startVoice = state?.startVoice === true
 
     void (async () => {
       try {
+        if (startVoice) {
+          setComposerMode('voice')
+          setVoiceMode('hands_free')
+          setVoiceLocale('ar')
+        }
         const created = await chatEngine.createConversation()
         setConversations((prev) => [created, ...prev])
         selectConversation(created.id)
         navigate({ pathname: '/chat', search: buildChatSearch(created.id, '') }, { replace: true, state: {} })
         setDraft('')
+
+        if (startVoice) {
+          // Wait for VoiceSession mount (composerMode=voice effect).
+          let session = voiceRef.current
+          for (let i = 0; i < 40 && !session; i += 1) {
+            await new Promise((r) => setTimeout(r, 50))
+            session = voiceRef.current
+          }
+          if (session?.beginContinuousWithSeed) {
+            setSending(true)
+            try {
+              // Same chatEngine path as typed turns; speaks reply then resumes listening.
+              await session.beginContinuousWithSeed(created.id, seed)
+              await loadDetail(created.id)
+              void loadConversations(created.id)
+            } finally {
+              setSending(false)
+            }
+            return
+          }
+        }
+
         await runGeneration(async (handlers) => {
           const result = await chatEngine.sendMessage({
             conversationId: created.id,
@@ -840,6 +873,9 @@ function LegacyChatPage() {
             return [...withoutAssistant, result.user, result.assistant]
           })
         })
+        if (startVoice && voiceRef.current) {
+          await voiceRef.current.startHandsFree(created.id)
+        }
       } catch (e) {
         logChatError('chat.seed', e)
         setActionError(e instanceof Error ? e.message : 'تعذر بدء المحادثة')

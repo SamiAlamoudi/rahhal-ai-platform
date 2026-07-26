@@ -12,6 +12,7 @@ export function createMockTextToSpeechProvider(): TextToSpeechProvider & {
     isSupported: () => true,
     async speak(options: TextToSpeechSpeakOptions) {
       speaking = true
+      options.onStart?.()
       spoken.push(options.text)
       speaking = false
     },

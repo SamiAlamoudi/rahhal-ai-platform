@@ -93,15 +93,23 @@ export default function AiHomeExperience() {
   }, [authLoading, refresh])
 
   const startConversation = useCallback(
-    (text: string) => {
+    (text: string, meta?: { source?: 'text' | 'voice' }) => {
       const trimmed = text.trim()
       if (!trimmed) return
+      const startVoice = meta?.source === 'voice'
       if (conversationHome) {
-        const entry = conversationEntryPath(trimmed)
+        const entry = conversationEntryPath(trimmed, { startVoice })
         navigate(entry.pathname, { state: entry.state })
         return
       }
-      navigate('/chat', { state: { initialPrompt: trimmed, tripText: trimmed } })
+      navigate('/chat', {
+        state: {
+          initialPrompt: trimmed,
+          tripText: trimmed,
+          seedMessage: trimmed,
+          ...(startVoice ? { startVoice: true } : {}),
+        },
+      })
     },
     [conversationHome, navigate],
   )

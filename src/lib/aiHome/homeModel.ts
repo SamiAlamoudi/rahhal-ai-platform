@@ -56,13 +56,29 @@ export function buildAiHomeModel(input: BuildAiHomeModelInput): AiHomeModel {
   }
 }
 
+export type ConversationEntryState = {
+  seedMessage: string
+  tripText: string
+  initialPrompt: string
+  /** When true, ChatPage continues as a real voice session (TTS + listen loop). */
+  startVoice?: boolean
+}
+
 /** Conversation entry target — Chat (Sprint 9 agent) with optional travel-conversation fallback. */
-export function conversationEntryPath(seedMessage: string): {
+export function conversationEntryPath(
+  seedMessage: string,
+  options?: { startVoice?: boolean },
+): {
   pathname: string
-  state: { seedMessage: string; tripText: string }
+  state: ConversationEntryState
 } {
   return {
     pathname: '/chat',
-    state: { seedMessage, tripText: seedMessage },
+    state: {
+      seedMessage,
+      tripText: seedMessage,
+      initialPrompt: seedMessage,
+      ...(options?.startVoice ? { startVoice: true } : {}),
+    },
   }
 }

@@ -68,10 +68,18 @@ export function NewHomeExperience() {
   }, [user?.id])
 
   const startConversation = useCallback(
-    (text: string) => {
+    (text: string, meta?: { source?: 'text' | 'voice' }) => {
       const trimmed = text.trim()
       if (!trimmed) return
-      navigate('/chat', { state: { initialPrompt: trimmed, tripText: trimmed } })
+      const startVoice = meta?.source === 'voice'
+      navigate('/chat', {
+        state: {
+          initialPrompt: trimmed,
+          tripText: trimmed,
+          seedMessage: trimmed,
+          ...(startVoice ? { startVoice: true } : {}),
+        },
+      })
     },
     [navigate],
   )

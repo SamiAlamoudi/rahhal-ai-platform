@@ -26,6 +26,9 @@ import {
   MIN_HANDS_FREE_SILENCE_MS,
   normalizeVoiceLocale,
 } from './voiceTypes'
+import { extractSpokenAnswer, stripMarkdownForSpeech } from './spokenAnswer'
+
+export { stripMarkdownForSpeech } from './spokenAnswer'
 
 export interface VoiceSessionCallbacks {
   onStatus?: (status: VoiceSessionStatus) => void
@@ -54,6 +57,11 @@ export interface VoiceSession {
   startPushToTalk: () => Promise<void>
   stopPushToTalkAndSend: (conversationId: string) => Promise<ChatMessage | null>
   startHandsFree: (conversationId: string) => Promise<void>
+  /**
+   * Home → chat voice handoff: send the first transcript through the same
+   * chatEngine path, speak the reply, then resume continuous listening.
+   */
+  beginContinuousWithSeed: (conversationId: string, content: string) => Promise<ChatMessage | null>
   stopListening: () => Promise<void>
   interrupt: (abortStream?: () => void, opts?: { resumeHandsFree?: boolean }) => void
   speakText: (text: string) => Promise<void>
@@ -111,6 +119,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   let vadSpeaking = false
   let earlySpokenText = ''
   let earlySpeakPromise: Promise<void> | null = null
+  let lastSubmittedKey = ''
+  let lastSubmittedAt = 0
 
   const activityMonitor =
     options.activityMonitor
@@ -246,10 +256,39 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
 
   const readSpokenText = (message: ChatMessage): string => {
     const meta = message.providerMeta ?? {}
-    const spoken = typeof meta.spokenText === 'string' ? meta.spokenText.trim() : ''
-    if (spoken) return spoken
-    // Never read a long itinerary dump aloud.
-    return stripMarkdownForSpeech(message.content).slice(0, 320)
+    return extractSpokenAnswer({
+      content: message.content,
+      spokenText: typeof meta.spokenText === 'string' ? meta.spokenText : null,
+    })
+  }
+
+  const speakAloud = async (text: string, phase: string) => {
+    const spoken = text.trim()
+    if (!spoken || disposed) return
+    // Echo protection: never leave recognition running during TTS.
+    intentionalAbort = true
+    stt.abort()
+    listening = false
+    stopVad()
+    clearSilenceTimer()
+    logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase } })
+    try {
+      await tts.speak({
+        locale,
+        text: spoken,
+        interrupt: true,
+        onStart: () => {
+          if (!disposed) setStatus('speaking')
+        },
+      })
+      logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase } })
+    } catch (e) {
+      if (!isBenignChatError(e) && !disposed) {
+        diagnosePipelineError('tts', phase, e)
+        callbacks.onError?.(e instanceof Error ? e.message : 'تعذر تشغيل الصوت')
+        setStatus('error')
+      }
+    }
   }
 
   const sendTranscript = async (conversationId: string, transcript: string): Promise<ChatMessage | null> => {
@@ -258,6 +297,15 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       if (!content) setStatus(mode === 'hands_free' && handsFreeConversationId ? 'listening' : 'idle')
       return null
     }
+
+    const submitKey = content.replace(/\s+/g, ' ')
+    const now = Date.now()
+    if (submitKey === lastSubmittedKey && now - lastSubmittedAt < 4000) {
+      logPipeline({ stage: 'conversation', event: 'duplicate_transcript_ignored', meta: { length: content.length } })
+      return null
+    }
+    lastSubmittedKey = submitKey
+    lastSubmittedAt = now
 
     sending = true
     clearSilenceTimer()
@@ -270,6 +318,9 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     utterancePrefix = ''
     earlySpokenText = ''
     earlySpeakPromise = null
+    // Echo protection — clear live caption so TTS is never treated as user speech.
+    partial = ''
+    callbacks.onPartialTranscript?.('')
     activeAbort?.abort()
     const controller = new AbortController()
     activeAbort = controller
@@ -308,17 +359,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           && !earlySpeakPromise
         ) {
           earlySpokenText = spoken
-          setStatus('speaking')
-          logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase: phase ?? 'final' } })
-          earlySpeakPromise = tts.speak({ locale, text: spoken, interrupt: true })
-            .catch((e) => {
-              if (!isBenignChatError(e) && !disposed) {
-                diagnosePipelineError('tts', 'speak_early', e)
-              }
-            })
-            .then(() => {
-              logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase: phase ?? 'final' } })
-            })
+          earlySpeakPromise = speakAloud(spoken, String(phase ?? 'bridge'))
         }
       },
       onComplete: async (message) => {
@@ -331,21 +372,10 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         if (!controller.signal.aborted && !disposed) {
           const spoken = readSpokenText(message)
           if (spoken) {
-            setStatus('speaking')
-            try {
-              // Interrupt bridge if still talking; speak the final short summary only.
-              if (spoken !== earlySpokenText || !earlySpeakPromise) {
-                logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase: 'final' } })
-                await tts.speak({ locale, text: spoken, interrupt: true })
-                logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase: 'final' } })
-              } else if (earlySpeakPromise) {
-                await earlySpeakPromise
-              }
-            } catch (e) {
-              if (!isBenignChatError(e) && !disposed) {
-                diagnosePipelineError('tts', 'speak', e)
-                callbacks.onError?.(e instanceof Error ? e.message : 'تعذر تشغيل الرد الصوتي')
-              }
+            if (spoken !== earlySpokenText || !earlySpeakPromise) {
+              await speakAloud(spoken, 'final')
+            } else if (earlySpeakPromise) {
+              await earlySpeakPromise
             }
           }
         }
@@ -354,16 +384,18 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         earlySpokenText = ''
         earlySpeakPromise = null
         if (controller.signal.aborted || disposed) {
-          setStatus('idle')
+          setStatus(handsFreeConversationId ? 'ready' : 'idle')
           if (resumeHandsFreeAfterInterrupt) {
             resumeHandsFreeAfterInterrupt = false
             await maybeResumeHandsFree()
           }
           return
         }
-        setStatus('idle')
+        setStatus('ready')
         if (mode === 'hands_free' && handsFreeConversationId) {
           await maybeResumeHandsFree()
+        } else {
+          setStatus('idle')
         }
       },
       onError: (message, error) => {
@@ -525,6 +557,22 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       utterancePrefix = ''
       await startListening(true)
     },
+    async beginContinuousWithSeed(conversationId, content) {
+      if (disposed) return null
+      tts.stop()
+      mode = 'hands_free'
+      handsFreeConversationId = conversationId
+      resumeHandsFreeAfterInterrupt = false
+      clearSilenceTimer()
+      utteranceBuffer = ''
+      utterancePrefix = ''
+      intentionalAbort = true
+      stt.abort()
+      listening = false
+      stopVad()
+      // Same pipeline as mic silence commit — no second CTA.
+      return sendTranscript(conversationId, content)
+    },
     async stopListening() {
       intentionalAbort = true
       resumeHandsFreeAfterInterrupt = false
@@ -578,13 +626,12 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     },
     async speakText(text) {
       if (disposed) return
-      setStatus('speaking')
       try {
-        await tts.speak({ locale, text: stripMarkdownForSpeech(text), interrupt: true })
+        await speakAloud(stripMarkdownForSpeech(text), 'speakText')
       } catch (e) {
         if (!isBenignChatError(e)) throw e
       }
-      if (!disposed) setStatus('idle')
+      if (!disposed && status === 'speaking') setStatus('idle')
     },
     dispose() {
       disposed = true
@@ -603,17 +650,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       status = 'idle'
     },
   }
-}
-
-export function stripMarkdownForSpeech(markdown: string): string {
-  return markdown
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/!\[[^\]]*]\([^)]+\)/g, ' ')
-    .replace(/\[[^\]]*]\([^)]+\)/g, ' ')
-    .replace(/[#>*_~-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 function mapSttError(error: string): string {

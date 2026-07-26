@@ -39,7 +39,7 @@ describe('production stabilization silence defaults', () => {
   it('uses ChatGPT-like think-pause silence defaults', () => {
     expect(DEFAULT_SILENCE_MS).toBe(3000)
     // Experience Sprint 1 — hands-free default raised so natural mid-thought pauses do not cut users off.
-    expect(DEFAULT_HANDS_FREE_SILENCE_MS).toBe(3500)
+    expect(DEFAULT_HANDS_FREE_SILENCE_MS).toBe(2200)
     expect(DEFAULT_HANDS_FREE_SILENCE_MS).toBeGreaterThanOrEqual(2000)
     expect(DEFAULT_HANDS_FREE_SILENCE_MS).toBeLessThanOrEqual(6000)
     expect(MIN_HANDS_FREE_SILENCE_MS).toBe(2000)

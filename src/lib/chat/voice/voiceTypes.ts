@@ -14,11 +14,13 @@ export type VoiceSessionStatus =
   | 'responding'
   | 'processing' // legacy alias kept for compatibility; prefer thinking/responding
   | 'speaking'
+  | 'ready'
+  | 'ended'
   | 'reconnecting'
   | 'error'
 
 /** Default end-of-utterance silence for hands-free (think-pause tolerance). */
-export const DEFAULT_HANDS_FREE_SILENCE_MS = 3500
+export const DEFAULT_HANDS_FREE_SILENCE_MS = 2200
 
 /** Hard floor / ceiling for configurable silence timeout. */
 export const MIN_HANDS_FREE_SILENCE_MS = 2000
@@ -63,6 +65,8 @@ export interface TextToSpeechSpeakOptions {
   locale: VoiceLocale
   text: string
   interrupt?: boolean
+  /** Fires when the browser actually starts playing the utterance. */
+  onStart?: () => void
 }
 
 export interface TextToSpeechProvider {
