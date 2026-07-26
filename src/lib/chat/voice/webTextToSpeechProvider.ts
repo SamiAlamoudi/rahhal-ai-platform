@@ -1,5 +1,6 @@
 import type { TextToSpeechProvider, TextToSpeechSpeakOptions, VoiceLocale } from './voiceTypes'
 import { speechLangForLocale } from './voiceTypes'
+import { estimateTtsWatchdogMs } from './spokenAnswer'
 
 function waitForVoices(timeoutMs = 1500): Promise<SpeechSynthesisVoice[]> {
   if (typeof window === 'undefined' || !window.speechSynthesis) return Promise.resolve([])
@@ -37,10 +38,24 @@ function pickVoice(
   return local ?? matching[0] ?? null
 }
 
+/**
+ * Browser SpeechSynthesis TTS.
+ * Active implementation: window.speechSynthesis + SpeechSynthesisUtterance.
+ * Callbacks: onstart / onend / onerror / onpause / onresume (+ duration watchdog).
+ */
 export function createWebTextToSpeechProvider(): TextToSpeechProvider {
   let speaking = false
   let generation = 0
   let stopped = false
+  let activeUtterance: SpeechSynthesisUtterance | null = null
+  let watchdogTimer: ReturnType<typeof setTimeout> | null = null
+
+  const clearWatchdog = () => {
+    if (watchdogTimer) {
+      clearTimeout(watchdogTimer)
+      watchdogTimer = null
+    }
+  }
 
   return {
     providerId: 'web-speech-tts',
@@ -53,9 +68,11 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
       if (!text) return
 
       stopped = false
+      clearWatchdog()
       if (options.interrupt !== false) {
         window.speechSynthesis.cancel()
         speaking = false
+        activeUtterance = null
       }
 
       const voices = await waitForVoices()
@@ -71,17 +88,21 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
           utterance.voice = voice
         } catch {
           // Headless / mocked voices may not be real SpeechSynthesisVoice instances.
-          // Language tag is enough for the engine (and for our speak() mock).
         }
       }
 
       const token = ++generation
+      activeUtterance = utterance
+      const watchdogMs = estimateTtsWatchdogMs(text)
+
       await new Promise<void>((resolve, reject) => {
         let started = false
         let settled = false
         const finish = (fn: () => void) => {
           if (settled) return
           settled = true
+          clearWatchdog()
+          if (activeUtterance === utterance) activeUtterance = null
           fn()
         }
         const markStart = () => {
@@ -90,39 +111,75 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
           speaking = true
           options.onStart?.()
         }
-        utterance.onstart = () => markStart()
-        utterance.onend = () => {
-          if (token === generation) speaking = false
-          finish(() => resolve())
+        const armWatchdog = () => {
+          clearWatchdog()
+          watchdogTimer = setTimeout(() => {
+            watchdogTimer = null
+            if (token !== generation || settled) return
+            // Safari/WebKit often skips onend — complete so the session cannot stick in SPEAKING.
+            speaking = false
+            try {
+              window.speechSynthesis.cancel()
+            } catch {
+              /* ignore */
+            }
+            options.onTimeout?.()
+            finish(() => resolve())
+          }, watchdogMs)
         }
-        utterance.onerror = () => {
-          if (token === generation) speaking = false
-          if (stopped || token !== generation) {
+
+        utterance.onstart = () => {
+          markStart()
+          armWatchdog()
+        }
+        utterance.onend = () => {
+          if (token !== generation) {
             finish(() => resolve())
             return
           }
+          speaking = false
+          options.onEnd?.()
+          finish(() => resolve())
+        }
+        utterance.onerror = (event) => {
+          if (token !== generation) {
+            finish(() => resolve())
+            return
+          }
+          speaking = false
+          const errName = (event as SpeechSynthesisErrorEvent).error || 'synthesis_error'
+          // cancel / interrupted from stop() is benign.
+          if (stopped || errName === 'canceled' || errName === 'interrupted') {
+            options.onEnd?.()
+            finish(() => resolve())
+            return
+          }
+          options.onError?.(errName)
           finish(() => reject(new Error('تعذر تشغيل الصوت')))
         }
+        // Pause/resume must not complete the turn — Safari may pause during audio route changes.
+        utterance.onpause = () => {
+          /* keep waiting for onend / watchdog */
+        }
+        utterance.onresume = () => {
+          if (token === generation && !stopped) speaking = true
+        }
+
         try {
           window.speechSynthesis.speak(utterance)
-          // Chromium occasionally omits onstart for short utterances; treat speak() as start
-          // only when the engine reports speaking / pending shortly after enqueue.
+          // Chromium occasionally omits onstart for short utterances.
           window.setTimeout(() => {
             if (token !== generation || stopped || started) return
             if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
               markStart()
+              armWatchdog()
             }
           }, 0)
-          // Safety: mocked engines that call onend via microtask must not hang forever.
-          window.setTimeout(() => {
-            if (token !== generation || settled) return
-            if (started) {
-              speaking = false
-              finish(() => resolve())
-            }
-          }, 8000)
+          // Always arm a fallback watchdog even if onstart never fires (iOS Safari).
+          armWatchdog()
         } catch {
           speaking = false
+          options.onError?.('speak_threw')
           finish(() => reject(new Error('تعذر تشغيل الصوت')))
         }
       })
@@ -130,9 +187,11 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
     stop() {
       stopped = true
       generation += 1
+      clearWatchdog()
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel()
       }
+      activeUtterance = null
       speaking = false
     },
     isSpeaking() {

@@ -20,8 +20,12 @@ export type ThinkingEvidenceEvent =
   | 'CONVERSATION_UPDATED'
   | 'ASSISTANT_RENDERED'
   | 'REACT_RENDER'
+  | 'TTS_QUEUED'
   | 'TTS_START'
   | 'TTS_END'
+  | 'TTS_ERROR'
+  | 'TTS_TIMEOUT'
+  | 'SPEECH_COMPLETED'
   | 'STATE_CHANGED'
   | 'REQUEST_ERROR'
   | 'REQUEST_ABORT'
@@ -430,6 +434,8 @@ export function thinkingEvidence(
     event === 'CHAT_RESPONSE'
     || event === 'ASSISTANT_RENDERED'
     || event === 'TTS_END'
+    || event === 'TTS_TIMEOUT'
+    || event === 'SPEECH_COMPLETED'
   ) {
     ctx.thinkingSince = null
     if (stuckTimer) {
@@ -481,8 +487,12 @@ export function mirrorVoiceStageToThinkingEvidence(input: {
     'CHAT_REQUEST',
     'CHAT_RESPONSE',
     'ASSISTANT_RENDERED',
+    'TTS_QUEUED',
     'TTS_START',
     'TTS_END',
+    'TTS_ERROR',
+    'TTS_TIMEOUT',
+    'SPEECH_COMPLETED',
     'FAILURE',
   ])
   if (!allowed.has(input.stage)) return

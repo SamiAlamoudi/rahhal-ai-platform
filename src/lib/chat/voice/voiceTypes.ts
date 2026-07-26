@@ -65,8 +65,16 @@ export interface TextToSpeechSpeakOptions {
   locale: VoiceLocale
   text: string
   interrupt?: boolean
+  /** Optional correlation id for stale-callback guards. */
+  utteranceId?: string
   /** Fires when the browser actually starts playing the utterance. */
   onStart?: () => void
+  /** Fires on natural utterance end (not pause). */
+  onEnd?: () => void
+  /** Fires on non-benign synthesis errors. */
+  onError?: (error: string) => void
+  /** Fires when the provider duration watchdog forces completion. */
+  onTimeout?: () => void
 }
 
 export interface TextToSpeechProvider {

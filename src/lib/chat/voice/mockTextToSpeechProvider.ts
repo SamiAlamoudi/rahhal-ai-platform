@@ -3,6 +3,8 @@ import type { TextToSpeechProvider, TextToSpeechSpeakOptions } from './voiceType
 export function createMockTextToSpeechProvider(options?: {
   /** Artificial speak duration (ms). Useful with fake timers. */
   delayMs?: number
+  /** If true, speak() never resolves until stop() — for watchdog tests. */
+  hangUntilStop?: boolean
 }): TextToSpeechProvider & {
   spoken: string[]
   speakCalls: number
@@ -11,6 +13,7 @@ export function createMockTextToSpeechProvider(options?: {
   const spoken: string[] = []
   let speakCalls = 0
   const delayMs = options?.delayMs ?? 0
+  const hangUntilStop = options?.hangUntilStop ?? false
   let speakResolve: (() => void) | null = null
 
   return {
@@ -24,6 +27,17 @@ export function createMockTextToSpeechProvider(options?: {
       speaking = true
       speakCalls += 1
       speakOptions.onStart?.()
+      if (hangUntilStop) {
+        await new Promise<void>((resolve) => {
+          speakResolve = () => {
+            speakOptions.onEnd?.()
+            resolve()
+          }
+        })
+        speaking = false
+        speakResolve = null
+        return
+      }
       if (delayMs > 0) {
         await new Promise<void>((resolve) => {
           speakResolve = resolve
@@ -35,6 +49,7 @@ export function createMockTextToSpeechProvider(options?: {
       }
       if (speaking) {
         spoken.push(speakOptions.text)
+        speakOptions.onEnd?.()
       }
       speaking = false
       speakResolve = null

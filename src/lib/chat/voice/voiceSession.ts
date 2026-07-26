@@ -26,11 +26,23 @@ import {
   MIN_HANDS_FREE_SILENCE_MS,
   normalizeVoiceLocale,
 } from './voiceTypes'
-import { extractSpokenAnswer, stripMarkdownForSpeech } from './spokenAnswer'
-import { voiceStage, voiceTrace } from './voiceDebugTrace'
+import {
+  estimateTtsWatchdogMs,
+  prepareVoiceSpokenText,
+  stripMarkdownForSpeech,
+} from './spokenAnswer'
+import { getVoiceSessionId, voiceStage, voiceTrace } from './voiceDebugTrace'
 import { setThinkingEvidenceContext, thinkingEvidence } from './thinkingStuckEvidence'
 
-export { stripMarkdownForSpeech } from './spokenAnswer'
+export { stripMarkdownForSpeech, prepareVoiceSpokenText } from './spokenAnswer'
+
+export type SpeechCompletionReason =
+  | 'natural_end'
+  | 'speech_error'
+  | 'speech_cancelled'
+  | 'speech_timeout'
+  | 'empty_response'
+  | 'unsupported_tts'
 
 /**
  * Sole authorized delay before the next hands-free STT session (WebKit settle).
@@ -125,8 +137,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   let utterancePrefix = ''
   let silenceTimer: ReturnType<typeof setTimeout> | null = null
   let vadSpeaking = false
-  let earlySpokenText = ''
-  let earlySpeakPromise: Promise<boolean> | null = null
   let lastSubmittedKey = ''
   let lastSubmittedAt = 0
   let thinkingWatchdog: ReturnType<typeof setTimeout> | null = null
@@ -144,6 +154,15 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   let emptyEndRestarts = 0
   let emptyEndWindowStartedAt = 0
   let sttStartCount = 0
+  /** Speech-turn correlation — stale utterance callbacks must not finish a newer turn. */
+  let speechTurnId = 0
+  let activeSpeechTurnId = 0
+  let activeUtteranceId: string | null = null
+  let activeAssistantMessageId: string | null = null
+  let speechCompleted = true
+  let ttsWatchdogTimer: ReturnType<typeof setTimeout> | null = null
+  let ttsStartCount = 0
+  let ttsEndCount = 0
 
   const clearThinkingWatchdog = () => {
     if (thinkingWatchdog) {
@@ -156,6 +175,13 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     if (restartTimer) {
       clearTimeout(restartTimer)
       restartTimer = null
+    }
+  }
+
+  const clearTtsWatchdog = () => {
+    if (ttsWatchdogTimer) {
+      clearTimeout(ttsWatchdogTimer)
+      ttsWatchdogTimer = null
     }
   }
 
@@ -494,16 +520,158 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
 
   const readSpokenText = (message: ChatMessage): string => {
     const meta = message.providerMeta ?? {}
-    return extractSpokenAnswer({
+    return prepareVoiceSpokenText({
       content: message.content,
       spokenText: typeof meta.spokenText === 'string' ? meta.spokenText : null,
     })
   }
 
-  const speakAloud = async (text: string, phase: string): Promise<boolean> => {
-    const spoken = text.trim()
-    if (!spoken || disposed) return false
-    const realTts = tts.providerId === 'web-speech-tts' && tts.isSupported()
+  const armSessionTtsWatchdog = (turn: number, text: string) => {
+    clearTtsWatchdog()
+    const ms = estimateTtsWatchdogMs(text)
+    ttsWatchdogTimer = setTimeout(() => {
+      ttsWatchdogTimer = null
+      if (turn !== activeSpeechTurnId || speechCompleted || disposed) return
+      voiceStage({
+        stage: 'TTS_TIMEOUT',
+        conversationId: handsFreeConversationId,
+        turnId: String(turn),
+        previousState: 'SPEAKING',
+        currentState: 'SPEAKING',
+        reason: 'speech_timeout',
+        transcriptLen: text.length,
+        meta: {
+          utteranceId: activeUtteranceId,
+          assistantMessageId: activeAssistantMessageId,
+          sessionId: getVoiceSessionId(),
+          watchdogMs: ms,
+        },
+      })
+      voiceTrace({
+        event: 'tts_timeout',
+        conversationId: handsFreeConversationId,
+        turnId: String(turn),
+        transcriptLen: text.length,
+        reason: 'speech_timeout',
+        meta: { utteranceId: activeUtteranceId, watchdogMs: ms },
+      })
+      // Cancel engine so a late onend cannot race a newer turn.
+      try {
+        tts.stop()
+      } catch {
+        /* ignore */
+      }
+      completeAssistantSpeech('speech_timeout', { speechTurnId: turn })
+    }, ms)
+  }
+
+  /**
+   * Sole authoritative completion for an assistant speech turn.
+   * Idempotent — duplicate onend / timeout / cancel cannot double-resume listening.
+   */
+  const completeAssistantSpeech = (
+    reason: SpeechCompletionReason,
+    opts?: { speechTurnId?: number; resumeListening?: boolean },
+  ) => {
+    if (disposed) return
+    if (opts?.speechTurnId != null && opts.speechTurnId !== activeSpeechTurnId) return
+    if (speechCompleted) return
+    speechCompleted = true
+    clearTtsWatchdog()
+    ttsActive = false
+
+    const turn = activeSpeechTurnId
+    const previous = status
+    const utteranceId = activeUtteranceId
+    const assistantMessageId = activeAssistantMessageId
+
+    if (reason === 'speech_cancelled' || reason === 'speech_timeout' || reason === 'speech_error') {
+      try {
+        tts.stop()
+      } catch {
+        /* ignore */
+      }
+    }
+
+    activeUtteranceId = null
+    ttsEndCount += 1
+
+    voiceStage({
+      stage: reason === 'speech_error' ? 'TTS_ERROR' : 'TTS_END',
+      success: reason === 'natural_end' || reason === 'empty_response' || reason === 'unsupported_tts',
+      conversationId: handsFreeConversationId,
+      turnId: String(turn),
+      previousState: previous.toUpperCase(),
+      currentState: 'READY',
+      reason,
+      transcriptLen: null,
+      meta: {
+        utteranceId,
+        assistantMessageId,
+        sessionId: getVoiceSessionId(),
+        completionReason: reason,
+        ttsEndCount,
+      },
+    })
+    voiceTrace({
+      event: reason === 'speech_error' ? 'tts_error' : 'tts_ended',
+      conversationId: handsFreeConversationId,
+      turnId: String(turn),
+      reason,
+      meta: { utteranceId, assistantMessageId, completionReason: reason },
+    })
+    voiceStage({
+      stage: 'SPEECH_COMPLETED',
+      conversationId: handsFreeConversationId,
+      turnId: String(turn),
+      previousState: 'SPEAKING',
+      currentState: 'READY',
+      reason,
+      meta: {
+        utteranceId,
+        assistantMessageId,
+        sessionId: getVoiceSessionId(),
+        completionReason: reason,
+      },
+    })
+    voiceTrace({
+      event: 'speech_completed',
+      conversationId: handsFreeConversationId,
+      turnId: String(turn),
+      reason,
+      previousState: 'SPEAKING',
+      currentState: 'READY',
+      meta: { utteranceId, assistantMessageId, completionReason: reason },
+    })
+
+    // SPEAKING → READY (never fake IDLE). Push-to-talk also settles on READY.
+    setStatus('ready')
+
+    const keepHandsFree = mode === 'hands_free' && !!handsFreeConversationId
+    const shouldResume = opts?.resumeListening !== false && keepHandsFree
+    if (shouldResume) {
+      const interrupted = resumeHandsFreeAfterInterrupt
+      resumeHandsFreeAfterInterrupt = false
+      requestListenRestart({
+        reason: interrupted || reason === 'speech_cancelled' ? 'interrupt_resume' : 'post_turn',
+        preserveUtterance: false,
+      })
+    }
+  }
+
+  /** Speak the final voice-safe response exactly once per assistant turn. */
+  const speakFinalOnce = async (
+    message: ChatMessage,
+    spoken: string,
+  ): Promise<void> => {
+    if (disposed) return
+    const turn = ++speechTurnId
+    activeSpeechTurnId = turn
+    speechCompleted = false
+    activeAssistantMessageId = message.id
+    activeUtteranceId = `utt_${turn}_${Date.now().toString(36)}`
+    const utteranceId = activeUtteranceId
+
     // Echo protection: never leave recognition running during TTS.
     onEndRestartAuthorized = false
     intentionalAbort = true
@@ -513,42 +681,130 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     clearSilenceTimer()
     clearRestartTimer()
     ttsActive = true
-    logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase, realTts } })
-    voiceTrace({
-      event: 'tts_started',
+
+    const realTts = tts.providerId === 'web-speech-tts' && tts.isSupported()
+    voiceStage({
+      stage: 'TTS_QUEUED',
+      conversationId: handsFreeConversationId,
+      turnId: String(turn),
+      previousState: status.toUpperCase(),
+      currentState: 'SPEAKING',
       transcriptLen: spoken.length,
-      meta: { phase, realTts },
+      meta: {
+        utteranceId,
+        assistantMessageId: message.id,
+        sessionId: getVoiceSessionId(),
+        realTts,
+      },
     })
-    let ttsOk = false
+    voiceTrace({
+      event: 'tts_queued',
+      conversationId: handsFreeConversationId,
+      turnId: String(turn),
+      transcriptLen: spoken.length,
+      meta: { utteranceId, assistantMessageId: message.id, realTts },
+    })
+
+    if (!tts.isSupported()) {
+      completeAssistantSpeech('unsupported_tts', { speechTurnId: turn })
+      return
+    }
+
+    setStatus('speaking')
+    // Arm session watchdog immediately — do not wait for unreliable onstart.
+    armSessionTtsWatchdog(turn, spoken)
+
+    let started = false
     try {
-      if (!disposed && tts.isSupported()) setStatus('speaking')
+      logPipeline({
+        stage: 'tts',
+        event: 'speak_start',
+        meta: { phase: 'final', realTts, utteranceId, textLen: spoken.length },
+      })
       await tts.speak({
         locale,
         text: spoken,
         interrupt: true,
+        utteranceId,
         onStart: () => {
-          if (!disposed) setStatus('speaking')
+          if (disposed || turn !== activeSpeechTurnId || speechCompleted) return
+          started = true
+          ttsStartCount += 1
+          setStatus('speaking')
+          voiceStage({
+            stage: 'TTS_START',
+            conversationId: handsFreeConversationId,
+            turnId: String(turn),
+            previousState: 'SPEAKING',
+            currentState: 'SPEAKING',
+            transcriptLen: spoken.length,
+            meta: {
+              utteranceId,
+              assistantMessageId: message.id,
+              sessionId: getVoiceSessionId(),
+              ttsStartCount,
+            },
+          })
+          voiceTrace({
+            event: 'tts_started',
+            conversationId: handsFreeConversationId,
+            turnId: String(turn),
+            transcriptLen: spoken.length,
+            meta: { utteranceId, assistantMessageId: message.id, realTts },
+          })
+          // Re-arm from real start so timeout tracks audible playback.
+          armSessionTtsWatchdog(turn, spoken)
+        },
+        onTimeout: () => {
+          // Provider-level timeout — session watchdog / completeAssistantSpeech owns finish.
+        },
+        onError: (error) => {
+          if (turn !== activeSpeechTurnId || speechCompleted) return
+          voiceTrace({
+            event: 'tts_error',
+            conversationId: handsFreeConversationId,
+            turnId: String(turn),
+            reason: error,
+            meta: { utteranceId, assistantMessageId: message.id },
+          })
         },
       })
-      ttsOk = true
-      logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase, realTts } })
-      voiceTrace({ event: 'tts_ended', transcriptLen: spoken.length, meta: { phase } })
-    } catch (e) {
-      if (!isBenignChatError(e) && !disposed) {
-        diagnosePipelineError('tts', phase, e)
-        // Surface the failure without trapping the session in ERROR —
-        // written assistant response stays visible; caller moves to READY.
-        callbacks.onError?.(e instanceof Error ? e.message : 'تعذر تشغيل الصوت')
+      if (turn !== activeSpeechTurnId) return
+      if (!started) {
+        // Engine resolved without onstart — still emit a single TTS_START for the turn.
+        ttsStartCount += 1
+        voiceStage({
+          stage: 'TTS_START',
+          conversationId: handsFreeConversationId,
+          turnId: String(turn),
+          previousState: 'SPEAKING',
+          currentState: 'SPEAKING',
+          transcriptLen: spoken.length,
+          meta: {
+            utteranceId,
+            assistantMessageId: message.id,
+            sessionId: getVoiceSessionId(),
+            syntheticStart: true,
+          },
+        })
         voiceTrace({
-          event: 'failure',
-          reason: e instanceof Error ? e.message : 'tts_failed',
-          meta: { phase },
+          event: 'tts_started',
+          conversationId: handsFreeConversationId,
+          turnId: String(turn),
+          transcriptLen: spoken.length,
+          meta: { utteranceId, syntheticStart: true },
         })
       }
-    } finally {
-      ttsActive = false
+      completeAssistantSpeech('natural_end', { speechTurnId: turn })
+      logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase: 'final', realTts, utteranceId } })
+    } catch (e) {
+      if (turn !== activeSpeechTurnId) return
+      if (!isBenignChatError(e) && !disposed) {
+        diagnosePipelineError('tts', 'final', e)
+        callbacks.onError?.(e instanceof Error ? e.message : 'تعذر تشغيل الصوت')
+      }
+      completeAssistantSpeech('speech_error', { speechTurnId: turn })
     }
-    return ttsOk
   }
 
   const sendTranscript = async (conversationId: string, transcript: string): Promise<ChatMessage | null> => {
@@ -607,8 +863,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     listening = false
     utteranceBuffer = ''
     utterancePrefix = ''
-    earlySpokenText = ''
-    earlySpeakPromise = null
     // Echo protection — clear live caption so TTS is never treated as user speech.
     partial = ''
     callbacks.onPartialTranscript?.('')
@@ -616,6 +870,10 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     const controller = new AbortController()
     activeAbort = controller
     let sawDelta = false
+    // Cancel any prior speech turn before the new assistant reply.
+    if (!speechCompleted) {
+      completeAssistantSpeech('speech_cancelled', { speechTurnId: activeSpeechTurnId })
+    }
 
     logPipeline({
       stage: 'conversation',
@@ -672,23 +930,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           logPipeline({ stage: 'streaming', event: 'first_delta' })
         }
         setThinkingEvidenceContext({ assistantMessageId: message.id })
+        // Strategy A: render deltas in UI only — never start TTS until final complete.
         callbacks.onDelta?.(message)
-
-        // Start speaking as soon as a spoken bridge/summary is available.
-        const phase = message.providerMeta?.voicePhase
-        const spoken = typeof message.providerMeta?.spokenText === 'string'
-          ? message.providerMeta.spokenText.trim()
-          : ''
-        if (
-          spoken
-          && spoken !== earlySpokenText
-          && !controller.signal.aborted
-          && !disposed
-          && !earlySpeakPromise
-        ) {
-          earlySpokenText = spoken
-          earlySpeakPromise = speakAloud(spoken, String(phase ?? 'bridge'))
-        }
       },
       onComplete: async (message) => {
         setThinkingEvidenceContext({
@@ -735,37 +978,38 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           conversationId,
           transcriptLen: message.content.length,
         })
-        if (!controller.signal.aborted && !disposed) {
-          const spoken = readSpokenText(message)
-          if (spoken) {
-            if (spoken !== earlySpokenText || !earlySpeakPromise) {
-              await speakAloud(spoken, 'final')
-            } else if (earlySpeakPromise) {
-              await earlySpeakPromise
-            }
-          }
-        }
+        // Chat stream finished — clear sending before TTS so UI cannot stick on Thinking.
         sending = false
         activeAbort = null
-        earlySpokenText = ''
-        earlySpeakPromise = null
-        if (disposed) return
-        // Deterministic post-turn settle: SPEAKING/TTS_END → READY, then one authorized restart.
-        setStatus(mode === 'hands_free' && handsFreeConversationId ? 'ready' : 'idle')
-        if (mode === 'hands_free' && handsFreeConversationId) {
-          const interrupted = resumeHandsFreeAfterInterrupt
-          resumeHandsFreeAfterInterrupt = false
-          requestListenRestart({
-            reason: interrupted ? 'interrupt_resume' : 'post_turn',
-            preserveUtterance: false,
-          })
+        if (disposed || controller.signal.aborted) {
+          if (!speechCompleted) {
+            completeAssistantSpeech('speech_cancelled', { speechTurnId: activeSpeechTurnId })
+          } else if (mode === 'hands_free' && handsFreeConversationId) {
+            setStatus('ready')
+            const interrupted = resumeHandsFreeAfterInterrupt
+            resumeHandsFreeAfterInterrupt = false
+            requestListenRestart({
+              reason: interrupted ? 'interrupt_resume' : 'post_turn',
+              preserveUtterance: false,
+            })
+          }
+          return
         }
+        const spoken = readSpokenText(message)
+        if (!spoken) {
+          speechTurnId += 1
+          activeSpeechTurnId = speechTurnId
+          speechCompleted = false
+          activeAssistantMessageId = message.id
+          completeAssistantSpeech('empty_response')
+          return
+        }
+        // Exactly one TTS_START / TTS_END per assistant turn (final response only).
+        await speakFinalOnce(message, spoken)
       },
       onError: (message, error) => {
         sending = false
         activeAbort = null
-        earlySpokenText = ''
-        earlySpeakPromise = null
         ttsActive = false
         callbacks.onStreamError?.(message, error)
         if (!isBenignChatError(error)) {
@@ -799,8 +1043,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     } catch (e) {
       sending = false
       activeAbort = null
-      earlySpokenText = ''
-      earlySpeakPromise = null
       ttsActive = false
       if (!isBenignChatError(e)) {
         const app = diagnosePipelineError('conversation', 'send_turn', e)
@@ -1039,13 +1281,12 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     },
     interrupt(abortStream, opts) {
       intentionalAbort = true
-      ttsActive = false
       clearSilenceTimer()
       stopVad()
       const keepHandsFree = opts?.resumeHandsFree ?? (mode === 'hands_free' && !!handsFreeConversationId)
       const wasSending = sending
+      const wasSpeaking = !speechCompleted && (ttsActive || status === 'speaking')
       invalidateListenRestarts()
-      tts.stop()
       stt.abort()
       listening = false
       sending = false
@@ -1054,7 +1295,28 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       activeAbort?.abort()
       activeAbort = null
       abortStream?.()
-      logPipeline({ stage: 'voice', event: 'interrupted', meta: { keepHandsFree, wasSending } })
+      logPipeline({ stage: 'voice', event: 'interrupted', meta: { keepHandsFree, wasSending, wasSpeaking } })
+
+      if (wasSpeaking) {
+        // One completion only — stale utterance onend cannot finish a newer turn.
+        completeAssistantSpeech('speech_cancelled', {
+          speechTurnId: activeSpeechTurnId,
+          resumeListening: keepHandsFree && !wasSending,
+        })
+        if (keepHandsFree && wasSending) {
+          resumeHandsFreeAfterInterrupt = true
+          setStatus('ready')
+        }
+        return
+      }
+
+      try {
+        tts.stop()
+      } catch {
+        /* ignore */
+      }
+      ttsActive = false
+
       if (keepHandsFree && wasSending) {
         resumeHandsFreeAfterInterrupt = true
         setStatus('ready')
@@ -1069,20 +1331,32 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     },
     async speakText(text) {
       if (disposed) return
-      try {
-        await speakAloud(stripMarkdownForSpeech(text), 'speakText')
-      } catch (e) {
-        if (!isBenignChatError(e)) throw e
+      const spoken = stripMarkdownForSpeech(text)
+      if (!spoken) return
+      const stub: ChatMessage = {
+        id: `speakText_${Date.now().toString(36)}`,
+        conversationId: handsFreeConversationId ?? 'local',
+        role: 'assistant',
+        modality: 'text',
+        content: spoken,
+        audioUrl: null,
+        imageUrl: null,
+        attachments: [],
+        status: 'complete',
+        error: null,
+        providerMeta: { spokenText: spoken },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       }
-      if (!disposed && (status === 'speaking' || status === 'ready')) {
-        setStatus(handsFreeConversationId ? 'ready' : 'idle')
-      }
+      await speakFinalOnce(stub, spoken)
     },
     dispose() {
       disposed = true
       intentionalAbort = true
       resumeHandsFreeAfterInterrupt = false
       handsFreeConversationId = null
+      speechCompleted = true
+      clearTtsWatchdog()
       ttsActive = false
       invalidateListenRestarts()
       clearSilenceTimer()

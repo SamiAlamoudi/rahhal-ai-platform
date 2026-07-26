@@ -15,8 +15,12 @@ export type VoicePipelineStage =
   | 'CHAT_REQUEST'
   | 'CHAT_RESPONSE'
   | 'ASSISTANT_RENDERED'
+  | 'TTS_QUEUED'
   | 'TTS_START'
   | 'TTS_END'
+  | 'TTS_ERROR'
+  | 'TTS_TIMEOUT'
+  | 'SPEECH_COMPLETED'
   | 'LISTENING_RESUMED'
   | 'FAILURE'
 
@@ -32,8 +36,12 @@ export type VoiceTraceEvent =
   | 'chat_engine_started'
   | 'chat_engine_completed'
   | 'assistant_message_committed'
+  | 'tts_queued'
   | 'tts_started'
   | 'tts_ended'
+  | 'tts_error'
+  | 'tts_timeout'
+  | 'speech_completed'
   | 'listening_resumed'
   | 'failure'
 
@@ -119,8 +127,12 @@ const EVENT_TO_STAGE: Record<VoiceTraceEvent, VoicePipelineStage> = {
   chat_engine_started: 'CHAT_REQUEST',
   chat_engine_completed: 'CHAT_RESPONSE',
   assistant_message_committed: 'ASSISTANT_RENDERED',
+  tts_queued: 'TTS_QUEUED',
   tts_started: 'TTS_START',
   tts_ended: 'TTS_END',
+  tts_error: 'TTS_ERROR',
+  tts_timeout: 'TTS_TIMEOUT',
+  speech_completed: 'SPEECH_COMPLETED',
   listening_resumed: 'LISTENING_RESUMED',
   failure: 'FAILURE',
 }
