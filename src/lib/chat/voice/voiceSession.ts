@@ -118,7 +118,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   let silenceTimer: ReturnType<typeof setTimeout> | null = null
   let vadSpeaking = false
   let earlySpokenText = ''
-  let earlySpeakPromise: Promise<void> | null = null
+  let earlySpeakPromise: Promise<boolean> | null = null
   let lastSubmittedKey = ''
   let lastSubmittedAt = 0
 
@@ -262,9 +262,9 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     })
   }
 
-  const speakAloud = async (text: string, phase: string) => {
+  const speakAloud = async (text: string, phase: string): Promise<boolean> => {
     const spoken = text.trim()
-    if (!spoken || disposed) return
+    if (!spoken || disposed) return false
     const realTts = tts.providerId === 'web-speech-tts' && tts.isSupported()
     // Echo protection: never leave recognition running during TTS.
     intentionalAbort = true
