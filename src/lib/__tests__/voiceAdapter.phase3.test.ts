@@ -54,12 +54,13 @@ describe('Phase 3 — VoiceAdapter', () => {
     expect(voicePanelStateLabel('listening', 'ar')).toContain('أستمع')
   })
 
-  it('progressively reveals cards while streaming', () => {
+  it('progressively reveals cards while streaming (conversation first)', () => {
     expect(progressiveCardLimit(0)).toBe(0)
-    expect(progressiveCardLimit(20)).toBe(1)
-    expect(progressiveCardLimit(100)).toBe(2)
-    expect(progressiveCardLimit(200)).toBe(3)
-    expect(progressiveCardLimit(300)).toBe(4)
+    expect(progressiveCardLimit(40)).toBe(0)
+    expect(progressiveCardLimit(90)).toBe(1)
+    expect(progressiveCardLimit(160)).toBe(2)
+    expect(progressiveCardLimit(250)).toBe(3)
+    expect(progressiveCardLimit(360)).toBe(4)
     expect(progressiveCardLimit(500)).toBe(5)
   })
 })

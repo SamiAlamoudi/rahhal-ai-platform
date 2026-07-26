@@ -9,6 +9,15 @@
 import type { ChatMessage } from '../chat/chatTypes'
 import { getFeatureRegistry } from '../ai'
 import type { ConciergeService, ConciergeState } from '../concierge'
+import { buildConsultantFactNotes } from '../consultantIntelligence'
+import {
+  isTripExecuteBlocked,
+  rebuildTripStateFromMessages,
+  toMetaTripState,
+  updateTripState,
+  type TripMissingField,
+  type TripState,
+} from '../tripState'
 import { applyTripPlanEdits, buildTripPlan, regenerateTripDay } from './buildItinerary'
 import { applyIntelligentDecisions } from './decision'
 import { extractFromUserText } from './extractRequirements'
@@ -429,6 +438,41 @@ function toMetaConcierge(state: ConciergeState): NonNullable<AgentProviderMeta['
     heardSummary: [...state.heardSummary],
     turnCount: state.turnCount,
   }
+}
+
+function mapTripPrimaryMissingToSlot(field: TripMissingField | null): string | null {
+  switch (field) {
+    case 'destinationCountry':
+    case 'destinationCity':
+      return 'destination'
+    case 'duration':
+    case 'travelDates':
+      return 'durationDays'
+    case 'budget':
+      return 'budgetAmount'
+    case 'travelStyle':
+      return 'interests'
+    case 'travelers':
+      return 'travelers'
+    default:
+      return null
+  }
+}
+
+function cityOptionHints(country: string | null, locale: 'ar' | 'en'): string[] | undefined {
+  if (!country) return undefined
+  const key = country.toLowerCase()
+  if (key === 'morocco') {
+    return locale === 'ar'
+      ? ['مراكش', 'أكادير', 'طنجة', 'الدار البيضاء']
+      : ['Marrakech', 'Agadir', 'Tangier', 'Casablanca']
+  }
+  if (key === 'japan') {
+    return locale === 'ar'
+      ? ['طوكيو', 'كيوتو', 'أوساكا']
+      : ['Tokyo', 'Kyoto', 'Osaka']
+  }
+  return undefined
 }
 
 function toMetaTravelExecutive(
@@ -1564,6 +1608,15 @@ export function createTravelAgentService(
       }
       memory.missingFields = missingRequirementFields(memory.requirements)
 
+      // Persistent Trip Planning State — never drop prior slots; one missing at a time.
+      let tripState: TripState = updateTripState({
+        previous: rebuildTripStateFromMessages(input.messages.slice(0, -1)),
+        requirements: memory.requirements,
+        userText,
+        hasTripPlan: Boolean(memory.tripPlan),
+        bookingReady: alphaJourneyCue,
+      })
+
       let conversationIntelligenceResult: ConversationIntelligenceResult | null = null
       let llmBrainResult: LlmBrainResult | null = null
       let agentRuntimeResult: AgentRuntimeResult | null = null
@@ -1589,6 +1642,13 @@ export function createTravelAgentService(
         memory.missingFields = filterInterviewMissingFields(
           missingRequirementFields(memory.requirements).map(String),
         ) as Array<keyof TripRequirements>
+        tripState = updateTripState({
+          previous: tripState,
+          requirements: memory.requirements,
+          userText,
+          hasTripPlan: Boolean(memory.tripPlan),
+          bookingReady: alphaJourneyCue,
+        })
       }
 
       // Recovery Phase 5 — LLM Conversation Brain (default OFF). Mock LLM primary; rules fallback.
@@ -2313,10 +2373,34 @@ export function createTravelAgentService(
         return { ...meta, rahhalBrain: toMetaRahhalBrain(rahhalBrainMeta) }
       }
 
+      const refreshTripState = (bookingReady = alphaJourneyCue) => {
+        tripState = updateTripState({
+          previous: tripState,
+          requirements: memory.requirements,
+          userText,
+          hasTripPlan: Boolean(memory.tripPlan),
+          bookingReady,
+        })
+        return tripState
+      }
+
       const attachTurnMeta = <T extends AgentProviderMeta>(meta: T, reply?: string): T => {
+        refreshTripState(
+          Boolean(
+            alphaJourneyCue
+            || bookingExecutionResult
+            || paymentsResult
+            || meta.tripPlan
+            || memory.tripPlan,
+          ),
+        )
+        const withTripPlanningState = {
+          ...meta,
+          tripState: toMetaTripState(tripState),
+        }
         const withAutonomous = autonomousSnapshot
-          ? { ...meta, autonomous: toMetaAutonomous(autonomousSnapshot) }
-          : meta
+          ? { ...withTripPlanningState, autonomous: toMetaAutonomous(autonomousSnapshot) }
+          : withTripPlanningState
         const withDestinationIntelligence = destinationIntelligenceMeta
           ? { ...withAutonomous, destinationIntelligence: destinationIntelligenceMeta }
           : withAutonomous
@@ -3151,6 +3235,7 @@ export function createTravelAgentService(
       // Concierge sits above the agent: consultant dialogue or agent handoff.
       // It never selects providers — only whether the agent should execute.
       if (isConciergeEnabled() && conciergeService) {
+        refreshTripState()
         const conciergeResult = conciergeService.runTurn({
           locale: memory.locale,
           memory,
@@ -3162,16 +3247,30 @@ export function createTravelAgentService(
         })
         conciergeState = conciergeResult.state
 
-        if (!conciergeResult.handoff.shouldExecuteAgent) {
+        // TripState owns hard stage gates — city/dates/budget before itinerary execution.
+        const tripStateBlocksExecute = isTripExecuteBlocked(tripState.primaryMissing)
+
+        if (!conciergeResult.handoff.shouldExecuteAgent || tripStateBlocksExecute) {
           // Experience Sprint 2 — Concierge decides policy/facts only; LLM writes the reply.
           memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
           let optionHints: string[] | undefined
           const decisionBrief = conciergeResult.decision.valueBrief
-          if (decisionBrief && decisionBrief.length > 0) {
+          const clarifyingTripAsk = tripStateBlocksExecute
+          const askingCity = clarifyingTripAsk && tripState.primaryMissing === 'destinationCity'
+          const askingStyle = tripState.primaryMissing === 'travelStyle'
+            && !conciergeResult.handoff.shouldExecuteAgent
+
+          // TripState city lock — surface city options as the single next question.
+          if (askingCity && !canBuildPlanningDraft(memory.requirements)) {
+            optionHints = cityOptionHints(tripState.destinationCountry, memory.locale)
+          } else if (decisionBrief && decisionBrief.length > 0 && !clarifyingTripAsk) {
             optionHints = decisionBrief
           } else if (
-            conciergeResult.decision.action === 'propose_options'
-            || conciergeResult.decision.action === 'advise'
+            !clarifyingTripAsk
+            && (
+              conciergeResult.decision.action === 'propose_options'
+              || conciergeResult.decision.action === 'advise'
+            )
           ) {
             const __mod_buildConciergeRecommendations = await loadConciergeRecommendations()
 
@@ -3182,8 +3281,12 @@ export function createTravelAgentService(
             })
             optionHints = recs.optionLines
           }
-          // Planning Draft — deterministic estimates for Conversation Brain (not TripPlan).
-          const planningDraft = canBuildPlanningDraft(memory.requirements)
+          // Planning Draft — allowed during city clarification (ranked cities = the question).
+          // Never dump a full itinerary while hard TripState slots are still open.
+          const planningDraft = (
+            (!clarifyingTripAsk || askingCity)
+            && canBuildPlanningDraft(memory.requirements)
+          )
             ? buildPlanningDraft({
               requirements: memory.requirements,
               locale: memory.locale,
@@ -3191,7 +3294,53 @@ export function createTravelAgentService(
             : null
 
           const valueNotes: string[] = []
-          if (planningDraft) {
+          const soft = conciergeResult.decision.state.softSignals
+          const consultantNotes = buildConsultantFactNotes({
+            locale: memory.locale,
+            userText,
+            destination: tripState.destinationCountry ?? memory.requirements.destination,
+            destinationCity: tripState.destinationCity,
+            startDate: memory.requirements.startDate,
+            durationDays: memory.requirements.durationDays,
+            travelerType: memory.requirements.travelerType,
+            tripPurpose: memory.requirements.tripPurpose,
+            budgetAmount: memory.requirements.budgetAmount,
+            budgetStyle: memory.requirements.budgetStyle,
+            interests: memory.requirements.interests,
+            softMustHaves: soft.mustHaves,
+            softDealBreakers: soft.dealBreakers,
+          })
+          for (const note of consultantNotes) valueNotes.push(note)
+
+          if (askingCity && planningDraft) {
+            const insightLines = planningDraftToInsightLines(planningDraft, memory.locale)
+            optionHints = [
+              ...planningDraft.cities.slice(0, 3).map((city) => `${city.name} — ${city.why}`),
+              ...insightLines.slice(1, 3),
+            ]
+            valueNotes.push(planningDraft.rankingNote)
+            valueNotes.push(
+              memory.locale === 'ar'
+                ? 'هل تميل أكثر للأجواء الشاطئية مثل أغادير، أم المدن التاريخية مثل مراكش؟'
+                : 'Are you leaning more toward beach vibes like Agadir, or historic cities like Marrakech?',
+            )
+          } else if (askingCity) {
+            valueNotes.push(
+              tripState.destinationCountry?.toLowerCase() === 'japan'
+                ? (memory.locale === 'ar'
+                  ? 'تميل لطوكيو الحيوية، أم كيوتو الأهدأ ثقافياً؟'
+                  : 'Are you leaning energetic Tokyo, or quieter cultural Kyoto?')
+                : (memory.locale === 'ar'
+                  ? 'هل تميل أكثر للأجواء الشاطئية مثل أغادير، أم المدن التاريخية مثل مراكش؟'
+                  : 'Are you leaning more toward beach vibes like Agadir, or historic cities like Marrakech?'),
+            )
+          } else if (askingStyle) {
+            valueNotes.push(
+              memory.locale === 'ar'
+                ? 'إذا كان هدفك الاسترخاء: بحر وهدوء، ولا مدينة وثقافة؟'
+                : 'If the goal is recovery: beach and calm, or city and culture?',
+            )
+          } else if (planningDraft) {
             const insightLines = planningDraftToInsightLines(planningDraft, memory.locale)
             // Prefer draft ranking + city why-lines as option hints when we have estimates.
             optionHints = [
@@ -3202,7 +3351,7 @@ export function createTravelAgentService(
             if (conciergeResult.decision.preferenceQuestion) {
               valueNotes.push(conciergeResult.decision.preferenceQuestion)
             }
-          } else {
+          } else if (!clarifyingTripAsk) {
             for (const row of [
               conciergeResult.decision.framingNote,
               conciergeResult.decision.preferenceQuestion,
@@ -3211,12 +3360,22 @@ export function createTravelAgentService(
             }
           }
 
+          const tripAskSlot = mapTripPrimaryMissingToSlot(tripState.primaryMissing)
+          // City clarification uses propose_options so optionHints render; other slots ask one question.
+          const tripObjective = askingCity
+            ? 'propose_options' as const
+            : clarifyingTripAsk
+              ? 'collect_missing' as const
+              : mapConciergeObjective(conciergeResult.decision.action)
           const facts = buildTravelFacts({
             memory,
-            objective: mapConciergeObjective(conciergeResult.decision.action),
-            // Value-first turns leave askFields empty on purpose — do not fall back to
-            // the full missingFields census (that recreates form interrogation).
-            missingSlots: (conciergeResult.decision.askFields ?? []).map(String),
+            objective: tripObjective,
+            // TripState primary missing wins — one highest-priority question only.
+            missingSlots: askingCity
+              ? []
+              : tripAskSlot
+                ? [tripAskSlot]
+                : (conciergeResult.decision.askFields ?? []).map(String),
             softSignals: conciergeResult.decision.state.softSignals as unknown as Record<string, unknown>,
             heardSummary: conciergeResult.decision.state.heardSummary,
             optionHints,

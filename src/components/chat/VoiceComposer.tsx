@@ -28,10 +28,10 @@ interface VoiceComposerProps {
 const STATUS_LABELS: Record<VoiceSessionStatus, string> = {
   idle: 'جاهز للاستماع',
   requesting_permission: 'طلب إذن الميكروفون…',
-  listening: 'أستمع إليك…',
-  thinking: 'أفكّر في أفضل خيار لك…',
-  responding: 'أجهّز الرد…',
-  processing: 'أفكّر في أفضل خيار لك…',
+  listening: 'أستمع إليك — عند التوقف أرسل تلقائياً',
+  thinking: 'أفكر في أفضل الخيارات…',
+  responding: 'أقارن بين الوجهات…',
+  processing: 'أراجع الميزانية…',
   speaking: 'أتحدث…',
   reconnecting: 'أعيد الاتصال…',
   error: 'حدث خطأ',
@@ -233,7 +233,9 @@ export default function VoiceComposer({
         {partialTranscript.trim()
           ? partialTranscript
           : listening
-            ? '…تحدث الآن — التوقف القصير لن يقطع التسجيل'
+            ? (mode === 'hands_free'
+              ? '…تحدث الآن — عند انتهاء كلامك يُرسل تلقائياً ويبدأ رحّال بالرد'
+              : '…تحدث الآن — أفلت للإرسال')
             : 'سيظهر نص كلامك هنا ويُحفظ في سجل المحادثة'}
       </div>
 
@@ -260,13 +262,13 @@ export default function VoiceComposer({
             type="button"
             disabled={!enabled || processing || !online}
             aria-pressed={listening}
-            aria-label={listening ? 'إيقاف وضع حر اليدين' : 'تشغيل وضع حر اليدين'}
+            aria-label={listening ? 'إيقاف الميكروفون' : 'اضغط للتحدث — الإرسال تلقائي بعد الصمت'}
             onClick={onToggleHandsFree}
             className={`min-h-12 flex-1 rounded-2xl px-4 py-3 text-sm font-bold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
               listening ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary-600 hover:bg-primary-700'
             } disabled:bg-slate-300`}
           >
-            {listening ? 'إيقاف حر اليدين' : 'تشغيل حر اليدين'}
+            {listening ? 'الميكروفون يعمل · إرسال تلقائي' : 'اضغط الميكروفون للتحدث'}
           </button>
         )}
 
@@ -277,14 +279,18 @@ export default function VoiceComposer({
               voiceAdapter.interrupt()
               onInterrupt()
             }}
-            aria-label="مقاطعة الرد الصوتي"
+            aria-label="مقاطعة الرد فوراً"
             className="min-h-12 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
           >
             مقاطعة
           </button>
         )}
       </div>
-      {mode === 'push_to_talk' && (
+      {mode === 'hands_free' ? (
+        <p className="text-[10px] text-slate-400">
+          بدون زر إرسال — توقّف عن الكلام ويُرسل تلقائياً، ويبدأ رحّال بالرد فوراً. المقاطعة توقف الرد الحالي.
+        </p>
+      ) : (
         <p className="text-[10px] text-slate-400">اختصار لوحة المفاتيح: مسافة للضغط مع الاستمرار</p>
       )}
     </div>
