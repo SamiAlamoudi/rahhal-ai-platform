@@ -180,24 +180,24 @@ function recommendInsteadOfAsk(
   if (slot === 'durationDays' && dest) {
     return pick(seed, ar
       ? [
-        `ثبّتّ لـ${dest} أساساً من 5–7 أيام — يكفي للطيران وإيقاع مريح بدون استعجال.`,
-        `نفّذت افتراض أسبوع تقريباً لـ${dest} كنقطة انطلاق؛ نقدر نقصّر أو نطوّل بعدين.`,
+        `ثبّتّ لـ${dest} أساساً من 5–7 أيام عشان يضبط الطيران والإيقاع معاً — بدون استعجال.`,
+        `نفّذت افتراض أسبوع تقريباً لـ${dest} كنقطة انطلاق للرحلة كاملة؛ نقدر نقصّر أو نطوّل بعدين.`,
       ]
       : [
-        `I set a 5–7 day base for ${dest} — enough for flights and a calm pace without rushing.`,
-        `I locked roughly a week for ${dest} as the working start; we can shorten or extend later.`,
+        `I set a 5–7 day base for ${dest} so flights and pace lock together — without rushing.`,
+        `I locked roughly a week for ${dest} as the working start for the whole journey; we can shorten or extend later.`,
       ])
   }
 
   if (slot === 'budgetAmount' && dest) {
     return pick(seed, ar
       ? [
-        `ضبطت لـ${dest} شريحة متوازنة مريحة وأحسّن الطيران والإقامة داخلها — لو عندك سقف أدق نعيد الضبط فوراً.`,
-        `أمشي على مستوى متوسط-مريح لـ${dest} عشان نقدر نقارن خيارات قوية بدون انتظار إذن.`,
+        `ضبطت لـ${dest} شريحة متوازنة وأعيد توزيع الطيران والإقامة معاً داخلها — لو عندك سقف أدق نعيد الضبط فوراً.`,
+        `أمشي على مستوى متوسط-مريح لـ${dest} عشان الرحلة كاملة تتحسن، مو بس رقم الميزانية.`,
       ]
       : [
-        `I set a comfortable mid tier for ${dest} and will optimize flights and stays inside it — give a harder ceiling anytime and I retune.`,
-        `I am running a balanced comfortable band for ${dest} so we can compare strong options without waiting for permission.`,
+        `I set a comfortable mid tier for ${dest} and retune flights and stays together inside it — give a harder ceiling anytime and I retune.`,
+        `I am running a balanced comfortable band for ${dest} so the whole journey improves — not only the budget number.`,
       ])
   }
 
@@ -443,8 +443,8 @@ export function generateLocalConversation(input: {
       const framing = draft?.rankingNote
         || input.facts.recommendations?.[0]
         || pick(seed + 2, ar
-          ? ['خلّيني أضيّق لك الاتجاه قبل ما ندخل في تفاصيل أكثر.', 'هذه قراءة مستشار على ما عرفناه حتى الآن.']
-          : ['Let me narrow the direction before we go deeper.', 'Here is a consultant read on what we already know.'])
+          ? ['أضبط الرحلة كاملة على ما عرفناه — مو بس آخر جملة.', 'نحسّن المسار الكلي: وجهة، طيران، إقامة، وإيقاع.']
+          : ['I am tuning the whole trip from what we know — not only the last sentence.', 'Improving the full journey: destination, flights, stay, and pace.'])
 
       // Discovery stays conversational — light city comparisons, not a full cost report.
       let hints = ''

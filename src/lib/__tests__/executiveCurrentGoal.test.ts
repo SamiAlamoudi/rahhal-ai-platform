@@ -77,6 +77,7 @@ describe('Executive Current Goal', () => {
     expect(payload).toMatch(/Never acknowledge-only|Advance, Collect, Recommend, Confirm, or Execute/)
     expect(payload).toMatch(/Infer first\. Recommend second/)
     expect(payload).toMatch(/Execution before explanation|search\/compare\/recommend before asking/i)
+    expect(payload).toMatch(/Never optimize a single reply|entire travel journey|improve the overall trip/i)
   })
 
   it('Collect destination when destination is unknown', () => {

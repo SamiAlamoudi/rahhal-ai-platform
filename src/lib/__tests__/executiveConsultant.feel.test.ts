@@ -51,6 +51,8 @@ describe('Executive AI Travel Consultant', () => {
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Compare before asking/i)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Recommend before asking/i)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Do not ask permission|never ask permission/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/JOURNEY OPTIMIZATION|Never optimize a single reply/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/entire travel journey|overall trip/i)
   })
 
   it('never returns acknowledgement-only replies', async () => {
@@ -105,6 +107,9 @@ describe('Executive AI Travel Consultant', () => {
     expect(t2.reply).not.toContain('عندي')
     expect(t2.reply).not.toMatch(/اختر من التالي|قم بتعبئة|لدينا عرض/)
     expect(t2.reply.toLowerCase()).not.toMatch(/how can i help you today/)
+    // Journey-level: budget update should retune more than echoing the number.
+    expect(t2.reply.toLowerCase()).not.toMatch(/^(got it[.!]?\s*)?(your )?budget (is|of) 12000/i)
+    expect(t2.reply.length).toBeGreaterThan(40)
     expect((t2.reply.match(/\?/g) ?? []).length).toBeLessThanOrEqual(1)
   })
 
