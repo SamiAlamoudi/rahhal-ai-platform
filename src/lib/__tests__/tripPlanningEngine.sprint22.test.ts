@@ -282,8 +282,8 @@ describe('Sprint 22 planTurn + voice parity', () => {
     // Experience Sprint 2 — Conversation Brain rewrites clarification; template stays in meta.
     expect(result.reply).not.toBe(result.meta.brain?.clarificationQuestion)
     expect(result.reply).toMatch(/Tokyo|Japan/i)
-    // Local model variants may ask with "?" or a declarative timing cue.
-    expect(result.reply).toMatch(/\?|approximate period|day count|متى|كم يوم|الإطار الزمني|اطار زمني/)
+    // Infer-first: recommend a duration default, or ask only if still blocked.
+    expect(result.reply).toMatch(/\?|5–7 day|roughly a week|recommend|assume|approximate period|day count|متى|كم يوم|الإطار الزمني|اطار زمني/i)
     expect(result.meta.spokenText).toBeTruthy()
   })
 
