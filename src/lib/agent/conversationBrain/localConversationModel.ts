@@ -24,6 +24,16 @@ function pick<T>(seed: number, items: T[]): T {
   return items[seed % items.length]!
 }
 
+function optimizeLocalSpoken(text: string): string {
+  return text
+    .replace(/^عندي[:：]\s*/gm, '')
+    .replace(/\bعندي\s*:/g, '')
+    .replace(/^•\s*/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 360)
+}
+
 function knownBits(facts: TravelFacts, ar: boolean): string[] {
   const k = facts.known
   const bits: string[] = []
@@ -130,102 +140,48 @@ function acknowledge(facts: TravelFacts, seed: number, ar: boolean): string {
   const bits = knownBits(facts, ar)
   if (bits.length === 0) {
     return pick(seed, ar
-      ? ['فهمت.', 'خلّنا نضبط الأساسيات.', 'جاهز نبدأ التخطيط.']
-      : ['Understood.', 'Let us lock the essentials.', 'Ready to plan.'])
+      ? ['فهمت طلبك.', 'خلّنا نضبط الأساسيات بهدوء.', 'جاهز نكمل التخطيط.']
+      : ['I understand.', 'Let us lock the essentials.', 'Ready to shape the trip.'])
   }
-  const joined = bits.slice(0, 4).join(ar ? ' · ' : ' · ')
+  const joined = bits.slice(0, 3).join(ar ? '، ' : ', ')
   return pick(seed + 3, ar
     ? [
-      `فهمت: ${joined}.`,
-      `عندي: ${joined}.`,
-      `${joined} — هذا الأساس.`,
+      `واضح — ${joined}.`,
+      `نبني على ${joined}.`,
+      `${joined}؛ نكمّل من هنا.`,
     ]
     : [
-      `Understood: ${joined}.`,
-      `I have: ${joined}.`,
-      `${joined} — that is the base.`,
+      `Clear — ${joined}.`,
+      `Building on ${joined}.`,
+      `${joined}; we continue from there.`,
     ])
 }
 
 function renderPlanDisplay(facts: TravelFacts, ar: boolean): string {
   const plan = facts.plan
-  if (!plan) return ar ? 'ما عندي خطة جاهزة بعد.' : 'I do not have a finished plan yet.'
-  const lines: string[] = []
-  lines.push(ar
-    ? `جهّزت تصوّراً لـ${plan.destinations.join('، ')} — التفاصيل تحت، وقل لي لو تبي نعدّل.`
-    : `I put together a first cut for ${plan.destinations.join(', ')} — details below; tell me what to refine.`)
-  lines.push('')
-  lines.push(`## ${plan.title}`)
-  lines.push('')
-  lines.push(ar ? '### الملخص' : '### Summary')
-  lines.push(plan.summary)
-  lines.push('')
-  lines.push(ar ? `**المدة:** ${plan.durationDays} أيام` : `**Duration:** ${plan.durationDays} days`)
-  lines.push(ar ? `**التواريخ:** ${plan.dates}` : `**Dates:** ${plan.dates}`)
-  if (plan.estimatedTotal) {
-    lines.push(ar
-      ? `**التقدير:** ${plan.estimatedTotal.amount.toLocaleString('en-US')} ${plan.estimatedTotal.currency}`
-      : `**Estimate:** ${plan.estimatedTotal.amount.toLocaleString('en-US')} ${plan.estimatedTotal.currency}`)
+  if (!plan) return ar ? 'ما زلنا نجهّز الخطة.' : 'The plan is still taking shape.'
+  const dest = plan.destinations.join(ar ? ' و' : ' and ')
+  const hotel = plan.hotels[0]?.name
+  const total = plan.estimatedTotal
+  const dayHint = plan.days[0]
+    ? (ar ? ` اليوم الأول في ${plan.days[0].location}.` : ` Day one centers on ${plan.days[0].location}.`)
+    : ''
+  if (ar) {
+    return [
+      `جهّزت تصوّراً واضحاً لـ${dest} خلال ${plan.durationDays} أيام.`,
+      hotel ? `الإقامة المقترحة: ${hotel}.` : '',
+      total ? `التقدير الأولي حوالي ${total.amount.toLocaleString('en-US')} ${total.currency}.` : '',
+      dayHint,
+      'قل لي ماذا نثبّت أو نعدّل.',
+    ].filter(Boolean).join(' ')
   }
-  if (plan.budgetBreakdown.length) {
-    lines.push('')
-    lines.push(ar ? '### تفصيل الميزانية' : '### Budget breakdown')
-    for (const row of plan.budgetBreakdown.slice(0, 6)) {
-      lines.push(`- ${row.label}: ${row.amount.toLocaleString('en-US')} ${row.currency}`)
-    }
-  }
-  if (plan.hotels[0]) {
-    lines.push('')
-    lines.push(ar ? '### الفنادق / الإقامة' : '### Hotels')
-    for (const h of plan.hotels.slice(0, 3)) {
-      lines.push(`- ${h.name} (${h.area})`)
-    }
-  }
-  if (plan.flights[0]) {
-    lines.push('')
-    lines.push(ar ? '### الرحلات الجوية' : '### Flights')
-    for (const f of plan.flights.slice(0, 4)) {
-      lines.push(`- ${f.from} → ${f.to}${f.airline ? ` · ${f.airline}` : ''}`)
-    }
-  }
-  if (plan.days.length) {
-    lines.push('')
-    lines.push(ar ? '### برنامج الأيام' : '### Daily itinerary')
-    for (const day of plan.days) {
-      lines.push('')
-      lines.push(`**${day.title}** — ${day.location}`)
-      for (const act of day.activities.slice(0, 4)) lines.push(`- ${act}`)
-    }
-  }
-  if (plan.whyChoices.length) {
-    lines.push('')
-    lines.push(ar ? '### لماذا هذه الخيارات' : '### Why these choices')
-    for (const reason of plan.whyChoices) lines.push(`- ${reason}`)
-  }
-  if (plan.tradeoffs && plan.tradeoffs.length) {
-    lines.push('')
-    lines.push(ar ? '### المقايضات' : '### Trade-offs')
-    for (const t of plan.tradeoffs) lines.push(`- ${t}`)
-  }
-  if (plan.confidence != null && Number.isFinite(plan.confidence)) {
-    lines.push('')
-    lines.push(
-      ar
-        ? `### الثقة: ${Math.round(plan.confidence * 100)}%`
-        : `### Confidence: ${Math.round(plan.confidence * 100)}%`,
-    )
-  }
-  if (plan.alternatives && plan.alternatives.length) {
-    lines.push('')
-    lines.push(ar ? '### بدائل' : '### Alternatives')
-    for (const a of plan.alternatives) lines.push(`- ${a}`)
-  }
-  if (plan.nextAction) {
-    lines.push('')
-    lines.push(ar ? '### الخطوة التالية' : '### Next action')
-    lines.push(`- ${plan.nextAction}`)
-  }
-  return lines.join('\n')
+  return [
+    `I shaped a clear outline for ${dest} over ${plan.durationDays} days.`,
+    hotel ? `Suggested stay: ${hotel}.` : '',
+    total ? `Early estimate around ${total.amount.toLocaleString('en-US')} ${total.currency}.` : '',
+    dayHint,
+    'Tell me what to lock or change.',
+  ].filter(Boolean).join(' ')
 }
 
 function spokenPlan(facts: TravelFacts, seed: number, ar: boolean): string {
@@ -238,15 +194,15 @@ function spokenPlan(facts: TravelFacts, seed: number, ar: boolean): string {
   const total = plan.estimatedTotal
   if (ar) {
     return pick(seed, [
-      `جهّزت تصوّراً لـ${dest} لمدة ${plan.durationDays} أيام${hotel ? ` مع إقامة في ${hotel}` : ''}${total ? `، بتقدير حوالي ${total.amount.toLocaleString('en-US')} ${total.currency}` : ''}. التفاصيل على الشاشة.`,
-      `عندي مسودة قوية لـ${dest}. ${hotel ? `أميل لـ${hotel}. ` : ''}راجع التفاصيل وقل لي وش نعدّل.`,
-      `${dest} صارت أوضح الآن — خطة ${plan.durationDays} أيام جاهزة للمراجعة على الشاشة.`,
+      `جهّزت تصوّراً لـ${dest} لمدة ${plan.durationDays} أيام${hotel ? ` مع إقامة في ${hotel}` : ''}${total ? `، بتقدير حوالي ${total.amount.toLocaleString('en-US')} ${total.currency}` : ''}.`,
+      `مسودة قوية لـ${dest}. ${hotel ? `أميل لـ${hotel}. ` : ''}قل لي وش نثبّت أو نعدّل.`,
+      `${dest} صارت أوضح — خطة ${plan.durationDays} أيام جاهزة، وندققها معاً.`,
     ])
   }
   return pick(seed, [
-    `I have a first cut for ${dest} across ${plan.durationDays} days${hotel ? `, leaning toward ${hotel}` : ''}${total ? `, around ${total.amount.toLocaleString('en-US')} ${total.currency}` : ''}. Details are on screen.`,
-    `There is a solid draft for ${dest}. ${hotel ? `I like ${hotel} for the stay. ` : ''}Skim the details and tell me what to tune.`,
-    `${dest} is clearer now — a ${plan.durationDays}-day outline is ready on screen for you to react to.`,
+    `I have a first cut for ${dest} across ${plan.durationDays} days${hotel ? `, leaning toward ${hotel}` : ''}${total ? `, around ${total.amount.toLocaleString('en-US')} ${total.currency}` : ''}.`,
+    `There is a solid draft for ${dest}. ${hotel ? `I like ${hotel} for the stay. ` : ''}Tell me what to tune.`,
+    `${dest} is clearer now — a ${plan.durationDays}-day outline is ready for us to refine together.`,
   ])
 }
 
@@ -292,45 +248,29 @@ export function generateLocalConversation(input: {
       const framing = draft?.rankingNote
         || input.facts.recommendations?.[0]
         || pick(seed + 2, ar
-          ? ['هذه قراءة مستشار على ما عندنا الآن.', 'خلّيني أضيّق لك الاتجاه قبل ما نسأل تفاصيل إضافية.']
+          ? ['هذه قراءة مستشار على ما لدينا الآن.', 'خلّيني أضيّق الاتجاه قبل أي سؤال إضافي.']
           : ['Here is a consultant read on what we already know.', 'Let me narrow direction before asking for more detail.'])
 
       let hints = ''
       if (draft && draft.cities.length > 0) {
-        const cityLines = draft.cities.slice(0, 3).map((city) => `• ${city.name} — ${city.why}`)
+        const cityProse = draft.cities
+          .slice(0, 3)
+          .map((city) => (ar ? `${city.name} لأن ${city.why}` : `${city.name} because ${city.why}`))
+          .join(ar ? '؛ ' : '; ')
         const b = draft.breakdown
         const fmt = (est: { low: number; high: number; mid: number; currency: string }) =>
           est.low === est.high ? `≈${est.mid} ${est.currency}` : `${est.low}–${est.high} ${est.currency}`
         const split = ar
-          ? [
-            `تقدير أوّلي (ثقة ${draft.confidence}):`,
-            `• طيران ${fmt(b.flights)} — ${b.flights.reason}`,
-            `• فنادق ${fmt(b.hotels)} — ${b.hotels.reason}`,
-            `• طعام ${fmt(b.food)} — ${b.food.reason}`,
-            `• تنقل ${fmt(b.transportation)} — ${b.transportation.reason}`,
-            `• أنشطة ${fmt(b.activities)} — ${b.activities.reason}`,
-          ].join('\n')
-          : [
-            `First-pass ranges (${draft.confidence} confidence):`,
-            `• Flights ${fmt(b.flights)} — ${b.flights.reason}`,
-            `• Hotels ${fmt(b.hotels)} — ${b.hotels.reason}`,
-            `• Food ${fmt(b.food)} — ${b.food.reason}`,
-            `• Transport ${fmt(b.transportation)} — ${b.transportation.reason}`,
-            `• Activities ${fmt(b.activities)} — ${b.activities.reason}`,
-          ].join('\n')
-        const trade = draft.tradeoffs[0] ? `• ${draft.tradeoffs[0]}` : ''
-        const partyNote = draft.travelerCount == null
-          ? (ar
-            ? '• عدد المسافرين غير محدد — لذلك المبالغ كمديات.'
-            : '• Party size unknown — amounts are ranges, not point figures.')
-          : ''
-        hints = [...cityLines, '', split, trade, partyNote].filter(Boolean).join('\n')
+          ? `تقدير أولي: طيران ${fmt(b.flights)}، فنادق ${fmt(b.hotels)}، طعام ${fmt(b.food)}.`
+          : `First-pass ranges: flights ${fmt(b.flights)}, hotels ${fmt(b.hotels)}, food ${fmt(b.food)}.`
+        const trade = draft.tradeoffs[0] || ''
+        hints = [cityProse, split, trade].filter(Boolean).join(ar ? ' ' : ' ')
       } else if (input.facts.optionHints?.length) {
-        hints = input.facts.optionHints.map((h) => `• ${h}`).join('\n')
+        hints = input.facts.optionHints.slice(0, 3).join(ar ? '؛ ' : '; ')
       }
 
       const beachCity = draft?.cities.some((c) =>
-        /agadir|antalya|bali|beach|شاطئ|أكادير|أنطاليا|بالي/i.test(`${c.name} ${c.why}`),
+        /agadir|antalya|bali|beach|شاطئ|أكادير|أنطاليا|بالي|morocco|المغرب|marrakech|مراكش/i.test(`${c.name} ${c.why}`),
       )
       const styleCloser = beachCity
         ? (ar
@@ -343,8 +283,8 @@ export function generateLocalConversation(input: {
         || pick(seed + 1, ar
           ? ['من هذه الاتجاهات، أيّها يشدّك أكثر؟', 'بحر وهدوء، ولا مدينة وثقافة؟']
           : ['From these directions, which interests you most?', 'Beach and calm, or city and culture?'])
-      const displayText = [ack, framing, hints, closer].filter(Boolean).join('\n\n')
-      return { displayText, spokenText: `${ack} ${framing} ${closer}` }
+      const displayText = [ack, framing, hints, closer].filter(Boolean).join(' ')
+      return { displayText, spokenText: optimizeLocalSpoken(`${ack} ${framing} ${closer}`) }
     }
     case 'confirm_understanding': {
       const heard = input.facts.heardSummary?.join(ar ? ' · ' : ' · ') || acknowledge(input.facts, seed, ar)

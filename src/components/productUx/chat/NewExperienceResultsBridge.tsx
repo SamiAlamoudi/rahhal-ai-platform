@@ -7,13 +7,15 @@ import {
   type HotelCardModel,
 } from '../../../lib/chat/conversationExperienceUi'
 import {
-  buildDynamicResultCards,
+  buildResultCardsFromTripPlan,
+  destinationMatches,
   resultCardMeta,
   resultCardSubtitle,
   resultCardTitle,
 } from '../../../lib/premiumExperience'
 import type { ProductLocale } from '../../../lib/productUx'
 import { ConversationResults } from '../results/ConversationResults'
+import { tripPlanFromMeta } from '../../../lib/agent/memory'
 
 export interface NewExperienceResultsBridgeProps {
   message: ChatMessage
@@ -23,64 +25,10 @@ export interface NewExperienceResultsBridgeProps {
   onSmartAction?: (commandHint: string) => void
 }
 
-function seedFlights(seed: string, locale: ProductLocale): FlightCardModel[] {
-  const cards = buildDynamicResultCards(seed, 3)
-  return cards
-    .filter((c) => c.kind === 'flight')
-    .slice(0, 2)
-    .map((c, i) => {
-      const title = resultCardTitle(c, locale)
-      const subtitle = resultCardSubtitle(c, locale)
-      return {
-        kind: 'flight' as const,
-        id: c.id || `seed-flight-${i}`,
-        airline: title,
-        logoLabel: title.slice(0, 2).toUpperCase(),
-        departure: locale === 'ar' ? 'مغادرة' : 'DEP',
-        arrival: locale === 'ar' ? 'وصول' : 'ARR',
-        durationLabel: resultCardMeta(c, locale) || '—',
-        stops: /مباشر|direct|nonstop/i.test(subtitle) ? 0 : 1,
-        baggage: locale === 'ar' ? 'حقيبة مقصورة' : 'Cabin bag',
-        refundPolicy: locale === 'ar' ? 'حسب الأجرة' : 'Per fare',
-        changePolicy: locale === 'ar' ? 'تغيير برسوم' : 'Changes may apply',
-        fareFamily: locale === 'ar' ? 'اقتصادية' : 'Economy',
-        price: 1200 + i * 180,
-        currency: 'SAR',
-        loyaltyPoints: 60,
-      }
-    })
-}
-
-function seedHotels(seed: string, locale: ProductLocale): HotelCardModel[] {
-  const cards = buildDynamicResultCards(seed, 3)
-  return cards
-    .filter((c) => c.kind === 'hotel')
-    .slice(0, 2)
-    .map((c, i) => {
-      const title = resultCardTitle(c, locale)
-      return {
-        kind: 'hotel' as const,
-        id: c.id || `seed-hotel-${i}`,
-        name: title,
-        photos: [],
-        mapQuery: title,
-        stars: 4,
-        rating: 8.2,
-        reviewsLabel: resultCardSubtitle(c, locale),
-        roomTypes: [locale === 'ar' ? 'غرفة عائلية' : 'Family room'],
-        breakfast: locale === 'ar' ? 'إفطار متاح' : 'Breakfast available',
-        cancellationPolicy: locale === 'ar' ? 'إلغاء ضمن الشروط' : 'Cancellation per terms',
-        refundPolicy: locale === 'ar' ? 'حسب المورد' : 'Per supplier',
-        loyaltyRewards: '',
-        price: 450 + i * 90,
-        currency: 'SAR',
-        area: resultCardMeta(c, locale) || (locale === 'ar' ? 'وسط المدينة' : 'City center'),
-      }
-    })
-}
-
 /**
- * Lazy-friendly bridge from chat messages → Sprint A conversational results.
+ * Conversation-first results bridge.
+ * Cards only after the reply finishes, and only from this turn's trip plan / structured meta.
+ * No demo Riyadh→Dubai seeds.
  */
 export function NewExperienceResultsBridge({
   message,
@@ -89,61 +37,128 @@ export function NewExperienceResultsBridge({
   onEditItinerary,
   onSmartAction,
 }: NewExperienceResultsBridgeProps) {
-  const seed =
-    (typeof message.providerMeta?.userSeed === 'string' && message.providerMeta.userSeed)
-    || message.content
-    || ''
-
   const view = useMemo(() => {
+    if (isStreaming || message.status === 'streaming') {
+      return {
+        flights: [] as FlightCardModel[],
+        hotels: [] as HotelCardModel[],
+        destinations: [] as Array<{ id: string; name: string; reason: string }>,
+        showItinerary: false,
+        showConfirmation: false,
+        disruptionRecommendation: null as string | null,
+        mapLabel: null as string | null,
+        mapEta: null as string | null,
+      }
+    }
+
     const meta = extractConversationUiMeta(message.providerMeta)
+    const memory = message.providerMeta?.memory as
+      | { requirements?: { destination?: string | null; destinations?: string[] } }
+      | undefined
+    const destinationHint =
+      memory?.requirements?.destination
+      || memory?.requirements?.destinations?.[0]
+      || null
+
     const fromStructured = meta.structured
       ? buildTravelCards(meta.structured, { locale })
       : []
-    const flights = fromStructured.filter((c): c is FlightCardModel => c.kind === 'flight')
-    const hotels = fromStructured.filter((c): c is HotelCardModel => c.kind === 'hotel')
+    let flights = fromStructured.filter((c): c is FlightCardModel => c.kind === 'flight')
+    let hotels = fromStructured.filter((c): c is HotelCardModel => c.kind === 'hotel')
 
-    const lower = seed.toLowerCase()
-    const wantsPlan = /خط[ةه]|itinerary|خطة|أوافق|accept|اقبل/.test(seed)
-    const wantsDisruption = /تعطيل|تأخير|delay|disrupt|إلغاء رحلة/.test(seed)
-    const wantsConfirm = /احجز|أكد|book|confirm|ادفع/.test(seed)
+    const plan = tripPlanFromMeta(message.providerMeta)
+    if ((!flights.length || !hotels.length) && plan) {
+      const fromPlan = buildResultCardsFromTripPlan(plan, {
+        destinationHint: destinationHint || plan.destinations?.[0],
+        limit: 6,
+      })
+      if (!flights.length) {
+        flights = fromPlan
+          .filter((c) => c.kind === 'flight')
+          .map((c, i) => ({
+            kind: 'flight' as const,
+            id: c.id || `plan-flight-${i}`,
+            airline: resultCardTitle(c, locale),
+            logoLabel: resultCardTitle(c, locale).slice(0, 2).toUpperCase(),
+            departure: locale === 'ar' ? 'مغادرة' : 'DEP',
+            arrival: locale === 'ar' ? 'وصول' : 'ARR',
+            durationLabel: resultCardMeta(c, locale) || '—',
+            stops: 0,
+            baggage: locale === 'ar' ? 'حقيبة مقصورة' : 'Cabin bag',
+            refundPolicy: locale === 'ar' ? 'حسب الأجرة' : 'Per fare',
+            changePolicy: locale === 'ar' ? 'تغيير برسوم' : 'Changes may apply',
+            fareFamily: locale === 'ar' ? 'اقتصادية' : 'Economy',
+            price: 0,
+            currency: 'SAR',
+            loyaltyPoints: 0,
+          }))
+      }
+      if (!hotels.length) {
+        hotels = fromPlan
+          .filter((c) => c.kind === 'hotel')
+          .map((c, i) => ({
+            kind: 'hotel' as const,
+            id: c.id || `plan-hotel-${i}`,
+            name: resultCardTitle(c, locale),
+            photos: [],
+            mapQuery: resultCardTitle(c, locale),
+            stars: 4,
+            rating: 8,
+            reviewsLabel: resultCardSubtitle(c, locale),
+            roomTypes: [],
+            breakfast: '',
+            cancellationPolicy: '',
+            refundPolicy: '',
+            loyaltyRewards: '',
+            price: 0,
+            currency: 'SAR',
+            area: resultCardMeta(c, locale) || resultCardSubtitle(c, locale),
+          }))
+      }
+    }
+
+    if (destinationHint) {
+      const dropUnrelated = (blob: string) => {
+        // If traveler asked for Morocco, drop obvious Dubai/Riyadh demo leftovers.
+        if (destinationMatches(destinationHint, 'morocco')) {
+          return !/dxb|dubai|دبي|ruh →|riyadh →|الرياض →/i.test(blob)
+        }
+        return destinationMatches(blob, destinationHint) || destinationMatches(destinationHint, blob)
+      }
+      flights = flights.filter((f) => dropUnrelated(`${f.airline} ${f.arrival} ${f.departure} ${f.id}`))
+      hotels = hotels.filter((h) => dropUnrelated(`${h.name} ${h.area} ${h.id}`))
+    }
+
+    const destinations =
+      destinationHint
+        ? [
+            {
+              id: 'dest-live',
+              name: destinationHint,
+              reason:
+                locale === 'ar'
+                  ? 'من هذه المحادثة فقط'
+                  : 'From this conversation only',
+            },
+          ]
+        : []
 
     return {
-      flights: flights.length ? flights : seedFlights(seed, locale),
-      hotels: hotels.length ? hotels : seedHotels(seed, locale),
-      destinations:
-        /وجهة|destination|المغرب|morocco|مراكش|أغادير|tokyo|دبي|istanbul/i.test(seed)
-          ? [
-              {
-                id: 'dest-1',
-                name: locale === 'ar' ? 'المغرب' : 'Morocco',
-                reason:
-                  locale === 'ar'
-                    ? 'تناسب الثقافة والطقس والميزانية المرنة'
-                    : 'Fits culture, weather, and flexible budget',
-              },
-            ]
-          : [],
-      showItinerary: wantsPlan || Boolean(meta.structured?.dailyItinerary?.length),
-      showConfirmation: wantsConfirm,
-      disruptionRecommendation: wantsDisruption
-        ? locale === 'ar'
-          ? 'أنقل حجوزاتك إلى الرحلة التالية المتاحة مع الحفاظ على الفندق نفسه.'
-          : 'Move bookings to the next available flight while keeping the same hotel.'
-        : null,
-      mapLabel: /خريطة|map|eta|وصول/i.test(lower)
-        ? locale === 'ar'
-          ? 'المطار → الفندق'
-          : 'Airport → hotel'
-        : null,
-      mapEta: /خريطة|map|eta|وصول/i.test(lower)
-        ? locale === 'ar'
-          ? '٣٥ دقيقة'
-          : '35 min'
-        : null,
+      flights,
+      hotels,
+      destinations,
+      showItinerary: Boolean(meta.structured?.dailyItinerary?.length || plan?.dailyItinerary?.length),
+      showConfirmation: false,
+      disruptionRecommendation: null as string | null,
+      mapLabel: null as string | null,
+      mapEta: null as string | null,
     }
-  }, [locale, message.providerMeta, seed])
+  }, [isStreaming, locale, message.providerMeta, message.status])
 
-  if (isStreaming && !message.content) return null
+  if (isStreaming || message.status === 'streaming') return null
+  if (!view.flights.length && !view.hotels.length && !view.destinations.length && !view.showItinerary) {
+    return null
+  }
 
   return (
     <ConversationResults

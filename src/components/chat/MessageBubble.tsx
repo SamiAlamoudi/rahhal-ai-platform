@@ -5,8 +5,7 @@ import { tripPlanFromMeta } from '../../lib/agent/memory'
 import type { TripPlan } from '../../lib/agent/types'
 import { isConversationExperienceEnabled } from '../../lib/chat/conversationExperienceUi'
 import { isUiNewExperienceEnabled } from '../../lib/productUx'
-import { AiThinkingRail, DynamicResultCards } from '../premium'
-import { progressiveCardLimit } from '../../lib/premiumExperience'
+import { AiThinkingRail } from '../premium'
 import MarkdownContent from './MarkdownContent'
 import ItineraryActions from './ItineraryActions'
 import ConversationExperiencePanel from './experience/ConversationExperiencePanel'
@@ -82,14 +81,13 @@ export default function MessageBubble({
         : ''
     return metaSeed || message.content || ''
   }, [message.content, message.providerMeta])
-  const streamingCardLimit = progressiveCardLimit(message.content.length)
+  // Conversation-first: never show result cards while streaming.
+  // Cards appear only after the consultant reply completes, from live trip data.
   const showResultCards =
     !isUser
-    && (
-      (isStreaming && streamingCardLimit > 0)
-      || (!isStreaming && message.status === 'complete' && message.content.length > 40)
-    )
-  const cardLimit = isStreaming ? streamingCardLimit : 5
+    && !isStreaming
+    && message.status === 'complete'
+    && message.content.length > 40
 
   const handleCopy = async () => {
     const ok = await copyTextToClipboard(message.content)
@@ -204,18 +202,12 @@ export default function MessageBubble({
                     <NewExperienceResultsBridge
                       message={message}
                       locale={locale}
-                      isStreaming={isStreaming}
+                      isStreaming={false}
                       onEditItinerary={onEditItinerary}
                       onSmartAction={onSmartAction}
                     />
                   </Suspense>
-                ) : (
-                  <DynamicResultCards
-                    seedText={seedForUi || message.content}
-                    locale={locale}
-                    limit={cardLimit}
-                  />
-                )}
+                ) : null}
               </div>
             ) : null}
             {!isStreaming && onSmartAction && (

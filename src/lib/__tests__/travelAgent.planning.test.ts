@@ -80,7 +80,7 @@ describe('Phase L intelligent trip planning', () => {
     expect(t3.tripPlan?.travelTips.length).toBeGreaterThan(0)
     expect(t3.tripPlan?.packingSuggestions.length).toBeGreaterThan(0)
     expect(t3.tripPlan?.estimatedBudget.breakdown.length).toBeGreaterThan(0)
-    expect(t3.reply).toMatch(/Summary|الملخص|Daily itinerary|برنامج|Budget breakdown|تفصيل الميزانية/)
+    expect(t3.reply).toMatch(/Japan|outline|Suggested stay|Day one|estimate|تصوّر|إقامة|أيام/i)
   })
 
   it('completes from one rich intake message', async () => {

@@ -44,7 +44,7 @@ describe('travelAgentService orchestration', () => {
     expect(turn.tripPlan?.durationDays).toBe(4)
     expect(turn.tripPlan?.travelerType).toBe('business')
     expect(turn.tripPlan?.accommodations.length).toBeGreaterThan(0)
-    expect(turn.reply).toMatch(/Accommodation|Hotels|الفنادق|Daily itinerary|برنامج|Summary|الملخص/)
+    expect(turn.reply).toMatch(/London|stay|outline|plan|فندق|إقامة|تصوّر|Suggested stay|Day one/i)
   })
 
   it('saves through orchestration using injected savePlan hook', async () => {

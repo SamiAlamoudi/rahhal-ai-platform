@@ -3,12 +3,10 @@ import { Link, useNavigate } from 'react-router-dom'
 import { getFeatureRegistry } from '../lib/ai'
 import {
   buildAiHomeModel,
-  conversationEntryPath,
   promptText,
   type AiHomeModel,
   type HomeLocale,
   type SuggestedPrompt,
-  type TravelSmartCardModel,
 } from '../lib/aiHome'
 import { loadUserBookingRecords } from '../lib/booking'
 import { listManagedOrdersForUser } from '../lib/orderManagement'
@@ -16,23 +14,20 @@ import { useAuth } from '../lib/auth'
 import {
   AiHomeHero,
   ContinueBookingPanel,
-  ConversationComposer,
   HomeErrorState,
   HomeSkeleton,
+  HomeVoiceConsultant,
   SuggestedPromptGrid,
-  TravelCardsSection,
 } from '../components/home'
 
 /**
- * Recovery Phase 2 — premium conversation-first home.
- * Seeds `/chat` (Recovery Phase 1 spine unchanged).
+ * Conversation-first / voice-first home.
+ * Mic and replies stay on this screen — no navigation into text chat required.
  */
 export default function AiHomeExperience() {
   const navigate = useNavigate()
   const { user, isAdmin, loading: authLoading } = useAuth()
   const registry = getFeatureRegistry()
-  const conversationHome = registry.isEnabled('ui.conversation_home')
-  const travelCardsEnabled = registry.isEnabled('ui.travel_cards')
   const continueEnabled = registry.isEnabled('ui.continue_booking')
 
   const locale: HomeLocale = 'ar'
@@ -92,20 +87,6 @@ export default function AiHomeExperience() {
     }
   }, [authLoading, refresh])
 
-  const startConversation = useCallback(
-    (text: string) => {
-      const trimmed = text.trim()
-      if (!trimmed) return
-      if (conversationHome) {
-        const entry = conversationEntryPath(trimmed)
-        navigate(entry.pathname, { state: entry.state })
-        return
-      }
-      navigate('/chat', { state: { initialPrompt: trimmed, tripText: trimmed } })
-    },
-    [conversationHome, navigate],
-  )
-
   const onSelectPrompt = useCallback(
     (prompt: SuggestedPrompt) => {
       if (prompt.resumeBooking && model?.continueBooking && continueEnabled) {
@@ -113,21 +94,10 @@ export default function AiHomeExperience() {
         navigate(c.resumePath, { state: c.resumeState })
         return
       }
-      startConversation(promptText(prompt, locale))
+      // Seed the composer on this screen — user speaks / sends without leaving Home.
+      setDraft(promptText(prompt, locale))
     },
-    [model?.continueBooking, continueEnabled, startConversation, locale, navigate],
-  )
-
-  const onOpenCard = useCallback(
-    (card: TravelSmartCardModel) => {
-      if (card.href.startsWith('/chat?seed=')) {
-        const seed = decodeURIComponent(card.href.replace('/chat?seed=', ''))
-        startConversation(seed)
-        return
-      }
-      navigate(card.href)
-    },
-    [navigate, startConversation],
+    [model?.continueBooking, continueEnabled, locale, navigate],
   )
 
   return (
@@ -145,13 +115,6 @@ export default function AiHomeExperience() {
             >
               {t('رحلاتي', 'Trips')}
             </Link>
-            <button
-              type="button"
-              onClick={() => navigate('/chat')}
-              className="min-h-10 rounded-xl px-2.5 py-2 text-xs font-medium text-white hover:bg-white/10 sm:text-sm"
-            >
-              {t('محادثة', 'Chat')}
-            </button>
             <button
               type="button"
               onClick={() => navigate('/settings')}
@@ -200,11 +163,10 @@ export default function AiHomeExperience() {
 
           <main className="relative z-10 mx-auto max-w-3xl space-y-6 px-4 pb-24 sm:px-5">
             <div className="-mt-8 sm:-mt-10">
-              <ConversationComposer
+              <HomeVoiceConsultant
                 locale={locale}
-                value={draft}
-                onChange={setDraft}
-                onSubmit={startConversation}
+                draft={draft}
+                onDraftChange={setDraft}
               />
             </div>
 
@@ -224,14 +186,6 @@ export default function AiHomeExperience() {
               prompts={model.suggestions}
               onSelect={onSelectPrompt}
             />
-
-            {travelCardsEnabled ? (
-              <TravelCardsSection
-                locale={locale}
-                cards={model.travelCards}
-                onOpen={onOpenCard}
-              />
-            ) : null}
           </main>
         </>
       ) : null}

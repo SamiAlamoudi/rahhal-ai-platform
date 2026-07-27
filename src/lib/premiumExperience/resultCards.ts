@@ -1,5 +1,9 @@
+import type { TripPlan } from '../agent/types'
+
 /**
- * Rich in-chat result cards — presentation models only (no provider calls).
+ * Travel result cards — presentation models only.
+ * Demo / fake itinerary cards were removed. Cards must come from the live conversation
+ * (structured provider meta / trip plan), never from hardcoded Riyadh→Dubai seeds.
  */
 
 export type ResultCardKind =
@@ -24,124 +28,156 @@ export interface DynamicResultCard {
   metaAr?: string
   metaEn?: string
   accent?: string
+  /** Destination scope — used to drop unrelated cards (e.g. Morocco-only). */
+  destinationKey?: string
 }
 
-const DEMO_CARDS: DynamicResultCard[] = [
-  {
-    id: 'flight-demo',
-    kind: 'flight',
-    titleAr: 'الرياض → دبي',
-    titleEn: 'RUH → DXB',
-    subtitleAr: 'مباشرة · صباح الغد',
-    subtitleEn: 'Nonstop · tomorrow morning',
-    metaAr: 'من ١٬٢٤٠ ر.س',
-    metaEn: 'From 1,240 SAR',
-    accent: 'sky',
-  },
-  {
-    id: 'hotel-demo',
-    kind: 'hotel',
-    titleAr: 'فندق وسط المدينة',
-    titleEn: 'City Center Hotel',
-    subtitleAr: 'تقييم ٤٫٧ · إفطار مشمول',
-    subtitleEn: '4.7 rating · breakfast included',
-    metaAr: '٨٩٠ ر.س / ليلة',
-    metaEn: '890 SAR / night',
-    accent: 'teal',
-  },
-  {
-    id: 'weather-demo',
-    kind: 'weather',
-    titleAr: 'طقس الوجهة',
-    titleEn: 'Destination weather',
-    subtitleAr: 'مشمس · ٢٨°',
-    subtitleEn: 'Sunny · 28°',
-    metaAr: 'مثالي للتنزّه',
-    metaEn: 'Ideal for exploring',
-    accent: 'amber',
-  },
-  {
-    id: 'budget-demo',
-    kind: 'budget',
-    titleAr: 'ملخص الميزانية',
-    titleEn: 'Budget snapshot',
-    subtitleAr: 'ضمن ميزانيتك المقترحة',
-    subtitleEn: 'Within your suggested budget',
-    metaAr: '≈ ٧٬٢٠٠ ر.س',
-    metaEn: '≈ 7,200 SAR',
-    accent: 'emerald',
-  },
-  {
-    id: 'activity-demo',
-    kind: 'activity',
-    titleAr: 'تجربة مميزة',
-    titleEn: 'Signature experience',
-    subtitleAr: 'جولة ثقافية مسائية',
-    subtitleEn: 'Evening cultural walk',
-    metaAr: 'ساعتان',
-    metaEn: '2 hours',
-    accent: 'rose',
-  },
-  {
-    id: 'restaurant-demo',
-    kind: 'restaurant',
-    titleAr: 'مطعم موصى به',
-    titleEn: 'Recommended restaurant',
-    subtitleAr: 'مأكولات محلية رفيعة',
-    subtitleEn: 'Elevated local cuisine',
-    metaAr: 'حجز مرن',
-    metaEn: 'Flexible booking',
-    accent: 'orange',
-  },
-  {
-    id: 'visa-demo',
-    kind: 'visa',
-    titleAr: 'متطلبات التأشيرة',
-    titleEn: 'Visa requirements',
-    subtitleAr: 'تحقق سريع للمسافرين السعوديين',
-    subtitleEn: 'Quick check for Saudi travelers',
-    metaAr: 'إرشاد فقط',
-    metaEn: 'Guidance only',
-    accent: 'sky',
-  },
-  {
-    id: 'timeline-demo',
-    kind: 'timeline',
-    titleAr: 'خط زمني للرحلة',
-    titleEn: 'Trip timeline',
-    subtitleAr: 'يوم الوصول → الاستكشاف → المغادرة',
-    subtitleEn: 'Arrival → explore → departure',
-    metaAr: 'مسودة',
-    metaEn: 'Draft',
-    accent: 'teal',
-  },
-]
+/**
+ * @deprecated Demo seed cards removed. Always returns [].
+ * Prefer structured cards from Conversation Experience / trip plan meta.
+ */
+export function buildDynamicResultCards(_seedText: string, _limit = 4): DynamicResultCard[] {
+  return []
+}
 
-/** Infer demo cards from conversation text for progressive UI (no APIs). */
-export function buildDynamicResultCards(seedText: string, limit = 4): DynamicResultCard[] {
-  const text = seedText.toLowerCase()
-  const kinds = new Set<ResultCardKind>()
-  if (/flight|طيران|رحلة|airport/.test(text)) kinds.add('flight')
-  if (/hotel|فندق|إقامة/.test(text)) kinds.add('hotel')
-  if (/weather|طقس/.test(text)) kinds.add('weather')
-  if (/budget|ميزانية|سعر|price/.test(text)) kinds.add('budget')
-  if (/restaurant|مطعم|طعام|food/.test(text)) kinds.add('restaurant')
-  if (/activity|نشاط|تجربة|tour/.test(text)) kinds.add('activity')
-  if (/map|خريطة|location/.test(text)) kinds.add('map')
-  if (/transport|مواصلات|taxi|train/.test(text)) kinds.add('transport')
-  if (/visa|تأشير|تاشير/.test(text)) kinds.add('visa')
-  if (/timeline|جدول|itinerary|خط.?زمني|أيام|days/.test(text)) kinds.add('timeline')
+/** Build destination-scoped cards from a completed trip plan (conversation-first). */
+export function buildResultCardsFromTripPlan(
+  plan: TripPlan | null | undefined,
+  options?: { destinationHint?: string | null; limit?: number },
+): DynamicResultCard[] {
+  if (!plan) return []
+  const limit = options?.limit ?? 6
+  const destHint = normalizeDestinationKey(options?.destinationHint || plan.destinations?.[0] || '')
+  const cards: DynamicResultCard[] = []
 
-  if (kinds.size === 0) {
-    kinds.add('flight')
-    kinds.add('hotel')
-    kinds.add('weather')
-    kinds.add('budget')
+  for (const flight of plan.flights ?? []) {
+    const toKey = normalizeDestinationKey(flight.to)
+    if (destHint && toKey && !destinationMatches(toKey, destHint) && !destinationMatches(flight.to, destHint)) {
+      const destList = (plan.destinations ?? []).map(normalizeDestinationKey)
+      if (!destList.some((d) => destinationMatches(d, destHint) || destinationMatches(toKey, d))) {
+        continue
+      }
+    }
+    cards.push({
+      id: `flight-${flight.from}-${flight.to}-${cards.length}`,
+      kind: 'flight',
+      titleAr: `${flight.from} → ${flight.to}`,
+      titleEn: `${flight.from} → ${flight.to}`,
+      subtitleAr: flight.airline || 'رحلة مقترحة',
+      subtitleEn: flight.airline || 'Suggested flight',
+      metaAr: flight.estimatedCost != null
+        ? `من ${flight.estimatedCost.toLocaleString('en-US')} ${flight.currency || 'SAR'}`
+        : undefined,
+      metaEn: flight.estimatedCost != null
+        ? `From ${flight.estimatedCost.toLocaleString('en-US')} ${flight.currency || 'SAR'}`
+        : undefined,
+      accent: 'sky',
+      destinationKey: toKey || destHint || undefined,
+    })
   }
 
-  const mapped = DEMO_CARDS.filter((c) => kinds.has(c.kind)).slice(0, limit)
-  if (mapped.length > 0) return mapped
-  return DEMO_CARDS.slice(0, limit)
+  for (const hotel of plan.accommodations ?? []) {
+    const areaKey = normalizeDestinationKey(`${hotel.name} ${hotel.area}`)
+    if (destHint && areaKey && !destinationMatches(areaKey, destHint) && !destinationMatches(hotel.area, destHint)) {
+      const destList = (plan.destinations ?? []).map(normalizeDestinationKey)
+      if (destList.length && !destList.some((d) => destinationMatches(areaKey, d) || destinationMatches(hotel.area, d))) {
+        continue
+      }
+    }
+    cards.push({
+      id: `hotel-${hotel.name}-${cards.length}`,
+      kind: 'hotel',
+      titleAr: hotel.name,
+      titleEn: hotel.name,
+      subtitleAr: hotel.area || hotel.category || 'إقامة',
+      subtitleEn: hotel.area || hotel.category || 'Stay',
+      metaAr: hotel.estimatedNightly != null
+        ? `${hotel.estimatedNightly.toLocaleString('en-US')} ${hotel.currency || 'SAR'} / ليلة`
+        : undefined,
+      metaEn: hotel.estimatedNightly != null
+        ? `${hotel.estimatedNightly.toLocaleString('en-US')} ${hotel.currency || 'SAR'} / night`
+        : undefined,
+      accent: 'teal',
+      destinationKey: destHint || undefined,
+    })
+  }
+
+  for (const attraction of (plan.attractions ?? []).slice(0, 3)) {
+    const label = attraction.title
+    if (!label) continue
+    cards.push({
+      id: `activity-${label}-${cards.length}`,
+      kind: 'activity',
+      titleAr: label,
+      titleEn: label,
+      subtitleAr: plan.destinations?.[0] || 'نشاط',
+      subtitleEn: plan.destinations?.[0] || 'Activity',
+      accent: 'rose',
+      destinationKey: destHint || undefined,
+    })
+  }
+
+  const budget = plan.estimatedBudget || plan.estimatedCosts
+  if (budget) {
+    const top = budget.breakdown?.[0]
+    cards.push({
+      id: 'budget-live',
+      kind: 'budget',
+      titleAr: 'ملخص الميزانية',
+      titleEn: 'Budget snapshot',
+      subtitleAr: top ? `${top.label}: ${top.amount.toLocaleString('en-US')} ${budget.currency}` : 'تقدير من هذه المحادثة',
+      subtitleEn: top ? `${top.label}: ${top.amount.toLocaleString('en-US')} ${budget.currency}` : 'Estimate from this conversation',
+      metaAr: `≈ ${budget.amount.toLocaleString('en-US')} ${budget.currency}`,
+      metaEn: `≈ ${budget.amount.toLocaleString('en-US')} ${budget.currency}`,
+      accent: 'emerald',
+      destinationKey: destHint || undefined,
+    })
+  }
+
+  return filterCardsToDestination(cards, destHint).slice(0, limit)
+}
+
+export function filterCardsToDestination(
+  cards: DynamicResultCard[],
+  destinationHint: string | null | undefined,
+): DynamicResultCard[] {
+  const hint = normalizeDestinationKey(destinationHint || '')
+  if (!hint) return cards
+  return cards.filter((card) => {
+    const blob = normalizeDestinationKey(
+      [card.destinationKey, card.titleAr, card.titleEn, card.subtitleAr, card.subtitleEn].filter(Boolean).join(' '),
+    )
+    if (card.kind === 'budget') return true
+    return destinationMatches(blob, hint)
+  })
+}
+
+export function normalizeDestinationKey(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export function destinationMatches(candidate: string, hint: string): boolean {
+  const a = normalizeDestinationKey(candidate)
+  const b = normalizeDestinationKey(hint)
+  if (!a || !b) return false
+  if (a.includes(b) || b.includes(a)) return true
+  const aliases: Record<string, string[]> = {
+    morocco: ['morocco', 'المغرب', 'marrakech', 'مراكش', 'agadir', 'أغادير', 'اغادير', 'fes', 'فاس', 'casablanca', 'الدار البيضاء'],
+    dubai: ['dubai', 'دبي', 'dxb'],
+    riyadh: ['riyadh', 'الرياض', 'ruh'],
+    japan: ['japan', 'اليابان', 'tokyo', 'طوكيو', 'kyoto', 'osaka'],
+  }
+  for (const group of Object.values(aliases)) {
+    const hintHit = group.some((g) => b.includes(g) || g.includes(b))
+    const candHit = group.some((g) => a.includes(g) || g.includes(a))
+    if (hintHit && candHit) return true
+  }
+  return false
 }
 
 export function resultCardTitle(card: DynamicResultCard, locale: 'ar' | 'en'): string {

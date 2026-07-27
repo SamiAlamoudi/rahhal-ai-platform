@@ -10,6 +10,10 @@ export { RAHHAL_PERSONALITY, consultantLine } from './personality'
 
 export {
   buildDynamicResultCards,
+  buildResultCardsFromTripPlan,
+  filterCardsToDestination,
+  destinationMatches,
+  normalizeDestinationKey,
   resultCardTitle,
   resultCardSubtitle,
   resultCardMeta,

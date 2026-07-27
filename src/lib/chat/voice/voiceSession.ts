@@ -109,8 +109,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   let utterancePrefix = ''
   let silenceTimer: ReturnType<typeof setTimeout> | null = null
   let vadSpeaking = false
-  let earlySpokenText = ''
-  let earlySpeakPromise: Promise<void> | null = null
 
   const activityMonitor =
     options.activityMonitor
@@ -268,8 +266,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     listening = false
     utteranceBuffer = ''
     utterancePrefix = ''
-    earlySpokenText = ''
-    earlySpeakPromise = null
     activeAbort?.abort()
     const controller = new AbortController()
     activeAbort = controller
@@ -295,31 +291,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         }
         callbacks.onDelta?.(message)
 
-        // Start speaking as soon as a spoken bridge/summary is available.
-        const phase = message.providerMeta?.voicePhase
-        const spoken = typeof message.providerMeta?.spokenText === 'string'
-          ? message.providerMeta.spokenText.trim()
-          : ''
-        if (
-          spoken
-          && spoken !== earlySpokenText
-          && !controller.signal.aborted
-          && !disposed
-          && !earlySpeakPromise
-        ) {
-          earlySpokenText = spoken
-          setStatus('speaking')
-          logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase: phase ?? 'final' } })
-          earlySpeakPromise = tts.speak({ locale, text: spoken, interrupt: true })
-            .catch((e) => {
-              if (!isBenignChatError(e) && !disposed) {
-                diagnosePipelineError('tts', 'speak_early', e)
-              }
-            })
-            .then(() => {
-              logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase: phase ?? 'final' } })
-            })
-        }
+        // Voice-first: do not start TTS during streaming — wait until the reply completes.
+        // Keep UI in "responding" so the traveler sees/hears one continuous consultant turn.
       },
       onComplete: async (message) => {
         callbacks.onComplete?.(message)
@@ -333,14 +306,9 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           if (spoken) {
             setStatus('speaking')
             try {
-              // Interrupt bridge if still talking; speak the final short summary only.
-              if (spoken !== earlySpokenText || !earlySpeakPromise) {
-                logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase: 'final' } })
-                await tts.speak({ locale, text: spoken, interrupt: true })
-                logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase: 'final' } })
-              } else if (earlySpeakPromise) {
-                await earlySpeakPromise
-              }
+              logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase: 'final' } })
+              await tts.speak({ locale, text: spoken, interrupt: true })
+              logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase: 'final' } })
             } catch (e) {
               if (!isBenignChatError(e) && !disposed) {
                 diagnosePipelineError('tts', 'speak', e)
@@ -351,8 +319,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         }
         sending = false
         activeAbort = null
-        earlySpokenText = ''
-        earlySpeakPromise = null
         if (controller.signal.aborted || disposed) {
           setStatus('idle')
           if (resumeHandsFreeAfterInterrupt) {
@@ -369,8 +335,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       onError: (message, error) => {
         sending = false
         activeAbort = null
-        earlySpokenText = ''
-        earlySpeakPromise = null
         callbacks.onStreamError?.(message, error)
         if (!isBenignChatError(error)) {
           diagnosePipelineError('streaming', 'assistant_stream', error)
@@ -397,8 +361,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     } catch (e) {
       sending = false
       activeAbort = null
-      earlySpokenText = ''
-      earlySpeakPromise = null
       if (!isBenignChatError(e)) {
         const app = diagnosePipelineError('conversation', 'send_turn', e)
         callbacks.onError?.(app.userMessage)

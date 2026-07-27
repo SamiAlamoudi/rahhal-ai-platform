@@ -102,7 +102,7 @@ function LegacyChatPage() {
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  const [composerMode, setComposerMode] = useState<ComposerMode>('text')
+  const [composerMode, setComposerMode] = useState<ComposerMode>('voice')
   const [voiceStatus, setVoiceStatus] = useState<VoiceSessionStatus>('idle')
   const [voiceMode, setVoiceMode] = useState<VoiceInputMode>('hands_free')
   const [voiceLocale, setVoiceLocale] = useState<VoiceLocale>('ar')

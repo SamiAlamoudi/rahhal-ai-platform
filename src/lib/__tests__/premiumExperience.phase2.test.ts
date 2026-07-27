@@ -26,11 +26,9 @@ describe('Recovery Phase 2 — premium experience', () => {
     expect(thinkingLabel(steps[0]!, 'ar')).not.toMatch(/chain|reason|think hard/i)
   })
 
-  it('builds dynamic result cards from seed text', () => {
-    const cards = buildDynamicResultCards('hotel weather budget flight', 4)
-    expect(cards.length).toBeGreaterThan(0)
-    expect(cards.some((c) => c.kind === 'flight')).toBe(true)
-    expect(cards.some((c) => c.kind === 'hotel')).toBe(true)
+  it('does not emit legacy demo result cards', () => {
+    const cards = buildDynamicResultCards('hotel weather budget flight morocco', 4)
+    expect(cards).toEqual([])
   })
 
   it('uses mock voice adapter by default', () => {

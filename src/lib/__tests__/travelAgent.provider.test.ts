@@ -61,7 +61,7 @@ describe('travelAgentProvider', () => {
       assistant,
       user(INTAKE_AFTER_DESTINATION),
     ])
-    expect(second.text).toMatch(/Day 1|اليوم 1|Summary|الملخص/)
+    expect(second.text).toMatch(/Day one|Japan|Suggested stay|outline|plan|اليوم|تصوّر|إقامة/i)
     expect(second.meta?.version).toBe(2)
     const tripPlan = (second.meta?.tripPlan ?? second.meta?.itinerary) as {
       durationDays?: number

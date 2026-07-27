@@ -12,6 +12,8 @@ export interface ConversationComposerProps {
   onSubmit: (value: string) => void
   /** Optional override; when omitted, built-in speech recognition is used. */
   onVoiceClick?: () => void
+  /** External listening state when onVoiceClick owns the mic session. */
+  listening?: boolean
   disabled?: boolean
 }
 
@@ -21,6 +23,7 @@ export function ConversationComposer({
   onChange,
   onSubmit,
   onVoiceClick,
+  listening: listeningProp,
   disabled,
 }: ConversationComposerProps) {
   const [focused, setFocused] = useState(false)
@@ -68,7 +71,7 @@ export function ConversationComposer({
     speech.toggle()
   }
 
-  const listening = !onVoiceClick && speech.isListening
+  const listening = listeningProp ?? (!onVoiceClick && speech.isListening)
   const showVoiceError =
     !onVoiceClick &&
     !!speech.errorMessage &&
