@@ -34,12 +34,3 @@ export {
   type VoiceAdapterConnectResult,
   type VoiceUiPanelState,
 } from './voiceAdapter'
-
-export {
-  createRealtimeVoiceAdapter,
-  createMockRealtimeVoiceAdapter,
-  resolveRealtimeVoiceProviderId,
-  type RealtimeVoiceAdapter,
-  type RealtimeVoiceProviderId,
-  type RealtimeVoiceUiState,
-} from './realtimeVoice'

@@ -1,21 +1,10 @@
 /**
- * Phase 3 — reusable VoiceAdapter seam.
- * Phase 7 — when `ai.realtime_voice` is enabled, adapters wrap Realtime VoiceSession
- * (still mock-default; live sockets require VITE_VOICE_LIVE_ALLOW).
- *
- * RC-1: feature check is a light import; realtimeVoice package is dynamic-imported
- * only when the flag is ON (no eager Agent Runtime pull when OFF).
+ * Presentation VoiceAdapter seam for VoiceComposer / VoicePanel chrome.
+ * Production duplex I/O lives in `src/lib/chat/voice/*` (STT → chatEngine → TTS).
+ * Realtime duplex adapters were removed in the Conversation-First architecture reset.
  */
 
-import { isRealtimeVoiceEnabled } from '../realtimeVoice/feature'
-
-export type VoiceAdapterProviderId =
-  | 'mock'
-  | 'openai_realtime'
-  | 'gemini_live'
-  | 'azure_voice'
-  | 'deepgram'
-  | 'web_speech'
+export type VoiceAdapterProviderId = 'mock' | 'web_speech'
 
 export type VoiceUiPanelState =
   | 'idle'
@@ -47,51 +36,14 @@ export interface VoiceAdapter {
 
 const PROVIDER_LABELS: Record<VoiceAdapterProviderId, string> = {
   mock: 'Mock Voice Adapter',
-  openai_realtime: 'OpenAI Realtime (prepared)',
-  gemini_live: 'Gemini Live (prepared)',
-  azure_voice: 'Azure Voice (prepared)',
-  deepgram: 'Deepgram (prepared)',
-  web_speech: 'Web Speech API (prepared)',
-}
-
-function envFlag(name: string): boolean {
-  try {
-    const value = (import.meta.env as Record<string, unknown>)[name]
-    return value === true || value === 'true'
-  } catch {
-    return false
-  }
+  web_speech: 'Web Speech (presentation)',
 }
 
 export function listVoiceAdapterProviders(): readonly VoiceAdapterProviderId[] {
-  return [
-    'mock',
-    'openai_realtime',
-    'gemini_live',
-    'azure_voice',
-    'deepgram',
-    'web_speech',
-  ] as const
+  return ['mock', 'web_speech'] as const
 }
 
-/**
- * Prefer mock by default.
- * OpenAI Realtime is selected via non-secret VITE_REALTIME_VOICE_PROVIDER /
- * VITE_OPENAI_REALTIME_ENABLED — never via frontend API keys.
- */
 export function resolveVoiceAdapterProviderId(): VoiceAdapterProviderId {
-  try {
-    const hint = (import.meta.env.VITE_REALTIME_VOICE_PROVIDER as string | undefined)?.trim().toLowerCase()
-    if (hint === 'openai_realtime') return 'openai_realtime'
-    if (hint === 'gemini_live') return 'gemini_live'
-    if (hint === 'azure_voice' || hint === 'azure_realtime') return 'azure_voice'
-    if (hint === 'web_speech') return 'web_speech'
-    if (hint === 'deepgram') return 'deepgram'
-  } catch {
-    /* ignore */
-  }
-  if (envFlag('VITE_OPENAI_REALTIME_ENABLED')) return 'openai_realtime'
-  if (envFlag('VITE_VOICE_WEB_SPEECH')) return 'web_speech'
   return 'mock'
 }
 
@@ -118,120 +70,30 @@ export function createMockVoiceAdapter(): VoiceAdapter {
   }
 }
 
-/** Prepared adapter — never opens sockets; always mock-backed. */
-export function createPreparedVoiceAdapter(id: VoiceAdapterProviderId): VoiceAdapter {
-  if (id === 'mock') return createMockVoiceAdapter()
-  const inner = createMockVoiceAdapter()
-  return {
-    id,
-    label: PROVIDER_LABELS[id],
-    mock: true,
-    async connect() {
-      const result = await inner.connect()
-      return { ...result, providerId: id, mock: true, connected: false }
-    },
-    disconnect: () => inner.disconnect(),
-    interrupt: () => inner.interrupt(),
-    mute: () => inner.mute(),
-    unmute: () => inner.unmute(),
-    isMuted: () => inner.isMuted(),
-  }
-}
-
-function mapToRealtimeProviderId(
-  id: VoiceAdapterProviderId,
-): 'mock' | 'openai_realtime' | 'gemini_live' | 'azure_realtime' | 'web_speech' {
-  if (id === 'azure_voice') return 'azure_realtime'
-  if (id === 'deepgram') return 'web_speech'
-  if (id === 'openai_realtime' || id === 'gemini_live' || id === 'web_speech' || id === 'mock') {
-    return id
-  }
-  return 'mock'
-}
-
-type RealtimeSessionHandle = {
-  start: () => Promise<unknown>
-  stop: () => Promise<void>
-  interrupt: () => Promise<void>
-  getProviderId: () => string | null
-}
-
-/**
- * Phase 7 bridge — VoiceAdapter over Realtime VoiceSession (failover to mock).
- * Session module is loaded lazily on first connect (flag-ON path only).
- */
-export function createRealtimeIntegratedVoiceAdapter(
-  preferred?: VoiceAdapterProviderId,
+/** @deprecated Alias — always mock; realtime integration removed. */
+export function createPreparedVoiceAdapter(
+  _id: VoiceAdapterProviderId = 'mock',
 ): VoiceAdapter {
-  const id = preferred ?? resolveVoiceAdapterProviderId()
-  let session: RealtimeSessionHandle | null = null
-  let muted = false
-  let connected = false
-
-  return {
-    id,
-    label: PROVIDER_LABELS[id],
-    mock: id === 'mock',
-    async connect() {
-      if (!session) {
-        const mod = await import('../realtimeVoice')
-        session = mod.createVoiceSession({
-          conversationId: `voice-ui-${Date.now()}`,
-          locale: 'ar',
-          preferredProvider: mapToRealtimeProviderId(id),
-        })
-      }
-      await session.start()
-      connected = true
-      const providerId = session.getProviderId() ?? 'mock'
-      return {
-        connected: true,
-        mock: providerId === 'mock',
-        providerId: providerId === 'azure_realtime' ? 'azure_voice' : (providerId as VoiceAdapterProviderId),
-      }
-    },
-    async disconnect() {
-      if (session) await session.stop()
-      connected = false
-    },
-    interrupt() {
-      if (!muted && connected && session) void session.interrupt()
-    },
-    mute() {
-      muted = true
-    },
-    unmute() {
-      muted = false
-    },
-    isMuted() {
-      return muted
-    },
-  }
+  return createMockVoiceAdapter()
 }
 
-/**
- * Factory — Phase 3 safe non-network adapter by default.
- * Phase 7: when realtime voice flag is ON, uses integrated session + failover.
- */
-export function createVoiceAdapter(preferred?: VoiceAdapterProviderId): VoiceAdapter {
-  if (isRealtimeVoiceEnabled()) {
-    return createRealtimeIntegratedVoiceAdapter(preferred)
-  }
-  const id = preferred ?? resolveVoiceAdapterProviderId()
-  if (id === 'mock') return createMockVoiceAdapter()
-  return createPreparedVoiceAdapter(id)
+/** @deprecated Alias — realtime integration removed. */
+export function createRealtimeIntegratedVoiceAdapter(): VoiceAdapter {
+  return createMockVoiceAdapter()
 }
 
-/** Map chat VoiceSessionStatus → panel UI state. */
+export function createVoiceAdapter(): VoiceAdapter {
+  return createMockVoiceAdapter()
+}
+
 export function mapSessionStatusToPanelState(
-  status: string,
+  status: string | null | undefined,
   opts?: { muted?: boolean; disconnected?: boolean },
 ): VoiceUiPanelState {
   if (opts?.disconnected) return 'disconnected'
   if (opts?.muted) return 'muted'
   switch (status) {
     case 'listening':
-    case 'requesting_permission':
       return 'listening'
     case 'thinking':
     case 'processing':
@@ -239,9 +101,9 @@ export function mapSessionStatusToPanelState(
       return 'thinking'
     case 'speaking':
       return 'speaking'
-    case 'error':
-      return 'disconnected'
     case 'reconnecting':
+      return 'disconnected'
+    case 'error':
       return 'disconnected'
     default:
       return 'idle'
@@ -254,21 +116,21 @@ export function voicePanelStateLabel(
 ): string {
   const ar: Record<VoiceUiPanelState, string> = {
     idle: 'جاهز',
-    listening: 'أستمع إليك…',
-    thinking: 'أفكّر…',
-    speaking: 'أتحدث…',
+    listening: 'يستمع',
+    thinking: 'يفكر',
+    speaking: 'يتحدث',
     disconnected: 'غير متصل',
     muted: 'صامت',
-    interrupted: 'تمت المقاطعة',
+    interrupted: 'مقاطع',
   }
   const en: Record<VoiceUiPanelState, string> = {
     idle: 'Ready',
-    listening: 'Listening…',
-    thinking: 'Thinking…',
-    speaking: 'Speaking…',
+    listening: 'Listening',
+    thinking: 'Thinking',
+    speaking: 'Speaking',
     disconnected: 'Disconnected',
     muted: 'Muted',
     interrupted: 'Interrupted',
   }
-  return locale === 'ar' ? ar[state] : en[state]
+  return locale === 'en' ? en[state] : ar[state]
 }

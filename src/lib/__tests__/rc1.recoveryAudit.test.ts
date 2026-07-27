@@ -6,12 +6,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { getFeatureRegistry, resetFeatureRegistry } from '../ai'
 import { isConversationIntelligenceEnabled } from '../agent/conversationIntelligence'
-import { isLlmConversationBrainEnabled } from '../agent/llmBrain'
-import { isAgentRuntimeEnabled } from '../agent/agentRuntime'
-import {
-  isRealtimeVoiceEnabled,
-  isVoiceLiveNetworkAllowed,
-} from '../realtimeVoice/feature'
 import { createVoiceAdapter } from '../premiumExperience'
 import { createTravelAgentService } from '../agent/travelAgentService'
 import type { ChatMessage } from '../chat/chatTypes'
@@ -56,10 +50,6 @@ describe('RC-1 recovery audit — feature gates', () => {
       expect(registry.isEnabled(id), `${id} must be OFF`).toBe(false)
     }
     expect(isConversationIntelligenceEnabled()).toBe(false)
-    expect(isLlmConversationBrainEnabled()).toBe(false)
-    expect(isAgentRuntimeEnabled()).toBe(false)
-    expect(isRealtimeVoiceEnabled()).toBe(false)
-    expect(isVoiceLiveNetworkAllowed()).toBe(false)
   })
 
   it('createVoiceAdapter stays mock / non-network when realtime flag is OFF', async () => {
@@ -74,8 +64,6 @@ describe('RC-1 recovery audit — feature gates', () => {
   it('planTurn omits Phase 4–7 meta when flags are OFF', async () => {
     const agent = createTravelAgentService({
       conversationIntelligenceEnabled: false,
-      llmConversationBrainEnabled: false,
-      agentRuntimeEnabled: false,
     })
     const turn = await agent.planTurn({
       conversationId: 'rc1-audit',

@@ -7,17 +7,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { getFeatureRegistry, resetFeatureRegistry } from '../ai'
 import { createTravelAgentService } from '../agent/travelAgentService'
 import {
-  loadAgentRuntime,
   loadBrainCore,
   loadConversationIntelligence,
-  loadLlmBrain,
   loadReasoning,
-  loadRealtimeVoice,
   loadTravelPlanner,
   resetDeferredLoaderCache,
 } from '../agent/deferredLoaders'
 import { createDefaultAggregationEngine } from '../agent/aggregation/factory'
-import { isRealtimeVoiceEnabled, isVoiceLiveNetworkAllowed } from '../realtimeVoice/feature'
 import type { ChatMessage } from '../chat/chatTypes'
 
 function msg(content: string, conversationId: string, i = 0): ChatMessage {
@@ -55,28 +51,20 @@ describe('RC-3 foundation — deferred isolation', () => {
     expect(registry.isEnabled('ai.llm_conversation_brain')).toBe(false)
     expect(registry.isEnabled('ai.agent_runtime')).toBe(false)
     expect(registry.isEnabled('ai.realtime_voice')).toBe(false)
-    expect(isRealtimeVoiceEnabled()).toBe(false)
-    expect(isVoiceLiveNetworkAllowed()).toBe(false)
   })
 
-  it('loads Conversation Intelligence / LLM Brain / Runtime / Planner / Reasoner / Voice independently', async () => {
-    const [ci, brain, runtime, planner, reasoning, voice] = await Promise.all([
+  it('loads Conversation Intelligence / Planner / Reasoner independently', async () => {
+    const [ci, planner, reasoning] = await Promise.all([
       loadConversationIntelligence(),
-      loadLlmBrain(),
-      loadAgentRuntime(),
       loadTravelPlanner(),
       loadReasoning(),
-      loadRealtimeVoice(),
     ])
     expect(typeof ci.enrichWithConversationIntelligence).toBe('function')
-    expect(typeof brain.enrichWithLlmConversationBrain).toBe('function')
-    expect(typeof runtime.enrichWithAgentRuntime).toBe('function')
     expect(typeof planner.runTravelPlanner).toBe('function')
     expect(typeof reasoning.runTravelReasoning).toBe('function')
-    expect(typeof voice.createVoiceSession).toBe('function')
   })
 
-  it('brain core loader is independent of recovery Phase 4–7 modules', async () => {
+  it('brain core loader is independent of recovery Phase 4 modules', async () => {
     const core = await loadBrainCore()
     expect(typeof core.runRahhalBrainTurn).toBe('function')
     expect(typeof core.isRahhalBrainEnabled).toBe('function')
@@ -92,11 +80,9 @@ describe('RC-3 foundation — deferred isolation', () => {
     expect(result.meta.providersSucceeded).toBeGreaterThan(0)
   })
 
-  it('planTurn with Phase 4–7 forced OFF omits experimental meta', async () => {
+  it('planTurn with Phase 4 forced OFF omits experimental meta', async () => {
     const agent = createTravelAgentService({
       conversationIntelligenceEnabled: false,
-      llmConversationBrainEnabled: false,
-      agentRuntimeEnabled: false,
     })
     const turn = await agent.planTurn({
       conversationId: 'rc3-off',
@@ -123,8 +109,6 @@ describe('RC-3 foundation — stress (100 conversations)', () => {
   it('completes 100 sequential planTurn conversations without failure', async () => {
     const agent = createTravelAgentService({
       conversationIntelligenceEnabled: false,
-      llmConversationBrainEnabled: false,
-      agentRuntimeEnabled: false,
     })
     const replies: number[] = []
     for (let i = 0; i < 100; i += 1) {
@@ -143,8 +127,6 @@ describe('RC-3 foundation — stress (100 conversations)', () => {
   it('survives interruptions via AbortController across 20 turns', async () => {
     const agent = createTravelAgentService({
       conversationIntelligenceEnabled: false,
-      llmConversationBrainEnabled: false,
-      agentRuntimeEnabled: false,
     })
     let completed = 0
     let aborted = 0

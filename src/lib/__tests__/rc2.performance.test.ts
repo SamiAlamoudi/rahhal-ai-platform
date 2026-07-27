@@ -65,8 +65,6 @@ describe('RC-2 performance gates', () => {
   it('lazy travelAgentService facade still plans turns', async () => {
     const agent = createTravelAgentService({
       conversationIntelligenceEnabled: false,
-      llmConversationBrainEnabled: false,
-      agentRuntimeEnabled: false,
     })
     const turn = await agent.planTurn({
       conversationId: 'rc2-perf',

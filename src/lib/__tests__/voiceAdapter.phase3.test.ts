@@ -14,16 +14,7 @@ import {
 
 describe('Phase 3 — VoiceAdapter', () => {
   it('lists supported providers and defaults to mock', () => {
-    expect(listVoiceAdapterProviders()).toEqual(
-      expect.arrayContaining([
-        'mock',
-        'openai_realtime',
-        'gemini_live',
-        'azure_voice',
-        'deepgram',
-        'web_speech',
-      ]),
-    )
+    expect(listVoiceAdapterProviders()).toEqual(['mock', 'web_speech'])
     expect(resolveVoiceAdapterProviderId()).toBe('mock')
     const adapter = createVoiceAdapter()
     expect(adapter.id).toBe('mock')
@@ -51,7 +42,7 @@ describe('Phase 3 — VoiceAdapter', () => {
     expect(mapSessionStatusToPanelState('idle', { disconnected: true })).toBe(
       'disconnected',
     )
-    expect(voicePanelStateLabel('listening', 'ar')).toContain('أستمع')
+    expect(voicePanelStateLabel('listening', 'ar')).toContain('يستمع')
   })
 
   it('progressively reveals cards while streaming', () => {

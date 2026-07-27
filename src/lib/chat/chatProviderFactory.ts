@@ -5,7 +5,8 @@ import { createTravelAgentProvider } from '../agent/travelAgentProvider'
 /**
  * Recovery Phase 1 — ONE conversation system.
  * Product default is always `travel-agent` → `travelAgentService.planTurn`.
- * `conversation-ui` / `chatgpt-experience` remain creatable for quarantined tests only.
+ * `conversation-ui` remains creatable for quarantined tests only.
+ * `chatgpt-experience` maps to `travel-agent` (provider module deleted).
  *
  * RC-2: deprecated providers are dynamically imported so the product chat path
  * does not pay their module graph on cold start.
@@ -25,6 +26,8 @@ export function createChatProvider(type: ChatProviderType = getDefaultChatProvid
     case 'mock':
       return mockChatProvider
     case 'chatgpt-experience':
+      // Deleted provider — map to the sole product conversation spine.
+      return createTravelAgentProvider()
     case 'conversation-ui':
       // Sync API retained for tests; loads deprecated provider module on demand via
       // a cached promise kicked by the async helper. First sync call uses deopt path.
@@ -42,10 +45,9 @@ export async function createChatProviderAsync(
   switch (type) {
     case 'mock':
       return mockChatProvider
-    case 'chatgpt-experience': {
-      const { createChatGptExperienceProvider } = await import('./chatgptExperience/chatgptChatProvider')
-      return createChatGptExperienceProvider()
-    }
+    case 'chatgpt-experience':
+      // Deleted provider — map to travel-agent (do not throw; callers may still pass the alias).
+      return createTravelAgentProvider()
     case 'conversation-ui': {
       const { createConversationChatProvider } = await import(
         './conversationExperience/conversationChatProvider'
@@ -58,9 +60,7 @@ export async function createChatProviderAsync(
   }
 }
 
-function createDeprecatedChatProviderSync(
-  type: 'conversation-ui' | 'chatgpt-experience',
-): ChatProvider {
+function createDeprecatedChatProviderSync(type: 'conversation-ui'): ChatProvider {
   // Lazy-ish: import() is async, so sync callers get a proxy that delays streamReply.
   let resolved: ChatProvider | null = null
   let pending: Promise<ChatProvider> | null = null
@@ -77,7 +77,7 @@ function createDeprecatedChatProviderSync(
   }
 
   return {
-    providerId: type === 'chatgpt-experience' ? 'chatgpt-experience' : 'conversation-ui',
+    providerId: 'conversation-ui',
     async *streamReply(input) {
       const provider = await ensure()
       yield* provider.streamReply(input)

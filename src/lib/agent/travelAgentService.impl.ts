@@ -58,10 +58,6 @@ import { isIntegrationJourneyEnabled } from './integrationJourney/feature'
 import type { JourneyResult } from './integrationJourney/types'
 import { isConversationIntelligenceEnabled } from './conversationIntelligence/feature'
 import type { ConversationIntelligenceResult } from './conversationIntelligence'
-import { isLlmConversationBrainEnabled } from './llmBrain/feature'
-import type { LlmBrainResult } from './llmBrain'
-import { isAgentRuntimeEnabled } from './agentRuntime/feature'
-import type { AgentRuntimeResult } from './agentRuntime'
 import { isTravelerPersonalizationEnabled } from './travelerPersonalization/feature'
 import type { TravelerPersonalizationResult } from './travelerPersonalization'
 import { isTripOptimizerEnabled } from './tripOptimizer/feature'
@@ -150,8 +146,6 @@ import {
   loadConstitution,
   loadConversationIntelligence,
   loadItineraryRefinement,
-  loadLlmBrain,
-  loadAgentRuntime,
   loadOrderManagement,
   loadPackageBuilder,
   loadPaymentsPlatform,
@@ -294,16 +288,6 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.conversation_intelligence` (OFF).
    */
   conversationIntelligenceEnabled?: boolean
-  /**
-   * Recovery Phase 5 — LLM Conversation Brain (mock LLM primary; rules fallback).
-   * Default: FeatureRegistry `ai.llm_conversation_brain` (OFF).
-   */
-  llmConversationBrainEnabled?: boolean
-  /**
-   * Recovery Phase 6 — AI Agent Runtime & mock tool execution.
-   * Default: FeatureRegistry `ai.agent_runtime` (OFF).
-   */
-  agentRuntimeEnabled?: boolean
   /**
    * Sprint 76 — Traveler Personalization Intelligence (profile learning, ranking).
    * Default: FeatureRegistry `ai.traveler_personalization` (ON).
@@ -591,48 +575,6 @@ function toMetaConversationIntelligence(
     questionIds: result.questions.map((q) => q.id),
     insightIds: result.insights.map((i) => i.id),
     streaming: result.streaming,
-  }
-}
-
-function toMetaLlmBrain(
-  result: LlmBrainResult,
-): NonNullable<AgentProviderMeta['llmBrain']> {
-  return {
-    intent: result.intent,
-    dialect: result.dialect,
-    confidence: result.confidence,
-    primaryTool: result.toolDecision.tool,
-    destination: result.memory.destination,
-    usedRulesFallback: result.usedRulesFallback,
-    providerMode: result.debug.providerMode,
-    stageCount: result.debug.stages.length,
-    proactiveTipCount: result.reasoning.proactiveTips.length,
-    responsePreview: result.response.displayText.slice(0, 180),
-    debugStages: result.debug.stages.map((s) => ({
-      id: s.id,
-      label: s.label,
-      detail: s.detail,
-      confidence: s.confidence,
-      source: s.source,
-    })),
-  }
-}
-
-function toMetaAgentRuntime(
-  result: AgentRuntimeResult,
-): NonNullable<AgentProviderMeta['agentRuntime']> {
-  return {
-    intent: result.intent,
-    dialect: result.dialect,
-    tool: result.toolDecision,
-    toolStatus: result.toolExecution?.status ?? null,
-    confidence: result.confidence,
-    eventCount: result.events.length,
-    traceCount: result.trace.length,
-    interrupted: result.interrupted,
-    durationMs: result.durationMs,
-    responsePreview: result.responseText.slice(0, 180),
-    events: result.events.map((e) => ({ type: e.type, detail: e.detail })),
   }
 }
 
@@ -1565,8 +1507,6 @@ export function createTravelAgentService(
       memory.missingFields = missingRequirementFields(memory.requirements)
 
       let conversationIntelligenceResult: ConversationIntelligenceResult | null = null
-      let llmBrainResult: LlmBrainResult | null = null
-      let agentRuntimeResult: AgentRuntimeResult | null = null
 
       // Recovery Phase 4 — Conversation Intelligence (default OFF). Soft enrich only.
       // RC-2: dynamic import so flag-OFF planTurn does not pay the CI module graph.
@@ -1586,52 +1526,6 @@ export function createTravelAgentService(
         memory = enriched.memory
         conversationIntelligenceResult = enriched.conversationIntelligence
         // Prefer consultant questions over classic interview slots.
-        memory.missingFields = filterInterviewMissingFields(
-          missingRequirementFields(memory.requirements).map(String),
-        ) as Array<keyof TripRequirements>
-      }
-
-      // Recovery Phase 5 — LLM Conversation Brain (default OFF). Mock LLM primary; rules fallback.
-      if (isLlmConversationBrainEnabled({ enabled: options.llmConversationBrainEnabled })) {
-        const { enrichWithLlmConversationBrain } = await loadLlmBrain()
-        const { filterInterviewMissingFields } = await loadConversationIntelligence()
-        const recentTexts = input.messages
-          .slice(0, -1)
-          .slice(-6)
-          .map((m) => m.content)
-        const enrichedBrain = enrichWithLlmConversationBrain({
-          userText,
-          memory,
-          recentTexts,
-          enabled: true,
-          locale: memory.locale,
-          turn: input.messages.filter((m) => m.role === 'user').length,
-        })
-        memory = enrichedBrain.memory
-        llmBrainResult = enrichedBrain.llmBrain
-        memory.missingFields = filterInterviewMissingFields(
-          missingRequirementFields(memory.requirements).map(String),
-        ) as Array<keyof TripRequirements>
-      }
-
-      // Recovery Phase 6 — Agent Runtime (default OFF). Mock tool execution only.
-      if (isAgentRuntimeEnabled({ enabled: options.agentRuntimeEnabled })) {
-        const { enrichWithAgentRuntime } = await loadAgentRuntime()
-        const { filterInterviewMissingFields } = await loadConversationIntelligence()
-        const recentTexts = input.messages
-          .slice(0, -1)
-          .slice(-6)
-          .map((m) => m.content)
-        const enrichedRuntime = await enrichWithAgentRuntime({
-          userText,
-          memory,
-          recentTexts,
-          enabled: true,
-          locale: memory.locale,
-          conversationId: input.conversationId,
-        })
-        memory = enrichedRuntime.memory
-        agentRuntimeResult = enrichedRuntime.agentRuntime
         memory.missingFields = filterInterviewMissingFields(
           missingRequirementFields(memory.requirements).map(String),
         ) as Array<keyof TripRequirements>
@@ -2353,24 +2247,12 @@ export function createTravelAgentService(
             conversationIntelligence: toMetaConversationIntelligence(conversationIntelligenceResult),
           }
           : withBudget
-        const withLlmBrain = llmBrainResult
-          ? {
-            ...withConversationIntelligence,
-            llmBrain: toMetaLlmBrain(llmBrainResult),
-          }
-          : withConversationIntelligence
-        const withAgentRuntime = agentRuntimeResult
-          ? {
-            ...withLlmBrain,
-            agentRuntime: toMetaAgentRuntime(agentRuntimeResult),
-          }
-          : withLlmBrain
         const withPersonalization = travelerPersonalizationResult
           ? {
-            ...withAgentRuntime,
+            ...withConversationIntelligence,
             travelerPersonalization: toMetaTravelerPersonalization(travelerPersonalizationResult),
           }
-          : withAgentRuntime
+          : withConversationIntelligence
         const withOptimizer = tripOptimizerResult
           ? { ...withPersonalization, tripOptimizer: toMetaTripOptimizer(tripOptimizerResult) }
           : withPersonalization

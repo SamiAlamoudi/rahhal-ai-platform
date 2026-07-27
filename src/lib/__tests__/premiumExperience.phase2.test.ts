@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest'
 import {
   buildDynamicResultCards,
   consultantLine,
-  createMockRealtimeVoiceAdapter,
-  createRealtimeVoiceAdapter,
-  resolveRealtimeVoiceProviderId,
+  createMockVoiceAdapter,
+  createVoiceAdapter,
+  resolveVoiceAdapterProviderId,
   selectThinkingSteps,
   thinkingLabel,
 } from '../premiumExperience'
@@ -33,11 +33,11 @@ describe('Recovery Phase 2 — premium experience', () => {
     expect(cards.some((c) => c.kind === 'hotel')).toBe(true)
   })
 
-  it('uses mock realtime voice when keys are absent', () => {
-    expect(resolveRealtimeVoiceProviderId()).toBe('mock')
-    const adapter = createRealtimeVoiceAdapter()
+  it('uses mock voice adapter by default', () => {
+    expect(resolveVoiceAdapterProviderId()).toBe('mock')
+    const adapter = createVoiceAdapter()
     expect(adapter.id).toBe('mock')
-    expect(createMockRealtimeVoiceAdapter().label).toMatch(/mock/i)
+    expect(createMockVoiceAdapter().label).toMatch(/mock/i)
   })
 
   it('exposes consultant personality lines', () => {

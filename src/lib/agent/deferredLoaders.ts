@@ -25,14 +25,6 @@ export function loadConversationIntelligence() {
   return loadOnce('conversationIntelligence', () => import('./conversationIntelligence'))
 }
 
-export function loadLlmBrain() {
-  return loadOnce('llmBrain', () => import('./llmBrain'))
-}
-
-export function loadAgentRuntime() {
-  return loadOnce('agentRuntime', () => import('./agentRuntime'))
-}
-
 export function loadTravelPlanner() {
   return loadOnce('travelPlanner', () => import('./travelPlanner'))
 }
@@ -185,6 +177,3 @@ export function loadToolStubs() {
   return loadOnce('toolStubs', () => import('./tools/stubs'))
 }
 
-export function loadRealtimeVoice() {
-  return loadOnce('realtimeVoice', () => import('../realtimeVoice'))
-}
