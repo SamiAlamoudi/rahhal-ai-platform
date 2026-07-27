@@ -6,8 +6,8 @@
   "outputDirectory": "dist",
   "functions": {
     "api/tts.ts": {
-      "maxDuration": 60,
-      "memory": 1024
+      "maxDuration": 30,
+      "memory": 512
     }
   },
   "rewrites": [

@@ -1,12 +1,11 @@
 /**
- * POST /api/tts — synthesize short consultant speech to MP3 (Edge neural voices).
+ * POST /api/tts — synthesize short consultant speech to MP3.
+ * Uses Google Translate TTS HTTP (serverless-friendly; no WebSockets).
  * Body: { text: string, locale?: 'ar' | 'en' }
  */
 
-import { EdgeTTS } from 'edge-tts-universal'
-
 export const config = {
-  runtime: 'nodejs',
+  runtime: 'edge',
   maxDuration: 30,
 }
 
@@ -16,10 +15,40 @@ const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const MAX_CHARS = 480
+const MAX_CHARS = 180
 
-function pickVoice(locale: string): string {
-  return locale === 'en' ? 'en-US-JennyNeural' : 'ar-SA-ZariyahNeural'
+function chunkText(text: string, max = MAX_CHARS): string[] {
+  const cleaned = text.replace(/\s+/g, ' ').trim()
+  if (cleaned.length <= max) return [cleaned]
+  const parts: string[] = []
+  let remaining = cleaned
+  while (remaining.length > max) {
+    let cut = remaining.lastIndexOf(' ', max)
+    if (cut < max * 0.4) cut = max
+    parts.push(remaining.slice(0, cut).trim())
+    remaining = remaining.slice(cut).trim()
+  }
+  if (remaining) parts.push(remaining)
+  return parts.filter(Boolean)
+}
+
+async function synthesizeChunk(text: string, locale: string): Promise<Uint8Array> {
+  const tl = locale === 'en' ? 'en' : 'ar'
+  const url =
+    `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${tl}`
+    + `&q=${encodeURIComponent(text)}`
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      Accept: '*/*',
+      Referer: 'https://translate.google.com/',
+    },
+  })
+  if (!response.ok) {
+    throw new Error(`upstream_tts_${response.status}`)
+  }
+  return new Uint8Array(await response.arrayBuffer())
 }
 
 export default async function handler(req: Request): Promise<Response> {
@@ -53,27 +82,34 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   const locale = body.locale === 'en' ? 'en' : 'ar'
-  const clipped = text.slice(0, MAX_CHARS)
-  const voice = pickVoice(locale)
+  const chunks = chunkText(text).slice(0, 4)
 
   try {
-    const tts = new EdgeTTS(clipped, voice, { rate: '-5%' })
-    const result = await tts.synthesize()
-    const bytes = new Uint8Array(await result.audio.arrayBuffer())
-    if (bytes.byteLength < 64) {
+    const parts: Uint8Array[] = []
+    for (const chunk of chunks) {
+      parts.push(await synthesizeChunk(chunk, locale))
+    }
+    const total = parts.reduce((n, p) => n + p.byteLength, 0)
+    const merged = new Uint8Array(total)
+    let offset = 0
+    for (const part of parts) {
+      merged.set(part, offset)
+      offset += part.byteLength
+    }
+    if (merged.byteLength < 64) {
       return new Response(JSON.stringify({ error: 'empty_audio' }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-    return new Response(bytes, {
+    return new Response(merged, {
       status: 200,
       headers: {
         ...corsHeaders,
         'Content-Type': 'audio/mpeg',
         'Cache-Control': 'no-store',
-        'X-Rahhal-TTS-Voice': voice,
-        'X-Rahhal-TTS-Bytes': String(bytes.byteLength),
+        'X-Rahhal-TTS-Provider': 'gtts',
+        'X-Rahhal-TTS-Bytes': String(merged.byteLength),
       },
     })
   } catch (error) {

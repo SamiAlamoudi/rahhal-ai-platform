@@ -78,7 +78,7 @@ async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Prom
 
 async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob> {
   const controller = new AbortController()
-  const timer = window.setTimeout(() => controller.abort(), 12_000)
+  const timer = window.setTimeout(() => controller.abort(), 20_000)
   try {
     const response = await fetch('/api/tts', {
       method: 'POST',
@@ -102,10 +102,12 @@ async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob
 }
 
 async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob> {
+  // Prefer same-origin /api/tts (server HTTP synthesizer) — reliable on Vercel.
+  // Fall back to in-browser Edge neural voices when the API is unavailable.
   try {
-    return await synthesizeViaEdgeBrowser(text, locale)
-  } catch {
     return await synthesizeViaApi(text, locale)
+  } catch {
+    return await synthesizeViaEdgeBrowser(text, locale)
   }
 }
 
