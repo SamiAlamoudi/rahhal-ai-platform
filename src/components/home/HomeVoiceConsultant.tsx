@@ -5,6 +5,7 @@ import { chatEngine } from '../../lib/chat/chatEngine'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import type { VoiceSession } from '../../lib/chat/voice/voiceSession'
 import type { VoiceSessionStatus } from '../../lib/chat/voice/voiceTypes'
+import { unlockAudioPlayback } from '../../lib/chat/voice/audioElementTextToSpeechProvider'
 import { isBenignChatError } from '../../lib/chat/chatLogger'
 import {
   buildResultCardsFromTripPlan,
@@ -15,6 +16,7 @@ import {
   type DynamicResultCard,
 } from '../../lib/premiumExperience'
 import { tripPlanFromMeta } from '../../lib/agent/memory'
+import { formatConsultantParagraphs } from '../../lib/agent/conversationBrain'
 import { ConversationComposer } from './ConversationComposer'
 
 export interface HomeVoiceConsultantProps {
@@ -44,11 +46,12 @@ export function HomeVoiceConsultant({
   const [error, setError] = useState<string | null>(null)
   const [sessionReady, setSessionReady] = useState(false)
   const [cards, setCards] = useState<DynamicResultCard[]>([])
+  const [audioPlaying, setAudioPlaying] = useState(false)
 
   const upsertAssistant = useCallback((message: ChatMessage) => {
     if (message.role !== 'assistant') return
     setAssistantMessage(message)
-    setAssistantText(message.content || '')
+    setAssistantText(formatConsultantParagraphs(message.content || ''))
     if (message.status === 'complete') {
       const memory = message.providerMeta?.memory as
         | { requirements?: { destination?: string | null; destinations?: string[] } }
@@ -86,7 +89,10 @@ export function HomeVoiceConsultant({
         mode: 'hands_free',
         callbacks: {
           onStatus: (status) => {
-            if (!disposed) setVoiceStatus(status)
+            if (!disposed) {
+              setVoiceStatus(status)
+              setAudioPlaying(status === 'speaking')
+            }
           },
           onPartialTranscript: (text) => {
             if (!disposed) setPartial(text)
@@ -140,6 +146,7 @@ export function HomeVoiceConsultant({
   const startListening = useCallback(async () => {
     setError(null)
     setCards([])
+    unlockAudioPlayback()
     try {
       const id = await ensureConversation()
       const permission = await voiceRef.current?.ensureMicPermission()
@@ -164,6 +171,7 @@ export function HomeVoiceConsultant({
   }, [])
 
   const onVoiceClick = useCallback(() => {
+    unlockAudioPlayback()
     if (voiceStatus === 'listening') {
       void stopListening()
       return
@@ -183,6 +191,7 @@ export function HomeVoiceConsultant({
     setUserHeard(trimmed)
     setAssistantText('')
     setAssistantMessage(null)
+    unlockAudioPlayback()
     try {
       const id = await ensureConversation()
       const controller = new AbortController()
@@ -200,9 +209,15 @@ export function HomeVoiceConsultant({
               || message.content.slice(0, 320)
             if (spoken && voiceRef.current) {
               setVoiceStatus('speaking')
+              setAudioPlaying(true)
               try {
                 await voiceRef.current.speakText(spoken)
+              } catch (e) {
+                if (!isBenignChatError(e)) {
+                  setError(e instanceof Error ? e.message : t('تعذر تشغيل الصوت', 'Could not play audio'))
+                }
               } finally {
+                setAudioPlaying(false)
                 setVoiceStatus('idle')
               }
             }
@@ -229,7 +244,9 @@ export function HomeVoiceConsultant({
       case 'responding':
         return t('يرد…', 'Responding…')
       case 'speaking':
-        return t('يتحدث…', 'Speaking…')
+        return audioPlaying
+          ? t('يتحدث…', 'Speaking…')
+          : t('يتحدث…', 'Speaking…')
       default:
         return sessionReady
           ? t('اضغط الميكروفون للتحدث مع رحّال', 'Tap the mic to talk with Rahhal')
@@ -242,6 +259,8 @@ export function HomeVoiceConsultant({
     || voiceStatus === 'responding'
     || voiceStatus === 'speaking'
     || voiceStatus === 'listening'
+
+  const replyComplete = assistantMessage?.status === 'complete'
 
   return (
     <div className="space-y-4" data-testid="home-voice-consultant">
@@ -258,38 +277,47 @@ export function HomeVoiceConsultant({
       />
 
       <div
-        className="rounded-[1.5rem] border border-slate-200/80 bg-white/95 p-4 shadow-lg shadow-slate-950/5"
+        className="rounded-[1.5rem] border border-slate-200/80 bg-white/95 p-5 shadow-lg shadow-slate-950/5"
         aria-live="polite"
       >
-        <p className="text-xs font-medium text-slate-500">{statusLabel}</p>
+        <p className="text-xs font-medium tracking-wide text-slate-500">{statusLabel}</p>
         {partial || userHeard ? (
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-3 text-sm leading-7 text-slate-600">
             <span className="font-medium text-slate-800">{t('أنت:', 'You:')}</span>{' '}
             {partial || userHeard}
           </p>
         ) : null}
         <AnimatePresence mode="wait">
           {assistantText ? (
-            <motion.p
+            <motion.div
               key={assistantMessage?.id || 'assistant'}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-3 text-base leading-relaxed text-slate-900"
+              className="mt-4"
+              data-testid="home-voice-reply"
             >
-              <span className="font-semibold text-primary-700">{t('رحّال:', 'Rahhal:')}</span>{' '}
-              {assistantText}
-            </motion.p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary-700">
+                {t('رحّال', 'Rahhal')}
+              </p>
+              <div className="mt-2 space-y-3 text-[1.05rem] leading-8 text-slate-900">
+                {assistantText.split(/\n\s*\n/).map((paragraph, index) => (
+                  <p key={`${index}-${paragraph.slice(0, 12)}`} className="whitespace-pre-wrap">
+                    {paragraph.trim()}
+                  </p>
+                ))}
+              </div>
+            </motion.div>
           ) : busy && voiceStatus !== 'listening' ? (
-            <p className="mt-3 text-sm text-slate-500">{t('رحّال يرد…', 'Rahhal is answering…')}</p>
+            <p className="mt-4 text-sm text-slate-500">{t('رحّال يرد…', 'Rahhal is answering…')}</p>
           ) : null}
         </AnimatePresence>
 
-        {cards.length > 0 && voiceStatus !== 'responding' && voiceStatus !== 'thinking' ? (
-          <div className="mt-4 grid gap-2 sm:grid-cols-2" data-testid="home-voice-cards">
+        {cards.length > 0 && replyComplete && voiceStatus !== 'responding' && voiceStatus !== 'thinking' ? (
+          <div className="mt-5 grid gap-2 sm:grid-cols-2" data-testid="home-voice-cards">
             {cards.map((card) => (
               <div
                 key={card.id}
-                className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5"
+                className="rounded-2xl border border-slate-100 bg-slate-50/90 px-3 py-2.5"
               >
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                   {resultCardKindLabel(card.kind, locale)}

@@ -24,6 +24,8 @@ export function buildSecurityHeaders(
     "connect-src 'self'",
     'https://*.supabase.co',
     'wss://*.supabase.co',
+    'https://test.api.amadeus.com',
+    'https://api.amadeus.com',
     'https://api.openai.com',
     'https://fonts.googleapis.com',
     'https://fonts.gstatic.com',
@@ -38,6 +40,8 @@ export function buildSecurityHeaders(
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: https:",
+      // HTMLAudioElement TTS plays MP3 blobs from /api/tts.
+      "media-src 'self' blob: data:",
       connectSrc,
       "frame-ancestors 'none'",
       "base-uri 'self'",
@@ -46,8 +50,8 @@ export function buildSecurityHeaders(
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    // microphone=(self) required for Home / Chat Web Speech on Safari & Chrome.
-    'Permissions-Policy': 'camera=(), microphone=(self), geolocation=()',
+    // microphone=(self) for Web Speech STT; autoplay=(self) for TTS HTMLAudioElement after gesture.
+    'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), autoplay=(self)',
     'Cross-Origin-Opener-Policy': 'same-origin',
     'X-DNS-Prefetch-Control': 'off',
   }

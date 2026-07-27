@@ -12,6 +12,10 @@ import {
 } from './systemPrompt'
 import type { TravelFacts } from './travelFacts'
 import { generateLocalConversation } from './localConversationModel'
+import {
+  formatConsultantParagraphs,
+  polishConsultantProse,
+} from './consultantLocale'
 
 export type ConversationBrainResult = {
   displayText: string
@@ -61,6 +65,7 @@ function extractPartialJsonStringField(raw: string, field: string): string | nul
 }
 
 export function optimizeSpokenText(spoken: string, displayFallback: string, locale?: string): string {
+  const loc = locale === 'en' ? 'en' : 'ar'
   let text = (spoken || displayFallback || '').trim()
   if (!text) return ''
   // Strip markdown / list chrome that sounds bad in TTS.
@@ -77,7 +82,9 @@ export function optimizeSpokenText(spoken: string, displayFallback: string, loca
     .replace(/\s+/g, ' ')
     .trim()
 
-  const maxChars = locale === 'ar' ? 280 : 320
+  text = polishConsultantProse(text, loc)
+
+  const maxChars = loc === 'ar' ? 320 : 360
   if (text.length <= maxChars) return text
 
   const sentenceSplit = text.split(/(?<=[.!?؟。！？])\s+/)
@@ -90,6 +97,11 @@ export function optimizeSpokenText(spoken: string, displayFallback: string, loca
   }
   if (built) return built.trim()
   return `${text.slice(0, maxChars - 1).trim()}…`
+}
+
+export function optimizeDisplayText(display: string, locale?: string): string {
+  const loc = locale === 'en' ? 'en' : 'ar'
+  return formatConsultantParagraphs(polishConsultantProse(display, loc))
 }
 
 function parseModelJson(raw: string): { displayText: string; spokenText: string } | null {
@@ -189,7 +201,7 @@ export async function runConversationBrain(input: {
       input.facts.locale,
     )
     const result = {
-      displayText: local.displayText,
+      displayText: optimizeDisplayText(local.displayText, input.facts.locale),
       spokenText,
       providerId: llm.providerId,
     }
@@ -225,7 +237,7 @@ export async function runConversationBrain(input: {
           if (parsed.displayText !== lastEmittedDisplay) {
             lastEmittedDisplay = parsed.displayText
             input.onDelta?.({
-              displayText: parsed.displayText,
+              displayText: optimizeDisplayText(parsed.displayText, input.facts.locale),
               spokenText,
               raw: accumulated,
             })
@@ -242,7 +254,7 @@ export async function runConversationBrain(input: {
           input.facts.locale,
         )
         return {
-          displayText: parsed.displayText,
+          displayText: optimizeDisplayText(parsed.displayText, input.facts.locale),
           spokenText,
           providerId: result.providerId,
         }
@@ -262,7 +274,7 @@ export async function runConversationBrain(input: {
     input.facts.locale,
   )
   return {
-    displayText: local.displayText,
+    displayText: optimizeDisplayText(local.displayText, input.facts.locale),
     spokenText,
     providerId: llm.providerId,
   }

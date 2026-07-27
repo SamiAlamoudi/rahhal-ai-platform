@@ -246,7 +246,9 @@ describe('Phase X rate limiting + security helpers', () => {
     expect(SECURITY_HEADERS['Content-Security-Policy']).not.toMatch(/connect-src[^;]*\bws:/)
     // Voice input (Home mic / Chat Web Speech) needs same-origin microphone.
     expect(SECURITY_HEADERS['Permissions-Policy']).toContain('microphone=(self)')
+    expect(SECURITY_HEADERS['Permissions-Policy']).toContain('autoplay=(self)')
     expect(SECURITY_HEADERS['Permissions-Policy']).not.toMatch(/microphone=\(\)/)
+    expect(SECURITY_HEADERS['Content-Security-Policy']).toContain("media-src 'self' blob: data:")
 
     const devHeaders = buildSecurityHeaders({ development: true })
     expect(devHeaders['Content-Security-Policy']).toContain("script-src 'self' 'unsafe-inline'")

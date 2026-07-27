@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { amadeusApiPlugin } from './src/lib/viteAmadeusApiPlugin.js'
+import { ttsApiPlugin } from './src/lib/viteTtsApiPlugin.js'
 
 /**
  * Security headers for Vite middleware.
@@ -33,6 +34,7 @@ function securityHeaders(development: boolean): Record<string, string> {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: https:",
+      "media-src 'self' blob: data:",
       connectSrc,
       "frame-ancestors 'none'",
       "base-uri 'self'",
@@ -41,8 +43,8 @@ function securityHeaders(development: boolean): Record<string, string> {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    // microphone=(self) required for Home / Chat Web Speech on Safari & Chrome.
-    'Permissions-Policy': 'camera=(), microphone=(self), geolocation=()',
+    // microphone=(self) for STT; autoplay=(self) for HTMLAudioElement TTS after gesture.
+    'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), autoplay=(self)',
     'Cross-Origin-Opener-Policy': 'same-origin',
     'X-DNS-Prefetch-Control': 'off',
   }
@@ -82,6 +84,7 @@ export default defineConfig({
     tailwindcss(),
     securityHeadersPlugin(),
     amadeusApiPlugin(),
+    ttsApiPlugin(),
   ],
   build: {
     // Documented performance budget signal (Phase X) — warn above ~900kB uncompressed chunk.

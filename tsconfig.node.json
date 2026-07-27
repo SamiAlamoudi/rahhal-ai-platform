@@ -22,6 +22,7 @@
   "include": [
     "vite.config.ts",
     "src/lib/viteAmadeusApiPlugin.ts",
+    "src/lib/viteTtsApiPlugin.ts",
     "src/lib/viteNodeEnv.ts",
     "api/**/*.ts"
   ]
