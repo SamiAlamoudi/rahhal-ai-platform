@@ -235,13 +235,16 @@ export function HomeVoiceConsultant({
   const onSubmitText = useCallback(async (text: string) => {
     const trimmed = text.trim()
     if (!trimmed) return
-    // If still speaking, interrupt so the follow-up (e.g. عطلة قصيرة) can land.
-    if (voiceStatus === 'speaking') {
+    // Never silently drop follow-ups (e.g. عطلة قصيرة) if a prior turn left
+    // status stuck in thinking/responding/speaking (common when mic is unavailable).
+    if (
+      voiceStatus === 'thinking'
+      || voiceStatus === 'responding'
+      || voiceStatus === 'speaking'
+    ) {
       voiceRef.current?.interrupt(undefined, { resumeHandsFree: false })
       setVoiceStatus('idle')
       setAudioPlaying(false)
-    } else if (voiceStatus === 'thinking' || voiceStatus === 'responding') {
-      return
     }
     setError(null)
     setCards([])
@@ -345,6 +348,10 @@ export function HomeVoiceConsultant({
             } catch {
               setVoiceStatus('idle')
             }
+            // Guarantee the composer can accept the next answer even if mic fails.
+            setVoiceStatus((s) => (
+              s === 'listening' || s === 'reconnecting' ? s : 'idle'
+            ))
           },
           onError: (_message, err) => {
             if (!isBenignChatError(err)) setError(err)

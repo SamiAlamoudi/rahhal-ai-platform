@@ -600,6 +600,12 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       clearSilenceTimer()
       utteranceBuffer = ''
       utterancePrefix = ''
+      const permission = await ensureMicPermission()
+      if (permission.state !== 'granted') {
+        // Still keep the conversation armed; UI must leave speaking/responding.
+        setStatus('idle')
+        return
+      }
       await startListening(true)
     },
     armHandsFree(conversationId) {
