@@ -71,6 +71,8 @@ export interface TextToSpeechProvider {
   speak(options: TextToSpeechSpeakOptions): Promise<void>
   stop(): void
   isSpeaking(): boolean
+  /** Optional: start synthesizing ahead of play for ChatGPT-like overlap. */
+  prefetch?(options: Pick<TextToSpeechSpeakOptions, 'locale' | 'text'>): void
 }
 
 export interface MicrophonePermissionState {

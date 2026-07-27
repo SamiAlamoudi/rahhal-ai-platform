@@ -1,7 +1,8 @@
 /**
  * Conversation-First — Conversation Brain.
- * OpenAI ChatGPT authors user-facing language from Rahhal-injected context.
- * Local generative model is the offline/fallback path only.
+ * OpenAI ChatGPT authors 100% of traveler-facing language when remote is active.
+ * Rahhal only orchestrates: parse JSON, strip markdown for TTS, inject facts/tools.
+ * Local generative model is the offline / remote-failure fallback only.
  */
 
 import type { ChatMessage } from '../../chat/chatTypes'
@@ -11,10 +12,9 @@ import {
   RAHHAL_CONVERSATION_SYSTEM_PROMPT,
 } from './systemPrompt'
 import type { TravelFacts } from './travelFacts'
-import { generateLocalConversation, looksLikeDeadEndAck, looksLikeDurationReask } from './localConversationModel'
+import { generateLocalConversation } from './localConversationModel'
 import {
   formatConsultantParagraphs,
-  looksLikeInventoryDump,
   polishConsultantProse,
 } from './consultantLocale'
 
@@ -65,12 +65,12 @@ function extractPartialJsonStringField(raw: string, field: string): string | nul
   return null
 }
 
-export function optimizeSpokenText(spoken: string, displayFallback: string, locale?: string): string {
-  const loc = locale === 'en' ? 'en' : 'ar'
-  let text = (spoken || displayFallback || '').trim()
-  if (!text) return ''
-  // Strip markdown / list chrome that sounds bad in TTS.
-  text = text
+/**
+ * TTS orchestration only — strip markdown/list chrome that sounds bad aloud.
+ * Never rewrites wording, never translates, never truncates for style.
+ */
+export function stripMarkdownForSpeech(text: string): string {
+  return text
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/`([^`]+)`/g, '$1')
     .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
@@ -82,7 +82,17 @@ export function optimizeSpokenText(spoken: string, displayFallback: string, loca
     .replace(/\*([^*]+)\*/g, '$1')
     .replace(/\s+/g, ' ')
     .trim()
+}
 
+/**
+ * Local-fallback speech shaping (polish + soft length cap).
+ * Do NOT use on remote OpenAI output — that must pass through unchanged.
+ */
+export function optimizeSpokenText(spoken: string, displayFallback: string, locale?: string): string {
+  const loc = locale === 'en' ? 'en' : 'ar'
+  let text = (spoken || displayFallback || '').trim()
+  if (!text) return ''
+  text = stripMarkdownForSpeech(text)
   text = polishConsultantProse(text, loc)
 
   const maxChars = loc === 'ar' ? 320 : 360
@@ -100,9 +110,24 @@ export function optimizeSpokenText(spoken: string, displayFallback: string, loca
   return `${text.slice(0, maxChars - 1).trim()}…`
 }
 
+/**
+ * Local-fallback display shaping. Do NOT use on remote OpenAI output.
+ */
 export function optimizeDisplayText(display: string, locale?: string): string {
   const loc = locale === 'en' ? 'en' : 'ar'
   return formatConsultantParagraphs(polishConsultantProse(display, loc))
+}
+
+/** Remote OpenAI: display text is the model’s words, unchanged. */
+function passthroughDisplayText(display: string): string {
+  return display.trim()
+}
+
+/** Remote OpenAI: spoken text is the model’s words; TTS strip only. */
+function passthroughSpokenText(spoken: string, displayFallback: string): string {
+  const raw = (spoken || displayFallback || '').trim()
+  if (!raw) return ''
+  return stripMarkdownForSpeech(raw) || raw
 }
 
 function parseModelJson(raw: string): { displayText: string; spokenText: string } | null {
@@ -166,53 +191,30 @@ function buildMemoryJson(facts: TravelFacts): string {
   )
 }
 
+/**
+ * @param mode `remote` — OpenAI owns every word (no polish, no local-guard replace).
+ *             `local` — offline generative model; polish allowed.
+ */
 function finalizeBrainResult(
   displayRaw: string,
   spokenRaw: string,
   providerId: string,
-  facts: TravelFacts,
-  userMessage: string,
-  conversationId: string,
+  mode: 'remote' | 'local',
+  locale?: string,
 ): ConversationBrainResult {
-  let displayText = optimizeDisplayText(displayRaw, facts.locale)
-  let spokenText = optimizeSpokenText(spokenRaw, displayRaw, facts.locale)
-
-  const continueObjectives = new Set([
-    'advise',
-    'propose_options',
-    'collect_missing',
-    'greet_or_continue',
-    'general',
-    'present_plan',
-    'confirm_understanding',
-  ])
-
-  if (
-    facts.locale === 'ar'
-    && (
-      looksLikeInventoryDump(displayRaw, 'ar')
-      || looksLikeInventoryDump(displayText, 'ar')
-      || looksLikeInventoryDump(spokenText, 'ar')
-      || /[A-Za-z]{3,}/.test(displayText)
-      || /[A-Za-z]{3,}/.test(spokenText)
-      || (
-        continueObjectives.has(facts.objective)
-        && (
-          looksLikeDeadEndAck(displayText, 'ar')
-          || looksLikeDeadEndAck(spokenText, 'ar')
-          || looksLikeDurationReask(displayText, facts)
-          || looksLikeDurationReask(spokenText, facts)
-        )
-      )
-    )
-  ) {
-    const local = generateLocalConversation({ facts, userMessage, conversationId })
-    displayText = optimizeDisplayText(local.displayText, facts.locale)
-    spokenText = optimizeSpokenText(local.spokenText, local.displayText, facts.locale)
-    return { displayText, spokenText, providerId: `${providerId}+local-guard` }
+  if (mode === 'remote') {
+    return {
+      displayText: passthroughDisplayText(displayRaw),
+      spokenText: passthroughSpokenText(spokenRaw, displayRaw),
+      providerId,
+    }
   }
 
-  return { displayText, spokenText, providerId }
+  return {
+    displayText: optimizeDisplayText(displayRaw, locale),
+    spokenText: optimizeSpokenText(spokenRaw, displayRaw, locale),
+    providerId,
+  }
 }
 
 export async function runConversationBrain(input: {
@@ -249,9 +251,8 @@ export async function runConversationBrain(input: {
       local.displayText,
       local.spokenText,
       llm.providerId,
-      input.facts,
-      userMessage,
-      input.conversationId,
+      'local',
+      input.facts.locale,
     )
     input.onDelta?.({
       displayText: result.displayText,
@@ -276,13 +277,13 @@ export async function runConversationBrain(input: {
         ? (accumulated) => {
           const parsed = parseModelJson(accumulated)
           if (!parsed) return
+          // Stream remote tokens as-is — never replace with local templates mid-turn.
           const guarded = finalizeBrainResult(
             parsed.displayText,
             parsed.spokenText,
             llm.providerId,
-            input.facts,
-            userMessage,
-            input.conversationId,
+            'remote',
+            input.facts.locale,
           )
           if (guarded.displayText !== lastEmittedDisplay) {
             lastEmittedDisplay = guarded.displayText
@@ -302,9 +303,8 @@ export async function runConversationBrain(input: {
           parsed.displayText,
           parsed.spokenText,
           result.providerId,
-          input.facts,
-          userMessage,
-          input.conversationId,
+          'remote',
+          input.facts.locale,
         )
       }
     }
@@ -319,9 +319,8 @@ export async function runConversationBrain(input: {
   return finalizeBrainResult(
     local.displayText,
     local.spokenText,
-    llm.providerId,
-    input.facts,
-    userMessage,
-    input.conversationId,
+    `${llm.providerId}+local-fallback`,
+    'local',
+    input.facts.locale,
   )
 }

@@ -60,7 +60,7 @@ describe('consultant Arabic speech', () => {
     expect(formatConsultantParagraphs('جملة أولى. جملة ثانية. جملة ثالثة. جملة رابعة.')).toContain('\n\n')
   })
 
-  it('optimizeSpokenText + display polish Arabic dump', () => {
+  it('optimizeSpokenText + display polish Arabic dump (local shaping helpers)', () => {
     const spoken = optimizeSpokenText('واضح — Morocco، 7 أيام، SAR.', 'fallback', 'ar')
     expect(spoken).not.toMatch(/Morocco|SAR/)
     expect(spoken).toMatch(/المغرب|ريال/)

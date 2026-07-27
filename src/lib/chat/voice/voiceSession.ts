@@ -62,7 +62,7 @@ export interface VoiceSession {
   armHandsFree: (conversationId: string) => void
   stopListening: () => Promise<void>
   interrupt: (abortStream?: () => void, opts?: { resumeHandsFree?: boolean }) => void
-  speakText: (text: string, opts?: { resumeHandsFree?: boolean }) => Promise<void>
+  speakText: (text: string, opts?: { resumeHandsFree?: boolean; interrupt?: boolean }) => Promise<void>
   dispose: () => void
 }
 
@@ -279,9 +279,11 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         callbacks.onError?.(
           retryError instanceof Error ? retryError.message : 'تعذر استئناف الاستماع',
         )
-        setStatus('error')
+        // Leave idle (not error) so the traveler can still type the next turn.
+        setStatus('idle')
       }
       diagnosePipelineError('stt', 'resume', e)
+      setStatus('idle')
     }
   }
 
@@ -321,6 +323,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     const enqueueSpeak = (chunk: string, phase: string) => {
       const text = chunk.trim()
       if (!text) return
+      // Overlap synth of this chunk with playback of the previous one.
+      tts.prefetch?.({ locale, text })
       speakChain = speakChain.then(async () => {
         if (disposed || controller.signal.aborted) return
         const isFirst = !speechStarted
@@ -350,18 +354,13 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       const normalized = (fullSpoken || '').replace(/\s+/g, ' ').trim()
       if (!normalized) return
 
-      // First complete sentence → audio ASAP (ChatGPT-Voice).
-      if (spokenCursor === 0) {
-        const { chunks } = takeNewSpokenChunks(normalized, 0)
-        if (chunks.length > 0) {
-          const first = chunks[0]!
-          enqueueSpeak(first, 'first')
-          const idx = normalized.indexOf(first)
-          spokenCursor = idx >= 0 ? idx + first.length : first.length
-        } else if (!final) {
-          return
-        }
+      // ChatGPT-Voice: enqueue every newly completed sentence while tokens arrive.
+      const { chunks, nextCursor } = takeNewSpokenChunks(normalized, spokenCursor)
+      for (let i = 0; i < chunks.length; i += 1) {
+        const phase = spokenCursor === 0 && i === 0 ? 'first' : 'mid'
+        enqueueSpeak(chunks[i]!, phase)
       }
+      if (chunks.length > 0) spokenCursor = nextCursor
 
       if (!final) return
 
@@ -446,13 +445,15 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         if (!isBenignChatError(error)) {
           diagnosePipelineError('streaming', 'assistant_stream', error)
           callbacks.onError?.(error)
-          setStatus('error')
-        } else {
-          setStatus('idle')
-          if (resumeHandsFreeAfterInterrupt) {
-            resumeHandsFreeAfterInterrupt = false
-            void maybeResumeHandsFree()
-          }
+        }
+        setStatus('idle')
+        // ChatGPT-Voice: never strand the session — resume listening after recoverable errors.
+        if (mode === 'hands_free' && handsFreeConversationId) {
+          resumeHandsFreeAfterInterrupt = false
+          void maybeResumeHandsFree()
+        } else if (resumeHandsFreeAfterInterrupt) {
+          resumeHandsFreeAfterInterrupt = false
+          void maybeResumeHandsFree()
         }
       },
     }
@@ -471,13 +472,14 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       if (!isBenignChatError(e)) {
         const app = diagnosePipelineError('conversation', 'send_turn', e)
         callbacks.onError?.(app.userMessage)
-        setStatus('error')
-      } else {
-        setStatus('idle')
-        if (resumeHandsFreeAfterInterrupt) {
-          resumeHandsFreeAfterInterrupt = false
-          void maybeResumeHandsFree()
-        }
+      }
+      setStatus('idle')
+      if (mode === 'hands_free' && handsFreeConversationId) {
+        resumeHandsFreeAfterInterrupt = false
+        void maybeResumeHandsFree()
+      } else if (resumeHandsFreeAfterInterrupt) {
+        resumeHandsFreeAfterInterrupt = false
+        void maybeResumeHandsFree()
       }
       return null
     }
@@ -667,9 +669,16 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     async speakText(text, opts) {
       if (disposed) return
       setStatus('speaking')
+      const cleaned = stripMarkdownForSpeech(text)
+      tts.prefetch?.({ locale, text: cleaned })
       try {
         await unlockAudioPlayback()
-        await tts.speak({ locale, text: stripMarkdownForSpeech(text), interrupt: true })
+        // Progressive mid-stream chunks must not interrupt the prior sentence.
+        await tts.speak({
+          locale,
+          text: cleaned,
+          interrupt: opts?.interrupt !== false,
+        })
       } catch (e) {
         if (!isBenignChatError(e)) throw e
       }

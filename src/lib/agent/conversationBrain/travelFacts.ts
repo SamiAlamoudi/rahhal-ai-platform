@@ -197,6 +197,33 @@ export function buildPlanFacts(plan: TripPlan): NonNullable<TravelFacts['plan']>
   }
 }
 
+/** Never ask the model to re-collect a slot that is already known. */
+function sanitizeMissingSlots(
+  missing: string[],
+  known: TravelFacts['known'],
+): string[] {
+  const filled = new Set<string>()
+  if (known.destination || (known.destinations && known.destinations.length > 0)) {
+    filled.add('destination')
+    filled.add('destinations')
+  }
+  if (known.durationDays != null || known.startDate || known.endDate) {
+    filled.add('durationDays')
+    filled.add('startDate')
+    filled.add('endDate')
+    filled.add('dates')
+  }
+  if (known.travelers != null) filled.add('travelers')
+  if (known.travelerType) filled.add('travelerType')
+  if (known.budgetAmount != null) {
+    filled.add('budgetAmount')
+    filled.add('budget')
+  }
+  if (known.budgetCurrency) filled.add('budgetCurrency')
+  if (known.origin) filled.add('origin')
+  return missing.filter((slot) => !filled.has(slot) && !filled.has(String(slot)))
+}
+
 export function buildTravelFacts(input: {
   memory: AgentMemory
   objective: ConversationObjective
@@ -227,11 +254,13 @@ export function buildTravelFacts(input: {
     if (alternatives.length) planFacts.alternatives = alternatives
     if (nextAction) planFacts.nextAction = nextAction
   }
+  const known = buildKnownFromRequirements(input.memory.requirements)
+  const rawMissing = input.missingSlots ?? input.memory.missingFields.map(String)
   return {
     locale: input.memory.locale,
     objective: input.objective,
-    known: buildKnownFromRequirements(input.memory.requirements),
-    missingSlots: input.missingSlots ?? input.memory.missingFields.map(String),
+    known,
+    missingSlots: sanitizeMissingSlots(rawMissing, known),
     softSignals: input.softSignals,
     heardSummary: input.heardSummary,
     optionHints: input.optionHints,

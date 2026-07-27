@@ -16,7 +16,6 @@ import {
   type DynamicResultCard,
 } from '../../lib/premiumExperience'
 import { tripPlanFromMeta } from '../../lib/agent/memory'
-import { formatConsultantParagraphs, polishConsultantProse } from '../../lib/agent/conversationBrain'
 import { ConversationComposer } from './ConversationComposer'
 
 export interface HomeVoiceConsultantProps {
@@ -53,7 +52,8 @@ export function HomeVoiceConsultant({
   const flushAssistant = useCallback((message: ChatMessage) => {
     if (message.role !== 'assistant') return
     setAssistantMessage(message)
-    setAssistantText(formatConsultantParagraphs(polishConsultantProse(message.content || '', locale)))
+    // OpenAI owns traveler-facing copy — render verbatim (no polish / rechunk).
+    setAssistantText(message.content || '')
     if (message.status === 'complete') {
       const memory = message.providerMeta?.memory as
         | { requirements?: { destination?: string | null; destinations?: string[] } }
@@ -72,7 +72,7 @@ export function HomeVoiceConsultant({
     } else {
       setCards([])
     }
-  }, [locale])
+  }, [])
 
   const upsertAssistant = useCallback((message: ChatMessage, opts?: { force?: boolean }) => {
     if (message.role !== 'assistant') return
@@ -280,24 +280,22 @@ export function HomeVoiceConsultant({
             if (pending) flushAssistant(pending)
           }
           voiceRef.current?.armHandsFree?.(id)
-          await voiceRef.current?.speakText(piece, { resumeHandsFree: false })
+          await voiceRef.current?.speakText(piece, {
+            resumeHandsFree: false,
+            interrupt: isFirst,
+          })
         }).catch(() => undefined)
       }
 
       const pump = (full: string, final = false) => {
         const normalized = (full || '').replace(/\s+/g, ' ').trim()
         if (!normalized) return
-        if (spokenCursor === 0) {
-          const { chunks } = takeNewSpokenChunks(normalized, 0)
-          if (chunks.length > 0) {
-            const first = chunks[0]!
-            enqueueChunk(first, true)
-            const idx = normalized.indexOf(first)
-            spokenCursor = idx >= 0 ? idx + first.length : first.length
-          } else if (!final) {
-            return
-          }
+        // Continue speaking every newly completed sentence while tokens arrive.
+        const { chunks, nextCursor } = takeNewSpokenChunks(normalized, spokenCursor)
+        for (let i = 0; i < chunks.length; i += 1) {
+          enqueueChunk(chunks[i]!, spokenCursor === 0 && i === 0)
         }
+        if (chunks.length > 0) spokenCursor = nextCursor
         if (!final) return
         const tail = takeSpokenTail(normalized, spokenCursor)
         if (tail) {
@@ -353,9 +351,14 @@ export function HomeVoiceConsultant({
               s === 'listening' || s === 'reconnecting' ? s : 'idle'
             ))
           },
-          onError: (_message, err) => {
+          onError: async (_message, err) => {
             if (!isBenignChatError(err)) setError(err)
             setVoiceStatus('idle')
+            try {
+              await voiceRef.current?.startHandsFree(id)
+            } catch {
+              setVoiceStatus('idle')
+            }
           },
         },
       )
@@ -365,6 +368,12 @@ export function HomeVoiceConsultant({
         setError(e instanceof Error ? e.message : t('تعذر إرسال الرسالة', 'Could not send message'))
       }
       setVoiceStatus('idle')
+      try {
+        const id = conversationIdRef.current
+        if (id) await voiceRef.current?.startHandsFree(id)
+      } catch {
+        // leave idle — composer still accepts text
+      }
     }
   }, [assistantMessage?.status, beginFreshConversation, ensureConversation, flushAssistant, onDraftChange, t, upsertAssistant, voiceStatus])
 

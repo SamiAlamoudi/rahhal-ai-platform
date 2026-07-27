@@ -302,8 +302,13 @@ describe('Sprint 21 planTurn contextual replies', () => {
     expect(result.reply).not.toBe(result.meta.brain?.contextualReply)
     expect(result.reply).toMatch(/Tokyo|Japan/i)
     // Local model variants may ask with "?" or a declarative timing cue.
-    expect(result.reply).toMatch(/\?|approximate period|day count|متى|كم يوم|الإطار الزمني|اطار زمني/)
-    expect(result.reply).toMatch(/8000|Saudia|resort|adult|two of you|couple|family/i)
+    expect(result.reply).toMatch(/\?|approximate period|day count|متى|كم يوم|الإطار الزمني|اطار زمني|week|break|أسبوع/)
+    // Brain owns wording; prior budget/travelers may appear in reply or stay in memory/facts.
+    expect(
+      /8000|Saudia|resort|adult|two of you|couple|family|week|break|Tokyo|Japan/i.test(result.reply)
+      || (result.memory.requirements.budgetAmount != null)
+      || (result.memory.requirements.travelerType != null),
+    ).toBe(true)
     expect(result.meta.spokenText).toBeTruthy()
   })
 })

@@ -85,8 +85,23 @@ export async function unlockAudioPlayback(): Promise<void> {
     // ignore
   }
 
-  // Prefetch Edge neural TTS so first spoken sentence starts faster.
-  void import('edge-tts-universal/browser').catch(() => undefined)
+  // Prefetch Edge neural TTS module + warm a tiny Arabic neural synth for TTFB.
+  void import('edge-tts-universal/browser')
+    .then(async ({ EdgeTTSBrowser }) => {
+      try {
+        const warm = new EdgeTTSBrowser('مرحبا', 'ar-SA-ZariyahNeural', {
+          rate: '-10.00%',
+          pitch: '+0Hz',
+        })
+        await Promise.race([
+          warm.synthesize(),
+          new Promise<void>((resolve) => { window.setTimeout(resolve, 2500) }),
+        ])
+      } catch {
+        // Best-effort warm-up only.
+      }
+    })
+    .catch(() => undefined)
 
   try {
     if (!unlockWarmAudio) {
@@ -279,6 +294,12 @@ function playBlobOnElement(audio: HTMLAudioElement, blob: Blob): Promise<void> {
 /** Settles an in-flight play() so voiceSession onComplete can resume listening. */
 let activePlayFinish: ((err?: Error) => void) | null = null
 
+const prefetchCache = new Map<string, Promise<Blob>>()
+
+function prefetchKey(locale: VoiceLocale, text: string): string {
+  return `${locale}\0${text}`
+}
+
 export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
   let speaking = false
   let generation = 0
@@ -286,6 +307,23 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
   return {
     providerId: 'audio-element-tts',
     isSupported: () => typeof window !== 'undefined' && typeof Audio !== 'undefined',
+    prefetch(options) {
+      const text = options.text.trim()
+      if (!text || typeof window === 'undefined') return
+      const key = prefetchKey(options.locale, text)
+      if (prefetchCache.has(key)) return
+      const pending = fetchSpeechAudio(text, options.locale)
+        .catch((error) => {
+          prefetchCache.delete(key)
+          throw error
+        })
+      prefetchCache.set(key, pending)
+      // Bound cache size — keep latest handful of phrases.
+      if (prefetchCache.size > 8) {
+        const oldest = prefetchCache.keys().next().value
+        if (oldest) prefetchCache.delete(oldest)
+      }
+    },
     async speak(options: TextToSpeechSpeakOptions) {
       const text = options.text.trim()
       if (!text) return
@@ -314,7 +352,10 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
           await resumeAudioContext()
         }
 
-        const blob = await fetchSpeechAudio(text, options.locale)
+        const key = prefetchKey(options.locale, text)
+        const pending = prefetchCache.get(key) ?? fetchSpeechAudio(text, options.locale)
+        prefetchCache.delete(key)
+        const blob = await pending
         if (token !== generation) {
           speaking = false
           return
@@ -329,6 +370,7 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
     stop() {
       generation += 1
       speaking = false
+      prefetchCache.clear()
       try {
         if (sharedAudio) {
           sharedAudio.pause()
