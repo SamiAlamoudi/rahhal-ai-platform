@@ -90,6 +90,10 @@ export function polishConsultantProse(text: string, locale: 'ar' | 'en'): string
       out = out.replace(re, ar)
     }
     out = out
+      .replace(/\bMock Hotel\b/gi, 'فندق مناسب')
+      .replace(/\bOld Town\b/gi, 'البلدة القديمة')
+      .replace(/\bViewpoint\b/gi, 'نقطة مشاهدة')
+      .replace(/\bMarket\b/gi, 'السوق')
       .replace(/\bSAR\b/gi, 'ريال')
       .replace(/\bUSD\b/gi, 'دولار')
       .replace(/\bEUR\b/gi, 'يورو')

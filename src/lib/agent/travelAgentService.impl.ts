@@ -3296,6 +3296,17 @@ export function createTravelAgentService(
         )
         && memory.missingFields.length === 0
       ) {
+        // Conversation-first: on the first complete intake turn, advise with a
+        // planning draft (city direction) instead of dumping a mock itinerary.
+        const firstCompleteConsult =
+          extracted.intent === 'answer'
+          && !memory.tripPlan
+          && !alphaJourneyCue
+
+        if (firstCompleteConsult) {
+          objective = 'propose_options'
+          memory = withTripPlan({ ...memory, phase: 'collecting', missingFields: [] }, null)
+        } else {
         const scope = memory.requirements.regenerateScope
           ?? extracted.patch.regenerateScope
           ?? (extracted.intent === 'regenerate' ? 'whole' : null)
@@ -3354,6 +3365,7 @@ export function createTravelAgentService(
         }
         memory = withTripPlan({ ...memory, phase: 'planned', missingFields: [] }, plan)
         objective = 'present_plan'
+        }
       } else if (memory.missingFields.length > 0) {
         memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
         objective = 'collect_missing'
@@ -3562,6 +3574,15 @@ export function createTravelAgentService(
         packagesPresent: Boolean(dynamicPackagesResult?.selected || dynamicPackagesResult?.ranked.length),
       })
 
+      const consultDraft = (
+        objective === 'propose_options'
+      ) && canBuildPlanningDraft(memory.requirements)
+        ? buildPlanningDraft({
+          requirements: memory.requirements,
+          locale: memory.locale,
+        })
+        : null
+
       const facts = buildTravelFacts({
         memory,
         objective,
@@ -3569,6 +3590,7 @@ export function createTravelAgentService(
         missingSlots: memory.missingFields.map(String),
         toolResults: toolSummaries,
         savedTitle,
+        planningDraft: consultDraft,
         recommendations: [
           ...(travelPlannerResult?.recommendationFacts ?? []),
           ...(budgetIntelligenceResult?.recommendationFacts ?? []),
@@ -3585,6 +3607,7 @@ export function createTravelAgentService(
           ...(conciergeIntegration?.recommendationFacts ?? []),
           ...constitutionPreview.recommendationFacts,
           ...constitutionPreview.recoveryNotes,
+          ...(consultDraft ? [consultDraft.rankingNote] : []),
         ],
         warnings: bookingIntelligenceResult && !bookingIntelligenceResult.readiness.bookingReady
           ? [bookingIntelligenceResult.readiness.clarification].filter(Boolean) as string[]

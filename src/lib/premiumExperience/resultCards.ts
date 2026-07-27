@@ -50,6 +50,9 @@ export function buildResultCardsFromTripPlan(
   const destHint = normalizeDestinationKey(options?.destinationHint || plan.destinations?.[0] || '')
   const cards: DynamicResultCard[] = []
 
+  const isPlaceholderLabel = (value: string) =>
+    /mock\s*hotel|\bold\s*town\b|\bmarket\b|\bviewpoint\b|\bplaceholder\b/i.test(value)
+
   for (const flight of plan.flights ?? []) {
     const toKey = normalizeDestinationKey(flight.to)
     if (destHint && toKey && !destinationMatches(toKey, destHint) && !destinationMatches(flight.to, destHint)) {
@@ -58,6 +61,7 @@ export function buildResultCardsFromTripPlan(
         continue
       }
     }
+    const currencyAr = (flight.currency || 'SAR').replace(/^SAR$/i, 'ريال').replace(/^USD$/i, 'دولار')
     cards.push({
       id: `flight-${flight.from}-${flight.to}-${cards.length}`,
       kind: 'flight',
@@ -66,7 +70,7 @@ export function buildResultCardsFromTripPlan(
       subtitleAr: flight.airline || 'رحلة مقترحة',
       subtitleEn: flight.airline || 'Suggested flight',
       metaAr: flight.estimatedCost != null
-        ? `من ${flight.estimatedCost.toLocaleString('en-US')} ${flight.currency || 'SAR'}`
+        ? `من ${flight.estimatedCost.toLocaleString('ar-SA')} ${currencyAr}`
         : undefined,
       metaEn: flight.estimatedCost != null
         ? `From ${flight.estimatedCost.toLocaleString('en-US')} ${flight.currency || 'SAR'}`
@@ -77,13 +81,15 @@ export function buildResultCardsFromTripPlan(
   }
 
   for (const hotel of plan.accommodations ?? []) {
+    if (isPlaceholderLabel(`${hotel.name} ${hotel.area}`)) continue
     const areaKey = normalizeDestinationKey(`${hotel.name} ${hotel.area}`)
     if (destHint && areaKey && !destinationMatches(areaKey, destHint) && !destinationMatches(hotel.area, destHint)) {
       const destList = (plan.destinations ?? []).map(normalizeDestinationKey)
-      if (destList.length && !destList.some((d) => destinationMatches(areaKey, d) || destinationMatches(hotel.area, d))) {
+      if (destList.length && !destList.some((e) => destinationMatches(areaKey, e) || destinationMatches(hotel.area, e))) {
         continue
       }
     }
+    const currencyAr = (hotel.currency || 'SAR').replace(/^SAR$/i, 'ريال').replace(/^USD$/i, 'دولار')
     cards.push({
       id: `hotel-${hotel.name}-${cards.length}`,
       kind: 'hotel',
@@ -92,7 +98,7 @@ export function buildResultCardsFromTripPlan(
       subtitleAr: hotel.area || hotel.category || 'إقامة',
       subtitleEn: hotel.area || hotel.category || 'Stay',
       metaAr: hotel.estimatedNightly != null
-        ? `${hotel.estimatedNightly.toLocaleString('en-US')} ${hotel.currency || 'SAR'} / ليلة`
+        ? `${hotel.estimatedNightly.toLocaleString('ar-SA')} ${currencyAr} / ليلة`
         : undefined,
       metaEn: hotel.estimatedNightly != null
         ? `${hotel.estimatedNightly.toLocaleString('en-US')} ${hotel.currency || 'SAR'} / night`
@@ -104,7 +110,7 @@ export function buildResultCardsFromTripPlan(
 
   for (const attraction of (plan.attractions ?? []).slice(0, 3)) {
     const label = attraction.title
-    if (!label) continue
+    if (!label || isPlaceholderLabel(label)) continue
     cards.push({
       id: `activity-${label}-${cards.length}`,
       kind: 'activity',
@@ -119,19 +125,24 @@ export function buildResultCardsFromTripPlan(
 
   const budget = plan.estimatedBudget || plan.estimatedCosts
   if (budget) {
+    const currency = budget.currency || 'SAR'
+    const currencyAr = currency.replace(/^SAR$/i, 'ريال').replace(/^USD$/i, 'دولار')
     const top = budget.breakdown?.[0]
-    cards.push({
-      id: 'budget-live',
-      kind: 'budget',
-      titleAr: 'ملخص الميزانية',
-      titleEn: 'Budget snapshot',
-      subtitleAr: top ? `${top.label}: ${top.amount.toLocaleString('en-US')} ${budget.currency}` : 'تقدير من هذه المحادثة',
-      subtitleEn: top ? `${top.label}: ${top.amount.toLocaleString('en-US')} ${budget.currency}` : 'Estimate from this conversation',
-      metaAr: `≈ ${budget.amount.toLocaleString('en-US')} ${budget.currency}`,
-      metaEn: `≈ ${budget.amount.toLocaleString('en-US')} ${budget.currency}`,
-      accent: 'emerald',
-      destinationKey: destHint || undefined,
-    })
+    const topLabel = top?.label || ''
+    if (!isPlaceholderLabel(topLabel) && !/^stay$/i.test(topLabel)) {
+      cards.push({
+        id: 'budget-live',
+        kind: 'budget',
+        titleAr: 'ملخص الميزانية',
+        titleEn: 'Budget snapshot',
+        subtitleAr: top ? `${top.label}: ${top.amount.toLocaleString('ar-SA')} ${currencyAr}` : 'تقدير من هذه المحادثة',
+        subtitleEn: top ? `${top.label}: ${top.amount.toLocaleString('en-US')} ${currency}` : 'Estimate from this conversation',
+        metaAr: `≈ ${budget.amount.toLocaleString('ar-SA')} ${currencyAr}`,
+        metaEn: `≈ ${budget.amount.toLocaleString('en-US')} ${currency}`,
+        accent: 'emerald',
+        destinationKey: destHint || undefined,
+      })
+    }
   }
 
   return filterCardsToDestination(cards, destHint).slice(0, limit)
