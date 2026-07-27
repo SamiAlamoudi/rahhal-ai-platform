@@ -50,3 +50,13 @@ export {
 
 export { buildAiHomeModel, conversationEntryPath } from './homeModel'
 export type { BuildAiHomeModelInput } from './homeModel'
+
+export {
+  buildVoiceAwareChatNavigation,
+  clearVoiceEntryHandoff,
+  readVoiceEntryHandoff,
+  resolveChatEntrySeed,
+  writeVoiceEntryHandoff,
+  VOICE_ENTRY_STORAGE_KEY,
+} from './voiceEntryHandoff'
+export type { VoiceEntryHandoff } from './voiceEntryHandoff'

@@ -81,6 +81,66 @@ describe('voiceSession', () => {
     session.dispose()
   })
 
+  it('post-turn hands-free resume is READY → LISTENING with no fake IDLE', async () => {
+    vi.useFakeTimers()
+    const { provider: stt } = createMockSpeechToTextProvider('')
+    const tts = createMockTextToSpeechProvider()
+    const statuses: string[] = []
+    const sendTurn = vi.fn(async (_input, handlers) => {
+      const assistant = assistantMessage('ما هي مدينة المغادرة؟')
+      assistant.providerMeta = { spokenText: 'ما هي مدينة المغادرة؟' }
+      await handlers.onComplete?.(assistant)
+      return {
+        user: {
+          ...assistant,
+          id: 'u1',
+          role: 'user' as const,
+          modality: 'audio' as const,
+          content: 'أريد المغرب',
+        },
+        assistant,
+      }
+    })
+
+    const session = createVoiceSession({
+      stt,
+      tts,
+      sendTurn: sendTurn as never,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      activityMonitor: {
+        start: async () => {},
+        stop: () => {},
+        isSpeaking: () => false,
+        getLevel: () => 0,
+        isActive: () => false,
+      },
+      callbacks: { onStatus: (s) => statuses.push(s) },
+    })
+
+    await session.beginContinuousWithSeed('c1', 'أريد المغرب')
+    expect(session.getStatus()).toBe('ready')
+    const { HANDS_FREE_LISTEN_RESTART_MS } = await import('../chat/voice/voiceSession')
+    await vi.advanceTimersByTimeAsync(HANDS_FREE_LISTEN_RESTART_MS)
+
+    const readyIdx = statuses.indexOf('ready')
+    expect(readyIdx).toBeGreaterThanOrEqual(0)
+    const listeningIdx = statuses.indexOf('listening', readyIdx + 1)
+    expect(listeningIdx).toBeGreaterThan(readyIdx)
+
+    // Lifecycle bug: ensureMicPermission used to inject idle between READY and STT.
+    const between = statuses.slice(readyIdx, listeningIdx + 1)
+    expect(between).not.toContain('idle')
+    expect(between).not.toContain('requesting_permission')
+    // READY is the settled state immediately before the next listen session.
+    expect(between[0]).toBe('ready')
+    expect(between[between.length - 1]).toBe('listening')
+    expect(session.getStatus()).toBe('listening')
+    expect(session.getMode()).toBe('hands_free')
+
+    session.dispose()
+    vi.useRealTimers()
+  })
+
   it('hands-free waits for silence timeout before sending (tolerates short pauses)', async () => {
     vi.useFakeTimers()
     const { provider: stt, controller } = createMockSpeechToTextProvider('')
@@ -163,11 +223,12 @@ describe('voiceSession', () => {
     deferred.reject?.(new Error('aborted'))
     await Promise.resolve()
     await Promise.resolve()
-    await vi.advanceTimersByTimeAsync(0)
+    const { HANDS_FREE_LISTEN_RESTART_MS } = await import('../chat/voice/voiceSession')
+    await vi.advanceTimersByTimeAsync(HANDS_FREE_LISTEN_RESTART_MS)
     await Promise.resolve()
     expect(statuses).toContain('reconnecting')
     // Resume is async; after reconnect settles we should be listening again.
-    expect(['listening', 'reconnecting', 'idle']).toContain(session.getStatus())
+    expect(['listening', 'reconnecting', 'ready']).toContain(session.getStatus())
     session.dispose()
     vi.useRealTimers()
   })

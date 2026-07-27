@@ -31,7 +31,6 @@ export default function AiHomeExperience() {
   const navigate = useNavigate()
   const { user, isAdmin, loading: authLoading } = useAuth()
   const registry = getFeatureRegistry()
-  const conversationHome = registry.isEnabled('ui.conversation_home')
   const travelCardsEnabled = registry.isEnabled('ui.travel_cards')
   const continueEnabled = registry.isEnabled('ui.continue_booking')
 
@@ -93,17 +92,18 @@ export default function AiHomeExperience() {
   }, [authLoading, refresh])
 
   const startConversation = useCallback(
-    (text: string) => {
+    (text: string, meta?: { source?: 'text' | 'voice' }) => {
       const trimmed = text.trim()
       if (!trimmed) return
-      if (conversationHome) {
-        const entry = conversationEntryPath(trimmed)
-        navigate(entry.pathname, { state: entry.state })
-        return
-      }
-      navigate('/chat', { state: { initialPrompt: trimmed, tripText: trimmed } })
+      const startVoice = meta?.source === 'voice'
+      // Always use durable handoff (sessionStorage + query) — iOS Safari drops location.state.
+      const entry = conversationEntryPath(trimmed, { startVoice })
+      navigate(
+        { pathname: entry.pathname, search: entry.search },
+        { state: entry.state },
+      )
     },
-    [conversationHome, navigate],
+    [navigate],
   )
 
   const onSelectPrompt = useCallback(

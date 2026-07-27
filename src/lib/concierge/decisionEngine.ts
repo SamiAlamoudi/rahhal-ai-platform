@@ -126,8 +126,8 @@ const SEASON_PACKS: Record<string, { en: string[]; ar: string[]; question: { en:
       'الشتاء — مدن أهدأ، وسهل دمجه مع وجهات ثلجية.',
     ],
     question: {
-      en: 'Before I estimate costs — which season are you considering?',
-      ar: 'قبل ما أقدّر التكاليف — أي موسم تفكّر فيه؟',
+      en: 'Which season are you aiming for — spring for the cherry blossoms — or do you already have travel dates in mind?',
+      ar: 'أي موسم يناسبك — الربيع لساكورا، أم عندك تواريخ سفر واضحة في بالك؟',
     },
   },
 }
@@ -255,8 +255,8 @@ export function evaluateConciergeValueOpportunity(input: {
       action: 'advise',
       valueBrief: ar ? seasons.ar : seasons.en,
       framingNote: ar
-        ? `${dest} خيار ممتاز — والتكلفة تختلف كثيراً حسب الموسم.`
-        : `${dest} is a strong choice — and cost swings sharply by season.`,
+        ? `${dest} اختيار قوي — والتجربة تختلف كثيراً حسب الموسم.`
+        : `${dest} is an excellent choice — and the experience changes a lot by season.`,
       preferenceQuestion: seasons.question[ar ? 'ar' : 'en'],
       rationale: 'Destination known with vague future timing — educate on seasons before cost estimates.',
     }
@@ -313,8 +313,8 @@ export function evaluateConciergeValueOpportunity(input: {
         ar ? `${dest}: ${line}` : `${dest}: ${line}`,
       ),
       framingNote: ar
-        ? `ممتاز — ${dest} قاعدة قوية. خلّينا نضبط طابع الرحلة.`
-        : `Strong base — ${dest}. Let us shape the character of the trip.`,
+        ? `${dest} قاعدة قوية. خلّينا نضبط طابع الرحلة قبل ما نثبّت التفاصيل.`
+        : `${dest} is a strong base. Let’s shape the character of the trip before locking details.`,
       preferenceQuestion: preferenceQuestionFor('style_narrow', locale, dest),
       rationale: 'Specific destination known — inspire with trip character before form fields.',
     }

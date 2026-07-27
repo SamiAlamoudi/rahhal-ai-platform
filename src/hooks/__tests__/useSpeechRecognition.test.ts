@@ -153,7 +153,9 @@ describe('createSpeechRecognitionSession', () => {
 
     session.toggle()
     expect(session.getSnapshot().isListening).toBe(false)
-    expect(session.getSnapshot().status).toBe('idle')
+    // Phase 2.6: stop with no transcript is ERROR (no silent READY), not idle.
+    expect(session.getSnapshot().status).toBe('error')
+    expect(session.getSnapshot().error).toBe('no-speech')
     session.dispose()
   })
 

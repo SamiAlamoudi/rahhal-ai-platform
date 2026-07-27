@@ -23,8 +23,21 @@ export async function queryMicrophonePermission(): Promise<MicrophonePermissionS
   return { state: 'prompt', error: null }
 }
 
+function browserSpeechRecognitionAvailable(): boolean {
+  if (typeof window === 'undefined') return false
+  const w = window as unknown as {
+    SpeechRecognition?: unknown
+    webkitSpeechRecognition?: unknown
+  }
+  return !!(w.SpeechRecognition || w.webkitSpeechRecognition)
+}
+
 export async function requestMicrophoneAccess(): Promise<MicrophonePermissionState> {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+    // SpeechRecognition-only browsers can still run STT without a getUserMedia probe.
+    if (browserSpeechRecognitionAvailable()) {
+      return { state: 'granted', error: null }
+    }
     return { state: 'unsupported', error: 'الميكروفون غير مدعوم في هذا الجهاز' }
   }
 
@@ -34,6 +47,14 @@ export async function requestMicrophoneAccess(): Promise<MicrophonePermissionSta
     return { state: 'granted', error: null }
   } catch (e) {
     const message = e instanceof Error ? e.message : 'تم رفض إذن الميكروفون'
+    const name = e instanceof DOMException ? e.name : ''
+    // No physical mic (or headless) but Web Speech STT exists — allow listening loop.
+    if (
+      browserSpeechRecognitionAvailable()
+      && (name === 'NotFoundError' || /Requested device not found|not found/i.test(message))
+    ) {
+      return { state: 'granted', error: null }
+    }
     return { state: 'denied', error: message }
   }
 }

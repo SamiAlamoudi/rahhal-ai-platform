@@ -13,6 +13,7 @@ import { buildAiHomeGreeting } from './greeting'
 import { listSuggestedPrompts } from './suggestedPrompts'
 import { buildTravelCards } from './travelCards'
 import type { AiHomeModel, HomeLocale } from './types'
+import { buildVoiceAwareChatNavigation } from './voiceEntryHandoff'
 
 export interface BuildAiHomeModelInput {
   locale?: HomeLocale
@@ -56,13 +57,31 @@ export function buildAiHomeModel(input: BuildAiHomeModelInput): AiHomeModel {
   }
 }
 
-/** Conversation entry target — Chat (Sprint 9 agent) with optional travel-conversation fallback. */
-export function conversationEntryPath(seedMessage: string): {
+export type ConversationEntryState = {
+  seedMessage: string
+  tripText: string
+  initialPrompt: string
+  /** When true, ChatPage continues as a real voice session (TTS + listen loop). */
+  startVoice?: boolean
+  /** Stable id for duplicate-final guards across home → chat. */
+  voiceTurnId?: string
+}
+
+/** Conversation entry target — Chat (Sprint 9 agent) with durable voice handoff. */
+export function conversationEntryPath(
+  seedMessage: string,
+  options?: { startVoice?: boolean },
+): {
   pathname: string
-  state: { seedMessage: string; tripText: string }
+  search: string
+  state: ConversationEntryState
 } {
+  const nav = buildVoiceAwareChatNavigation(seedMessage, {
+    startVoice: options?.startVoice === true,
+  })
   return {
-    pathname: '/chat',
-    state: { seedMessage, tripText: seedMessage },
+    pathname: nav.pathname,
+    search: nav.search,
+    state: nav.state,
   }
 }

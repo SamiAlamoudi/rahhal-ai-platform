@@ -24,6 +24,7 @@ import type {
   ConversationTimelineEvent,
 } from '../../lib/chat/conversationExperienceUi'
 import { safeMediaUrl } from '../../lib/ops/security/safeMediaUrl'
+import { thinkingEvidence } from '../../lib/chat/voice/thinkingStuckEvidence'
 
 interface MessageBubbleProps {
   message: ChatMessage
@@ -83,6 +84,25 @@ export default function MessageBubble({
     return metaSeed || message.content || ''
   }, [message.content, message.providerMeta])
   const streamingCardLimit = progressiveCardLimit(message.content.length)
+
+  if (message.role === 'assistant') {
+    thinkingEvidence('REACT_RENDER', {
+      conversationId: message.conversationId,
+      assistantMessageId: message.id,
+      reactState: {
+        waitingComponent: 'MessageBubble',
+        isStreaming: Boolean(isStreaming || message.status === 'streaming'),
+        assistantBubbleRendered: true,
+      },
+      meta: {
+        component: 'MessageBubble',
+        role: message.role,
+        status: message.status,
+        contentLen: message.content.length,
+        paintsAssistantBubble: true,
+      },
+    })
+  }
   const showResultCards =
     !isUser
     && (

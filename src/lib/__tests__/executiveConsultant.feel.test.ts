@@ -1,0 +1,164 @@
+/**
+ * Executive AI Travel Consultant — conversation feel regression.
+ * Live spine: planTurn → Conversation Brain (no architecture rewrite).
+ */
+import { beforeEach, describe, expect, it } from 'vitest'
+import { resetFeatureRegistry } from '../ai'
+import { createTravelAgentService } from '../agent/travelAgentService'
+import { RAHHAL_CONVERSATION_SYSTEM_PROMPT } from '../agent/conversationBrain'
+import type { ChatMessage } from '../chat/chatTypes'
+
+function user(content: string, conversationId = 'c-exec'): ChatMessage {
+  return {
+    id: `u-${Math.random().toString(36).slice(2, 8)}`,
+    conversationId,
+    role: 'user',
+    modality: 'text',
+    content,
+    audioUrl: null,
+    imageUrl: null,
+    attachments: [],
+    status: 'complete',
+    error: null,
+    providerMeta: {},
+    createdAt: '2026-07-15T00:00:00.000Z',
+    updatedAt: '2026-07-15T00:00:00.000Z',
+  }
+}
+
+describe('Executive AI Travel Consultant', () => {
+  beforeEach(() => resetFeatureRegistry())
+
+  it('system prompt owns the consultation (not a chatbot)', () => {
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Executive AI Travel Consultant|experienced human travel advisor/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/How can I help you today/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Never ask more than ONE|never more than ONE/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/never ask for known facts twice|Never re-ask/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/VALUE FIRST|Recommend when confidence is high/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/CURRENT GOAL/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Collect destination|Recommend flights|Compare hotels/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/RESPONSE CONTRACT|only acknowledges/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Advance the trip/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Collect information/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Recommend/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Confirm/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Execute/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/INFERENCE PRIORITY|Infer first/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Never ask a question if you can infer/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Ask only if uncertainty|uncertainty truly blocks/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/EXECUTION BEFORE EXPLANATION/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Search before asking/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Compare before asking/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Recommend before asking/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Do not ask permission|never ask permission/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/JOURNEY OPTIMIZATION|Never optimize a single reply/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/entire travel journey|overall trip/i)
+  })
+
+  it('never returns acknowledgement-only replies', async () => {
+    const service = createTravelAgentService()
+    const turn = await service.planTurn({
+      conversationId: 'c-ack',
+      messages: [user('Okay.', 'c-ack')],
+    })
+    const reply = turn.reply.trim()
+    expect(reply.length).toBeGreaterThan(25)
+    // Bare ack / filler alone is forbidden.
+    expect(reply.toLowerCase()).not.toMatch(/^(got it|understood|okay|ok|noted|sure|تمام|حسناً|مفهوم)[.!…]?\s*$/i)
+    // Must still move: question, recommendation cue, or concrete next step.
+    const advances =
+      /\?|؟/.test(reply)
+      || /flight|hotel|destination|budget|season|trip|خطة|وجهة|طيران|فندق|ميزانية/i.test(reply)
+    expect(advances).toBe(true)
+  })
+
+  it('Japan opener leads with seasonal value — not a bare When?', async () => {
+    const service = createTravelAgentService()
+    const turn = await service.planTurn({
+      conversationId: 'c-japan',
+      messages: [user('I want to travel to Japan.', 'c-japan')],
+    })
+    expect(turn.reply.toLowerCase()).not.toMatch(/^when do you want to travel\??$/)
+    expect(turn.reply.toLowerCase()).not.toMatch(/how can i help you today/)
+    expect(turn.reply.toLowerCase()).not.toMatch(/next question|please choose|select from/)
+    expect(turn.reply.toLowerCase()).not.toMatch(/would you like me to|shall i search|do you want me to (search|compare|recommend)/)
+    expect((turn.reply.match(/\?/g) ?? []).length).toBeLessThanOrEqual(1)
+    // Remembers destination and advances with value or a useful preference.
+    expect(turn.meta.memory?.requirements?.destination).toMatch(/Japan/i)
+    expect(turn.reply.length).toBeGreaterThan(40)
+  })
+
+  it('budget update advances the plan without restarting or robotic inventory phrases', async () => {
+    const service = createTravelAgentService()
+    const history: ChatMessage[] = [user('أريد السفر إلى المغرب.', 'c-budget')]
+    const t1 = await service.planTurn({ conversationId: 'c-budget', messages: history })
+    history.push({
+      ...user('a1', 'c-budget'),
+      id: 'a1',
+      role: 'assistant',
+      content: t1.reply,
+      providerMeta: t1.meta as unknown as Record<string, unknown>,
+    })
+    history.push(user('ميزانيتي حوالي 12000 ريال.', 'c-budget'))
+    const t2 = await service.planTurn({ conversationId: 'c-budget', messages: history })
+
+    expect(t2.meta.memory?.requirements?.destination).toMatch(/Morocco|المغرب/i)
+    expect(t2.meta.memory?.requirements?.budgetAmount).toBe(12000)
+    expect(t2.reply).not.toContain('عندي')
+    expect(t2.reply).not.toMatch(/اختر من التالي|قم بتعبئة|لدينا عرض/)
+    expect(t2.reply.toLowerCase()).not.toMatch(/how can i help you today/)
+    // Journey-level: budget update should retune more than echoing the number.
+    expect(t2.reply.toLowerCase()).not.toMatch(/^(got it[.!]?\s*)?(your )?budget (is|of) 12000/i)
+    expect(t2.reply.length).toBeGreaterThan(40)
+    expect((t2.reply.match(/\?/g) ?? []).length).toBeLessThanOrEqual(1)
+  })
+
+  it('infers duration instead of asking when destination is known', async () => {
+    const { generateLocalConversation, buildTravelFacts } = await import('../agent/conversationBrain')
+    const { emptyMemory, emptyRequirements } = await import('../agent/types')
+    const memory = emptyMemory('en')
+    memory.requirements = {
+      ...emptyRequirements(),
+      destination: 'Japan',
+      destinations: ['Japan'],
+    }
+    memory.missingFields = ['durationDays']
+    const facts = buildTravelFacts({
+      memory,
+      objective: 'collect_missing',
+      missingSlots: ['durationDays'],
+    })
+    const out = generateLocalConversation({
+      facts,
+      userMessage: 'Japan trip',
+      conversationId: 'c-infer-duration',
+    })
+    expect(out.displayText).toMatch(/5–7 day|roughly a week|set a|locked|recommend|assume/i)
+    expect(out.displayText).not.toMatch(/\?/)
+  })
+
+  it('executes flight/hotel guidance without asking permission', async () => {
+    const { generateLocalConversation, buildTravelFacts } = await import('../agent/conversationBrain')
+    const { emptyMemory, emptyRequirements } = await import('../agent/types')
+    const memory = emptyMemory('en')
+    memory.requirements = {
+      ...emptyRequirements(),
+      destination: 'Japan',
+      destinations: ['Japan'],
+      durationDays: 7,
+      budgetAmount: 12000,
+      budgetCurrency: 'SAR',
+    }
+    const facts = buildTravelFacts({
+      memory,
+      objective: 'advise',
+    })
+    const out = generateLocalConversation({
+      facts,
+      userMessage: 'Japan for a week with 12000 SAR',
+      conversationId: 'c-exec-first',
+    })
+    expect(out.displayText.toLowerCase()).not.toMatch(/would you like me to|shall i (search|compare|look)|do you want me to/)
+    expect(out.displayText).toMatch(/recommend|compared|searched|set |locked|morning|flight|hotel|central|default/i)
+  })
+})

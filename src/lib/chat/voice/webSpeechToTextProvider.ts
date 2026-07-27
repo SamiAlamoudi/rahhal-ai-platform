@@ -42,6 +42,8 @@ export function createWebSpeechToTextProvider(): SpeechToTextProvider {
   let finalTranscript = ''
   let intentionalStop = false
   let resultCursor = 0
+  /** Invalidate stale WebKit callbacks from a prior recognition instance. */
+  let recognitionEpoch = 0
 
   const provider: SpeechToTextProvider = {
     providerId: 'web-speech-stt',
@@ -49,7 +51,19 @@ export function createWebSpeechToTextProvider(): SpeechToTextProvider {
     async start(options: SpeechToTextStartOptions) {
       const Ctor = getSpeechRecognitionCtor()
       if (!Ctor) throw new Error('التعرف على الكلام غير مدعوم في هذا المتصفح')
-      detach(recognition)
+      // Dispose completed / prior instance before creating the next (Safari/WebKit).
+      const prev = recognition
+      recognitionEpoch += 1
+      const epoch = recognitionEpoch
+      detach(prev)
+      if (prev) {
+        try {
+          prev.abort()
+        } catch {
+          /* ignore */
+        }
+      }
+      recognition = null
       finalTranscript = ''
       intentionalStop = false
       resultCursor = 0
@@ -58,6 +72,7 @@ export function createWebSpeechToTextProvider(): SpeechToTextProvider {
       recognition.continuous = options.continuous
       recognition.interimResults = options.interimResults
       recognition.onresult = (event) => {
+        if (epoch !== recognitionEpoch) return
         let interim = ''
         let newFinals = ''
         const start = Math.max(event.resultIndex, resultCursor)
@@ -81,12 +96,14 @@ export function createWebSpeechToTextProvider(): SpeechToTextProvider {
         }
       }
       recognition.onerror = (event) => {
+        if (epoch !== recognitionEpoch) return
         const error = event.error || 'speech_recognition_error'
         if (intentionalStop && (error === 'aborted' || error === 'no-speech')) return
         logPipeline({ stage: 'stt', event: 'provider_error', message: error })
         provider.onError?.(error)
       }
       recognition.onend = () => {
+        if (epoch !== recognitionEpoch) return
         provider.onEnd?.()
       }
       try {
@@ -94,7 +111,7 @@ export function createWebSpeechToTextProvider(): SpeechToTextProvider {
         logPipeline({
           stage: 'stt',
           event: 'provider_started',
-          meta: { continuous: options.continuous, lang: recognition.lang },
+          meta: { continuous: options.continuous, lang: recognition.lang, epoch },
         })
       } catch (error) {
         logPipeline({
@@ -109,6 +126,7 @@ export function createWebSpeechToTextProvider(): SpeechToTextProvider {
     async stop() {
       intentionalStop = true
       const rec = recognition
+      const epoch = recognitionEpoch
       if (!rec) return finalTranscript.trim()
 
       return await new Promise<string>((resolve) => {
@@ -123,7 +141,7 @@ export function createWebSpeechToTextProvider(): SpeechToTextProvider {
         const previousOnEnd = rec.onend
         rec.onend = () => {
           try {
-            previousOnEnd?.()
+            if (epoch === recognitionEpoch) previousOnEnd?.()
           } finally {
             finish()
           }
@@ -140,6 +158,7 @@ export function createWebSpeechToTextProvider(): SpeechToTextProvider {
     },
     abort() {
       intentionalStop = true
+      recognitionEpoch += 1
       try {
         recognition?.abort()
       } catch {

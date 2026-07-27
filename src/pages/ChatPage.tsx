@@ -16,10 +16,18 @@ const VoicePanel = lazy(() =>
 )
 const VoiceComposer = lazy(() => import('../components/chat/VoiceComposer'))
 
+import { clearVoiceEntryHandoff, resolveChatEntrySeed } from '../lib/aiHome/voiceEntryHandoff'
 import { travelAgentService } from '../lib/agent/travelAgentService'
 import { detectAgentLocale } from '../lib/agent/locale'
 import type { TripPlan } from '../lib/agent/types'
 import { chatEngine } from '../lib/chat/chatEngine'
+import { voiceStage, voiceTrace } from '../lib/chat/voice/voiceDebugTrace'
+import {
+  armThinkingEvidence,
+  noteThinkingUiEntered,
+  setThinkingEvidenceContext,
+  thinkingEvidence,
+} from '../lib/chat/voice/thinkingStuckEvidence'
 import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
 import { validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
 import { isBenignChatError, logChatError } from '../lib/chat/chatLogger'
@@ -170,9 +178,57 @@ function LegacyChatPage() {
   const applyMessage = useCallback((message: ChatMessage) => {
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.id === message.id)
-      if (idx === -1) return [...prev, message]
-      const next = [...prev]
-      next[idx] = message
+      const next =
+        idx === -1
+          ? [...prev, message]
+          : (() => {
+              const copy = [...prev]
+              copy[idx] = message
+              return copy
+            })()
+      const assistantId =
+        message.role === 'assistant'
+          ? message.id
+          : [...next].reverse().find((m) => m.role === 'assistant')?.id ?? null
+      setThinkingEvidenceContext({
+        conversationId: activeIdRef.current,
+        messageCount: next.length,
+        assistantMessageId: assistantId,
+        reactState: {
+          activeId: activeIdRef.current,
+          messageRoles: next.map((m) => m.role).join(','),
+        },
+      })
+      thinkingEvidence(idx === -1 ? 'MESSAGE_ADDED' : 'CONVERSATION_UPDATED', {
+        conversationId: activeIdRef.current,
+        messageCount: next.length,
+        assistantMessageId: assistantId,
+        reactState: {
+          activeId: activeIdRef.current,
+          messageRoles: next.map((m) => `${m.role}:${m.status}`).join('|'),
+          waitingComponent: 'ChatPage.applyMessage→setMessages',
+        },
+        meta: {
+          op: idx === -1 ? 'insert' : 'update',
+          role: message.role,
+          status: message.status,
+          messageId: message.id,
+          contentLen: message.content.length,
+        },
+      })
+      if (message.role === 'assistant' && message.status === 'complete') {
+        thinkingEvidence('ASSISTANT_RENDERED', {
+          conversationId: activeIdRef.current,
+          messageCount: next.length,
+          assistantMessageId: message.id,
+          reactState: {
+            activeId: activeIdRef.current,
+            messageRoles: next.map((m) => `${m.role}:${m.status}`).join('|'),
+            waitingComponent: 'ChatPage.applyMessage(assistant complete in state)',
+          },
+          meta: { phase: 'react_state_has_assistant_complete', contentLen: message.content.length },
+        })
+      }
       return next
     })
   }, [])
@@ -420,7 +476,22 @@ function LegacyChatPage() {
     let disposed = false
     let session: VoiceSession | null = null
     void buildVoiceSession({
-      onStatus: setVoiceStatus,
+      onStatus: (status) => {
+        setVoiceStatus(status)
+        thinkingEvidence('STATE_CHANGED', {
+          conversationId: activeIdRef.current,
+          messageCount: null,
+          reactState: {
+            voiceStatus: status,
+            activeId: activeIdRef.current,
+            waitingComponent:
+              status === 'thinking'
+                ? 'ChatPage.setVoiceStatus←VoiceSession (Thinking badge)'
+                : 'ChatPage.setVoiceStatus←VoiceSession',
+          },
+          meta: { source: 'ChatPage.voice.onStatus' },
+        })
+      },
       onPartialTranscript: setPartialTranscript,
       onFinalTranscript: setPartialTranscript,
       onLevel: setVoiceLevel,
@@ -435,8 +506,26 @@ function LegacyChatPage() {
       onAssistantCreate: upsertMessage,
       onDelta: upsertMessage,
       onComplete: (message) => {
+        thinkingEvidence('ASSISTANT_RENDERED', {
+          conversationId: activeIdRef.current,
+          assistantMessageId: message.id,
+          reactState: {
+            activeId: activeIdRef.current,
+            waitingComponent: 'ChatPage.voice.onComplete→upsertMessage',
+          },
+          meta: { phase: 'ui_onComplete_received', contentLen: message.content.length },
+        })
         upsertMessage(message)
         void loadConversations(activeIdRef.current)
+        thinkingEvidence('CONVERSATION_UPDATED', {
+          conversationId: activeIdRef.current,
+          assistantMessageId: message.id,
+          reactState: {
+            activeId: activeIdRef.current,
+            waitingComponent: 'ChatPage.voice.onComplete→loadConversations',
+          },
+          meta: { phase: 'loadConversations_scheduled' },
+        })
       },
       onStreamError: (message, error) => {
         upsertMessage(message)
@@ -811,37 +900,280 @@ function LegacyChatPage() {
     setThemePreference(order[(idx + 1) % order.length])
   }
 
-  // Sprint 16 — seed conversation from AI Home (location.state.seedMessage or ?seed=)
+  // Sprint 16 / Phase 2.4 — seed from AI Home (text CTA or voice auto-submit).
+  // iPhone Safari often drops location.state — also read query + sessionStorage.
   useEffect(() => {
     if (seedConsumedRef.current || listLoading || !online) return
-    const state = location.state as { seedMessage?: string; tripText?: string } | null
-    const stateSeed = state?.seedMessage ?? state?.tripText
-    const querySeed = new URLSearchParams(location.search).get('seed')
-    const seed = (stateSeed || querySeed || '').trim()
-    if (!seed) return
+    const state = location.state as {
+      seedMessage?: string
+      tripText?: string
+      initialPrompt?: string
+      startVoice?: boolean
+      voiceTurnId?: string
+    } | null
+    const resolved = resolveChatEntrySeed({ state, search: location.search })
+    const seed = resolved.seed
+    const voiceIntent =
+      resolved.startVoice
+      || new URLSearchParams(location.search).get('startVoice') === '1'
+      || Boolean(state?.startVoice)
+
+    if (!seed) {
+      if (voiceIntent) {
+        seedConsumedRef.current = true
+        clearVoiceEntryHandoff()
+        voiceStage({
+          stage: 'FAILURE',
+          success: false,
+          turnId: resolved.turnId,
+          reason: 'chat_entry_missing_seed',
+          previousState: 'SUBMITTING',
+          currentState: 'ERROR',
+          recoveryAction: 'return_home_retry_voice',
+          meta: {
+            failedStage: 'VOICE_SUBMIT',
+            handoffSource: resolved.source,
+          },
+        })
+        setActionError('تعذر استلام الرسالة الصوتية — ارجع للرئيسية وأعد المحاولة.')
+      }
+      return
+    }
 
     seedConsumedRef.current = true
+    const startVoice = resolved.startVoice || voiceIntent
+    const turnId = resolved.turnId
+    clearVoiceEntryHandoff()
+    armThinkingEvidence({ threadId: turnId })
+    setThinkingEvidenceContext({
+      threadId: turnId,
+      reactState: { composerMode: startVoice ? 'voice' : 'text', sending: true },
+    })
+    voiceStage({
+      stage: 'VOICE_SUBMIT',
+      turnId,
+      transcriptLen: seed.length,
+      preview: seed,
+      previousState: 'SUBMITTING',
+      currentState: 'SUBMITTING',
+      meta: { handoffSource: resolved.source, startVoice, phase: 'chat_entry_seed' },
+    })
 
     void (async () => {
       try {
+        if (startVoice) {
+          setComposerMode('voice')
+          setVoiceMode('hands_free')
+          setVoiceLocale('ar')
+        }
         const created = await chatEngine.createConversation()
+        setThinkingEvidenceContext({
+          threadId: turnId,
+          conversationId: created.id,
+        })
+        thinkingEvidence('CONVERSATION_UPDATED', {
+          threadId: turnId,
+          conversationId: created.id,
+          messageCount: 0,
+          reactState: {
+            activeId: created.id,
+            composerMode: startVoice ? 'voice' : 'text',
+            waitingComponent: 'ChatPage.seed→createConversation',
+          },
+          meta: { phase: 'conversation_created' },
+        })
+        voiceStage({
+          stage: 'MESSAGE_CREATED',
+          turnId,
+          conversationId: created.id,
+          previousState: 'SUBMITTING',
+          currentState: 'THINKING',
+          meta: { phase: 'conversation_created' },
+        })
+        voiceTrace({
+          event: 'conversation_id',
+          turnId,
+          conversationId: created.id,
+        })
         setConversations((prev) => [created, ...prev])
         selectConversation(created.id)
         navigate({ pathname: '/chat', search: buildChatSearch(created.id, '') }, { replace: true, state: {} })
         setDraft('')
+
+        if (startVoice) {
+          // Wait for VoiceSession mount (composerMode=voice effect).
+          let session = voiceRef.current
+          for (let i = 0; i < 60 && !session; i += 1) {
+            await new Promise((r) => setTimeout(r, 50))
+            session = voiceRef.current
+          }
+          if (session?.beginContinuousWithSeed) {
+            setSending(true)
+            try {
+              thinkingEvidence('CHAT_REQUEST', {
+                threadId: turnId,
+                conversationId: created.id,
+                reactState: {
+                  voiceStatus: 'thinking',
+                  sending: true,
+                  composerMode: 'voice',
+                  activeId: created.id,
+                  waitingComponent: 'ChatPage.seed→beginContinuousWithSeed',
+                },
+                meta: { path: 'beginContinuousWithSeed' },
+              })
+              voiceStage({
+                stage: 'CHAT_REQUEST',
+                turnId,
+                conversationId: created.id,
+                transcriptLen: seed.length,
+                preview: seed,
+                previousState: 'THINKING',
+                currentState: 'THINKING',
+                meta: { path: 'beginContinuousWithSeed' },
+              })
+              voiceTrace({
+                event: 'chat_engine_started',
+                turnId,
+                conversationId: created.id,
+                meta: { path: 'beginContinuousWithSeed' },
+              })
+              // Same chatEngine path as typed turns; speaks reply then resumes listening.
+              const assistant = await session.beginContinuousWithSeed(created.id, seed)
+              thinkingEvidence('CHAT_RESPONSE', {
+                threadId: turnId,
+                conversationId: created.id,
+                assistantMessageId: assistant?.id ?? null,
+                reactState: {
+                  sending: true,
+                  composerMode: 'voice',
+                  activeId: created.id,
+                  waitingComponent: 'ChatPage.seed←beginContinuousWithSeed returned',
+                },
+                meta: {
+                  path: 'beginContinuousWithSeed',
+                  hasAssistant: !!assistant,
+                  assistantLen: assistant?.content.length ?? 0,
+                },
+              })
+              voiceTrace({
+                event: 'chat_engine_completed',
+                turnId,
+                conversationId: created.id,
+                meta: { path: 'beginContinuousWithSeed', hasAssistant: !!assistant },
+              })
+              await loadDetail(created.id)
+              void loadConversations(created.id)
+              thinkingEvidence('CONVERSATION_UPDATED', {
+                threadId: turnId,
+                conversationId: created.id,
+                assistantMessageId: assistant?.id ?? null,
+                reactState: {
+                  activeId: created.id,
+                  waitingComponent: 'ChatPage.seed→loadDetail',
+                },
+                meta: { phase: 'post_seed_loadDetail' },
+              })
+              if (!assistant) {
+                voiceStage({
+                  stage: 'FAILURE',
+                  success: false,
+                  turnId,
+                  conversationId: created.id,
+                  reason: 'chat_request_returned_null',
+                  previousState: 'THINKING',
+                  currentState: 'ERROR',
+                  recoveryAction: 'retry_voice_or_type',
+                  meta: { failedStage: 'CHAT_RESPONSE', path: 'beginContinuousWithSeed' },
+                })
+                setActionError('تعذر إرسال الرسالة الصوتية — أعد المحاولة أو اكتب طلبك.')
+              }
+            } finally {
+              setSending(false)
+            }
+            return
+          }
+          voiceStage({
+            stage: 'FAILURE',
+            success: false,
+            turnId,
+            conversationId: created.id,
+            reason: 'voice_session_not_ready_fallback_sendMessage',
+            previousState: 'THINKING',
+            currentState: 'THINKING',
+            recoveryAction: 'fallback_text_send',
+            meta: { failedStage: 'CHAT_REQUEST', recoverable: true },
+          })
+        }
+
+        // Text path, or voice session not ready — still commit via ChatEngine (never drop seed).
+        voiceStage({
+          stage: 'CHAT_REQUEST',
+          turnId,
+          conversationId: created.id,
+          transcriptLen: seed.length,
+          preview: seed,
+          previousState: 'THINKING',
+          currentState: 'THINKING',
+          meta: { path: 'sendMessage', startVoice },
+        })
+        voiceTrace({
+          event: 'chat_engine_started',
+          turnId,
+          conversationId: created.id,
+          meta: { path: 'sendMessage', startVoice },
+        })
         await runGeneration(async (handlers) => {
           const result = await chatEngine.sendMessage({
             conversationId: created.id,
             content: seed,
-            modality: 'text',
+            modality: startVoice ? 'audio' : 'text',
           }, handlers)
+          voiceTrace({
+            event: 'user_message_committed',
+            turnId,
+            conversationId: created.id,
+            transcriptLen: result.user.content.length,
+          })
+          voiceTrace({
+            event: 'assistant_message_committed',
+            turnId,
+            conversationId: created.id,
+            transcriptLen: result.assistant.content.length,
+          })
           setMessages((prev) => {
             const withoutAssistant = prev.filter((m) => m.id !== result.assistant.id)
             return [...withoutAssistant, result.user, result.assistant]
           })
         })
+        voiceTrace({
+          event: 'chat_engine_completed',
+          turnId,
+          conversationId: created.id,
+          meta: { path: 'sendMessage' },
+        })
+        if (startVoice && voiceRef.current) {
+          // Speak the latest assistant reply then enter continuous listening.
+          const detail = await chatEngine.getConversationDetail(created.id)
+          const lastAssistant = [...detail.messages].reverse().find((m) => m.role === 'assistant')
+          if (lastAssistant?.content) {
+            await voiceRef.current.speakText(lastAssistant.content)
+          }
+          await voiceRef.current.startHandsFree(created.id)
+          voiceTrace({
+            event: 'listening_resumed',
+            turnId,
+            conversationId: created.id,
+            meta: { path: 'fallback_startHandsFree' },
+          })
+        }
       } catch (e) {
         logChatError('chat.seed', e)
+        voiceTrace({
+          event: 'failure',
+          turnId,
+          reason: e instanceof Error ? e.message : 'seed_failed',
+        })
         setActionError(e instanceof Error ? e.message : 'تعذر بدء المحادثة')
       }
     })()
@@ -951,6 +1283,35 @@ function LegacyChatPage() {
             : !online
               ? 'offline'
               : 'ready'
+
+  // Evidence: prove whether React keeps painting “Thinking…” and with what state.
+  if (voiceUiState === 'thinking') {
+    noteThinkingUiEntered('VoiceStateBadge (Thinking…)')
+  }
+  thinkingEvidence('REACT_RENDER', {
+    conversationId: activeId,
+    messageCount: messages.length,
+    assistantMessageId: [...messages].reverse().find((m) => m.role === 'assistant')?.id ?? null,
+    reactState: {
+      voiceStatus,
+      voiceUiState,
+      sending,
+      composerMode,
+      isStreaming,
+      activeId,
+      waitingComponent:
+        voiceUiState === 'thinking'
+          ? 'VoiceStateBadge (label=Thinking) / VoiceComposer'
+          : sending
+            ? 'ChatPage.sending=true'
+            : 'ChatPage.render',
+      messageRoles: messages.map((m) => `${m.role}:${m.status}`).join('|') || null,
+      assistantBubbleRendered: messages.some(
+        (m) => m.role === 'assistant' && m.status !== 'streaming' && m.content.trim().length > 0,
+      ),
+    },
+    meta: { component: 'LegacyChatPage' },
+  })
 
   const chatHeaderTrailing = (
     <div className="flex shrink-0 items-center gap-2">
@@ -1251,7 +1612,13 @@ function LegacyChatPage() {
                       if (voiceMode === 'hands_free') void handleToggleHandsFree()
                       else void handlePushStart()
                     }}
-                    onToggleMute={() => setVoiceMuted((v) => !v)}
+                    onToggleMute={() => {
+                      setVoiceMuted((v) => {
+                        const next = !v
+                        voiceRef.current?.setMuted(next)
+                        return next
+                      })
+                    }}
                   />
                 </Suspense>
               ) : null}

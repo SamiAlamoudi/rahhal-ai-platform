@@ -6,6 +6,10 @@
 import type { AgentLocale, AgentMemory, TripPlan, TripRequirements } from '../types'
 import type { AgentToolRunSummary } from '../types'
 import type { PlanningDraft } from '../planningDraft/types'
+import {
+  deriveExecutiveCurrentGoal,
+  type ExecutiveCurrentGoal,
+} from './executiveCurrentGoal'
 
 export type ConversationObjective =
   | 'greet_or_continue'
@@ -18,6 +22,8 @@ export type ConversationObjective =
   | 'confirm_understanding'
   | 'explain_unavailable'
   | 'general'
+
+export type { ExecutiveCurrentGoal }
 
 export interface TravelFactsFlight {
   from: string
@@ -47,7 +53,13 @@ export interface TravelFactsDay {
 
 export interface TravelFacts {
   locale: AgentLocale
+  /** Internal Conversation Brain routing objective. */
   objective: ConversationObjective
+  /**
+   * Executive consultation Current Goal — exactly one of five funnel stages.
+   * The consultant turn must advance this goal.
+   */
+  currentGoal: ExecutiveCurrentGoal
   known: Partial<{
     destination: string
     destinations: string[]
@@ -227,7 +239,7 @@ export function buildTravelFacts(input: {
     if (alternatives.length) planFacts.alternatives = alternatives
     if (nextAction) planFacts.nextAction = nextAction
   }
-  return {
+  const factsWithoutGoal: Omit<TravelFacts, 'currentGoal'> = {
     locale: input.memory.locale,
     objective: input.objective,
     known: buildKnownFromRequirements(input.memory.requirements),
@@ -243,5 +255,9 @@ export function buildTravelFacts(input: {
     savedTitle: input.savedTitle,
     phase: input.memory.phase,
     lastIntent: input.memory.lastIntent,
+  }
+  return {
+    ...factsWithoutGoal,
+    currentGoal: deriveExecutiveCurrentGoal(factsWithoutGoal),
   }
 }

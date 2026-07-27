@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
+import { voiceStage } from '../lib/chat/voice/voiceDebugTrace'
 
 export type SpeechRecognitionStatus =
   | 'idle'
@@ -56,6 +57,12 @@ export const DEFAULT_MAX_LISTEN_MS = 60_000
 
 /** Brief delay before restarting after an unexpected browser end (WebKit). */
 const RESTART_DELAY_MS = 160
+
+/**
+ * After STT_START, if no onresult arrives, end with FAILURE.
+ * Prevents Safari no-speech restart loops that never reach FINAL_RESULT.
+ */
+export const DEFAULT_NO_RESULT_WATCHDOG_MS = 8_000
 
 export type UseSpeechRecognitionOptions = {
   /** Called with the full session transcript when listening ends. Never auto-sends. */
@@ -181,6 +188,8 @@ export type SpeechRecognitionSessionOptions = {
   lang?: SpeechLang
   silenceMs?: number
   maxListenMs?: number
+  /** Fail session if no speech result after STT_START (default 8000). */
+  noResultWatchdogMs?: number
   /** Inject ctor for tests. */
   getCtor?: () => SpeechRecognitionCtor | null
   /** Inject language detection for tests. */
@@ -196,6 +205,7 @@ export function createSpeechRecognitionSession(
 ) {
   let silenceMs = options.silenceMs ?? DEFAULT_SILENCE_MS
   let maxListenMs = options.maxListenMs ?? DEFAULT_MAX_LISTEN_MS
+  let noResultWatchdogMs = options.noResultWatchdogMs ?? DEFAULT_NO_RESULT_WATCHDOG_MS
   let langOverride = options.lang
   const getCtor = options.getCtor ?? getSpeechRecognitionCtor
   const detectLang = options.detectLang ?? (() => langOverride ?? detectSpeechLang())
@@ -217,8 +227,15 @@ export function createSpeechRecognitionSession(
   let silenceTimer: ReturnType<typeof setTimeout> | null = null
   let maxTimer: ReturnType<typeof setTimeout> | null = null
   let restartTimer: ReturnType<typeof setTimeout> | null = null
+  let noResultTimer: ReturnType<typeof setTimeout> | null = null
+  let onStartWatchdog: ReturnType<typeof setTimeout> | null = null
   let interimBuffer = ''
   let finalBuffer = ''
+  /** Last non-empty transcript seen in this session (interim or final). */
+  let lastHeardTranscript = ''
+  let sawFinalChunk = false
+  let sttStarted = false
+  let pendingCommitReason: string | null = null
   let delivered = false
   let cancelled = false
   let disposed = false
@@ -283,10 +300,57 @@ export function createSpeechRecognitionSession(
     }
   }
 
+  const clearNoResultTimer = () => {
+    if (noResultTimer) {
+      clearTimeout(noResultTimer)
+      noResultTimer = null
+    }
+  }
+
+  const clearOnStartWatchdog = () => {
+    if (onStartWatchdog) {
+      clearTimeout(onStartWatchdog)
+      onStartWatchdog = null
+    }
+  }
+
   const clearTimers = () => {
     clearSilenceTimer()
     clearMaxTimer()
     clearRestartTimer()
+    clearNoResultTimer()
+    clearOnStartWatchdog()
+  }
+
+  const failStage = (reason: string, recoveryAction: string, errorKind: SpeechRecognitionErrorKind = 'no-speech') => {
+    const mapped = mapError(
+      errorKind === 'timeout'
+        ? 'timeout'
+        : errorKind === 'no-speech'
+          ? 'no-speech'
+          : errorKind === 'permission-denied'
+            ? 'not-allowed'
+            : 'network',
+    )
+    error = errorKind
+    errorMessage = mapped.message
+    status = mapped.status === 'idle' ? 'error' : mapped.status
+    voiceStage({
+      stage: 'FAILURE',
+      success: false,
+      reason,
+      previousState: 'LISTENING',
+      currentState: 'ERROR',
+      recoveryAction,
+      transcriptLen: lastHeardTranscript.length || finalBuffer.length || undefined,
+      preview: lastHeardTranscript || finalBuffer || undefined,
+      meta: {
+        failedStage: 'FINAL_RESULT',
+        heardSpeech,
+        sttStarted,
+        sawFinalChunk,
+      },
+    })
   }
 
   const commitInterimToFinal = () => {
@@ -298,31 +362,111 @@ export function createSpeechRecognitionSession(
     }
     finalBuffer = `${finalBuffer} ${piece}`.trim()
     finalTranscript = finalBuffer
+    lastHeardTranscript = finalBuffer
     interimBuffer = ''
     interimTranscript = ''
   }
 
-  const sessionTranscript = () =>
-    [finalBuffer, interimBuffer].filter(Boolean).join(' ').trim()
-
-  const deliverResult = (transcript: string) => {
-    if (delivered || cancelled) return
-    delivered = true
-    const trimmed = transcript.trim()
-    if (trimmed) {
-      finalTranscript = trimmed
-      onResult?.(trimmed)
-      emit()
-    }
+  const resolveDeliverableTranscript = () => {
+    const fromBuffers = [finalBuffer, interimBuffer].filter(Boolean).join(' ').trim()
+    if (fromBuffers) return fromBuffers
+    return lastHeardTranscript.trim()
   }
 
-  const endListeningSession = (opts?: { errorKind?: SpeechRecognitionErrorKind }) => {
+  const sessionTranscript = () => resolveDeliverableTranscript()
+
+  /**
+   * Deliver a final transcript to the consumer, or FAILURE if none.
+   * Never silently marks delivered without onResult or an error stage.
+   */
+  const deliverResult = (transcript: string, commitReason: string) => {
+    if (delivered || cancelled) return
+
+    const trimmed = (transcript || resolveDeliverableTranscript()).trim()
+    if (!trimmed) {
+      delivered = true
+      // Never started listening — idle without pretending success.
+      if (!sttStarted && !heardSpeech) {
+        status = 'idle'
+        emit()
+        return
+      }
+      const reason =
+        commitReason === 'stt_no_result_watchdog' || commitReason === 'stt_onstart_never_fired'
+          ? commitReason
+          : heardSpeech
+            ? 'empty_transcript_after_final'
+            : 'final_result_never_arrived'
+      const recoverableEmptyAuto =
+        !heardSpeech
+        && (reason === 'stt_no_result_watchdog' || reason === 'stt_onstart_never_fired')
+      if (error == null) {
+        failStage(
+          reason,
+          'retry_mic_speak_clearly_or_type',
+          heardSpeech ? 'recognition-failure' : 'no-speech',
+        )
+      } else {
+        voiceStage({
+          stage: 'FAILURE',
+          success: false,
+          reason,
+          previousState: 'LISTENING',
+          currentState: recoverableEmptyAuto ? 'IDLE' : 'ERROR',
+          recoveryAction: 'retry_mic_speak_clearly_or_type',
+          meta: {
+            failedStage: 'FINAL_RESULT',
+            priorError: error,
+            commitReason,
+            heardSpeech,
+            sttStarted,
+          },
+        })
+        if (!recoverableEmptyAuto && (status === 'listening' || status === 'idle')) {
+          status = 'error'
+        }
+      }
+      // Empty automatic restart / watchdog: return to idle (READY equivalent),
+      // never trap the mic in permanent ERROR.
+      if (recoverableEmptyAuto) {
+        status = 'idle'
+        error = null
+        errorMessage = null
+      }
+      emit()
+      return
+    }
+
+    delivered = true
+    finalTranscript = trimmed
+    finalBuffer = trimmed
+    const soft = !sawFinalChunk
+    voiceStage({
+      stage: 'FINAL_RESULT',
+      transcriptLen: trimmed.length,
+      preview: trimmed,
+      previousState: 'LISTENING',
+      currentState: 'FINAL_TRANSCRIPT',
+      meta: {
+        commitReason,
+        isSoftFinal: soft,
+        source: soft ? 'soft_final_interim_or_buffer' : 'recognition_final_or_buffer',
+      },
+    })
+    onResult?.(trimmed)
+    emit()
+  }
+
+  const endListeningSession = (opts?: {
+    errorKind?: SpeechRecognitionErrorKind
+    commitReason?: string
+  }) => {
     listeningDesired = false
     clearTimers()
     commitInterimToFinal()
-    const text = finalBuffer.trim()
+    const text = resolveDeliverableTranscript()
     if (!cancelled) {
-      deliverResult(text)
+      deliverResult(text, opts?.commitReason ?? 'end_listening_session')
     }
     recognition = null
     if (activeOwnerId === ownerId) {
@@ -331,7 +475,20 @@ export function createSpeechRecognitionSession(
     }
     interimTranscript = ''
     interimBuffer = ''
-    if (opts?.errorKind) {
+    const recoverableWatchdog =
+      !heardSpeech
+      && (
+        opts?.commitReason === 'stt_no_result_watchdog'
+        || opts?.commitReason === 'stt_onstart_never_fired'
+      )
+    if (recoverableWatchdog) {
+      // Empty automatic restart: stay idle (READY equivalent), not permanent ERROR.
+      status = 'idle'
+      error = null
+      errorMessage = null
+    } else if (finalTranscript.trim() && delivered && error == null) {
+      status = 'idle'
+    } else if (opts?.errorKind && status !== 'error' && status !== 'permission-denied') {
       const mapped = mapError(
         opts.errorKind === 'timeout'
           ? 'timeout'
@@ -341,8 +498,8 @@ export function createSpeechRecognitionSession(
       )
       error = opts.errorKind
       errorMessage = mapped.message
-      status = mapped.status === 'idle' ? 'idle' : mapped.status
-    } else if (status === 'listening' || status === 'idle') {
+      status = mapped.status === 'idle' ? 'error' : mapped.status
+    } else if (status === 'listening' && error == null) {
       status = 'idle'
     }
     emit()
@@ -383,6 +540,7 @@ export function createSpeechRecognitionSession(
       if (!heardSpeech) return
       // Longer silence → end session (do not restart).
       listeningDesired = false
+      pendingCommitReason = 'silence_gate'
       try {
         recognition?.stop()
       } catch {
@@ -390,7 +548,7 @@ export function createSpeechRecognitionSession(
       }
       // If recognition already gone, finish now.
       if (!recognition) {
-        endListeningSession()
+        endListeningSession({ commitReason: 'silence_gate' })
       }
     }, silenceMs)
   }
@@ -440,12 +598,49 @@ export function createSpeechRecognitionSession(
 
     next.onstart = () => {
       if (!listeningDesired) return
+      clearOnStartWatchdog()
+      sttStarted = true
       status = 'listening'
       error = null
       errorMessage = null
       emit()
+      voiceStage({
+        stage: 'STT_START',
+        previousState: 'LISTENING',
+        currentState: 'LISTENING',
+        meta: { lang, continuous: next.continuous },
+      })
+      // Watchdog: STT_START with no INTERIM/FINAL must not loop forever.
+      clearNoResultTimer()
+      if (!heardSpeech) {
+        noResultTimer = setTimeout(() => {
+          noResultTimer = null
+          if (!listeningDesired || heardSpeech || delivered || cancelled) return
+          listeningDesired = false
+          pendingCommitReason = 'stt_no_result_watchdog'
+          try {
+            recognition?.stop()
+          } catch {
+            /* ignore */
+          }
+          if (!recognition) {
+            endListeningSession({
+              errorKind: 'no-speech',
+              commitReason: 'stt_no_result_watchdog',
+            })
+          } else {
+            setTimeout(() => {
+              if (!delivered && !cancelled) {
+                endListeningSession({
+                  errorKind: 'no-speech',
+                  commitReason: 'stt_no_result_watchdog',
+                })
+              }
+            }, 350)
+          }
+        }, noResultWatchdogMs)
+      }
       // Do NOT arm silence on start — waiting to begin speaking must not auto-stop.
-      // Silence arms only after the first speech result (see onresult).
     }
 
     next.onresult = (event) => {
@@ -460,16 +655,44 @@ export function createSpeechRecognitionSession(
       }
       if (finalChunk) {
         // Append — never replace prior finals in this session.
+        sawFinalChunk = true
         finalBuffer = `${finalBuffer} ${finalChunk}`.trim()
         finalTranscript = finalBuffer
+        lastHeardTranscript = finalBuffer
+        // Engine-level final chunk (session deliver still happens on end/silence).
+        voiceStage({
+          stage: 'FINAL_RESULT',
+          transcriptLen: finalBuffer.length,
+          preview: finalBuffer,
+          previousState: 'LISTENING',
+          currentState: 'LISTENING',
+          meta: {
+            source: 'webkit_or_speech_recognition',
+            isFinal: true,
+            commitReason: 'recognition_is_final_chunk',
+            sessionDeliverPending: true,
+          },
+        })
       }
       interimBuffer = interim
       interimTranscript = interim
-      onInterim?.([finalBuffer, interim].filter(Boolean).join(' ').trim())
+      const live = [finalBuffer, interim].filter(Boolean).join(' ').trim()
+      if (live) lastHeardTranscript = live
+      onInterim?.(live)
       emit()
       if (finalChunk || interim) {
         heardSpeech = true
+        clearNoResultTimer()
         bumpSilenceTimer()
+        if (interim && !finalChunk) {
+          voiceStage({
+            stage: 'INTERIM_RESULT',
+            transcriptLen: interim.length,
+            preview: interim,
+            previousState: 'LISTENING',
+            currentState: 'LISTENING',
+          })
+        }
       }
     }
 
@@ -487,7 +710,7 @@ export function createSpeechRecognitionSession(
       }
 
       // Safari often ends a non-continuous turn with no-speech; keep listeningDesired
-      // and let onend restart so short pauses do not kill the session.
+      // and let onend soft-final (interim) or restart (isFinal accumulation).
       if (event.error === 'no-speech' && listeningDesired) {
         return
       }
@@ -495,14 +718,24 @@ export function createSpeechRecognitionSession(
       listeningDesired = false
       clearSilenceTimer()
       clearRestartTimer()
+      clearNoResultTimer()
       const mapped = mapError(event.error)
       error = mapped.kind
       errorMessage = mapped.message
       status = mapped.status === 'idle' ? 'idle' : mapped.status
+      voiceStage({
+        stage: 'FAILURE',
+        success: false,
+        reason: event.error || mapped.kind,
+        previousState: 'LISTENING',
+        currentState: 'ERROR',
+        recoveryAction: 'retry_mic_or_type',
+        meta: { mappedKind: mapped.kind, failedStage: 'STT_START' },
+      })
       if (mapped.kind === 'timeout') {
-        deliverResult(sessionTranscript())
+        deliverResult(sessionTranscript(), 'error_timeout')
       } else if (mapped.kind === 'no-speech') {
-        deliverResult(finalBuffer)
+        deliverResult(resolveDeliverableTranscript(), 'error_no_speech')
       }
       emit()
     }
@@ -522,7 +755,26 @@ export function createSpeechRecognitionSession(
       }
 
       if (listeningDesired) {
-        // Unexpected browser end while mic still active → continuous restart.
+        const text = resolveDeliverableTranscript()
+        // Safari/WebKit often never sets isFinal — only interim — then ends the turn.
+        // Restarting here drops the pipeline into limbo (STT_START, no CHAT_REQUEST).
+        // Soft-final the utterance so FINAL_RESULT → onResult → submit can proceed.
+        if (heardSpeech && text && !sawFinalChunk) {
+          listeningDesired = false
+          clearTimers()
+          deliverResult(text, 'soft_final_webkit_interim_end')
+          if (error == null) status = 'idle'
+          interimTranscript = ''
+          interimBuffer = ''
+          emit()
+          return
+        }
+
+        // Real isFinal chunks: keep listening across unexpected browser ends until silence/stop.
+        // Ensure silence gate is armed so we cannot restart forever without a final deliver.
+        if (heardSpeech && text && !silenceTimer) {
+          bumpSilenceTimer()
+        }
         status = 'listening'
         emit()
         clearRestartTimer()
@@ -535,8 +787,10 @@ export function createSpeechRecognitionSession(
       }
 
       // Intentional end: Stop, silence, or hard timeout already cleared listeningDesired.
-      deliverResult(finalBuffer)
-      if (status === 'listening') {
+      const reason = pendingCommitReason ?? 'intentional_recognition_end'
+      pendingCommitReason = null
+      deliverResult(resolveDeliverableTranscript(), reason)
+      if (status === 'listening' && error == null) {
         status = 'idle'
       }
       interimTranscript = ''
@@ -547,6 +801,23 @@ export function createSpeechRecognitionSession(
     recognition = next
     activeOwnerId = ownerId
     activeRecognition = next
+
+    // If onstart never fires (some WebKit builds), fail instead of hanging.
+    clearOnStartWatchdog()
+    onStartWatchdog = setTimeout(() => {
+      onStartWatchdog = null
+      if (!listeningDesired || sttStarted || delivered || cancelled) return
+      listeningDesired = false
+      try {
+        recognition?.abort()
+      } catch {
+        /* ignore */
+      }
+      endListeningSession({
+        errorKind: 'recognition-failure',
+        commitReason: 'stt_onstart_never_fired',
+      })
+    }, 2_500)
 
     try {
       next.start()
@@ -572,6 +843,15 @@ export function createSpeechRecognitionSession(
       status = 'error'
       error = 'recognition-failure'
       errorMessage = 'Could not start speech recognition.'
+      voiceStage({
+        stage: 'FAILURE',
+        success: false,
+        reason: 'stt_start_threw',
+        previousState: 'LISTENING',
+        currentState: 'ERROR',
+        recoveryAction: 'retry_mic_or_type',
+        meta: { failedStage: 'STT_START' },
+      })
       emit()
       return false
     }
@@ -604,6 +884,10 @@ export function createSpeechRecognitionSession(
     lang = detectLang()
     interimBuffer = ''
     finalBuffer = ''
+    lastHeardTranscript = ''
+    sawFinalChunk = false
+    sttStarted = false
+    pendingCommitReason = null
     delivered = false
     cancelled = false
     listeningDesired = true
@@ -629,7 +913,7 @@ export function createSpeechRecognitionSession(
         /* ignore */
       }
       if (!recognition) {
-        endListeningSession({ errorKind: 'timeout' })
+        endListeningSession({ errorKind: 'timeout', commitReason: 'stt_max_listen_timeout' })
       }
     }, maxListenMs)
 
@@ -651,21 +935,21 @@ export function createSpeechRecognitionSession(
     }
 
     if (!recognition) {
-      endListeningSession()
+      endListeningSession({ commitReason: 'manual_stop' })
       return
     }
 
     try {
       recognition.stop()
     } catch {
-      endListeningSession()
+      endListeningSession({ commitReason: 'manual_stop' })
       return
     }
 
     // Fallback if onend is delayed (some WebKit builds).
     setTimeout(() => {
       if (status === 'listening' && !listeningDesired) {
-        endListeningSession()
+        endListeningSession({ commitReason: 'manual_stop_onend_fallback' })
       }
     }, 300)
   }
@@ -720,12 +1004,14 @@ export function createSpeechRecognitionSession(
     lang?: SpeechLang
     silenceMs?: number
     maxListenMs?: number
+    noResultWatchdogMs?: number
   }) => {
     onResult = next.onResult
     onInterim = next.onInterim
     if (next.lang !== undefined) langOverride = next.lang
     if (next.silenceMs !== undefined) silenceMs = next.silenceMs
     if (next.maxListenMs !== undefined) maxListenMs = next.maxListenMs
+    if (next.noResultWatchdogMs !== undefined) noResultWatchdogMs = next.noResultWatchdogMs
   }
 
   return {

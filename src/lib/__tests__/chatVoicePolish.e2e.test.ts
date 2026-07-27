@@ -117,12 +117,15 @@ describe('chat & voice polish e2e-style', () => {
       callbacks: { onStatus: (s) => statuses.push(s) },
     })
 
+    vi.useFakeTimers()
     await session.startHandsFree('c1')
     expect(session.getStatus()).toBe('listening')
     session.interrupt(undefined, { resumeHandsFree: true })
-    await new Promise((r) => setTimeout(r, 0))
+    const { HANDS_FREE_LISTEN_RESTART_MS } = await import('../chat/voice/voiceSession')
+    await vi.advanceTimersByTimeAsync(HANDS_FREE_LISTEN_RESTART_MS)
     expect(session.getStatus()).toBe('listening')
     expect(statuses).toContain('reconnecting')
     session.dispose()
+    vi.useRealTimers()
   })
 })

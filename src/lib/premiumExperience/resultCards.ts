@@ -26,12 +26,45 @@ export interface DynamicResultCard {
   accent?: string
 }
 
-const DEMO_CARDS: DynamicResultCard[] = [
+type DemoRoute = { titleAr: string; titleEn: string }
+
+/** Infer a plausible demo flight route from conversation seed — never invent Dubai for Morocco. */
+export function inferDemoFlightRoute(seedText: string): DemoRoute {
+  const text = seedText.toLowerCase()
+  const fromRiyadh = /رياض|riyadh|ruh/.test(text)
+  const fromJeddah = /جدة|jeddah|jed/.test(text)
+  const originAr = fromJeddah ? 'جدة' : fromRiyadh ? 'الرياض' : 'الرياض'
+  const originEn = fromJeddah ? 'JED' : fromRiyadh ? 'RUH' : 'RUH'
+
+  if (/أكادير|اكادير|agadir/.test(text)) {
+    return { titleAr: `${originAr} → أكادير`, titleEn: `${originEn} → AGA` }
+  }
+  if (/مراكش|marrakech|marrakesh/.test(text)) {
+    return { titleAr: `${originAr} → مراكش`, titleEn: `${originEn} → RAK` }
+  }
+  if (/الدار البيضاء|casablanca/.test(text)) {
+    return { titleAr: `${originAr} → الدار البيضاء`, titleEn: `${originEn} → CMN` }
+  }
+  if (/مغرب|morocco|maroc/.test(text)) {
+    return { titleAr: `${originAr} → المغرب`, titleEn: `${originEn} → Morocco` }
+  }
+  if (/دبي|dubai|dxb/.test(text)) {
+    return { titleAr: `${originAr} → دبي`, titleEn: `${originEn} → DXB` }
+  }
+  if (/إسطنبول|اسطنبول|istanbul/.test(text)) {
+    return { titleAr: `${originAr} → إسطنبول`, titleEn: `${originEn} → IST` }
+  }
+  return { titleAr: `${originAr} → الوجهة`, titleEn: `${originEn} → Destination` }
+}
+
+function demoCardsForSeed(seedText: string): DynamicResultCard[] {
+  const route = inferDemoFlightRoute(seedText)
+  return [
   {
     id: 'flight-demo',
     kind: 'flight',
-    titleAr: 'الرياض → دبي',
-    titleEn: 'RUH → DXB',
+    titleAr: route.titleAr,
+    titleEn: route.titleEn,
     subtitleAr: 'مباشرة · صباح الغد',
     subtitleEn: 'Nonstop · tomorrow morning',
     metaAr: 'من ١٬٢٤٠ ر.س',
@@ -115,7 +148,8 @@ const DEMO_CARDS: DynamicResultCard[] = [
     metaEn: 'Draft',
     accent: 'teal',
   },
-]
+  ]
+}
 
 /** Infer demo cards from conversation text for progressive UI (no APIs). */
 export function buildDynamicResultCards(seedText: string, limit = 4): DynamicResultCard[] {
@@ -132,16 +166,20 @@ export function buildDynamicResultCards(seedText: string, limit = 4): DynamicRes
   if (/visa|تأشير|تاشير/.test(text)) kinds.add('visa')
   if (/timeline|جدول|itinerary|خط.?زمني|أيام|days/.test(text)) kinds.add('timeline')
 
-  if (kinds.size === 0) {
+  const isTripSeed = /سفر|رحلة|travel|trip|مغرب|morocco|دبي|dubai|إسطنبول|اسطنبول|istanbul|أكادير|مراكش/.test(
+    text,
+  )
+  if (kinds.size === 0 || isTripSeed) {
     kinds.add('flight')
     kinds.add('hotel')
     kinds.add('weather')
     kinds.add('budget')
   }
 
-  const mapped = DEMO_CARDS.filter((c) => kinds.has(c.kind)).slice(0, limit)
+  const demoCards = demoCardsForSeed(seedText)
+  const mapped = demoCards.filter((c) => kinds.has(c.kind)).slice(0, limit)
   if (mapped.length > 0) return mapped
-  return DEMO_CARDS.slice(0, limit)
+  return demoCards.slice(0, limit)
 }
 
 export function resultCardTitle(card: DynamicResultCard, locale: 'ar' | 'en'): string {
