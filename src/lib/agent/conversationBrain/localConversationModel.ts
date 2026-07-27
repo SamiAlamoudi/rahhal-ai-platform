@@ -148,54 +148,146 @@ function reflectKnown(facts: TravelFacts, seed: number, ar: boolean): string {
     ])
 }
 
-/** Concrete Advance / Recommend / Collect closer tied to Current Goal. */
+/**
+ * Soft recommendation that replaces a slot question when we can infer a usable default.
+ * Returns null only when asking is still required to unblock progress.
+ */
+function recommendInsteadOfAsk(
+  slot: string,
+  facts: TravelFacts,
+  seed: number,
+  ar: boolean,
+): string | null {
+  const dest = facts.known.destination || facts.known.destinations?.[0]
+  const travelerType = facts.known.travelerType
+
+  if (slot === 'travelers' && (travelerType === 'couple' || travelerType === 'solo' || travelerType === 'family')) {
+    if (travelerType === 'couple') {
+      return pick(seed, ar
+        ? ['أفترض رحلة لشخصين وأضبط التوزيع على هذا الأساس — صحّح لي لو غير كذا.', 'بما إنها أجواء ثنائية، أمشي على مسافرَين كافتراض واضح.']
+        : ['I am assuming two travelers and optimizing around that — correct me if not.', 'Given the couple vibe, I will plan for two travelers as the default.'])
+    }
+    if (travelerType === 'solo') {
+      return pick(seed, ar
+        ? ['أفترض مسافراً واحداً وأبني الخطة على إيقاع مرن.', 'أمشي على رحلة فردية كافتراض واضح.']
+        : ['I am assuming a solo traveler and keeping the pace flexible.', 'I will plan this as a solo trip by default.'])
+    }
+    return pick(seed, ar
+      ? ['أفترض أجواء عائلية وأميل لإيقاع أهدأ وإقامة مناسبة للعائلة.', 'أمشي على توزيع عائلي كافتراض عملي الآن.']
+      : ['I am assuming a family-style trip and leaning toward a calmer pace and family-friendly stay.', 'I will use a family split as the working default.'])
+  }
+
+  if (slot === 'durationDays' && dest) {
+    return pick(seed, ar
+      ? [
+        `لـ${dest} أنصح نبدأ بـ5–7 أيام كافتراض قوي — يكفي للطيران وإيقاع مريح بدون استعجال.`,
+        `أفترض أسبوعاً تقريباً لـ${dest} كنقطة انطلاق عملية؛ نقدر نقصّر أو نطوّل بعدين.`,
+      ]
+      : [
+        `For ${dest}, I recommend starting from a 5–7 day base — enough for flights and a calm pace without rushing.`,
+        `I will assume roughly a week for ${dest} as a practical starting point; we can shorten or extend later.`,
+      ])
+  }
+
+  if (slot === 'budgetAmount' && dest) {
+    return pick(seed, ar
+      ? [
+        `لـ${dest} أميل لشريحة متوازنة مريحة وأحسّن الطيران والإقامة داخلها — لو عندك سقف أدق نضبط فوراً.`,
+        `أوصي نمشي على مستوى متوسط-مريح لـ${dest} عشان نقدر نقارن خيارات قوية بدون تخمين عشوائي.`,
+      ]
+      : [
+        `For ${dest}, I will aim at a comfortable mid tier and optimize flights and stays inside it — give a harder ceiling anytime and I retune.`,
+        `I recommend a balanced comfortable band for ${dest} so we can compare strong options without random guessing.`,
+      ])
+  }
+
+  if (slot === 'hotelPreference' && dest) {
+    return pick(seed, ar
+      ? [
+        `لـ${dest} أنصح نبدأ بإقامة مركزية سهلة التنقل، ونبدّل لهدوء أكثر إذا صار الطابع استرخاء.`,
+        `أفترض فندقاً بموقع عملي وسط الحركة السياحية لـ${dest} كأفضل افتراض أول.`,
+      ]
+      : [
+        `For ${dest}, I recommend starting with a central, easy-to-reach stay — we can switch quieter if the trip turns recovery-focused.`,
+        `I will assume a practical central hotel for ${dest} as the first default.`,
+      ])
+  }
+
+  // Origin / destination usually block progress if unknown — keep asking.
+  return null
+}
+
+/** Concrete Advance / Recommend closer tied to Current Goal — prefer statements over questions. */
 function advanceForGoal(facts: TravelFacts, seed: number, ar: boolean): string {
   const dest = facts.known.destination || facts.known.destinations?.[0]
   switch (facts.currentGoal) {
     case 'Collect destination':
+      // Uncertainty blocks without a place — one precise fork is allowed.
       return pick(seed + 5, ar
-        ? ['أي وجهة تميل لها الآن — مدينة، بلد، ولا أسلوب رحلة (بحر/مدينة)؟', 'خلّنا نثبّت الوجهة: بحر وهدوء، ولا مدينة وثقافة؟']
-        : ['Which destination are you leaning toward — a city, a country, or a trip style (beach vs city)?', 'Let’s lock a destination: beach and calm, or city and culture?'])
+        ? [
+          'أوصي نبدأ بفرعين واضحين: بحر وهدوء، أو مدينة وثقافة — هذا يكفي لأضيّق الوجهات.',
+          'خلّنا نثبّت الاتجاه: ساحل للاسترخاء، ولا مدينة للمعالم؟',
+        ]
+        : [
+          'I recommend starting from two clear forks: beach and calm, or city and culture — that is enough to narrow destinations.',
+          'Let’s lock the direction: a recovery coast, or a landmark city?',
+        ])
     case 'Compare hotels':
       return pick(seed + 5, ar
         ? [
           dest
-            ? `لـ${dest}، تفضّل إقامة وسط المدينة ولا أقرب للشاطئ/المطار؟`
-            : 'تفضّل إقامة وسط المدينة ولا أقرب للشاطئ/المطار؟',
-          'أقارن لك فندقين مناسبين للميزانية — تميل لهدوء ولا موقع مركزي؟',
+            ? `لـ${dest} أنصح نقارن إقامة مركزية مقابل خيار أهدأ، وأميل للمركزي كافتراض أول.`
+            : 'أنصح نقارن إقامة مركزية مقابل خيار أهدأ، وأميل للمركزي كافتراض أول.',
+          dest
+            ? `أفترض لـ${dest} فندقاً عملياً قريب من الحركة السياحية، ونعدّل لو تبي هدوء أكثر.`
+            : 'أفترض فندقاً عملياً قريب من الحركة السياحية، ونعدّل لو تبي هدوء أكثر.',
         ]
         : [
           dest
-            ? `For ${dest}, do you prefer a central stay or closer to the beach/airport?`
-            : 'Do you prefer a central stay or closer to the beach/airport?',
-          'I can compare two lodging fits for your budget — quiet, or central?',
+            ? `For ${dest}, I recommend comparing a central stay vs a quieter one — I will lead with central as the first default.`
+            : 'I recommend comparing a central stay vs a quieter one — I will lead with central as the first default.',
+          dest
+            ? `I will assume a practical, well-located hotel for ${dest}, and retune if you want more quiet.`
+            : 'I will assume a practical, well-located hotel, and retune if you want more quiet.',
         ])
     case 'Finalize booking':
       return pick(seed + 5, ar
-        ? ['جاهز نكمّل الحجز — تبي أراجع ملخص الدفع قبل التأكيد؟', 'الخطوة الجاية تثبيت الحجز — نمشي على الملخص؟']
-        : ['Ready to close the booking — want a quick payment summary before confirm?', 'Next step is locking the booking — shall we walk the summary?'])
+        ? [
+          'الخطوة الجاية تنفيذ ملخص الحجز والدفع — أمشي عليه الآن عشان نثبّت بوضوح.',
+          'أنفّذ مراجعة سريعة لملخص الدفع ثم نؤكّد الحجز.',
+        ]
+        : [
+          'Next I will execute the booking and payment summary so we can confirm cleanly.',
+          'I will run a quick payment-summary pass, then we confirm the booking.',
+        ])
     case 'Confirm itinerary':
       return pick(seed + 5, ar
-        ? ['راجع المسودة وقل لي وش نثبّت أو نعدّل أولاً.', 'الخطة جاهزة للمراجعة — نثبّت الأيام ولا نعدّل الفندق أولاً؟']
-        : ['Review the draft and tell me what to lock or change first.', 'The outline is ready — lock the days, or tune the hotel first?'])
+        ? [
+          'أؤكّد المسودة كأساس وأثبّت الأيام أولاً — عدّل أي يوم أو إقامة لو تبي.',
+          'الخطة جاهزة للتأكيد: أمشي على تثبيت البرنامج، والفندق قابل للتعديل فوراً.',
+        ]
+        : [
+          'I am confirming this draft as the base and locking the days first — correct any day or stay as needed.',
+          'The outline is ready to confirm: I will lock the program; the hotel can be retuned immediately.',
+        ])
     case 'Recommend flights':
     default:
       return pick(seed + 5, ar
         ? [
           dest
-            ? `مع ${dest}، أقدر أقترح نافذة رحلات مناسبة — تميل لصباح ولا مساء؟`
-            : 'أقدر أقترح اتجاه رحلات مناسب — تميل لصباح ولا مساء؟',
+            ? `مع ${dest}، أنصح نبدأ بنافذة رحلات صباحية كافتراض مريح لمعظم رحلات الترفيه.`
+            : 'أنصح نبدأ بنافذة رحلات صباحية كافتراض مريح لمعظم رحلات الترفيه.',
           dest
-            ? `خلّيني أوجّهك لخيارات طيران لـ${dest} — أي أسبوع تقريباً؟`
-            : 'خلّيني أوجّهك لخيارات الطيران — أي أسبوع تقريباً؟',
+            ? `أوجّه خيارات الطيران لـ${dest} حول مغادرة صباحية وتذكرة مرنة قدر الإمكان.`
+            : 'أوجّه خيارات الطيران حول مغادرة صباحية وتذكرة مرنة قدر الإمكان.',
         ]
         : [
           dest
-            ? `With ${dest} set, I can outline useful flight windows — morning or evening departures?`
-            : 'I can outline useful flight windows — morning or evening departures?',
+            ? `With ${dest} set, I recommend starting from morning departure windows as the comfortable leisure default.`
+            : 'I recommend starting from morning departure windows as the comfortable leisure default.',
           dest
-            ? `Let me steer flight options for ${dest} — roughly which week?`
-            : 'Let me steer flight options — roughly which week?',
+            ? `I will steer ${dest} flight options around a morning departure and the most flexible ticket we can justify.`
+            : 'I will steer flight options around a morning departure and the most flexible ticket we can justify.',
         ])
   }
 }
@@ -367,17 +459,35 @@ export function generateLocalConversation(input: {
       const beachCity = draft?.cities.some((c) =>
         /agadir|antalya|bali|beach|شاطئ|أكادير|أنطاليا|بالي/i.test(`${c.name} ${c.why}`),
       )
+      // Infer → Recommend: state a default direction; ask only when no draft/hints to lean on.
       const styleCloser = beachCity
         ? (ar
-          ? 'تميل لرحلة شاطئ واسترخاء، ولا تجربة مدينة وثقافة؟'
-          : 'Would you like a relaxing beach trip or a city experience?')
+          ? 'أميل لبدء الشاطئ كافتراض للاسترخاء — نقدر نحوّل لمدينة إذا تبي إيقاعاً أكثر حركة.'
+          : 'I am leaning beach-first as the recovery default — we can pivot to a city if you want more energy.')
         : null
+      const recommendCloser = pick(seed + 1, ar
+        ? [
+          draft?.cities[0]
+            ? `أنصح نبدأ بـ${draft.cities[0].name} كأقوى افتراض الآن، ونعدّل لو حسّيت بغير اتجاه.`
+            : 'أنصح نثبّت أقوى اتجاه من القائمة أعلاه كافتراض عملي ونكمّل عليه.',
+          'أفترض الاتجاه الأقوى مما سبق وأبني عليه — صحّح لي لو تبي فرعاً آخر.',
+        ]
+        : [
+          draft?.cities[0]
+            ? `I recommend starting with ${draft.cities[0].name} as the strongest default now — correct me if you want another fork.`
+            : 'I recommend locking the strongest direction above as the working default and building on it.',
+          'I will assume the strongest direction above and build on it — steer me if you want the other fork.',
+        ])
       const questionFromFacts = input.facts.recommendations?.find((row) => /[?؟]\s*$/.test(row.trim()))
+      const needsAsk = !draft?.cities.length && !input.facts.optionHints?.length && !beachCity
       const closer = styleCloser
+        || (!needsAsk ? recommendCloser : null)
         || questionFromFacts
-        || pick(seed + 1, ar
-          ? ['من هذه الاتجاهات، أيّها يشدّك أكثر؟', 'بحر وهدوء، ولا مدينة وثقافة؟']
-          : ['From these directions, which interests you most?', 'Beach and calm, or city and culture?'])
+        || (needsAsk
+          ? pick(seed + 1, ar
+            ? ['بحر وهدوء، ولا مدينة وثقافة — أيّهما نثبّت؟']
+            : ['Beach and calm, or city and culture — which do we lock?'])
+          : recommendCloser)
       const displayText = [ack, framing, hints, closer].filter(Boolean).join('\n\n')
       const spokenText = [ack, framing, closer].filter(Boolean).join(' ')
       return { displayText, spokenText }
@@ -416,6 +526,12 @@ export function generateLocalConversation(input: {
         const spokenText = `${ack} ${next}`
         return { displayText: spokenText, spokenText }
       }
+      const inferred = recommendInsteadOfAsk(slot, input.facts, seed + 11, ar)
+      if (inferred) {
+        const displayText = `${ack} ${inferred}`
+        return { displayText, spokenText: displayText }
+      }
+      // Ask only when uncertainty still blocks progress.
       const question = askForSlot(slot, input.facts, seed + 11, ar)
       const displayText = `${ack} ${question}`
       return { displayText, spokenText: displayText }

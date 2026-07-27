@@ -43,6 +43,9 @@ describe('Executive AI Travel Consultant', () => {
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Recommend/)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Confirm/)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Execute/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/INFERENCE PRIORITY|Infer first/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Never ask a question if you can infer/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Ask only if uncertainty|uncertainty truly blocks/i)
   })
 
   it('never returns acknowledgement-only replies', async () => {
@@ -99,21 +102,27 @@ describe('Executive AI Travel Consultant', () => {
     expect((t2.reply.match(/\?/g) ?? []).length).toBeLessThanOrEqual(1)
   })
 
-  it('unsure traveler gets a calm step-by-step continuation', async () => {
-    const service = createTravelAgentService()
-    const history: ChatMessage[] = [user('I want a trip somewhere nice.', 'c-unsure')]
-    const t1 = await service.planTurn({ conversationId: 'c-unsure', messages: history })
-    history.push({
-      ...user('a1', 'c-unsure'),
-      id: 'a1',
-      role: 'assistant',
-      content: t1.reply,
-      providerMeta: t1.meta as unknown as Record<string, unknown>,
+  it('infers duration instead of asking when destination is known', async () => {
+    const { generateLocalConversation, buildTravelFacts } = await import('../agent/conversationBrain')
+    const { emptyMemory, emptyRequirements } = await import('../agent/types')
+    const memory = emptyMemory('en')
+    memory.requirements = {
+      ...emptyRequirements(),
+      destination: 'Japan',
+      destinations: ['Japan'],
+    }
+    memory.missingFields = ['durationDays']
+    const facts = buildTravelFacts({
+      memory,
+      objective: 'collect_missing',
+      missingSlots: ['durationDays'],
     })
-    history.push(user("I don't know.", 'c-unsure'))
-    const t2 = await service.planTurn({ conversationId: 'c-unsure', messages: history })
-    expect(t2.reply.toLowerCase()).not.toMatch(/how can i help you today|next question/)
-    expect(t2.reply.length).toBeGreaterThan(20)
-    expect((t2.reply.match(/\?/g) ?? []).length).toBeLessThanOrEqual(1)
+    const out = generateLocalConversation({
+      facts,
+      userMessage: 'Japan trip',
+      conversationId: 'c-infer-duration',
+    })
+    expect(out.displayText).toMatch(/5–7 day|roughly a week|recommend|assume/i)
+    expect(out.displayText).not.toMatch(/\?/)
   })
 })
