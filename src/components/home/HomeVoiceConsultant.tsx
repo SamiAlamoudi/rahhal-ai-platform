@@ -16,7 +16,7 @@ import {
   type DynamicResultCard,
 } from '../../lib/premiumExperience'
 import { tripPlanFromMeta } from '../../lib/agent/memory'
-import { formatConsultantParagraphs } from '../../lib/agent/conversationBrain'
+import { formatConsultantParagraphs, polishConsultantProse } from '../../lib/agent/conversationBrain'
 import { ConversationComposer } from './ConversationComposer'
 
 export interface HomeVoiceConsultantProps {
@@ -51,7 +51,7 @@ export function HomeVoiceConsultant({
   const upsertAssistant = useCallback((message: ChatMessage) => {
     if (message.role !== 'assistant') return
     setAssistantMessage(message)
-    setAssistantText(formatConsultantParagraphs(message.content || ''))
+    setAssistantText(formatConsultantParagraphs(polishConsultantProse(message.content || '', locale)))
     if (message.status === 'complete') {
       const memory = message.providerMeta?.memory as
         | { requirements?: { destination?: string | null; destinations?: string[] } }
@@ -146,7 +146,7 @@ export function HomeVoiceConsultant({
   const startListening = useCallback(async () => {
     setError(null)
     setCards([])
-    unlockAudioPlayback()
+    unlockAudioPlayback().catch(() => undefined)
     try {
       const id = await ensureConversation()
       const permission = await voiceRef.current?.ensureMicPermission()
@@ -171,7 +171,7 @@ export function HomeVoiceConsultant({
   }, [])
 
   const onVoiceClick = useCallback(() => {
-    unlockAudioPlayback()
+    unlockAudioPlayback().catch(() => undefined)
     if (voiceStatus === 'listening') {
       void stopListening()
       return
@@ -191,7 +191,7 @@ export function HomeVoiceConsultant({
     setUserHeard(trimmed)
     setAssistantText('')
     setAssistantMessage(null)
-    unlockAudioPlayback()
+    unlockAudioPlayback().catch(() => undefined)
     try {
       const id = await ensureConversation()
       const controller = new AbortController()

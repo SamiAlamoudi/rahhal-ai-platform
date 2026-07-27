@@ -537,7 +537,8 @@ function matchDuration(lower: string, original: string): number | null {
   if (ar) return clampDays(Number(ar[1]))
   const week = lower.match(/(\d+)\s*-?\s*week/) || original.match(/(\d+)\s*(?:أسابيع|اسابيع|أسبوع|اسبوع)/)
   if (week) return clampDays(Number(week[1]) * 7)
-  // Word forms: "two weeks", "a fortnight", "أسبوعين"
+  // Word forms: "two weeks", "a fortnight", "أسبوعين" — before bare "عشرة"
+  // so "بميزانية عشرة آلاف" is never mistaken for 10 days.
   const weekWord = lower.match(
     /\b(one|two|three|four|five|six|seven|eight|nine|ten|a|an)\s+-?\s*weeks?\b/,
   )
@@ -559,6 +560,9 @@ function matchDuration(lower: string, original: string): number | null {
     const n = map[weekWord[1]!]
     if (n) return clampDays(n * 7)
   }
+  if (/\bfortnight\b/.test(lower)) return 14
+  if (/أسبوعين|اسبوعين/.test(original)) return 14
+  if (/\bone week\b|أسبوع|اسبوع/.test(lower) || /أسبوع|اسبوع/.test(original)) return 7
   // Word forms: "seven days", "لمدة سبعة أيام"
   const dayWordEn = lower.match(
     /\b(one|two|three|four|five|six|seven|eight|nine|ten|a|an)\s+-?\s*days?\b/,
@@ -581,8 +585,9 @@ function matchDuration(lower: string, original: string): number | null {
     const n = map[dayWordEn[1]!]
     if (n) return clampDays(n)
   }
+  // Require أيام/يوم for Arabic day-count words — never steal "عشرة" from "عشرة آلاف".
   const dayWordAr = original.match(
-    /(?:لمدة\s*)?(يومين|يومان|يوم|واحد|اثنين|اثنان|ثلاثة|ثلاث|أربعة|اربعة|خمسة|ستة|سبعة|ثمانية|تسعة|عشرة)\s*(?:أيام|ايام|يوم)?/,
+    /(?:لمدة\s*)?(يومين|يومان|يوم|واحد|اثنين|اثنان|ثلاثة|ثلاث|أربعة|اربعة|خمسة|ستة|سبعة|ثمانية|تسعة|عشرة)\s+(?:أيام|ايام|يوم)/,
   )
   if (dayWordAr) {
     const map: Record<string, number> = {
@@ -606,9 +611,8 @@ function matchDuration(lower: string, original: string): number | null {
     const n = map[dayWordAr[1]!]
     if (n) return clampDays(n)
   }
-  if (/\bfortnight\b/.test(lower)) return 14
-  if (/أسبوعين|اسبوعين/.test(original)) return 14
-  if (/\bone week\b|أسبوع|اسبوع/.test(lower) || /أسبوع|اسبوع/.test(original)) return 7
+  // Standalone يومين / يومان without trailing أيام
+  if (/\bيومين\b|\bيومان\b/.test(original)) return 2
   return null
 }
 
@@ -626,6 +630,18 @@ function normalizeNumerals(text: string): string {
 function matchBudget(lower: string, original: string): { amount: number; currency: string } | null {
   const lowerN = normalizeNumerals(lower)
   const originalN = normalizeNumerals(original)
+
+  const arabicWordAmount = matchArabicWordBudget(originalN)
+  if (arabicWordAmount != null) {
+    let currency = 'SAR'
+    if (/\baed\b|درهم/.test(lowerN) || /درهم/.test(originalN)) currency = 'AED'
+    else if (/\beur\b|€|يورو/.test(lowerN)) currency = 'EUR'
+    else if (/\$|usd|دولار/.test(lowerN) || /دولار/.test(originalN)) currency = 'USD'
+    else if (/\bsar\b|ر.?س|ريال/.test(lowerN) || /ريال/.test(originalN) || /ميزانية/.test(originalN)) {
+      currency = 'SAR'
+    }
+    return { amount: arabicWordAmount, currency }
+  }
 
   // Bare numeric reply: "5000", "12,000", "2500.50", "٥٠٠٠"
   // (consultant follow-ups often answer budget with a number alone)
@@ -652,11 +668,40 @@ function matchBudget(lower: string, original: string): { amount: number; currenc
   const amount = Number(raw.replace(/,/g, ''))
   if (!Number.isFinite(amount) || amount <= 0) return null
   let currency = 'USD'
-  if (/\bsar\b|ر.?س|ريال/.test(lowerN) || /ريال/.test(originalN)) currency = 'SAR'
-  else if (/\baed\b|درهم/.test(lowerN) || /درهم/.test(originalN)) currency = 'AED'
+  if (/\bsar\b|ر.?س|ريال/.test(lowerN) || /ريال/.test(originalN) || /ميزانية/.test(originalN)) {
+    currency = 'SAR'
+  } else if (/\baed\b|درهم/.test(lowerN) || /درهم/.test(originalN)) currency = 'AED'
   else if (/\beur\b|€|يورو/.test(lowerN)) currency = 'EUR'
   else if (/\$|usd|دولار/.test(lowerN) || /دولار/.test(originalN)) currency = 'USD'
   return { amount, currency }
+}
+
+/** "عشرة آلاف"، "خمسة آلاف"، "ألفان"، "الف" → numeric SAR-scale amounts. */
+function matchArabicWordBudget(original: string): number | null {
+  const units: Record<string, number> = {
+    واحد: 1,
+    اثنين: 2,
+    اثنان: 2,
+    ثلاثة: 3,
+    ثلاث: 3,
+    أربعة: 4,
+    اربعة: 4,
+    خمسة: 5,
+    ستة: 6,
+    سبعة: 7,
+    ثمانية: 8,
+    تسعة: 9,
+    عشرة: 10,
+  }
+  const multi = original.match(
+    /(واحد|اثنين|اثنان|ثلاثة|ثلاث|أربعة|اربعة|خمسة|ستة|سبعة|ثمانية|تسعة|عشرة)\s*(?:آلاف|الاف|ألف|الف)/,
+  )
+  if (multi?.[1] && units[multi[1]] != null) {
+    return units[multi[1]]! * 1000
+  }
+  if (/ألفان|الفين|ألفين|الفان/.test(original)) return 2000
+  if (/(?:ميزانية|بميزانية|ميزانيتي).{0,12}(?:ألف|الف)\b/.test(original)) return 1000
+  return null
 }
 
 function matchTravelers(lower: string, original: string): { count: number; type: TravelerType } | null {

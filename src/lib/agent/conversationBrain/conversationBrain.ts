@@ -14,6 +14,7 @@ import type { TravelFacts } from './travelFacts'
 import { generateLocalConversation } from './localConversationModel'
 import {
   formatConsultantParagraphs,
+  looksLikeInventoryDump,
   polishConsultantProse,
 } from './consultantLocale'
 
@@ -165,6 +166,36 @@ function buildMemoryJson(facts: TravelFacts): string {
   )
 }
 
+function finalizeBrainResult(
+  displayRaw: string,
+  spokenRaw: string,
+  providerId: string,
+  facts: TravelFacts,
+  userMessage: string,
+  conversationId: string,
+): ConversationBrainResult {
+  let displayText = optimizeDisplayText(displayRaw, facts.locale)
+  let spokenText = optimizeSpokenText(spokenRaw, displayRaw, facts.locale)
+
+  if (
+    facts.locale === 'ar'
+    && (
+      looksLikeInventoryDump(displayRaw, 'ar')
+      || looksLikeInventoryDump(displayText, 'ar')
+      || looksLikeInventoryDump(spokenText, 'ar')
+      || /[A-Za-z]{3,}/.test(displayText)
+      || /[A-Za-z]{3,}/.test(spokenText)
+    )
+  ) {
+    const local = generateLocalConversation({ facts, userMessage, conversationId })
+    displayText = optimizeDisplayText(local.displayText, facts.locale)
+    spokenText = optimizeSpokenText(local.spokenText, local.displayText, facts.locale)
+    return { displayText, spokenText, providerId: `${providerId}+local-guard` }
+  }
+
+  return { displayText, spokenText, providerId }
+}
+
 export async function runConversationBrain(input: {
   llms: AgentLlmRegistry
   conversationId: string
@@ -195,16 +226,14 @@ export async function runConversationBrain(input: {
       userMessage,
       conversationId: input.conversationId,
     })
-    const spokenText = optimizeSpokenText(
-      local.spokenText,
+    const result = finalizeBrainResult(
       local.displayText,
-      input.facts.locale,
+      local.spokenText,
+      llm.providerId,
+      input.facts,
+      userMessage,
+      input.conversationId,
     )
-    const result = {
-      displayText: optimizeDisplayText(local.displayText, input.facts.locale),
-      spokenText,
-      providerId: llm.providerId,
-    }
     input.onDelta?.({
       displayText: result.displayText,
       spokenText: result.spokenText,
@@ -228,17 +257,19 @@ export async function runConversationBrain(input: {
         ? (accumulated) => {
           const parsed = parseModelJson(accumulated)
           if (!parsed) return
-          const spokenText = optimizeSpokenText(
-            parsed.spokenText,
+          const guarded = finalizeBrainResult(
             parsed.displayText,
-            input.facts.locale,
+            parsed.spokenText,
+            llm.providerId,
+            input.facts,
+            userMessage,
+            input.conversationId,
           )
-          // Emit when display grows so the UI can stream tokens / phrases.
-          if (parsed.displayText !== lastEmittedDisplay) {
-            lastEmittedDisplay = parsed.displayText
+          if (guarded.displayText !== lastEmittedDisplay) {
+            lastEmittedDisplay = guarded.displayText
             input.onDelta?.({
-              displayText: optimizeDisplayText(parsed.displayText, input.facts.locale),
-              spokenText,
+              displayText: guarded.displayText,
+              spokenText: guarded.spokenText,
               raw: accumulated,
             })
           }
@@ -248,16 +279,14 @@ export async function runConversationBrain(input: {
     if (result.status === 'ok' && result.text.trim()) {
       const parsed = parseModelJson(result.text)
       if (parsed) {
-        const spokenText = optimizeSpokenText(
-          parsed.spokenText,
+        return finalizeBrainResult(
           parsed.displayText,
-          input.facts.locale,
+          parsed.spokenText,
+          result.providerId,
+          input.facts,
+          userMessage,
+          input.conversationId,
         )
-        return {
-          displayText: optimizeDisplayText(parsed.displayText, input.facts.locale),
-          spokenText,
-          providerId: result.providerId,
-        }
       }
     }
   }
@@ -268,14 +297,12 @@ export async function runConversationBrain(input: {
     userMessage,
     conversationId: input.conversationId,
   })
-  const spokenText = optimizeSpokenText(
-    local.spokenText,
+  return finalizeBrainResult(
     local.displayText,
-    input.facts.locale,
+    local.spokenText,
+    llm.providerId,
+    input.facts,
+    userMessage,
+    input.conversationId,
   )
-  return {
-    displayText: optimizeDisplayText(local.displayText, input.facts.locale),
-    spokenText,
-    providerId: llm.providerId,
-  }
 }

@@ -26,6 +26,7 @@ import {
   MIN_HANDS_FREE_SILENCE_MS,
   normalizeVoiceLocale,
 } from './voiceTypes'
+import { unlockAudioPlayback } from './audioElementTextToSpeechProvider'
 
 export interface VoiceSessionCallbacks {
   onStatus?: (status: VoiceSessionStatus) => void
@@ -217,6 +218,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     }
     const permission = await ensureMicPermission()
     if (permission.state !== 'granted') return
+    void unlockAudioPlayback()
     if (opts?.preserveUtterance) {
       utterancePrefix = utteranceBuffer.trim()
     } else {
@@ -329,6 +331,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
             setStatus('speaking')
             try {
               logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase: 'final' } })
+              await unlockAudioPlayback()
               await tts.speak({ locale, text: spoken, interrupt: true })
               logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase: 'final' } })
             } catch (e) {
@@ -572,6 +575,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       if (disposed) return
       setStatus('speaking')
       try {
+        await unlockAudioPlayback()
         await tts.speak({ locale, text: stripMarkdownForSpeech(text), interrupt: true })
       } catch (e) {
         if (!isBenignChatError(e)) throw e

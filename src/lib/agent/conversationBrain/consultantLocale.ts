@@ -73,6 +73,24 @@ export function formatBudgetPhrase(
   return `${amount.toLocaleString('en-US')} ${cur}`
 }
 
+/** True when the model dumped slot inventory instead of speaking like a consultant. */
+export function looksLikeInventoryDump(text: string, locale: 'ar' | 'en' = 'ar'): boolean {
+  if (!text || locale !== 'ar') return false
+  const t = text.trim()
+  if (/Morocco|Marrakech|Agadir|Casablanca|\bSAR\b|\bUSD\b|\bAED\b|\bdays?\b|budget\b/i.test(t)) {
+    return true
+  }
+  if (/واضح\s*عندي|عندي\s*:|I have this so far/i.test(t)) return true
+  // "المغرب, 7 أيام, ريال…" / "… · 7d · 10000SAR"
+  if (/^.{0,60},\s*\d+\s*أيام/.test(t)) return true
+  if (/\d+\s*d\b|\d+\s*pax\b|\d{3,6}\s*SAR/i.test(t)) return true
+  if ((t.match(/^[\s]*[-*•]/gm) || []).length >= 2) return true
+  const latin = (t.match(/[A-Za-z]/g) || []).length
+  const arabic = (t.match(/[\u0600-\u06FF]/g) || []).length
+  if (latin >= 6 && latin >= Math.max(8, arabic * 0.25)) return true
+  return false
+}
+
 /** Rewrite consultant prose so Arabic replies never leak English inventory tokens. */
 export function polishConsultantProse(text: string, locale: 'ar' | 'en'): string {
   if (!text) return ''
@@ -81,7 +99,9 @@ export function polishConsultantProse(text: string, locale: 'ar' | 'en'): string
   out = out
     .replace(/^عندي[:：]\s*/gm, '')
     .replace(/\bعندي\s*:/g, '')
+    .replace(/واضح\s*عندي\s*[:：]?\s*/g, '')
     .replace(/\bI have:\s*/gi, '')
+    .replace(/\bI have this so far:\s*/gi, '')
 
   if (locale === 'ar') {
     const pairs = Object.entries(DESTINATION_AR).sort((a, b) => b[0].length - a[0].length)
@@ -104,6 +124,12 @@ export function polishConsultantProse(text: string, locale: 'ar' | 'en'): string
         const n = m.match(/\d+/)?.[0]
         return n ? `${n} أيام` : m
       })
+      .replace(/\b\d+\s*d\b/gi, (m) => {
+        const n = m.match(/\d+/)?.[0]
+        return n ? `${n} أيام` : m
+      })
+      .replace(/\b\d+\s*pax\b/gi, '')
+      .replace(/\bflexible-budget\b/gi, 'ميزانية مرنة')
   }
 
   return out
@@ -111,6 +137,7 @@ export function polishConsultantProse(text: string, locale: 'ar' | 'en'): string
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\s*·\s*/g, '، ')
     .trim()
 }
 

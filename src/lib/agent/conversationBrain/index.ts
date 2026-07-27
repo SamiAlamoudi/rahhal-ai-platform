@@ -4,6 +4,7 @@ export { runConversationBrain, optimizeSpokenText, optimizeDisplayText } from '.
 export {
   destinationLabel,
   polishConsultantProse,
+  looksLikeInventoryDump,
   formatConsultantParagraphs,
 } from './consultantLocale'
 export type { ConversationBrainResult, ConversationBrainDelta } from './conversationBrain'

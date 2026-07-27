@@ -291,14 +291,34 @@ function buildHeardSummary(
 ): string[] {
   const rows: string[] = []
   const dest = ctx.requirements.destination || ctx.requirements.destinations[0]
-  if (dest) rows.push(dest)
-  if (ctx.requirements.durationDays != null) rows.push(`${ctx.requirements.durationDays}d`)
-  if (ctx.requirements.budgetAmount != null) {
-    rows.push(`${ctx.requirements.budgetAmount}${ctx.requirements.budgetCurrency ?? ''}`)
-  } else if (ctx.requirements.budgetFlexible) {
-    rows.push('flexible-budget')
+  const ar = ctx.locale === 'ar'
+  if (dest) {
+    const destAr: Record<string, string> = {
+      Morocco: 'المغرب',
+      Marrakech: 'مراكش',
+      Agadir: 'أكادير',
+      Dubai: 'دبي',
+      Riyadh: 'الرياض',
+      Jeddah: 'جدة',
+    }
+    rows.push(ar ? (destAr[dest] || dest) : dest)
   }
-  if (ctx.requirements.travelers != null) rows.push(`${ctx.requirements.travelers} pax`)
+  if (ctx.requirements.durationDays != null) {
+    const d = ctx.requirements.durationDays
+    rows.push(ar ? (d === 7 ? 'أسبوع' : `${d} أيام`) : `${d} days`)
+  }
+  if (ctx.requirements.budgetAmount != null) {
+    const cur = (ctx.requirements.budgetCurrency || 'SAR').toUpperCase()
+    const curLabel = ar
+      ? (cur === 'SAR' ? 'ريال' : cur === 'USD' ? 'دولار' : cur === 'AED' ? 'درهم' : cur)
+      : cur
+    rows.push(`${ctx.requirements.budgetAmount} ${curLabel}`)
+  } else if (ctx.requirements.budgetFlexible) {
+    rows.push(ar ? 'ميزانية مرنة' : 'flexible budget')
+  }
+  if (ctx.requirements.travelers != null) {
+    rows.push(ar ? `${ctx.requirements.travelers} مسافرين` : `${ctx.requirements.travelers} travelers`)
+  }
   for (const item of mustHaves.slice(0, 3)) rows.push(item)
   return rows
 }

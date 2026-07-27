@@ -181,8 +181,8 @@ function ackBlock(
   const bits: string[] = []
   if (heard.length) {
     bits.push(line(locale, {
-      ar: `واضح عندي: ${heard.join(' · ')}.`,
-      en: `I have this so far: ${heard.join(' · ')}.`,
+      ar: 'فهمت طلبكم بوضوح، وسأبني عليه بهدوء.',
+      en: 'I have a clear read of what you want, and I will build on it carefully.',
     }))
   }
   if (soft.pace) {

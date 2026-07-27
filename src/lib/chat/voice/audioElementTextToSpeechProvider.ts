@@ -1,39 +1,88 @@
 /**
- * Reliable TTS via Edge neural voices in-browser → HTMLAudioElement.
- * Falls back to POST /api/tts when the browser path fails.
- * Survives Chrome speechSynthesis autoplay/paused bugs; plays real MP3 audio.
+ * Reliable TTS via POST /api/tts → persistent HTMLAudioElement.
+ *
+ * Autoplay rule: browsers block `new Audio().play()` after an async AI turn
+ * unless the *same* media element was unlocked during a user gesture (mic / send).
+ * We keep one shared element, warm it with a silent clip on unlock, then reuse it.
  */
 import type { TextToSpeechProvider, TextToSpeechSpeakOptions, VoiceLocale } from './voiceTypes'
 
 let unlocked = false
-let unlockAudio: HTMLAudioElement | null = null
+let sharedAudio: HTMLAudioElement | null = null
+let activeObjectUrl: string | null = null
+let audioContext: AudioContext | null = null
+
+/** Tiny silent WAV — primes autoplay permission after a click/tap. */
+const SILENT_WAV =
+  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='
+
+function getSharedAudio(): HTMLAudioElement {
+  if (typeof window === 'undefined' || typeof Audio === 'undefined') {
+    throw new Error('Audio playback is only available in the browser.')
+  }
+  if (!sharedAudio) {
+    sharedAudio = new Audio()
+    sharedAudio.setAttribute('playsinline', 'true')
+    sharedAudio.setAttribute('webkit-playsinline', 'true')
+    sharedAudio.preload = 'auto'
+    sharedAudio.crossOrigin = 'anonymous'
+  }
+  return sharedAudio
+}
+
+function revokeActiveUrl(): void {
+  if (activeObjectUrl) {
+    URL.revokeObjectURL(activeObjectUrl)
+    activeObjectUrl = null
+  }
+}
+
+async function resumeAudioContext(): Promise<void> {
+  if (typeof window === 'undefined') return
+  try {
+    const AC =
+      window.AudioContext
+      || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!AC) return
+    if (!audioContext || audioContext.state === 'closed') {
+      audioContext = new AC()
+    }
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume()
+    }
+    // Brief near-silent tick keeps gesture→audio association alive.
+    const osc = audioContext.createOscillator()
+    const gain = audioContext.createGain()
+    gain.gain.value = 0.00001
+    osc.connect(gain)
+    gain.connect(audioContext.destination)
+    osc.start()
+    osc.stop(audioContext.currentTime + 0.02)
+  } catch {
+    // Best-effort.
+  }
+}
 
 /** Call from a user gesture (mic tap / send) before the async reply returns. */
-export function unlockAudioPlayback(): void {
+export async function unlockAudioPlayback(): Promise<void> {
   if (typeof window === 'undefined' || typeof Audio === 'undefined') return
+
+  await resumeAudioContext()
+
   try {
-    if (!unlockAudio) {
-      // Tiny silent WAV — primes autoplay permission after a click/tap.
-      unlockAudio = new Audio(
-        'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA',
-      )
-      unlockAudio.preload = 'auto'
-      unlockAudio.volume = 0.01
-    }
-    const play = unlockAudio.play()
-    if (play && typeof play.then === 'function') {
-      void play.then(() => {
-        unlockAudio?.pause()
-        if (unlockAudio) unlockAudio.currentTime = 0
-        unlocked = true
-      }).catch(() => {
-        // Gesture may still unlock on the next real speak() call.
-      })
-    } else {
-      unlocked = true
-    }
+    const audio = getSharedAudio()
+    audio.muted = true
+    audio.volume = 1
+    audio.src = SILENT_WAV
+    await audio.play().catch(() => undefined)
+    audio.pause()
+    audio.currentTime = 0
+    audio.muted = false
+    audio.removeAttribute('src')
+    audio.load()
+    unlocked = true
   } catch {
-    // Best-effort unlock.
+    unlocked = true
   }
 
   // Also kick Web Speech in case we fall back later.
@@ -55,27 +104,6 @@ export function isAudioPlaybackUnlocked(): boolean {
   return unlocked
 }
 
-function pickVoice(locale: VoiceLocale): string {
-  return locale === 'en' ? 'en-US-JennyNeural' : 'ar-SA-ZariyahNeural'
-}
-
-async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Promise<Blob> {
-  const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
-  const tts = new EdgeTTSBrowser(text, pickVoice(locale), { rate: '-5%' })
-  const result = await tts.synthesize()
-  const audio = result.audio as Blob | ArrayBuffer | { arrayBuffer: () => Promise<ArrayBuffer> }
-  if (typeof Blob !== 'undefined' && audio instanceof Blob) return audio
-  if (audio instanceof ArrayBuffer) {
-    return new Blob([audio], { type: 'audio/mpeg' })
-  }
-  if (audio && typeof (audio as { arrayBuffer?: unknown }).arrayBuffer === 'function') {
-    return new Blob([await (audio as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer()], {
-      type: 'audio/mpeg',
-    })
-  }
-  throw new Error('empty_edge_audio')
-}
-
 async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob> {
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), 20_000)
@@ -91,19 +119,32 @@ async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob
       throw new Error(detail || `تعذر توليد الصوت (${response.status})`)
     }
     const blob = await response.blob()
-    if (!blob.size || !(blob.type.includes('audio') || blob.type.includes('mpeg') || blob.type === '')) {
-      // Some servers omit type; still accept non-tiny binary payloads.
-      if (blob.size < 64) throw new Error('تعذر توليد الصوت')
-    }
+    if (blob.size < 64) throw new Error('تعذر توليد الصوت')
     return blob
   } finally {
     window.clearTimeout(timer)
   }
 }
 
+async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Promise<Blob> {
+  const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
+  const voice = locale === 'en' ? 'en-US-JennyNeural' : 'ar-SA-ZariyahNeural'
+  const tts = new EdgeTTSBrowser(text, voice, { rate: '-5%' })
+  const result = await tts.synthesize()
+  const audio = result.audio as Blob | ArrayBuffer | { arrayBuffer: () => Promise<ArrayBuffer> }
+  if (typeof Blob !== 'undefined' && audio instanceof Blob) return audio
+  if (audio instanceof ArrayBuffer) {
+    return new Blob([audio], { type: 'audio/mpeg' })
+  }
+  if (audio && typeof (audio as { arrayBuffer?: unknown }).arrayBuffer === 'function') {
+    return new Blob([await (audio as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer()], {
+      type: 'audio/mpeg',
+    })
+  }
+  throw new Error('empty_edge_audio')
+}
+
 async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob> {
-  // Prefer same-origin /api/tts (server HTTP synthesizer) — reliable on Vercel.
-  // Fall back to in-browser Edge neural voices when the API is unavailable.
   try {
     return await synthesizeViaApi(text, locale)
   } catch {
@@ -111,30 +152,80 @@ async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob
   }
 }
 
+async function playOnSharedElement(
+  blob: Blob,
+  token: number,
+  generationRef: { current: number },
+): Promise<void> {
+  if (!unlocked) {
+    await unlockAudioPlayback()
+  } else {
+    await resumeAudioContext()
+  }
+
+  const audio = getSharedAudio()
+  revokeActiveUrl()
+  const objectUrl = URL.createObjectURL(blob)
+  activeObjectUrl = objectUrl
+  audio.src = objectUrl
+  audio.currentTime = 0
+  audio.muted = false
+  audio.volume = 1
+
+  await new Promise<void>((resolve, reject) => {
+    let settled = false
+    const finish = (err?: Error) => {
+      if (settled) return
+      settled = true
+      audio.onended = null
+      audio.onerror = null
+      audio.onplaying = null
+      if (err) {
+        revokeActiveUrl()
+        reject(err)
+      } else {
+        revokeActiveUrl()
+        resolve()
+      }
+    }
+
+    if (token !== generationRef.current) {
+      finish()
+      return
+    }
+
+    audio.onended = () => finish()
+    audio.onerror = () => finish(new Error('تعذر تشغيل الصوت'))
+
+    const attempt = () => {
+      const playAttempt = audio.play()
+      if (playAttempt && typeof playAttempt.then === 'function') {
+        playAttempt.catch(() => {
+          void unlockAudioPlayback().then(() => {
+            if (token !== generationRef.current) {
+              finish()
+              return
+            }
+            audio.muted = false
+            audio.volume = 1
+            void audio.play().then(() => {
+              // playing
+            }).catch(() => {
+              finish(new Error('تعذر تشغيل الصوت — اسمح بالتشغيل التلقائي'))
+            })
+          })
+        })
+      }
+    }
+
+    attempt()
+  })
+}
+
 export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
   let speaking = false
   let generation = 0
-  let current: HTMLAudioElement | null = null
-  let objectUrl: string | null = null
-
-  const cleanup = () => {
-    if (current) {
-      current.onended = null
-      current.onerror = null
-      current.onplaying = null
-      try {
-        current.pause()
-      } catch {
-        // ignore
-      }
-      current.src = ''
-      current = null
-    }
-    if (objectUrl) {
-      URL.revokeObjectURL(objectUrl)
-      objectUrl = null
-    }
-  }
+  const generationRef = { current: 0 }
 
   return {
     providerId: 'audio-element-tts',
@@ -145,57 +236,48 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
 
       if (options.interrupt !== false) {
         generation += 1
-        cleanup()
         speaking = false
+        try {
+          const audio = getSharedAudio()
+          audio.pause()
+        } catch {
+          // ignore
+        }
+        revokeActiveUrl()
       }
 
       const token = ++generation
-      unlockAudioPlayback()
+      generationRef.current = token
+      speaking = true
 
-      const blob = await fetchSpeechAudio(text, options.locale)
-      if (token !== generation) return
+      try {
+        // Re-assert unlock association right before fetch completes path.
+        if (!unlocked) await unlockAudioPlayback()
 
-      cleanup()
-      objectUrl = URL.createObjectURL(blob)
-      const audio = new Audio(objectUrl)
-      audio.preload = 'auto'
-      current = audio
-
-      await new Promise<void>((resolve, reject) => {
-        let settled = false
-        const finish = (err?: Error) => {
-          if (settled) return
-          settled = true
-          if (token === generation) speaking = false
-          cleanup()
-          if (err) reject(err)
-          else resolve()
+        const blob = await fetchSpeechAudio(text, options.locale)
+        if (token !== generationRef.current) {
+          speaking = false
+          return
         }
-
-        audio.onplaying = () => {
-          if (token === generation) speaking = true
-        }
-        audio.onended = () => finish()
-        audio.onerror = () => finish(new Error('تعذر تشغيل الصوت'))
-
-        const playAttempt = audio.play()
-        if (playAttempt && typeof playAttempt.then === 'function') {
-          playAttempt.then(() => {
-            if (token === generation) speaking = true
-          }).catch(() => {
-            // Autoplay blocked — retry once after an explicit unlock kick.
-            unlockAudioPlayback()
-            void audio.play().then(() => {
-              if (token === generation) speaking = true
-            }).catch(() => finish(new Error('تعذر تشغيل الصوت — اسمح بالتشغيل التلقائي')))
-          })
-        }
-      })
+        await playOnSharedElement(blob, token, generationRef)
+      } finally {
+        if (token === generationRef.current) speaking = false
+      }
     },
     stop() {
       generation += 1
+      generationRef.current = generation
       speaking = false
-      cleanup()
+      try {
+        if (sharedAudio) {
+          sharedAudio.pause()
+          sharedAudio.removeAttribute('src')
+          sharedAudio.load()
+        }
+      } catch {
+        // ignore
+      }
+      revokeActiveUrl()
     },
     isSpeaking() {
       return speaking

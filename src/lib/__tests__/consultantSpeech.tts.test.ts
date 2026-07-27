@@ -4,6 +4,7 @@ import {
   polishConsultantProse,
   formatConsultantParagraphs,
   destinationLabel,
+  looksLikeInventoryDump,
 } from '../agent/conversationBrain/consultantLocale'
 import { optimizeSpokenText, optimizeDisplayText } from '../agent/conversationBrain/conversationBrain'
 import type { TravelFacts } from '../agent/conversationBrain/travelFacts'
@@ -50,6 +51,7 @@ describe('consultant Arabic speech', () => {
     expect(blob).not.toMatch(/Morocco|SAR|Marrakech|Agadir|عندي:/i)
     expect(out.displayText).toMatch(/\n\n/)
     expect(out.spokenText.length).toBeGreaterThan(40)
+    expect(out.displayText).toMatch(/أكادير|مراكش/)
   })
 
   it('polish strips English destination and currency tokens for ar', () => {
@@ -64,5 +66,14 @@ describe('consultant Arabic speech', () => {
     expect(spoken).toMatch(/المغرب|ريال/)
     const display = optimizeDisplayText('Morocco trip\n\nbudget SAR', 'ar')
     expect(display).not.toMatch(/Morocco|SAR/)
+  })
+
+  it('rejects inventory dumps and strips عندي', () => {
+    expect(looksLikeInventoryDump('Morocco, 7 أيام, SAR 10000', 'ar')).toBe(true)
+    expect(looksLikeInventoryDump('واضح عندي: المغرب · 7d · 10000SAR', 'ar')).toBe(true)
+    expect(looksLikeInventoryDump(
+      'ميزانيتكم ممتازة لرحلة أسبوع إلى المغرب.\n\nإذا كنتم تبحثون عن الاسترخاء فأرشح أكادير.',
+      'ar',
+    )).toBe(false)
   })
 })
