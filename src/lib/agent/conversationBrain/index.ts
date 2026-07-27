@@ -1,6 +1,11 @@
 export type { TravelFacts, ConversationObjective } from './travelFacts'
 export { buildTravelFacts, buildPlanFacts, buildKnownFromRequirements } from './travelFacts'
-export { runConversationBrain, optimizeSpokenText, optimizeDisplayText } from './conversationBrain'
+export {
+  runConversationBrain,
+  optimizeSpokenText,
+  optimizeDisplayText,
+  stripMarkdownForSpeech,
+} from './conversationBrain'
 export {
   destinationLabel,
   polishConsultantProse,
