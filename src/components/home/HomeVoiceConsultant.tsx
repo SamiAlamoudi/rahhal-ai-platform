@@ -235,6 +235,14 @@ export function HomeVoiceConsultant({
   const onSubmitText = useCallback(async (text: string) => {
     const trimmed = text.trim()
     if (!trimmed) return
+    // If still speaking, interrupt so the follow-up (e.g. عطلة قصيرة) can land.
+    if (voiceStatus === 'speaking') {
+      voiceRef.current?.interrupt(undefined, { resumeHandsFree: false })
+      setVoiceStatus('idle')
+      setAudioPlaying(false)
+    } else if (voiceStatus === 'thinking' || voiceStatus === 'responding') {
+      return
+    }
     setError(null)
     setCards([])
     setUserHeard(trimmed)
@@ -255,12 +263,12 @@ export function HomeVoiceConsultant({
       let spokenCursor = 0
       let speakChain: Promise<void> = Promise.resolve()
 
-      const enqueueChunk = (chunk: string) => {
+      const enqueueChunk = (chunk: string, isFirst: boolean) => {
         const piece = chunk.trim()
         if (!piece || !voiceRef.current) return
         speakChain = speakChain.then(async () => {
           if (controller.signal.aborted) return
-          if (!speechStartedRef.current) {
+          if (isFirst && !speechStartedRef.current) {
             speechStartedRef.current = true
             setVoiceStatus('speaking')
             setAudioPlaying(true)
@@ -270,19 +278,35 @@ export function HomeVoiceConsultant({
           }
           voiceRef.current?.armHandsFree?.(id)
           await voiceRef.current?.speakText(piece, { resumeHandsFree: false })
-        })
+        }).catch(() => undefined)
       }
 
       const pump = (full: string, final = false) => {
-        const { chunks, nextCursor } = takeNewSpokenChunks(full, spokenCursor)
-        for (const c of chunks) enqueueChunk(c)
-        spokenCursor = nextCursor
-        if (final) {
-          const tail = takeSpokenTail(full, spokenCursor)
-          if (tail) enqueueChunk(tail)
+        const normalized = (full || '').replace(/\s+/g, ' ').trim()
+        if (!normalized) return
+        if (spokenCursor === 0) {
+          const { chunks } = takeNewSpokenChunks(normalized, 0)
+          if (chunks.length > 0) {
+            const first = chunks[0]!
+            enqueueChunk(first, true)
+            const idx = normalized.indexOf(first)
+            spokenCursor = idx >= 0 ? idx + first.length : first.length
+          } else if (!final) {
+            return
+          }
+        }
+        if (!final) return
+        const tail = takeSpokenTail(normalized, spokenCursor)
+        if (tail) {
+          enqueueChunk(tail, spokenCursor === 0)
+          spokenCursor = normalized.length
+        } else if (spokenCursor === 0) {
+          enqueueChunk(normalized, true)
+          spokenCursor = normalized.length
         }
       }
 
+      setVoiceStatus('thinking')
       await chatEngine.sendMessage(
         { conversationId: id, content: trimmed, modality: 'text' },
         {
@@ -313,12 +337,8 @@ export function HomeVoiceConsultant({
                 setError(e instanceof Error ? e.message : t('تعذر تشغيل الصوت', 'Could not play audio'))
               }
             }
-            if (!speechStartedRef.current) {
-              speechStartedRef.current = true
-              flushAssistant(message)
-            } else {
-              flushAssistant(message)
-            }
+            speechStartedRef.current = true
+            flushAssistant(message)
             setAudioPlaying(false)
             try {
               await voiceRef.current?.startHandsFree(id)
@@ -328,6 +348,7 @@ export function HomeVoiceConsultant({
           },
           onError: (_message, err) => {
             if (!isBenignChatError(err)) setError(err)
+            setVoiceStatus('idle')
           },
         },
       )
@@ -336,8 +357,9 @@ export function HomeVoiceConsultant({
       if (!isBenignChatError(e)) {
         setError(e instanceof Error ? e.message : t('تعذر إرسال الرسالة', 'Could not send message'))
       }
+      setVoiceStatus('idle')
     }
-  }, [assistantMessage?.status, beginFreshConversation, ensureConversation, flushAssistant, onDraftChange, t, upsertAssistant])
+  }, [assistantMessage?.status, beginFreshConversation, ensureConversation, flushAssistant, onDraftChange, t, upsertAssistant, voiceStatus])
 
   const statusLabel = (() => {
     switch (voiceStatus) {

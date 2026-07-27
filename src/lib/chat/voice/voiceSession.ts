@@ -323,7 +323,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       if (!text) return
       speakChain = speakChain.then(async () => {
         if (disposed || controller.signal.aborted) return
-        if (!speechStarted) {
+        const isFirst = !speechStarted
+        if (isFirst) {
           speechStarted = true
           setStatus('speaking')
           callbacks.onSpeechStarted?.()
@@ -333,28 +334,45 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           setStatus('speaking')
         }
         try {
-          await tts.speak({ locale, text, interrupt: !speechStarted })
+          await tts.speak({ locale, text, interrupt: isFirst })
         } catch (e) {
           if (!isBenignChatError(e) && !disposed) {
             diagnosePipelineError('tts', 'speak', e)
             callbacks.onError?.(e instanceof Error ? e.message : 'تعذر تشغيل الرد الصوتي')
           }
         }
+      }).catch(() => {
+        // Keep the chain alive so later chunks / resume still run.
       })
     }
 
     const pumpSpoken = (fullSpoken: string, final = false) => {
-      const { chunks, nextCursor } = takeNewSpokenChunks(fullSpoken, spokenCursor)
-      for (const chunk of chunks) {
-        enqueueSpeak(chunk, speechStarted ? 'delta' : 'first')
-      }
-      spokenCursor = nextCursor
-      if (final) {
-        const tail = takeSpokenTail(fullSpoken, spokenCursor)
-        if (tail) {
-          enqueueSpeak(tail, 'final')
-          spokenCursor = fullSpoken.replace(/\s+/g, ' ').trim().length
+      const normalized = (fullSpoken || '').replace(/\s+/g, ' ').trim()
+      if (!normalized) return
+
+      // First complete sentence → audio ASAP (ChatGPT-Voice).
+      if (spokenCursor === 0) {
+        const { chunks } = takeNewSpokenChunks(normalized, 0)
+        if (chunks.length > 0) {
+          const first = chunks[0]!
+          enqueueSpeak(first, 'first')
+          const idx = normalized.indexOf(first)
+          spokenCursor = idx >= 0 ? idx + first.length : first.length
+        } else if (!final) {
+          return
         }
+      }
+
+      if (!final) return
+
+      const tail = takeSpokenTail(normalized, spokenCursor)
+      if (tail) {
+        enqueueSpeak(tail, 'final')
+        spokenCursor = normalized.length
+      } else if (spokenCursor === 0 && normalized) {
+        // No sentence punctuation — speak the whole reply once.
+        enqueueSpeak(normalized, 'final')
+        spokenCursor = normalized.length
       }
     }
 

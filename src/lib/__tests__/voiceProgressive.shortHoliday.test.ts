@@ -44,3 +44,10 @@ describe('short holiday duration + progressive speech', () => {
     expect(tail === '' || /ميزانية/.test(tail) || first.chunks.length >= 2).toBe(true)
   })
 })
+
+describe('istanbul phrasing', () => {
+  it('extracts destination from أفكر أسافر إلى إسطنبول', () => {
+    const result = extractFromUserText('أفكر أسافر إلى إسطنبول', 'ar')
+    expect(result.patch.destination).toBe('Istanbul')
+  })
+})

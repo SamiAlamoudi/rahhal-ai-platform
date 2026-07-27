@@ -152,14 +152,18 @@ async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob
 
 async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Promise<Blob> {
   const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
-  // Warm, conversational Arabic neural voice (Zariyah); Jenny for English.
+  // Warm conversational Arabic neural voice.
   const voice = locale === 'en' ? 'en-US-JennyNeural' : 'ar-SA-ZariyahNeural'
   const tts = new EdgeTTSBrowser(text, voice, {
-    // Slightly slower than default — more consultant-like, less robotic rush.
-    rate: locale === 'ar' ? '-8%' : '-3%',
-    pitch: locale === 'ar' ? '+2Hz' : '+0Hz',
+    rate: locale === 'ar' ? '-10.00%' : '-3.00%',
+    pitch: '+0Hz',
   })
-  const result = await tts.synthesize()
+  const result = await Promise.race([
+    tts.synthesize(),
+    new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error('edge_tts_timeout')), 10_000)
+    }),
+  ])
   const audio = result.audio as Blob | ArrayBuffer | { arrayBuffer: () => Promise<ArrayBuffer> }
   if (typeof Blob !== 'undefined' && audio instanceof Blob) return audio
   if (audio instanceof ArrayBuffer) {
@@ -181,6 +185,30 @@ async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob
   try {
     return await synthesizeViaEdgeBrowser(text, locale)
   } catch {
+    try {
+      // Second neural attempt with Hamed before robotic gTTS.
+      if (locale === 'ar') {
+        const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
+        const tts = new EdgeTTSBrowser(text, 'ar-SA-HamedNeural', { rate: '-8.00%', pitch: '+0Hz' })
+        const result = await Promise.race([
+          tts.synthesize(),
+          new Promise<never>((_, reject) => {
+            window.setTimeout(() => reject(new Error('edge_tts_timeout')), 10_000)
+          }),
+        ])
+        const audio = result.audio as Blob | ArrayBuffer | { arrayBuffer: () => Promise<ArrayBuffer> }
+        if (typeof Blob !== 'undefined' && audio instanceof Blob) return audio
+        if (audio instanceof ArrayBuffer) return new Blob([audio], { type: 'audio/mpeg' })
+        if (audio && typeof (audio as { arrayBuffer?: unknown }).arrayBuffer === 'function') {
+          return new Blob(
+            [await (audio as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer()],
+            { type: 'audio/mpeg' },
+          )
+        }
+      }
+    } catch {
+      // fall through to API
+    }
     return await synthesizeViaApi(text, locale)
   }
 }
