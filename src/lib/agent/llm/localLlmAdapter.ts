@@ -9,8 +9,8 @@ import type { TravelFacts } from '../conversationBrain/travelFacts'
 
 /**
  * Local LLM adapter — Conversation Brain generative fallback (no API key).
- * Parses Travel Facts from the conversation payload when present; otherwise
- * returns a minimal general reply. Remote OpenAI is preferred when configured.
+ * Parses Travel Facts / Trip State from the conversation payload when present.
+ * Remote OpenAI is preferred when configured.
  */
 export function createLocalAgentLlmAdapter(): AgentLlmProvider {
   return {
@@ -40,24 +40,28 @@ export function createLocalAgentLlmAdapter(): AgentLlmProvider {
           userMessage,
           conversationId,
         })
+        const text = JSON.stringify({
+          displayText: generated.displayText,
+          spokenText: generated.spokenText,
+        })
+        request.onDelta?.(text)
         return {
           providerId: 'local',
           status: 'ok',
-          text: JSON.stringify({
-            displayText: generated.displayText,
-            spokenText: generated.spokenText,
-          }),
+          text,
         }
       }
+      const text = JSON.stringify({
+        displayText: userMessage
+          ? `Understood. What is the one detail still blocking the plan?`
+          : 'What is the one detail still blocking the plan?',
+        spokenText: 'What is the one detail still blocking the plan?',
+      })
+      request.onDelta?.(text)
       return {
         providerId: 'local',
         status: 'ok',
-        text: JSON.stringify({
-          displayText: userMessage
-            ? `Understood. What is the one detail still blocking the plan?`
-            : 'What is the one detail still blocking the plan?',
-          spokenText: 'What is the one detail still blocking the plan?',
-        }),
+        text,
       }
     },
   }
@@ -65,6 +69,7 @@ export function createLocalAgentLlmAdapter(): AgentLlmProvider {
 
 function extractFactsFromPayload(payload: string): TravelFacts | null {
   const markers = [
+    '=== TRIP STATE (source of truth) ===',
     'Travel Facts / Trip State / Memory / Preferences (source of truth):',
     'Travel Facts (source of truth — never contradict or re-ask known fields):',
     'Travel Facts (structured — not prose):',
@@ -82,6 +87,12 @@ function extractFactsFromPayload(payload: string): TravelFacts | null {
   if (idx < 0) return null
   const after = payload.slice(idx + markerLen).trim()
   const endMarkers = [
+    '\n=== MEMORY',
+    '\n=== USER PROFILE',
+    '\n=== CONVERSATION CONTEXT',
+    '\n=== RESPONSE CONTRACT',
+    '\n=== SPEAKER OPTIMIZATION',
+    '\n=== LATEST USER MESSAGE',
     '\nUser profile',
     '\nConversation context (recent turns):',
     '\nRecent conversation:',
@@ -101,11 +112,13 @@ function extractFactsFromPayload(payload: string): TravelFacts | null {
 }
 
 function extractLatestUserMessage(payload: string): string {
-  const marker = 'Latest user message:'
-  const idx = payload.indexOf(marker)
-  if (idx < 0) return ''
-  const body = payload.slice(idx + marker.length).trim()
-  // Drop trailing instruction lines if present.
-  const cut = body.split(/\n(?:Write the next|Response contract reminder)/i)[0] ?? body
-  return cut.trim()
+  const markers = ['=== LATEST USER MESSAGE ===', 'Latest user message:']
+  for (const marker of markers) {
+    const idx = payload.indexOf(marker)
+    if (idx < 0) continue
+    const body = payload.slice(idx + marker.length).trim()
+    const cut = body.split(/\n(?:Write the next|Response contract reminder|=== )/i)[0] ?? body
+    return cut.trim()
+  }
+  return ''
 }

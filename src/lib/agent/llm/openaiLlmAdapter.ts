@@ -1,6 +1,7 @@
 /**
  * OpenAI chat completions adapter for Conversation Brain.
- * Enabled when VITE_OPENAI_API_KEY (or VITE_AGENT_OPENAI_API_KEY) is set.
+ * Enabled when VITE_OPENAI_API_KEY, VITE_AGENT_OPENAI_API_KEY, or OPENAI_API_KEY is set.
+ * Never hardcodes secrets — all config is environment-driven via openaiClient.
  */
 
 import type {
@@ -9,38 +10,18 @@ import type {
   ConversationLlmRequest,
   ConversationLlmResponse,
 } from './types'
-
-import { readManagedConfig, readManagedEnv } from '../../security/secrets/managedAccess'
-
-function readOpenAiKey(): string | null {
-  const raw = (
-    readManagedEnv('OPENAI_API_KEY', { providerId: 'openai' })
-    ?? readManagedConfig('VITE_AGENT_OPENAI_API_KEY')
-    ?? readManagedConfig('VITE_OPENAI_API_KEY')
-  )?.trim()
-  return raw || null
-}
-
-function readOpenAiModel(): string {
-  return (
-    readManagedConfig('VITE_AGENT_OPENAI_MODEL')?.trim()
-    || 'gpt-4o-mini'
-  )
-}
-
-function readOpenAiBaseUrl(): string {
-  return (
-    readManagedConfig('VITE_AGENT_OPENAI_BASE_URL')?.trim()
-    || 'https://api.openai.com/v1'
-  )
-}
+import {
+  isOpenAiConfigured,
+  openAiChatCompletion,
+  OpenAiClientError,
+} from './openaiClient'
 
 export function createOpenAiAgentLlmAdapter(): AgentLlmProvider {
   return {
     providerId: 'openai',
-    isAvailable: () => Boolean(readOpenAiKey()),
+    isAvailable: () => isOpenAiConfigured(),
     async complete(request): Promise<AgentLlmResponse> {
-      if (!readOpenAiKey()) {
+      if (!isOpenAiConfigured()) {
         return {
           providerId: 'openai',
           status: 'unavailable',
@@ -62,8 +43,7 @@ export function createOpenAiAgentLlmAdapter(): AgentLlmProvider {
       }
     },
     async converse(request: ConversationLlmRequest): Promise<ConversationLlmResponse> {
-      const apiKey = readOpenAiKey()
-      if (!apiKey) {
+      if (!isOpenAiConfigured()) {
         return {
           providerId: 'openai',
           status: 'unavailable',
@@ -72,42 +52,38 @@ export function createOpenAiAgentLlmAdapter(): AgentLlmProvider {
         }
       }
       try {
-        const body = {
-          model: readOpenAiModel(),
+        const result = await openAiChatCompletion({
           temperature: request.temperature ?? 0.85,
-          response_format: { type: 'json_object' },
+          jsonObject: true,
+          stream: request.stream !== false,
+          signal: request.signal,
+          onDelta: request.onDelta
+            ? (accumulated) => {
+              request.onDelta?.(accumulated)
+            }
+            : undefined,
           messages: [
             { role: 'system', content: request.systemPrompt },
             ...request.messages.map((m) => ({ role: m.role, content: m.content })),
           ],
-        }
-        const res = await fetch(`${readOpenAiBaseUrl()}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify(body),
-          signal: request.signal,
         })
-        if (!res.ok) {
-          const errText = await res.text().catch(() => '')
+        return {
+          providerId: 'openai',
+          status: 'ok',
+          text: result.text,
+          usage: result.usage,
+        }
+      } catch (error) {
+        if (error instanceof OpenAiClientError) {
           return {
             providerId: 'openai',
-            status: 'error',
+            status: error.code === 'missing_api_key' ? 'unavailable' : 'error',
             text: '',
-            error: `http_${res.status}:${errText.slice(0, 200)}`,
+            error: error.code === 'http_error' && error.httpStatus
+              ? `http_${error.httpStatus}:${error.message}`
+              : error.code,
           }
         }
-        const data = await res.json() as {
-          choices?: Array<{ message?: { content?: string } }>
-        }
-        const text = data.choices?.[0]?.message?.content?.trim() ?? ''
-        if (!text) {
-          return { providerId: 'openai', status: 'error', text: '', error: 'empty_completion' }
-        }
-        return { providerId: 'openai', status: 'ok', text }
-      } catch (error) {
         if (request.signal?.aborted) {
           return { providerId: 'openai', status: 'error', text: '', error: 'aborted' }
         }

@@ -195,6 +195,14 @@ export interface TravelAgentTurnInput {
    * Additive; Conversation Brain still authors the final reply.
    */
   onProgress?: (event: AutonomousProgressEvent) => void
+  /**
+   * Conversation-First — streaming dialogue deltas from OpenAI Conversation Brain.
+   * Fired while spoken/display text is generated (before planTurn resolves).
+   */
+  onDialogueDelta?: (partial: {
+    displayText: string
+    spokenText: string
+  }) => void
 }
 
 export interface TravelAgentTurnResult {
@@ -830,6 +838,7 @@ async function speakTravelFacts(input: {
   facts: TravelFacts
   userProfile?: Record<string, unknown> | null
   signal?: AbortSignal
+  onDelta?: (partial: { displayText: string; spokenText: string }) => void
 }): Promise<{ displayText: string; spokenText: string; providerId: string }> {
   const injectedProfile: Record<string, unknown> = {
     conversationId: input.conversationId,
@@ -851,6 +860,14 @@ async function speakTravelFacts(input: {
   return runConversationBrain({
     ...input,
     userProfile: injectedProfile,
+    onDelta: input.onDelta
+      ? (partial) => {
+        input.onDelta?.({
+          displayText: partial.displayText,
+          spokenText: partial.spokenText,
+        })
+      }
+      : undefined,
   })
 }
 
@@ -1690,7 +1707,8 @@ export function createTravelAgentService(
             messages: input.messages,
             facts,
             signal: input.signal,
-          })
+          onDelta: input.onDialogueDelta,
+        })
           const meta: AgentProviderMeta = {
             kind: 'travel_agent',
             version: 2,
@@ -2397,6 +2415,7 @@ export function createTravelAgentService(
           messages: input.messages,
           facts,
           signal: input.signal,
+          onDelta: input.onDialogueDelta,
         })
         const replyText = actionSummary || spoken.displayText
         const meta: AgentProviderMeta = {
@@ -2457,6 +2476,7 @@ export function createTravelAgentService(
           messages: input.messages,
           facts,
           signal: input.signal,
+          onDelta: input.onDialogueDelta,
         })
         const replyText = disruptionSummary || spoken.displayText
         const meta: AgentProviderMeta = {
@@ -2510,6 +2530,7 @@ export function createTravelAgentService(
           messages: input.messages,
           facts,
           signal: input.signal,
+          onDelta: input.onDialogueDelta,
         })
         const replyText = budgetSummary || spoken.displayText
         const meta: AgentProviderMeta = {
@@ -2563,6 +2584,7 @@ export function createTravelAgentService(
           messages: input.messages,
           facts,
           signal: input.signal,
+          onDelta: input.onDialogueDelta,
         })
         const replyText = mapsSummary || spoken.displayText
         const meta: AgentProviderMeta = {
@@ -2620,6 +2642,7 @@ export function createTravelAgentService(
           messages: input.messages,
           facts,
           signal: input.signal,
+          onDelta: input.onDialogueDelta,
         })
         const replyText = companionSummary || spoken.displayText
         const meta: AgentProviderMeta = {
@@ -2684,6 +2707,7 @@ export function createTravelAgentService(
           messages: input.messages,
           facts,
           signal: input.signal,
+          onDelta: input.onDialogueDelta,
         })
         const replyText = diSummary || spoken.displayText
         const meta: AgentProviderMeta = {
@@ -2736,6 +2760,7 @@ export function createTravelAgentService(
           messages: input.messages,
           facts,
           signal: input.signal,
+          onDelta: input.onDialogueDelta,
         })
         const replyText = journeySummary || spoken.displayText
         const meta: AgentProviderMeta = {
@@ -2797,6 +2822,7 @@ export function createTravelAgentService(
           messages: input.messages,
           facts,
           signal: input.signal,
+          onDelta: input.onDialogueDelta,
         })
         const meta: AgentProviderMeta = {
           kind: 'travel_agent',
@@ -2845,7 +2871,8 @@ export function createTravelAgentService(
             messages: input.messages,
             facts,
             signal: input.signal,
-          })
+          onDelta: input.onDialogueDelta,
+        })
           return {
             reply: spoken.displayText,
             memory,
@@ -2885,7 +2912,8 @@ export function createTravelAgentService(
             messages: input.messages,
             facts,
             signal: input.signal,
-          })
+          onDelta: input.onDialogueDelta,
+        })
           return {
             reply: spoken.displayText,
             memory,
@@ -3132,7 +3160,8 @@ export function createTravelAgentService(
             messages: input.messages,
             facts,
             signal: input.signal,
-          })
+          onDelta: input.onDialogueDelta,
+        })
           const meta: AgentProviderMeta = {
             kind: 'travel_agent',
             version: 2,
@@ -3575,7 +3604,8 @@ export function createTravelAgentService(
         messages: input.messages,
         facts,
         signal: input.signal,
-      })
+          onDelta: input.onDialogueDelta,
+        })
 
       // Sprint 89 — validate traveler-facing reply; keep meta on every interaction.
       const constitutionFinal = constitutionMod.applyConstitutionToTurn({

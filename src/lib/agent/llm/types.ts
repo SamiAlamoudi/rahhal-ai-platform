@@ -41,11 +41,21 @@ export interface ConversationLlmMessage {
   content: string
 }
 
+export interface LlmTokenUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+}
+
 export interface ConversationLlmRequest {
   systemPrompt: string
   messages: ConversationLlmMessage[]
   signal?: AbortSignal
   temperature?: number
+  /** Streaming partial assistant text (accumulated). */
+  onDelta?: (accumulatedText: string) => void
+  /** Prefer SSE streaming when the provider supports it (default true for OpenAI). */
+  stream?: boolean
 }
 
 export interface ConversationLlmResponse {
@@ -53,13 +63,14 @@ export interface ConversationLlmResponse {
   status: 'ok' | 'unavailable' | 'error'
   text: string
   error?: string
+  usage?: LlmTokenUsage | null
 }
 
 export interface AgentLlmProvider {
   readonly providerId: AgentLlmProviderId
   isAvailable(): boolean
   complete(request: AgentLlmRequest): Promise<AgentLlmResponse>
-  /** Experience Sprint 2 — generative dialogue for Conversation Brain. */
+  /** Generative dialogue for Conversation Brain (OpenAI when configured). */
   converse(request: ConversationLlmRequest): Promise<ConversationLlmResponse>
 }
 

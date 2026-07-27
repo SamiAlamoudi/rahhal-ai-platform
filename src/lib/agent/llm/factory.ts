@@ -6,21 +6,25 @@ import {
   createDeepSeekAgentLlmAdapter,
   createGeminiAgentLlmAdapter,
 } from './stubLlmAdapters'
+import { isOpenAiConfigured } from './openaiClient'
 
-import { readManagedConfig, readManagedEnv } from '../../security/secrets/managedAccess'
+import { readManagedConfig } from '../../security/secrets/managedAccess'
 
+/**
+ * Conversation-First selection:
+ * - If an OpenAI API key is present → OpenAI (unless another remote provider id is forced).
+ * - Otherwise → local fallback (or explicit remote stub id).
+ * Adding VITE_OPENAI_API_KEY / VITE_AGENT_OPENAI_API_KEY is enough to go live.
+ */
 export function getDefaultAgentLlmProviderId(): AgentLlmProviderId {
   const raw = readManagedConfig('VITE_AGENT_LLM_PROVIDER')?.trim().toLowerCase()
+  if (isOpenAiConfigured()) {
+    if (raw === 'anthropic' || raw === 'gemini' || raw === 'deepseek') return raw
+    return 'openai'
+  }
   if (raw === 'openai' || raw === 'anthropic' || raw === 'gemini' || raw === 'deepseek' || raw === 'local') {
     return raw
   }
-  // Prefer OpenAI automatically when a key is present.
-  const key = (
-    readManagedEnv('OPENAI_API_KEY', { providerId: 'openai' })
-    ?? readManagedConfig('VITE_AGENT_OPENAI_API_KEY')
-    ?? readManagedConfig('VITE_OPENAI_API_KEY')
-  )?.trim()
-  if (key) return 'openai'
   return 'local'
 }
 
@@ -62,11 +66,11 @@ export function createAgentLlmRegistry(
       return map.get(id)
     },
     getActive() {
-      const preferred = map.get(activeId)
-      if (preferred?.isAvailable()) return preferred
-      // OpenAI preferred over local when available even if activeId was local.
+      // Conversation-First: OpenAI wins whenever a key is configured.
       const openai = map.get('openai')
       if (openai?.isAvailable()) return openai
+      const preferred = map.get(activeId)
+      if (preferred?.isAvailable()) return preferred
       return map.get('local') ?? createLocalAgentLlmAdapter()
     },
   }

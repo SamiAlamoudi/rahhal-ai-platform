@@ -44,9 +44,9 @@ export function createTravelAgentProvider(
     providerId: 'travel-agent',
 
     async *streamReply(input: ChatCompletionRequest): AsyncIterable<ChatStreamChunk> {
-      // Experience Sprint 2 — no scripted bridge. Conversation Brain authors the full reply.
-      // Sprint 54 — stream structured autonomous progress while planTurn runs.
+      // Conversation-First — stream OpenAI dialogue deltas while planTurn runs.
       const progressQueue: AutonomousProgressEvent[] = []
+      const dialogueQueue: Array<{ displayText: string; spokenText: string }> = []
       let wake: (() => void) | null = null
       const waitForProgress = () => new Promise<void>((resolve) => {
         wake = resolve
@@ -60,6 +60,8 @@ export function createTravelAgentProvider(
       let turnResult: TravelAgentTurnResult | undefined
       let turnError: unknown
       let turnDone = false
+      let streamedDisplay = ''
+      let latestSpoken = ''
 
       const turnPromise = service.planTurn({
         conversationId: input.conversationId,
@@ -67,6 +69,10 @@ export function createTravelAgentProvider(
         signal: input.signal,
         onProgress: (event) => {
           progressQueue.push(event)
+          notify()
+        },
+        onDialogueDelta: (partial) => {
+          dialogueQueue.push(partial)
           notify()
         },
       }).then((value) => {
@@ -79,7 +85,7 @@ export function createTravelAgentProvider(
         notify()
       })
 
-      while (!turnDone || progressQueue.length > 0) {
+      while (!turnDone || progressQueue.length > 0 || dialogueQueue.length > 0) {
         while (progressQueue.length > 0) {
           const event = progressQueue.shift()!
           yield {
@@ -94,6 +100,29 @@ export function createTravelAgentProvider(
                 providerId: event.providerId,
                 retryCount: event.retryCount,
               },
+            },
+          }
+        }
+        while (dialogueQueue.length > 0) {
+          const partial = dialogueQueue.shift()!
+          latestSpoken = partial.spokenText || latestSpoken
+          const nextDisplay = partial.displayText || ''
+          let chunk = ''
+          if (nextDisplay.startsWith(streamedDisplay)) {
+            chunk = nextDisplay.slice(streamedDisplay.length)
+            streamedDisplay = nextDisplay
+          } else if (nextDisplay !== streamedDisplay) {
+            // Model rewrote earlier text — replace by sending the full new display as a jump.
+            chunk = nextDisplay
+            streamedDisplay = nextDisplay
+          }
+          yield {
+            type: 'delta',
+            text: chunk,
+            meta: {
+              spokenText: latestSpoken || undefined,
+              voicePhase: latestSpoken ? 'final' : undefined,
+              streamingSource: 'openai',
             },
           }
         }
@@ -112,11 +141,32 @@ export function createTravelAgentProvider(
         return
       }
 
-      const spoken = turnResult.meta.spokenText?.trim() || turnResult.reply
+      const spoken = turnResult.meta.spokenText?.trim() || latestSpoken || turnResult.reply
       const meta: AgentProviderMeta = {
         ...turnResult.meta,
         spokenText: spoken,
         voicePhase: 'final',
+      }
+
+      // If OpenAI already streamed the full display, just finalize.
+      if (streamedDisplay && turnResult.reply.startsWith(streamedDisplay)) {
+        const remainder = turnResult.reply.slice(streamedDisplay.length)
+        if (remainder) {
+          yield {
+            type: 'delta',
+            text: remainder,
+            meta: {
+              spokenText: spoken,
+              voicePhase: 'final',
+            },
+          }
+        }
+        if (input.signal.aborted) {
+          yield { type: 'error', error: 'cancelled' }
+          return
+        }
+        yield { type: 'done', meta: { ...meta } }
+        return
       }
 
       // Emit spokenText on the first content delta so voice can start ASAP.
