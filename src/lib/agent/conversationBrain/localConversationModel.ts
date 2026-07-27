@@ -83,9 +83,11 @@ function askForSlot(slot: string, facts: TravelFacts, seed: number, ar: boolean)
     },
     budgetAmount: {
       ar: [
-        'نضبط الخيارات على سقف واضح، أم نتركها مرنة ونقارن المستويات بهدوء؟',
+        'ما الميزانية التقريبية التي ترتاحون لها لهذه الرحلة؟',
+        'نضبط الخيارات على سقف واضح للميزانية، أم نتركها مرنة؟',
       ],
       en: [
+        'What approximate budget feels comfortable for this trip?',
         'Shall I shape options around a clear ceiling, or keep it flexible?',
       ],
     },
@@ -120,9 +122,14 @@ function softAck(facts: TravelFacts, seed: number, ar: boolean): string {
       ])
     }
     if (d !== 'وجهتكم' && days) {
+      const durationPhrase = days <= 3
+        ? 'عطلة قصيرة'
+        : days === 7
+          ? 'أسبوع'
+          : `${days} أيام`
       return pick(seed, [
-        `فهمت: ${d} لمدة ${days} أيام.`,
-        `نبني رحلة ${d} على إيقاع ${days} أيام.`,
+        `تمام — ${durationPhrase} في ${d} مناسبة جداً.`,
+        `حسناً، نخليها ${durationPhrase} في ${d}.`,
       ])
     }
     if (d !== 'وجهتكم') {

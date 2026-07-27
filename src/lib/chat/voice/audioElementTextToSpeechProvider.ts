@@ -85,6 +85,9 @@ export async function unlockAudioPlayback(): Promise<void> {
     // ignore
   }
 
+  // Prefetch Edge neural TTS so first spoken sentence starts faster.
+  void import('edge-tts-universal/browser').catch(() => undefined)
+
   try {
     if (!unlockWarmAudio) {
       unlockWarmAudio = new Audio(SILENT_WAV)
@@ -149,8 +152,13 @@ async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob
 
 async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Promise<Blob> {
   const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
+  // Warm, conversational Arabic neural voice (Zariyah); Jenny for English.
   const voice = locale === 'en' ? 'en-US-JennyNeural' : 'ar-SA-ZariyahNeural'
-  const tts = new EdgeTTSBrowser(text, voice, { rate: '-5%' })
+  const tts = new EdgeTTSBrowser(text, voice, {
+    // Slightly slower than default — more consultant-like, less robotic rush.
+    rate: locale === 'ar' ? '-8%' : '-3%',
+    pitch: locale === 'ar' ? '+2Hz' : '+0Hz',
+  })
   const result = await tts.synthesize()
   const audio = result.audio as Blob | ArrayBuffer | { arrayBuffer: () => Promise<ArrayBuffer> }
   if (typeof Blob !== 'undefined' && audio instanceof Blob) return audio
@@ -165,11 +173,15 @@ async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Prom
   throw new Error('empty_edge_audio')
 }
 
+/**
+ * Prefer Edge neural voices for natural Arabic; fall back to /api/tts (gTTS).
+ * Edge runs in-browser — avoids robotic Translate TTS on the happy path.
+ */
 async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob> {
   try {
-    return await synthesizeViaApi(text, locale)
-  } catch {
     return await synthesizeViaEdgeBrowser(text, locale)
+  } catch {
+    return await synthesizeViaApi(text, locale)
   }
 }
 

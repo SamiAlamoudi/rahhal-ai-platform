@@ -47,8 +47,10 @@ export function HomeVoiceConsultant({
   const [sessionReady, setSessionReady] = useState(false)
   const [cards, setCards] = useState<DynamicResultCard[]>([])
   const [audioPlaying, setAudioPlaying] = useState(false)
+  const speechStartedRef = useRef(false)
+  const pendingAssistantRef = useRef<ChatMessage | null>(null)
 
-  const upsertAssistant = useCallback((message: ChatMessage) => {
+  const flushAssistant = useCallback((message: ChatMessage) => {
     if (message.role !== 'assistant') return
     setAssistantMessage(message)
     setAssistantText(formatConsultantParagraphs(polishConsultantProse(message.content || '', locale)))
@@ -70,7 +72,22 @@ export function HomeVoiceConsultant({
     } else {
       setCards([])
     }
-  }, [])
+  }, [locale])
+
+  const upsertAssistant = useCallback((message: ChatMessage, opts?: { force?: boolean }) => {
+    if (message.role !== 'assistant') return
+    // ChatGPT-Voice lockstep: hold text until audio starts (unless forced / complete after speech).
+    if (!opts?.force && !speechStartedRef.current && message.status !== 'complete') {
+      pendingAssistantRef.current = message
+      return
+    }
+    if (!opts?.force && !speechStartedRef.current && message.status === 'complete') {
+      // Complete arrived before speech — keep buffered until onSpeechStarted, then force.
+      pendingAssistantRef.current = message
+      return
+    }
+    flushAssistant(message)
+  }, [flushAssistant])
 
   useEffect(() => {
     let disposed = false
@@ -92,6 +109,10 @@ export function HomeVoiceConsultant({
             if (!disposed) {
               setVoiceStatus(status)
               setAudioPlaying(status === 'speaking')
+              if (status === 'thinking' || status === 'listening') {
+                speechStartedRef.current = false
+                pendingAssistantRef.current = null
+              }
             }
           },
           onPartialTranscript: (text) => {
@@ -107,17 +128,30 @@ export function HomeVoiceConsultant({
           onError: (err) => {
             if (!disposed && !isBenignChatError(err)) setError(err)
           },
+          onSpeechStarted: () => {
+            if (disposed) return
+            speechStartedRef.current = true
+            const pending = pendingAssistantRef.current
+            pendingAssistantRef.current = null
+            if (pending) flushAssistant(pending)
+          },
           onAssistantCreate: (message) => {
             if (!disposed) {
               setCards([])
-              upsertAssistant(message)
+              speechStartedRef.current = false
+              pendingAssistantRef.current = null
+              setAssistantMessage(message)
+              setAssistantText('')
             }
           },
           onDelta: (message) => {
             if (!disposed) upsertAssistant(message)
           },
           onComplete: (message) => {
-            if (!disposed) upsertAssistant(message)
+            if (!disposed) {
+              if (speechStartedRef.current) flushAssistant(message)
+              else pendingAssistantRef.current = message
+            }
           },
           onStreamError: (_message, err) => {
             if (!disposed && !isBenignChatError(err)) setError(err)
@@ -132,7 +166,7 @@ export function HomeVoiceConsultant({
       session?.dispose()
       if (voiceRef.current === session) voiceRef.current = null
     }
-  }, [locale, onDraftChange, upsertAssistant])
+  }, [flushAssistant, locale, onDraftChange, upsertAssistant])
 
   const ensureConversation = useCallback(async (): Promise<string> => {
     if (conversationIdRef.current) return conversationIdRef.current
@@ -206,10 +240,10 @@ export function HomeVoiceConsultant({
     setUserHeard(trimmed)
     setAssistantText('')
     setAssistantMessage(null)
+    speechStartedRef.current = false
+    pendingAssistantRef.current = null
     await unlockAudioPlayback().catch(() => undefined)
     try {
-      // Brand-new trip phrasing after a completed turn → fresh conversation.
-      // Short answers like "إسطنبول" must CONTINUE the same conversation.
       const looksLikeNewTrip = /(?:أريد السفر|ابغى أسافر|أبغى أسافر|ودي أسافر|trip to|i want to (?:go|travel))/i.test(trimmed)
       if (assistantMessage?.status === 'complete' && looksLikeNewTrip) {
         beginFreshConversation()
@@ -217,45 +251,79 @@ export function HomeVoiceConsultant({
       }
       const id = await ensureConversation()
       const controller = new AbortController()
+      const { takeNewSpokenChunks, takeSpokenTail } = await import('../../lib/chat/voice/progressiveSpeech')
+      let spokenCursor = 0
+      let speakChain: Promise<void> = Promise.resolve()
+
+      const enqueueChunk = (chunk: string) => {
+        const piece = chunk.trim()
+        if (!piece || !voiceRef.current) return
+        speakChain = speakChain.then(async () => {
+          if (controller.signal.aborted) return
+          if (!speechStartedRef.current) {
+            speechStartedRef.current = true
+            setVoiceStatus('speaking')
+            setAudioPlaying(true)
+            const pending = pendingAssistantRef.current
+            pendingAssistantRef.current = null
+            if (pending) flushAssistant(pending)
+          }
+          voiceRef.current?.armHandsFree?.(id)
+          await voiceRef.current?.speakText(piece, { resumeHandsFree: false })
+        })
+      }
+
+      const pump = (full: string, final = false) => {
+        const { chunks, nextCursor } = takeNewSpokenChunks(full, spokenCursor)
+        for (const c of chunks) enqueueChunk(c)
+        spokenCursor = nextCursor
+        if (final) {
+          const tail = takeSpokenTail(full, spokenCursor)
+          if (tail) enqueueChunk(tail)
+        }
+      }
+
       await chatEngine.sendMessage(
         { conversationId: id, content: trimmed, modality: 'text' },
         {
           signal: controller.signal,
-          onAssistantCreate: upsertAssistant,
-          onDelta: upsertAssistant,
-          onComplete: async (message) => {
+          onAssistantCreate: (message) => {
+            setCards([])
+            setAssistantMessage(message)
+            setAssistantText('')
+            setVoiceStatus('thinking')
+          },
+          onDelta: (message) => {
             upsertAssistant(message)
+            setVoiceStatus((s) => (s === 'speaking' ? s : 'responding'))
             const spoken =
               (typeof message.providerMeta?.spokenText === 'string' && message.providerMeta.spokenText.trim())
-              || message.content.slice(0, 320)
-            if (spoken && voiceRef.current) {
-              setVoiceStatus('speaking')
-              setAudioPlaying(true)
-              try {
-                await unlockAudioPlayback().catch(() => undefined)
-                // Arm hands-free so speakText resumes listening after TTS.
-                voiceRef.current.armHandsFree?.(id)
-                await voiceRef.current.speakText(spoken)
-              } catch (e) {
-                if (!isBenignChatError(e)) {
-                  setError(e instanceof Error ? e.message : t('تعذر تشغيل الصوت', 'Could not play audio'))
-                }
-                // Even if TTS fails, return to listening so the session is never blocked.
-                try {
-                  await voiceRef.current.startHandsFree(id)
-                } catch {
-                  setVoiceStatus('idle')
-                }
-              } finally {
-                setAudioPlaying(false)
+              || message.content
+            if (spoken) pump(spoken, false)
+          },
+          onComplete: async (message) => {
+            const spoken =
+              (typeof message.providerMeta?.spokenText === 'string' && message.providerMeta.spokenText.trim())
+              || message.content.slice(0, 360)
+            if (spoken) pump(spoken, true)
+            try {
+              await speakChain
+            } catch (e) {
+              if (!isBenignChatError(e)) {
+                setError(e instanceof Error ? e.message : t('تعذر تشغيل الصوت', 'Could not play audio'))
               }
-            } else if (voiceRef.current) {
-              // No spoken text — still reopen listening so the traveler can continue.
-              try {
-                await voiceRef.current.startHandsFree(id)
-              } catch {
-                setVoiceStatus('idle')
-              }
+            }
+            if (!speechStartedRef.current) {
+              speechStartedRef.current = true
+              flushAssistant(message)
+            } else {
+              flushAssistant(message)
+            }
+            setAudioPlaying(false)
+            try {
+              await voiceRef.current?.startHandsFree(id)
+            } catch {
+              setVoiceStatus('idle')
             }
           },
           onError: (_message, err) => {
@@ -269,7 +337,7 @@ export function HomeVoiceConsultant({
         setError(e instanceof Error ? e.message : t('تعذر إرسال الرسالة', 'Could not send message'))
       }
     }
-  }, [assistantMessage?.status, beginFreshConversation, ensureConversation, onDraftChange, t, upsertAssistant])
+  }, [assistantMessage?.status, beginFreshConversation, ensureConversation, flushAssistant, onDraftChange, t, upsertAssistant])
 
   const statusLabel = (() => {
     switch (voiceStatus) {

@@ -91,7 +91,8 @@ export function extractFromUserText(
   if (duration != null) patch.durationDays = duration
 
   if (/\bweekend\b|عطلة نهاية|نهاية الأسبوع|نهاية الاسبوع/.test(lower) || /نهاية\s*الأسبوع/.test(normalized)) {
-    patch.durationDays = patch.durationDays ?? 2
+    // Weekend phrase wins over a bare "أسبوع" match inside "نهاية الأسبوع".
+    patch.durationDays = 2
   }
 
   const budget = matchBudget(lower, normalized)
@@ -613,6 +614,26 @@ function matchDuration(lower: string, original: string): number | null {
   }
   // Standalone يومين / يومان without trailing أيام
   if (/\bيومين\b|\bيومان\b/.test(original)) return 2
+  // Soft duration answers from consultant prompts ("عطلة قصيرة أم أسبوع؟")
+  if (
+    /عطلة\s*قصيرة|رحلة\s*قصيرة|إجازة\s*قصيرة|اجازة\s*قصيرة|قصيرة\s*جدا/.test(original)
+    || /(?:^|[\s،,])قصيرة(?:[\s،,]|$)/.test(original)
+    || /\bshort\s+(?:break|trip|holiday|vacation)\b/.test(lower)
+  ) {
+    return 3
+  }
+  if (
+    /عطلة\s*متوسطة|رحلة\s*متوسطة|إجازة\s*متوسطة|اجازة\s*متوسطة/.test(original)
+    || /\bmedium\s+(?:break|trip|holiday)\b/.test(lower)
+  ) {
+    return 5
+  }
+  if (
+    /عطلة\s*طويلة|رحلة\s*طويلة|إجازة\s*طويلة|اجازة\s*طويلة/.test(original)
+    || /\blong\s+(?:break|trip|holiday|vacation)\b/.test(lower)
+  ) {
+    return 10
+  }
   return null
 }
 

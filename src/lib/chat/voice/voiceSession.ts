@@ -27,6 +27,7 @@ import {
   normalizeVoiceLocale,
 } from './voiceTypes'
 import { unlockAudioPlayback } from './audioElementTextToSpeechProvider'
+import { takeNewSpokenChunks, takeSpokenTail } from './progressiveSpeech'
 
 export interface VoiceSessionCallbacks {
   onStatus?: (status: VoiceSessionStatus) => void
@@ -40,6 +41,8 @@ export interface VoiceSessionCallbacks {
   onStreamError?: (message: ChatMessage, error: string) => void
   /** Live mic level 0–1 for waveform UI while listening. */
   onLevel?: (level: number) => void
+  /** Fired when the first TTS chunk begins — UI should start revealing text. */
+  onSpeechStarted?: () => void
 }
 
 export interface VoiceSession {
@@ -59,7 +62,7 @@ export interface VoiceSession {
   armHandsFree: (conversationId: string) => void
   stopListening: () => Promise<void>
   interrupt: (abortStream?: () => void, opts?: { resumeHandsFree?: boolean }) => void
-  speakText: (text: string) => Promise<void>
+  speakText: (text: string, opts?: { resumeHandsFree?: boolean }) => Promise<void>
   dispose: () => void
 }
 
@@ -307,9 +310,53 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     utteranceBuffer = ''
     utterancePrefix = ''
     activeAbort?.abort()
+    tts.stop()
     const controller = new AbortController()
     activeAbort = controller
     let sawDelta = false
+    let spokenCursor = 0
+    let speechStarted = false
+    let speakChain: Promise<void> = Promise.resolve()
+
+    const enqueueSpeak = (chunk: string, phase: string) => {
+      const text = chunk.trim()
+      if (!text) return
+      speakChain = speakChain.then(async () => {
+        if (disposed || controller.signal.aborted) return
+        if (!speechStarted) {
+          speechStarted = true
+          setStatus('speaking')
+          callbacks.onSpeechStarted?.()
+          logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase } })
+          await unlockAudioPlayback()
+        } else {
+          setStatus('speaking')
+        }
+        try {
+          await tts.speak({ locale, text, interrupt: !speechStarted })
+        } catch (e) {
+          if (!isBenignChatError(e) && !disposed) {
+            diagnosePipelineError('tts', 'speak', e)
+            callbacks.onError?.(e instanceof Error ? e.message : 'تعذر تشغيل الرد الصوتي')
+          }
+        }
+      })
+    }
+
+    const pumpSpoken = (fullSpoken: string, final = false) => {
+      const { chunks, nextCursor } = takeNewSpokenChunks(fullSpoken, spokenCursor)
+      for (const chunk of chunks) {
+        enqueueSpeak(chunk, speechStarted ? 'delta' : 'first')
+      }
+      spokenCursor = nextCursor
+      if (final) {
+        const tail = takeSpokenTail(fullSpoken, spokenCursor)
+        if (tail) {
+          enqueueSpeak(tail, 'final')
+          spokenCursor = fullSpoken.replace(/\s+/g, ' ').trim().length
+        }
+      }
+    }
 
     logPipeline({
       stage: 'conversation',
@@ -330,9 +377,9 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           logPipeline({ stage: 'streaming', event: 'first_delta' })
         }
         callbacks.onDelta?.(message)
-
-        // Voice-first: do not start TTS during streaming — wait until the reply completes.
-        // Keep UI in "responding" so the traveler sees/hears one continuous consultant turn.
+        // ChatGPT-Voice: start speaking the first complete sentence ASAP.
+        const spoken = readSpokenText(message)
+        if (spoken) pumpSpoken(spoken, false)
       },
       onComplete: async (message) => {
         callbacks.onComplete?.(message)
@@ -344,18 +391,18 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         if (!controller.signal.aborted && !disposed) {
           const spoken = readSpokenText(message)
           if (spoken) {
-            setStatus('speaking')
+            pumpSpoken(spoken, true)
             try {
-              logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase: 'final' } })
-              await unlockAudioPlayback()
-              await tts.speak({ locale, text: spoken, interrupt: true })
+              await speakChain
               logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase: 'final' } })
-            } catch (e) {
-              if (!isBenignChatError(e) && !disposed) {
-                diagnosePipelineError('tts', 'speak', e)
-                callbacks.onError?.(e instanceof Error ? e.message : 'تعذر تشغيل الرد الصوتي')
-              }
+            } catch {
+              // errors already surfaced per-chunk
             }
+          }
+          // Always release UI text even if TTS produced no audio.
+          if (!speechStarted) {
+            speechStarted = true
+            callbacks.onSpeechStarted?.()
           }
         }
         sending = false
@@ -376,6 +423,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       onError: (message, error) => {
         sending = false
         activeAbort = null
+        tts.stop()
         callbacks.onStreamError?.(message, error)
         if (!isBenignChatError(error)) {
           diagnosePipelineError('streaming', 'assistant_stream', error)
@@ -592,7 +640,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         if (keepHandsFree) void maybeResumeHandsFree()
       }
     },
-    async speakText(text) {
+    async speakText(text, opts) {
       if (disposed) return
       setStatus('speaking')
       try {
@@ -602,12 +650,13 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         if (!isBenignChatError(e)) throw e
       }
       if (disposed) return
-      // Always return to listening in hands-free — never leave the session blocked.
-      if (mode === 'hands_free' && handsFreeConversationId) {
+      const resume = opts?.resumeHandsFree !== false
+      if (resume && mode === 'hands_free' && handsFreeConversationId) {
         await maybeResumeHandsFree()
-      } else if (!disposed) {
+      } else if (resume && !disposed) {
         setStatus('idle')
       }
+      // When resumeHandsFree === false, stay in speaking for progressive chunks.
     },
     dispose() {
       disposed = true
