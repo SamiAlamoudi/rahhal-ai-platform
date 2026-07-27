@@ -2417,15 +2417,14 @@ export function createTravelAgentService(
           signal: input.signal,
           onDelta: input.onDialogueDelta,
         })
-        // OpenAI owns traveler-facing copy; summaries stay in facts only.
-        const replyText = spoken.displayText
+        const replyText = actionSummary || spoken.displayText
         const meta: AgentProviderMeta = {
           kind: 'travel_agent',
           version: 2,
           memory,
           tripPlan: memory.tripPlan,
           itinerary: memory.tripPlan,
-          spokenText: spoken.spokenText,
+          spokenText: (actionSummary || spoken.spokenText)?.slice(0, 360),
           voicePhase: 'final',
           toolResults: [],
         }
@@ -2479,14 +2478,14 @@ export function createTravelAgentService(
           signal: input.signal,
           onDelta: input.onDialogueDelta,
         })
-        const replyText = spoken.displayText
+        const replyText = disruptionSummary || spoken.displayText
         const meta: AgentProviderMeta = {
           kind: 'travel_agent',
           version: 2,
           memory,
           tripPlan: memory.tripPlan,
           itinerary: memory.tripPlan,
-          spokenText: spoken.spokenText,
+          spokenText: (disruptionSummary || spoken.spokenText)?.slice(0, 360),
           voicePhase: 'final',
           toolResults: [],
         }
@@ -2533,14 +2532,14 @@ export function createTravelAgentService(
           signal: input.signal,
           onDelta: input.onDialogueDelta,
         })
-        const replyText = spoken.displayText
+        const replyText = budgetSummary || spoken.displayText
         const meta: AgentProviderMeta = {
           kind: 'travel_agent',
           version: 2,
           memory,
           tripPlan: memory.tripPlan,
           itinerary: memory.tripPlan,
-          spokenText: spoken.spokenText,
+          spokenText: (budgetSummary || spoken.spokenText)?.slice(0, 360),
           voicePhase: 'final',
           toolResults: [],
         }
@@ -2587,14 +2586,14 @@ export function createTravelAgentService(
           signal: input.signal,
           onDelta: input.onDialogueDelta,
         })
-        const replyText = spoken.displayText
+        const replyText = mapsSummary || spoken.displayText
         const meta: AgentProviderMeta = {
           kind: 'travel_agent',
           version: 2,
           memory,
           tripPlan: memory.tripPlan,
           itinerary: memory.tripPlan,
-          spokenText: spoken.spokenText,
+          spokenText: (mapsSummary || spoken.spokenText)?.slice(0, 360),
           voicePhase: 'final',
           toolResults: [],
         }
@@ -2645,14 +2644,14 @@ export function createTravelAgentService(
           signal: input.signal,
           onDelta: input.onDialogueDelta,
         })
-        const replyText = spoken.displayText
+        const replyText = companionSummary || spoken.displayText
         const meta: AgentProviderMeta = {
           kind: 'travel_agent',
           version: 2,
           memory,
           tripPlan: memory.tripPlan,
           itinerary: memory.tripPlan,
-          spokenText: spoken.spokenText,
+          spokenText: (companionSummary || spoken.spokenText)?.slice(0, 360),
           voicePhase: 'final',
           toolResults: [],
         }
@@ -2710,14 +2709,14 @@ export function createTravelAgentService(
           signal: input.signal,
           onDelta: input.onDialogueDelta,
         })
-        const replyText = spoken.displayText
+        const replyText = diSummary || spoken.displayText
         const meta: AgentProviderMeta = {
           kind: 'travel_agent',
           version: 2,
           memory,
           tripPlan: memory.tripPlan,
           itinerary: memory.tripPlan,
-          spokenText: spoken.spokenText,
+          spokenText: (diSummary || spoken.spokenText)?.slice(0, 360),
           voicePhase: 'final',
           toolResults: [],
         }
@@ -2763,14 +2762,14 @@ export function createTravelAgentService(
           signal: input.signal,
           onDelta: input.onDialogueDelta,
         })
-        const replyText = spoken.displayText
+        const replyText = journeySummary || spoken.displayText
         const meta: AgentProviderMeta = {
           kind: 'travel_agent',
           version: 2,
           memory,
           tripPlan: memory.tripPlan,
           itinerary: memory.tripPlan,
-          spokenText: spoken.spokenText,
+          spokenText: (journeySummary || spoken.spokenText)?.slice(0, 360),
           voicePhase: 'final',
           toolResults: [],
         }
@@ -3660,7 +3659,16 @@ export function createTravelAgentService(
       })
       constitutionMeta = constitutionFinal.meta
 
-      // OpenAI owns display/spoken text — never rewrite reply post-hoc.
+      let displayReply = spoken.displayText
+      if (/no results|لا توجد نتائج/i.test(displayReply) && !memory.tripPlan) {
+        displayReply = [
+          displayReply.replace(/\bno results\b/gi, 'limited matches'),
+          '',
+          constitutionFinal.recoveryNotes[0]
+            ?? 'I am expanding nearby airports, flexible dates, alternative hotels, and other providers for closer options.',
+        ].join('\n')
+      }
+
       const meta: AgentProviderMeta = {
         kind: 'travel_agent',
         version: 2,
@@ -3674,7 +3682,7 @@ export function createTravelAgentService(
       }
 
       return {
-        reply: spoken.displayText,
+        reply: displayReply,
         memory,
         tripPlan: memory.tripPlan,
         meta: attachTurnMeta(meta, spoken.spokenText),

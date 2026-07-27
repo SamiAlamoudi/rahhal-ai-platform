@@ -16,6 +16,7 @@ import {
   type DynamicResultCard,
 } from '../../lib/premiumExperience'
 import { tripPlanFromMeta } from '../../lib/agent/memory'
+import { formatConsultantParagraphs, polishConsultantProse } from '../../lib/agent/conversationBrain'
 import { ConversationComposer } from './ConversationComposer'
 
 export interface HomeVoiceConsultantProps {
@@ -52,8 +53,7 @@ export function HomeVoiceConsultant({
   const flushAssistant = useCallback((message: ChatMessage) => {
     if (message.role !== 'assistant') return
     setAssistantMessage(message)
-    // OpenAI owns traveler-facing copy — render verbatim (no polish / rechunk).
-    setAssistantText(message.content || '')
+    setAssistantText(formatConsultantParagraphs(polishConsultantProse(message.content || '', locale)))
     if (message.status === 'complete') {
       const memory = message.providerMeta?.memory as
         | { requirements?: { destination?: string | null; destinations?: string[] } }
@@ -72,7 +72,7 @@ export function HomeVoiceConsultant({
     } else {
       setCards([])
     }
-  }, [])
+  }, [locale])
 
   const upsertAssistant = useCallback((message: ChatMessage, opts?: { force?: boolean }) => {
     if (message.role !== 'assistant') return

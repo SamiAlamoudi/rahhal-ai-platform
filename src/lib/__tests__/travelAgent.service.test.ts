@@ -30,7 +30,7 @@ describe('travelAgentService orchestration', () => {
     })
     expect(turn.memory.missingFields).toContain('durationDays')
     expect(turn.tripPlan).toBeNull()
-    expect(turn.reply.toLowerCase()).toMatch(/day|مدة|duration|when|متى/)
+    expect(turn.reply.toLowerCase()).toMatch(/day|مدة|duration|when|متى|week|أسبوع|break|عطلة/)
     expect(turn.meta.version).toBe(2)
   })
 

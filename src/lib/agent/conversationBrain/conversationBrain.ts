@@ -200,6 +200,7 @@ function finalizeBrainResult(
   spokenRaw: string,
   providerId: string,
   mode: 'remote' | 'local',
+  locale?: string,
 ): ConversationBrainResult {
   if (mode === 'remote') {
     return {
@@ -210,8 +211,8 @@ function finalizeBrainResult(
   }
 
   return {
-    displayText: optimizeDisplayText(displayRaw),
-    spokenText: optimizeSpokenText(spokenRaw, displayRaw),
+    displayText: optimizeDisplayText(displayRaw, locale),
+    spokenText: optimizeSpokenText(spokenRaw, displayRaw, locale),
     providerId,
   }
 }
@@ -251,6 +252,7 @@ export async function runConversationBrain(input: {
       local.spokenText,
       llm.providerId,
       'local',
+      input.facts.locale,
     )
     input.onDelta?.({
       displayText: result.displayText,
@@ -281,6 +283,7 @@ export async function runConversationBrain(input: {
             parsed.spokenText,
             llm.providerId,
             'remote',
+            input.facts.locale,
           )
           if (guarded.displayText !== lastEmittedDisplay) {
             lastEmittedDisplay = guarded.displayText
@@ -301,6 +304,7 @@ export async function runConversationBrain(input: {
           parsed.spokenText,
           result.providerId,
           'remote',
+          input.facts.locale,
         )
       }
     }
@@ -317,5 +321,6 @@ export async function runConversationBrain(input: {
     local.spokenText,
     `${llm.providerId}+local-fallback`,
     'local',
+    input.facts.locale,
   )
 }
