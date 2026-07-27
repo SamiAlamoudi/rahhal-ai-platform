@@ -55,6 +55,8 @@ export interface VoiceSession {
   startPushToTalk: () => Promise<void>
   stopPushToTalkAndSend: (conversationId: string) => Promise<ChatMessage | null>
   startHandsFree: (conversationId: string) => Promise<void>
+  /** Mark session as hands-free for a conversation without starting the mic yet (pre-TTS). */
+  armHandsFree: (conversationId: string) => void
   stopListening: () => Promise<void>
   interrupt: (abortStream?: () => void, opts?: { resumeHandsFree?: boolean }) => void
   speakText: (text: string) => Promise<void>
@@ -255,14 +257,28 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
 
   const maybeResumeHandsFree = async () => {
     if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
+    // Brief gap after TTS so the mic isn't captured while speakers are still draining.
+    await new Promise((r) => setTimeout(r, 220))
+    if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
     try {
       setStatus('reconnecting')
-      // Keep mid-thought speech across browser STT restarts (ChatGPT-like continuity).
       await startListening(true, { preserveUtterance: true })
     } catch (e) {
+      // One retry — Chrome STT often fails if restarted immediately after TTS.
+      try {
+        await new Promise((r) => setTimeout(r, 350))
+        if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
+        setStatus('reconnecting')
+        await startListening(true, { preserveUtterance: true })
+        return
+      } catch (retryError) {
+        diagnosePipelineError('stt', 'resume', retryError)
+        callbacks.onError?.(
+          retryError instanceof Error ? retryError.message : 'تعذر استئناف الاستماع',
+        )
+        setStatus('error')
+      }
       diagnosePipelineError('stt', 'resume', e)
-      callbacks.onError?.(e instanceof Error ? e.message : 'تعذر استئناف الاستماع')
-      setStatus('error')
     }
   }
 
@@ -520,6 +536,11 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       utterancePrefix = ''
       await startListening(true)
     },
+    armHandsFree(conversationId) {
+      if (disposed) return
+      mode = 'hands_free'
+      handsFreeConversationId = conversationId
+    },
     async stopListening() {
       intentionalAbort = true
       resumeHandsFreeAfterInterrupt = false
@@ -580,7 +601,13 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       } catch (e) {
         if (!isBenignChatError(e)) throw e
       }
-      if (!disposed) setStatus('idle')
+      if (disposed) return
+      // Always return to listening in hands-free — never leave the session blocked.
+      if (mode === 'hands_free' && handsFreeConversationId) {
+        await maybeResumeHandsFree()
+      } else if (!disposed) {
+        setStatus('idle')
+      }
     },
     dispose() {
       disposed = true

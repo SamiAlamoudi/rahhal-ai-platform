@@ -43,6 +43,21 @@ function dest(facts: TravelFacts): string {
   )
 }
 
+/** Next hard intake slot derived from known facts (not only concierge askFields). */
+export function nextHardSlot(facts: TravelFacts): string | null {
+  const fromMissing = facts.missingSlots[0]
+  if (fromMissing) return fromMissing
+  const known = facts.known
+  if (!known.destination && !(known.destinations && known.destinations.length > 0)) {
+    return 'destination'
+  }
+  if (known.durationDays == null) return 'durationDays'
+  if (known.budgetAmount == null && !known.budgetFlexible) return 'budgetAmount'
+  if (known.travelers == null && !known.travelerType) return 'travelers'
+  if (!known.origin) return 'origin'
+  return null
+}
+
 function askForSlot(slot: string, facts: TravelFacts, seed: number, ar: boolean): string {
   const d = dest(facts)
   const variants: Record<string, { ar: string[]; en: string[] }> = {
@@ -111,7 +126,11 @@ function softAck(facts: TravelFacts, seed: number, ar: boolean): string {
       ])
     }
     if (d !== 'وجهتكم') {
-      return pick(seed, [`واضح أن الوجهة ${d}.`, `حسنًا — نركز على ${d}.`])
+      // Never leave the traveler with a dead-end ack — confirm then continue.
+      return pick(seed, [
+        `ممتاز، سأبني الرحلة على ${d}.`,
+        `حسنًا — نثبّت ${d} ونكمل التخطيط.`,
+      ])
     }
     return pick(seed, ['فهمت طلبكم.', 'خلونا نضبط الأساسيات بهدوء.'])
   }
@@ -119,7 +138,51 @@ function softAck(facts: TravelFacts, seed: number, ar: boolean): string {
   if (d !== 'your destination' && days && budget && couple) {
     return `A ${days}-day trip to ${d} for two within ${budget} is a strong starting frame.`
   }
-  return d !== 'your destination' ? `Understood — ${d}.` : 'Understood.'
+  return d !== 'your destination'
+    ? `Great — I will build the trip around ${d}.`
+    : 'Understood.'
+}
+
+/**
+ * Destination confirmed → always continue (ask next slot or start shaping the plan).
+ * Never return a bare acknowledgement.
+ */
+function continueAfterDestination(facts: TravelFacts, seed: number, ar: boolean): LocalConversationResult {
+  const d = dest(facts)
+  const slot = nextHardSlot(facts)
+  const ack = softAck(facts, seed, ar)
+
+  if (slot && slot !== 'destination') {
+    const question = askForSlot(slot, facts, seed + 11, ar)
+    const displayText = polishConsultantProse(
+      formatConsultantParagraphs(`${ack}\n\n${question}`),
+      facts.locale,
+    )
+    return {
+      displayText,
+      spokenText: optimizeLocalSpoken(`${ack} ${question}`, facts.locale),
+    }
+  }
+
+  // Hard intake complete enough — move into consulting / plan shaping.
+  if (ar) {
+    const lines = [
+      ack,
+      `سأجهّز لكم أفضل الرحلات والفنادق المناسبة في ${d !== 'وجهتكم' ? d : 'وجهتكم'}.`,
+      'تميلون لإيقاع مرتاح، أم لأيام أغنى بالمعالم؟',
+    ]
+    const displayText = polishConsultantProse(formatConsultantParagraphs(lines.join('\n\n')), 'ar')
+    return {
+      displayText,
+      spokenText: optimizeLocalSpoken(
+        `${ack} سأجهّز الرحلات والفنادق. تميلون لإيقاع مرتاح أم لأيام أغنى بالمعالم؟`,
+        'ar',
+      ),
+    }
+  }
+
+  const displayText = `${ack} I will shape flights and stays next. Prefer a relaxed pace, or a fuller landmark day?`
+  return { displayText, spokenText: displayText }
 }
 
 function moroccoStyleAdvice(facts: TravelFacts, seed: number): LocalConversationResult | null {
@@ -168,7 +231,11 @@ function moroccoStyleAdvice(facts: TravelFacts, seed: number): LocalConversation
 
 function renderPlanDisplay(facts: TravelFacts, ar: boolean): string {
   const plan = facts.plan
-  if (!plan) return ar ? 'ما زلنا نجهّز الخطة.' : 'The plan is still taking shape.'
+  if (!plan) {
+    // Never dead-end — keep asking.
+    const cont = continueAfterDestination(facts, 1, ar)
+    return cont.displayText
+  }
   const d = destinationLabel(plan.destinations[0], facts.locale)
   const hotel = plan.hotels[0]?.name
   const total = plan.estimatedTotal
@@ -193,7 +260,9 @@ function renderPlanDisplay(facts: TravelFacts, ar: boolean): string {
 
 function spokenPlan(facts: TravelFacts, seed: number, ar: boolean): string {
   const plan = facts.plan
-  if (!plan) return softAck(facts, seed, ar)
+  if (!plan) {
+    return continueAfterDestination(facts, seed, ar).spokenText
+  }
   const d = destinationLabel(plan.destinations[0], facts.locale)
   const hotel = plan.hotels[0]?.name
   if (ar) {
@@ -209,9 +278,16 @@ function cityAdvice(facts: TravelFacts, seed: number, ar: boolean): LocalConvers
   const morocco = moroccoStyleAdvice(facts, seed)
   if (morocco) return morocco
 
+  const d = dest(facts)
+  const slot = nextHardSlot(facts)
+
+  // Destination just confirmed (or only destination known) → continue the workflow.
+  if (d !== 'وجهتكم' && d !== 'your destination' && slot && slot !== 'destination') {
+    return continueAfterDestination(facts, seed, ar)
+  }
+
   const ack = softAck(facts, seed, ar)
   const draft = facts.planningDraft
-  const d = dest(facts)
 
   if (draft && draft.cities.length > 0) {
     const top = draft.cities.slice(0, 2).map((city) => ({
@@ -223,7 +299,7 @@ function cityAdvice(facts: TravelFacts, seed: number, ar: boolean): LocalConvers
         ack,
         top[0] ? `إن بحثتم عن ${top[0].why} فـ${top[0].name} اتجاه قوي.` : '',
         top[1] ? `أما إن فضّلتم ${top[1].why} فـ${top[1].name} يناسبكم أكثر.` : '',
-        'بعد اختيار الاتجاه أرتّب لكم الرحلات والفنادق المناسبة.',
+        'أيّهما أقرب لكم حتى أجهّز الرحلات والفنادق؟',
       ].filter(Boolean)
       const displayText = polishConsultantProse(formatConsultantParagraphs(lines.join('\n\n')), 'ar')
       const spokenText = optimizeLocalSpoken(
@@ -268,6 +344,9 @@ export function generateLocalConversation(input: {
 
   switch (input.facts.objective) {
     case 'present_plan': {
+      if (!input.facts.plan) {
+        return continueAfterDestination(input.facts, seed, ar)
+      }
       const spokenText = optimizeLocalSpoken(spokenPlan(input.facts, seed, ar), locale)
       return {
         displayText: polishConsultantProse(renderPlanDisplay(input.facts, ar), locale),
@@ -307,26 +386,40 @@ export function generateLocalConversation(input: {
     case 'greet_or_continue':
     case 'general':
     default: {
-      const ack = softAck(input.facts, seed, ar)
-      const slot = input.facts.missingSlots[0]
+      const slot = nextHardSlot(input.facts)
       if (!slot) {
         if (input.facts.known.destination && input.facts.known.durationDays && input.facts.known.budgetAmount) {
           return cityAdvice(input.facts, seed, ar)
         }
-        const spokenText = pick(seed + 7, ar
-          ? [`${ack} نقدر نبني على هذا الأساس متى ما صرتم جاهزين.`, `${ack} قولوا «ابني الخطة» وأكمل لكم.`]
-          : [`${ack} We can build on this whenever you are ready.`, `${ack} Say “build the plan” and I will continue.`])
+        return continueAfterDestination(input.facts, seed, ar)
+      }
+      if (slot === 'destination') {
+        const ack = softAck(input.facts, seed, ar)
+        const question = askForSlot(slot, input.facts, seed + 11, ar)
         return {
-          displayText: polishConsultantProse(formatConsultantParagraphs(spokenText), locale),
-          spokenText: optimizeLocalSpoken(spokenText, locale),
+          displayText: polishConsultantProse(formatConsultantParagraphs(`${ack}\n\n${question}`), locale),
+          spokenText: optimizeLocalSpoken(`${ack} ${question}`, locale),
         }
       }
-      const question = askForSlot(slot, input.facts, seed + 11, ar)
-      const displayText = polishConsultantProse(formatConsultantParagraphs(`${ack}\n\n${question}`), locale)
-      return {
-        displayText,
-        spokenText: optimizeLocalSpoken(`${ack} ${question}`, locale),
-      }
+      // Destination (or other slots) present — continue workflow, never ack-only.
+      return continueAfterDestination(input.facts, seed, ar)
     }
   }
+}
+
+/** True when a reply acknowledges without asking/continuing the workflow. */
+export function looksLikeDeadEndAck(text: string, locale: 'ar' | 'en' = 'ar'): boolean {
+  const t = (text || '').trim()
+  if (!t) return true
+  if (/[؟?]/.test(t)) return false
+  if (locale === 'ar') {
+    if (/نركز على|سأبني الرحلة على|حسنًا\s*[—\-،,]?\s*نثبّت|واضح أن الوجهة/.test(t)) {
+      // Ack phrases without a follow-up question / next step.
+      const hasContinue = /كم يوم|ميزانية|تميلون|أسبوع|مغادرة|أجهّز|سأجهّز|ابني الخطة|رحلات|فنادق/.test(t)
+      return !hasContinue
+    }
+    // Very short acknowledgements
+    if (t.length < 60 && /^(حسنًا|واضح|فهمت|تمام)/.test(t)) return true
+  }
+  return false
 }

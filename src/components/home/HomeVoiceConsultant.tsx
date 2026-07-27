@@ -154,8 +154,12 @@ export function HomeVoiceConsultant({
   }, [])
 
   const startListening = useCallback(async () => {
-    // Each mic start is a NEW voice conversation — never reuse prior trip memory.
-    beginFreshConversation()
+    // Continue the active trip conversation. Only wipe when there is no session yet.
+    // (A full "new chat" is beginFreshConversation via looksLikeNewTrip on text, or reload.)
+    if (!conversationIdRef.current) {
+      beginFreshConversation()
+    }
+    setError(null)
     unlockAudioPlayback().catch(() => undefined)
     try {
       const id = await ensureConversation()
@@ -181,7 +185,6 @@ export function HomeVoiceConsultant({
   }, [])
 
   const onVoiceClick = useCallback(() => {
-    // Unlock on every mic gesture (even stop) so TTS can autoplay after the AI turn.
     unlockAudioPlayback().catch(() => undefined)
     if (voiceStatus === 'listening') {
       void stopListening()
@@ -191,6 +194,7 @@ export function HomeVoiceConsultant({
       interrupt()
       return
     }
+    // idle / error / reconnecting — (re)enter hands-free on the same conversation.
     void startListening()
   }, [interrupt, startListening, stopListening, voiceStatus])
 
@@ -202,18 +206,17 @@ export function HomeVoiceConsultant({
     setUserHeard(trimmed)
     setAssistantText('')
     setAssistantMessage(null)
-    // Await unlock under the send gesture — critical for autoplay after async turn.
     await unlockAudioPlayback().catch(() => undefined)
     try {
-      // If we already finished a prior reply, treat a new typed trip request as a fresh conversation.
-      const looksLikeNewTrip = /(?:أريد|ابغى|أبغى|ودي|أريد السفر|سافر|سفر|trip to|i want to (?:go|travel))/i.test(trimmed)
+      // Brand-new trip phrasing after a completed turn → fresh conversation.
+      // Short answers like "إسطنبول" must CONTINUE the same conversation.
+      const looksLikeNewTrip = /(?:أريد السفر|ابغى أسافر|أبغى أسافر|ودي أسافر|trip to|i want to (?:go|travel))/i.test(trimmed)
       if (assistantMessage?.status === 'complete' && looksLikeNewTrip) {
         beginFreshConversation()
         setUserHeard(trimmed)
       }
       const id = await ensureConversation()
       const controller = new AbortController()
-      // Text turn on the same Home surface — still speak the reply.
       await chatEngine.sendMessage(
         { conversationId: id, content: trimmed, modality: 'text' },
         {
@@ -230,13 +233,27 @@ export function HomeVoiceConsultant({
               setAudioPlaying(true)
               try {
                 await unlockAudioPlayback().catch(() => undefined)
+                // Arm hands-free so speakText resumes listening after TTS.
+                voiceRef.current.armHandsFree?.(id)
                 await voiceRef.current.speakText(spoken)
               } catch (e) {
                 if (!isBenignChatError(e)) {
                   setError(e instanceof Error ? e.message : t('تعذر تشغيل الصوت', 'Could not play audio'))
                 }
+                // Even if TTS fails, return to listening so the session is never blocked.
+                try {
+                  await voiceRef.current.startHandsFree(id)
+                } catch {
+                  setVoiceStatus('idle')
+                }
               } finally {
                 setAudioPlaying(false)
+              }
+            } else if (voiceRef.current) {
+              // No spoken text — still reopen listening so the traveler can continue.
+              try {
+                await voiceRef.current.startHandsFree(id)
+              } catch {
                 setVoiceStatus('idle')
               }
             }

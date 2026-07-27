@@ -187,6 +187,7 @@ function playBlobOnElement(audio: HTMLAudioElement, blob: Blob): Promise<void> {
     const finish = (err?: Error) => {
       if (settled) return
       settled = true
+      activePlayFinish = null
       audio.onended = null
       audio.onerror = null
       audio.onplaying = null
@@ -194,10 +195,11 @@ function playBlobOnElement(audio: HTMLAudioElement, blob: Blob): Promise<void> {
         revokeActiveUrl()
         reject(err)
       } else {
-        // Keep object URL until next speak/stop so late decode isn't disrupted.
         resolve()
       }
     }
+
+    activePlayFinish = finish
 
     audio.onended = () => {
       revokeActiveUrl()
@@ -218,7 +220,6 @@ function playBlobOnElement(audio: HTMLAudioElement, blob: Blob): Promise<void> {
       }
     }
 
-    // readyState 0/1: wait for enough data before play for Safari.
     if (audio.readyState >= 2) {
       attemptPlay()
     } else {
@@ -227,7 +228,6 @@ function playBlobOnElement(audio: HTMLAudioElement, blob: Blob): Promise<void> {
         attemptPlay()
       }
       audio.addEventListener('canplay', onCanPlay)
-      // Safety: if canplay never fires, try anyway.
       window.setTimeout(() => {
         audio.removeEventListener('canplay', onCanPlay)
         if (!settled) attemptPlay()
@@ -235,6 +235,9 @@ function playBlobOnElement(audio: HTMLAudioElement, blob: Blob): Promise<void> {
     }
   })
 }
+
+/** Settles an in-flight play() so voiceSession onComplete can resume listening. */
+let activePlayFinish: ((err?: Error) => void) | null = null
 
 export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
   let speaking = false
@@ -255,6 +258,9 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
         } catch {
           // ignore
         }
+        // Resolve any prior play promise so callers are not stuck.
+        activePlayFinish?.()
+        activePlayFinish = null
         revokeActiveUrl()
       }
 
@@ -262,7 +268,6 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
       speaking = true
 
       try {
-        // Gesture unlock must already have happened; re-assert AudioContext only.
         if (!unlocked) {
           await unlockAudioPlayback()
         } else {
@@ -287,11 +292,13 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
       try {
         if (sharedAudio) {
           sharedAudio.pause()
-          // Do not load()/clear in a way that fights the next speak — just pause.
         }
       } catch {
         // ignore
       }
+      // Critical: settle hung speak() so hands-free resume can run after interrupt.
+      activePlayFinish?.()
+      activePlayFinish = null
       revokeActiveUrl()
     },
     isSpeaking() {

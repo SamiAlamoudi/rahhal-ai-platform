@@ -11,7 +11,7 @@ import {
   RAHHAL_CONVERSATION_SYSTEM_PROMPT,
 } from './systemPrompt'
 import type { TravelFacts } from './travelFacts'
-import { generateLocalConversation } from './localConversationModel'
+import { generateLocalConversation, looksLikeDeadEndAck } from './localConversationModel'
 import {
   formatConsultantParagraphs,
   looksLikeInventoryDump,
@@ -177,6 +177,16 @@ function finalizeBrainResult(
   let displayText = optimizeDisplayText(displayRaw, facts.locale)
   let spokenText = optimizeSpokenText(spokenRaw, displayRaw, facts.locale)
 
+  const continueObjectives = new Set([
+    'advise',
+    'propose_options',
+    'collect_missing',
+    'greet_or_continue',
+    'general',
+    'present_plan',
+    'confirm_understanding',
+  ])
+
   if (
     facts.locale === 'ar'
     && (
@@ -185,6 +195,13 @@ function finalizeBrainResult(
       || looksLikeInventoryDump(spokenText, 'ar')
       || /[A-Za-z]{3,}/.test(displayText)
       || /[A-Za-z]{3,}/.test(spokenText)
+      || (
+        continueObjectives.has(facts.objective)
+        && (
+          looksLikeDeadEndAck(displayText, 'ar')
+          || looksLikeDeadEndAck(spokenText, 'ar')
+        )
+      )
     )
   ) {
     const local = generateLocalConversation({ facts, userMessage, conversationId })

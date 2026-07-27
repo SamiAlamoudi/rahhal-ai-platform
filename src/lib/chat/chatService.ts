@@ -178,7 +178,7 @@ async function streamIntoAssistant(
           error: null,
           providerMeta: { providerId: activeProvider.providerId, ...streamMeta },
         }
-        handlers.onComplete?.(latest)
+        await Promise.resolve(handlers.onComplete?.(latest))
         await touchConversation(conversationId, buildMessagePreview(content))
         return latest
       }
@@ -191,7 +191,7 @@ async function streamIntoAssistant(
       status: 'complete',
       providerMeta: { providerId: activeProvider.providerId, ...streamMeta },
     }
-    handlers.onComplete?.(latest)
+    await Promise.resolve(handlers.onComplete?.(latest))
     await touchConversation(conversationId, buildMessagePreview(content))
     return latest
   } catch (e) {
