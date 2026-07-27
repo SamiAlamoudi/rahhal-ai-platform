@@ -1612,7 +1612,13 @@ function LegacyChatPage() {
                       if (voiceMode === 'hands_free') void handleToggleHandsFree()
                       else void handlePushStart()
                     }}
-                    onToggleMute={() => setVoiceMuted((v) => !v)}
+                    onToggleMute={() => {
+                      setVoiceMuted((v) => {
+                        const next = !v
+                        voiceRef.current?.setMuted(next)
+                        return next
+                      })
+                    }}
                   />
                 </Suspense>
               ) : null}

@@ -2,6 +2,11 @@ import type { TextToSpeechProvider, TextToSpeechSpeakOptions, VoiceLocale } from
 import { speechLangForLocale } from './voiceTypes'
 import { estimateTtsWatchdogMs } from './spokenAnswer'
 
+/** Safari often needs a brief settle after cancel() before the next speak(). */
+const POST_CANCEL_SETTLE_MS = 60
+/** Chromium pauses long synthesis ~15s unless resume() is poked. */
+const CHROME_RESUME_KEEPALIVE_MS = 8_000
+
 function waitForVoices(timeoutMs = 1500): Promise<SpeechSynthesisVoice[]> {
   if (typeof window === 'undefined' || !window.speechSynthesis) return Promise.resolve([])
   const existing = window.speechSynthesis.getVoices()
@@ -38,10 +43,21 @@ function pickVoice(
   return local ?? matching[0] ?? null
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
 /**
  * Browser SpeechSynthesis TTS.
  * Active implementation: window.speechSynthesis + SpeechSynthesisUtterance.
  * Callbacks: onstart / onend / onerror / onpause / onresume (+ duration watchdog).
+ *
+ * Hardening (Phase 2.6 production):
+ * - Claim generation token before waitForVoices so stop() during queue cannot speak.
+ * - Brief post-cancel settle for Safari.
+ * - Chromium resume keepalive while speaking.
  */
 export function createWebTextToSpeechProvider(): TextToSpeechProvider {
   let speaking = false
@@ -49,12 +65,41 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
   let stopped = false
   let activeUtterance: SpeechSynthesisUtterance | null = null
   let watchdogTimer: ReturnType<typeof setTimeout> | null = null
+  let resumeKeepalive: ReturnType<typeof setInterval> | null = null
+  /** Resolves the in-flight speak() promise when stop() interrupts. */
+  let settleActiveSpeak: (() => void) | null = null
 
   const clearWatchdog = () => {
     if (watchdogTimer) {
       clearTimeout(watchdogTimer)
       watchdogTimer = null
     }
+  }
+
+  const clearResumeKeepalive = () => {
+    if (resumeKeepalive) {
+      clearInterval(resumeKeepalive)
+      resumeKeepalive = null
+    }
+  }
+
+  const armResumeKeepalive = (token: number) => {
+    clearResumeKeepalive()
+    resumeKeepalive = setInterval(() => {
+      if (token !== generation || stopped) {
+        clearResumeKeepalive()
+        return
+      }
+      if (typeof window === 'undefined' || !window.speechSynthesis) return
+      try {
+        // Chromium: resume() while speaking prevents the ~15s silent pause.
+        if (window.speechSynthesis.speaking || window.speechSynthesis.paused) {
+          window.speechSynthesis.resume()
+        }
+      } catch {
+        /* ignore */
+      }
+    }, CHROME_RESUME_KEEPALIVE_MS)
   }
 
   return {
@@ -67,21 +112,31 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
       const text = options.text.trim()
       if (!text) return
 
-      stopped = false
       clearWatchdog()
+      clearResumeKeepalive()
+      // Claim this speak attempt before any await so stop()/newer speak supersedes it.
+      const token = ++generation
+      stopped = false
+
       if (options.interrupt !== false) {
         window.speechSynthesis.cancel()
         speaking = false
         activeUtterance = null
+        await delay(POST_CANCEL_SETTLE_MS)
+        if (stopped || token !== generation) return
       }
 
       const voices = await waitForVoices()
+      // stop() or a newer speak() during waitForVoices / settle — do not call speak().
+      if (stopped || token !== generation) return
+
       const voice = pickVoice(voices, options.locale)
       if (options.locale === 'ar' && !voice) {
         throw new Error('تعذر تشغيل الصوت')
       }
 
-      const utterance = new SpeechSynthesisUtterance(text)
+      const UtteranceCtor = window.SpeechSynthesisUtterance
+      const utterance = new UtteranceCtor(text)
       utterance.lang = voice?.lang || speechLangForLocale(options.locale)
       if (voice) {
         try {
@@ -91,7 +146,6 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
         }
       }
 
-      const token = ++generation
       activeUtterance = utterance
       const watchdogMs = estimateTtsWatchdogMs(text)
 
@@ -101,15 +155,23 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
         const finish = (fn: () => void) => {
           if (settled) return
           settled = true
+          settleActiveSpeak = null
           clearWatchdog()
+          clearResumeKeepalive()
           if (activeUtterance === utterance) activeUtterance = null
           fn()
+        }
+        settleActiveSpeak = () => {
+          speaking = false
+          options.onEnd?.()
+          finish(() => resolve())
         }
         const markStart = () => {
           if (started || token !== generation || stopped) return
           started = true
           speaking = true
           options.onStart?.()
+          armResumeKeepalive(token)
         }
         const armWatchdog = () => {
           clearWatchdog()
@@ -159,7 +221,7 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
         }
         // Pause/resume must not complete the turn — Safari may pause during audio route changes.
         utterance.onpause = () => {
-          /* keep waiting for onend / watchdog */
+          /* keep waiting for onend / watchdog; keepalive will resume */
         }
         utterance.onresume = () => {
           if (token === generation && !stopped) speaking = true
@@ -188,11 +250,15 @@ export function createWebTextToSpeechProvider(): TextToSpeechProvider {
       stopped = true
       generation += 1
       clearWatchdog()
+      clearResumeKeepalive()
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel()
       }
       activeUtterance = null
       speaking = false
+      const settle = settleActiveSpeak
+      settleActiveSpeak = null
+      settle?.()
     },
     isSpeaking() {
       return speaking

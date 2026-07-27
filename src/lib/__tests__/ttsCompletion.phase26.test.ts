@@ -402,6 +402,129 @@ describe('Phase 2.6 — TTS completion lifecycle', () => {
     expect(sendTurn).toHaveBeenCalledTimes(2)
     session.dispose()
   })
+
+  it('17: startHandsFree during SPEAKING completes speech once (no duplicate listen)', async () => {
+    const { provider: stt } = createMockSpeechToTextProvider('')
+    const startSpy = vi.spyOn(stt, 'start')
+    const tts = createMockTextToSpeechProvider({ hangUntilStop: true })
+    const sendTurn = vi.fn(async (_input, handlers) => {
+      const reply = assistant('أتحدث', 'أتحدث')
+      await handlers.onComplete?.(reply)
+      return {
+        user: { ...reply, id: 'u1', role: 'user' as const, modality: 'audio' as const, content: 'x' },
+        assistant: reply,
+      }
+    })
+    const session = createVoiceSession({
+      stt,
+      tts,
+      sendTurn: sendTurn as never,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      activityMonitor: noopVad,
+    })
+    const p = session.beginContinuousWithSeed('c1', 'hi')
+    await Promise.resolve()
+    expect(session.getStatus()).toBe('speaking')
+    await session.startHandsFree('c1')
+    await p.catch(() => {})
+    const completed = getVoiceTraceRecords().filter(
+      (r) => r.stage === 'SPEECH_COMPLETED' && !(r.meta as { legacyEvent?: string } | null)?.legacyEvent,
+    )
+    expect(completed.length).toBe(1)
+    await vi.advanceTimersByTimeAsync(HANDS_FREE_LISTEN_RESTART_MS * 2)
+    // One listen from startHandsFree — not a second post_turn resume.
+    expect(startSpy.mock.calls.length).toBe(1)
+    session.dispose()
+  })
+
+  it('18: stopListening during SPEAKING cancels TTS and settles idle', async () => {
+    const { provider: stt } = createMockSpeechToTextProvider('')
+    const tts = createMockTextToSpeechProvider({ hangUntilStop: true })
+    const sendTurn = vi.fn(async (_input, handlers) => {
+      const reply = assistant('صوت', 'صوت')
+      await handlers.onComplete?.(reply)
+      return {
+        user: { ...reply, id: 'u1', role: 'user' as const, modality: 'audio' as const, content: 'x' },
+        assistant: reply,
+      }
+    })
+    const session = createVoiceSession({
+      stt,
+      tts,
+      sendTurn: sendTurn as never,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      activityMonitor: noopVad,
+    })
+    const p = session.beginContinuousWithSeed('c1', 'hi')
+    await Promise.resolve()
+    expect(session.getStatus()).toBe('speaking')
+    await session.stopListening()
+    await p.catch(() => {})
+    expect(session.getStatus()).toBe('idle')
+    const completed = getVoiceTraceRecords().filter(
+      (r) => r.stage === 'SPEECH_COMPLETED' && !(r.meta as { legacyEvent?: string } | null)?.legacyEvent,
+    )
+    expect(completed.length).toBe(1)
+    session.dispose()
+  })
+
+  it('19: mute skips TTS and does not auto-listen', async () => {
+    const { provider: stt } = createMockSpeechToTextProvider('')
+    const startSpy = vi.spyOn(stt, 'start')
+    const tts = createMockTextToSpeechProvider()
+    const sendTurn = vi.fn(async (_input, handlers) => {
+      const reply = assistant('صامت', 'صامت')
+      await handlers.onComplete?.(reply)
+      return {
+        user: { ...reply, id: 'u1', role: 'user' as const, modality: 'audio' as const, content: 'x' },
+        assistant: reply,
+      }
+    })
+    const session = createVoiceSession({
+      stt,
+      tts,
+      sendTurn: sendTurn as never,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      activityMonitor: noopVad,
+    })
+    session.setMuted(true)
+    await session.beginContinuousWithSeed('c1', 'hi')
+    expect(tts.speakCalls).toBe(0)
+    await vi.advanceTimersByTimeAsync(HANDS_FREE_LISTEN_RESTART_MS * 2)
+    expect(startSpy).not.toHaveBeenCalled()
+    expect(session.getStatus()).toBe('ready')
+    session.dispose()
+  })
+
+  it('20: TTS_END / SPEECH_COMPLETED fire once per turn', async () => {
+    const { provider: stt } = createMockSpeechToTextProvider('')
+    const tts = createMockTextToSpeechProvider()
+    const sendTurn = vi.fn(async (_input, handlers) => {
+      const reply = assistant('مرة واحدة', 'مرة واحدة')
+      await handlers.onComplete?.(reply)
+      return {
+        user: { ...reply, id: 'u1', role: 'user' as const, modality: 'audio' as const, content: 'x' },
+        assistant: reply,
+      }
+    })
+    const session = createVoiceSession({
+      stt,
+      tts,
+      sendTurn: sendTurn as never,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      activityMonitor: noopVad,
+    })
+    await session.beginContinuousWithSeed('c1', 'hi')
+    const completed = getVoiceTraceRecords().filter(
+      (r) => r.stage === 'SPEECH_COMPLETED' && !(r.meta as { legacyEvent?: string } | null)?.legacyEvent,
+    )
+    const ends = getVoiceTraceRecords().filter(
+      (r) => r.stage === 'TTS_END' && !(r.meta as { legacyEvent?: string } | null)?.legacyEvent,
+    )
+    expect(completed.length).toBe(1)
+    expect(ends.length).toBe(1)
+    session.dispose()
+  })
 })
 
 describe('Phase 2.6 — spoken presentation (13–15)', () => {

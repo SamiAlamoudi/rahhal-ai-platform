@@ -73,6 +73,8 @@ export interface VoiceSession {
   setMode: (mode: VoiceInputMode) => void
   setLocale: (locale: VoiceLocale) => void
   setSilenceTimeoutMs: (ms: number) => void
+  /** When muted, skip/cancel TTS and do not auto-resume listening. */
+  setMuted: (muted: boolean) => void
   ensureMicPermission: () => Promise<MicrophonePermissionState>
   startPushToTalk: () => Promise<void>
   stopPushToTalkAndSend: (conversationId: string) => Promise<ChatMessage | null>
@@ -163,6 +165,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   let ttsWatchdogTimer: ReturnType<typeof setTimeout> | null = null
   let ttsStartCount = 0
   let ttsEndCount = 0
+  /** UI mute — skip new speech and cancel in-flight TTS without auto-listen. */
+  let muted = false
 
   const clearThinkingWatchdog = () => {
     if (thinkingWatchdog) {
@@ -647,7 +651,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     setStatus('ready')
 
     const keepHandsFree = mode === 'hands_free' && !!handsFreeConversationId
-    const shouldResume = opts?.resumeListening !== false && keepHandsFree
+    const shouldResume = opts?.resumeListening !== false && keepHandsFree && !muted
     if (shouldResume) {
       const interrupted = resumeHandsFreeAfterInterrupt
       resumeHandsFreeAfterInterrupt = false
@@ -656,6 +660,26 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         preserveUtterance: false,
       })
     }
+  }
+
+  /**
+   * Cancel in-flight assistant speech through the sole completion owner.
+   * Entry points must never clear ttsActive alone — that races speakFinalOnce → natural_end.
+   */
+  const cancelActiveSpeech = (opts?: { resumeListening?: boolean }) => {
+    if (!speechCompleted) {
+      completeAssistantSpeech('speech_cancelled', {
+        speechTurnId: activeSpeechTurnId,
+        resumeListening: opts?.resumeListening ?? false,
+      })
+      return
+    }
+    try {
+      tts.stop()
+    } catch {
+      /* ignore */
+    }
+    ttsActive = false
   }
 
   /** Speak the final voice-safe response exactly once per assistant turn. */
@@ -706,6 +730,15 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
 
     if (!tts.isSupported()) {
       completeAssistantSpeech('unsupported_tts', { speechTurnId: turn })
+      return
+    }
+
+    if (muted) {
+      // Mute: settle READY without audible speech or auto-listen.
+      completeAssistantSpeech('speech_cancelled', {
+        speechTurnId: turn,
+        resumeListening: false,
+      })
       return
     }
 
@@ -1189,11 +1222,26 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         meta: { silenceTimeoutMs },
       })
     },
+    setMuted(next) {
+      muted = Boolean(next)
+      if (!muted) return
+      intentionalAbort = true
+      resumeHandsFreeAfterInterrupt = false
+      invalidateListenRestarts()
+      cancelActiveSpeech({ resumeListening: false })
+      stt.abort()
+      listening = false
+      stopVad()
+      clearSilenceTimer()
+      if (status === 'listening' || status === 'reconnecting' || status === 'speaking') {
+        setStatus('ready')
+      }
+      logPipeline({ stage: 'voice', event: 'muted' })
+    },
     ensureMicPermission,
     async startPushToTalk() {
       if (disposed) return
-      tts.stop()
-      ttsActive = false
+      cancelActiveSpeech({ resumeListening: false })
       invalidateListenRestarts()
       mode = 'push_to_talk'
       handsFreeConversationId = null
@@ -1218,8 +1266,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     },
     async startHandsFree(conversationId) {
       if (disposed) return
-      tts.stop()
-      ttsActive = false
+      cancelActiveSpeech({ resumeListening: false })
       invalidateListenRestarts()
       mode = 'hands_free'
       handsFreeConversationId = conversationId
@@ -1227,12 +1274,15 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       clearSilenceTimer()
       utteranceBuffer = ''
       utterancePrefix = ''
+      if (muted) {
+        setStatus('ready')
+        return
+      }
       await startListening(true, { reason: 'start_hands_free' })
     },
     async beginContinuousWithSeed(conversationId, content) {
       if (disposed) return null
-      tts.stop()
-      ttsActive = false
+      cancelActiveSpeech({ resumeListening: false })
       invalidateListenRestarts()
       mode = 'hands_free'
       handsFreeConversationId = conversationId
@@ -1256,7 +1306,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       utteranceBuffer = ''
       utterancePrefix = ''
       stopVad()
-      ttsActive = false
+      cancelActiveSpeech({ resumeListening: false })
       if (listening) {
         try {
           await stt.stop()
@@ -1300,32 +1350,27 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         // One completion only — stale utterance onend cannot finish a newer turn.
         completeAssistantSpeech('speech_cancelled', {
           speechTurnId: activeSpeechTurnId,
-          resumeListening: keepHandsFree && !wasSending,
+          resumeListening: keepHandsFree && !wasSending && !muted,
         })
-        if (keepHandsFree && wasSending) {
+        if (keepHandsFree && wasSending && !muted) {
           resumeHandsFreeAfterInterrupt = true
           setStatus('ready')
         }
         return
       }
 
-      try {
-        tts.stop()
-      } catch {
-        /* ignore */
-      }
-      ttsActive = false
+      cancelActiveSpeech({ resumeListening: false })
 
-      if (keepHandsFree && wasSending) {
+      if (keepHandsFree && wasSending && !muted) {
         resumeHandsFreeAfterInterrupt = true
         setStatus('ready')
-      } else if (keepHandsFree) {
+      } else if (keepHandsFree && !muted) {
         resumeHandsFreeAfterInterrupt = false
         setStatus('ready')
         requestListenRestart({ reason: 'interrupt_resume', preserveUtterance: false })
       } else {
         resumeHandsFreeAfterInterrupt = false
-        setStatus('idle')
+        setStatus(muted ? 'ready' : 'idle')
       }
     },
     async speakText(text) {
