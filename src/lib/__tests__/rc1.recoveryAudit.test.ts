@@ -1,6 +1,6 @@
 /**
- * RC-1 Release Candidate Audit — recovery stack (PR #256–#262) gates.
- * Asserts experimental Phase 4–7 flags stay OFF and soft-enrich meta is absent when disabled.
+ * RC-1 Release Candidate Audit — Conversation-First gates.
+ * Experimental Phase 5–7 modules (llmBrain / agentRuntime / realtimeVoice) were removed.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -9,13 +9,6 @@ import { isConversationIntelligenceEnabled } from '../agent/conversationIntellig
 import { createVoiceAdapter } from '../premiumExperience'
 import { createTravelAgentService } from '../agent/travelAgentService'
 import type { ChatMessage } from '../chat/chatTypes'
-
-const RC_EXPERIMENTAL_FLAGS = [
-  'ai.conversation_intelligence',
-  'ai.llm_conversation_brain',
-  'ai.agent_runtime',
-  'ai.realtime_voice',
-] as const
 
 function msg(content: string, conversationId = 'rc1-audit'): ChatMessage {
   return {
@@ -44,15 +37,16 @@ describe('RC-1 recovery audit — feature gates', () => {
     resetFeatureRegistry()
   })
 
-  it('keeps Phase 4–7 experimental flags OFF by default', () => {
+  it('keeps conversation intelligence OFF by default (rules soft-enrich only when enabled)', () => {
     const registry = getFeatureRegistry()
-    for (const id of RC_EXPERIMENTAL_FLAGS) {
-      expect(registry.isEnabled(id), `${id} must be OFF`).toBe(false)
-    }
+    const ids = new Set(registry.list().map((f) => f.id as string))
+    expect(ids.has('ai.llm_conversation_brain')).toBe(false)
+    expect(ids.has('ai.agent_runtime')).toBe(false)
+    expect(ids.has('ai.realtime_voice')).toBe(false)
     expect(isConversationIntelligenceEnabled()).toBe(false)
   })
 
-  it('createVoiceAdapter stays mock / non-network when realtime flag is OFF', async () => {
+  it('createVoiceAdapter stays presentation-only (no duplex network)', async () => {
     const adapter = createVoiceAdapter()
     expect(adapter.mock).toBe(true)
     const result = await adapter.connect()
@@ -61,7 +55,7 @@ describe('RC-1 recovery audit — feature gates', () => {
     await adapter.disconnect()
   })
 
-  it('planTurn omits Phase 4–7 meta when flags are OFF', async () => {
+  it('planTurn omits removed Phase 5–6 meta', async () => {
     const agent = createTravelAgentService({
       conversationIntelligenceEnabled: false,
     })

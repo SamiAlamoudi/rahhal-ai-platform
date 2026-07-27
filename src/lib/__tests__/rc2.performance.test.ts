@@ -37,12 +37,13 @@ describe('RC-2 performance gates', () => {
     resetFeatureRegistry()
   })
 
-  it('keeps recovery experimental flags OFF', () => {
+  it('keeps conversation intelligence OFF; removed Phase 5–7 flags are absent', () => {
     const registry = getFeatureRegistry()
     expect(registry.isEnabled('ai.conversation_intelligence')).toBe(false)
-    expect(registry.isEnabled('ai.llm_conversation_brain')).toBe(false)
-    expect(registry.isEnabled('ai.agent_runtime')).toBe(false)
-    expect(registry.isEnabled('ai.realtime_voice')).toBe(false)
+    const ids = new Set(registry.list().map((f) => f.id as string))
+    expect(ids.has('ai.llm_conversation_brain')).toBe(false)
+    expect(ids.has('ai.agent_runtime')).toBe(false)
+    expect(ids.has('ai.realtime_voice')).toBe(false)
   })
 
   it('creates travel-agent provider when explicitly requested', () => {

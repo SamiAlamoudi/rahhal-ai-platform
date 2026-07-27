@@ -23,7 +23,7 @@ Canonical map of Rahhal modules after the DDD façade pass. Implementations may 
 |--------|--------|-------------------------|
 | **ai** | `src/domains/ai` | `lib/ai`, `lib/agent`, `lib/aiOrchestrator`, `lib/concierge` |
 | **conversation** | `src/domains/conversation` | `lib/chat`, `lib/brain`, `utils/travelSession` |
-| **voice** | `src/domains/voice` | `lib/chat/voice`, `lib/voiceConversation` |
+| **voice** | `src/domains/voice` | `lib/chat/voice` |
 | **booking** | `src/domains/booking` | `lib/booking`, `lib/bookingFlow`, `lib/bookingConfirmation`, `lib/orderManagement`, `lib/passengers` |
 | **flights** | `src/domains/flights` | `lib/flightResults`, `integrations/providers/amadeus` |
 | **hotels** | `src/domains/hotels` | `lib/hotels`, `integrations/providers/booking` |
@@ -44,7 +44,7 @@ Canonical map of Rahhal modules after the DDD façade pass. Implementations may 
 | planning | `domains/ai/planning` | `lib/ai/planning`, `buildItinerary`, `brain/tripPlanning` |
 | tool-calling | `domains/ai/tool-calling` | `lib/agent/tools` |
 | reasoning | `domains/ai/reasoning` | `lib/agent/decision`, `utils/reasoningEngine`, `decisionScoreEngine` |
-| prompt-engine | `domains/ai/prompt-engine` | `lib/agent/formatReply`, `utils/rahhalVoice` |
+| prompt-engine | `domains/ai/prompt-engine` | `lib/agent/formatReply`, `lib/agent/conversationBrain/systemPrompt` |
 | safety | `domains/ai/safety` | `lib/ops/security` |
 | evaluation | `domains/ai/evaluation` | `lib/ai/analytics` |
 | conversation-state | `domains/ai/conversation-state` | chat/brain state surfaces |
@@ -65,7 +65,6 @@ Canonical map of Rahhal modules after the DDD façade pass. Implementations may 
 |------|-------|
 | `lib/payment` vs `lib/payments` | Hosted checkout vs Sprint 34 platform — both under `domains/payments` |
 | `lib/execution` vs `lib/brain/execution` | Booking execution vs search-task execution |
-| `lib/chat/voice` vs `lib/voiceConversation` | Production chat voice vs Sprint 18 foundation (flag OFF) |
 | `lib/aiOrchestrator` vs `lib/brain/orchestrator` | Sprint 43 vs Sprint 27 — flag-gated |
 
 Physical consolidation is tracked in `TECHNICAL_DEBT.md` / `ROADMAP_TECHNICAL.md`.

@@ -65,6 +65,7 @@ export function createLocalAgentLlmAdapter(): AgentLlmProvider {
 
 function extractFactsFromPayload(payload: string): TravelFacts | null {
   const markers = [
+    'Travel Facts / Trip State / Memory / Preferences (source of truth):',
     'Travel Facts (source of truth — never contradict or re-ask known fields):',
     'Travel Facts (structured — not prose):',
   ]
@@ -82,6 +83,7 @@ function extractFactsFromPayload(payload: string): TravelFacts | null {
   const after = payload.slice(idx + markerLen).trim()
   const endMarkers = [
     '\nUser profile',
+    '\nConversation context (recent turns):',
     '\nRecent conversation:',
     '\nLatest user message:',
   ]
@@ -103,7 +105,7 @@ function extractLatestUserMessage(payload: string): string {
   const idx = payload.indexOf(marker)
   if (idx < 0) return ''
   const body = payload.slice(idx + marker.length).trim()
-  // Drop trailing instruction line if present.
-  const cut = body.split(/\nWrite the next advisor/i)[0] ?? body
+  // Drop trailing instruction lines if present.
+  const cut = body.split(/\n(?:Write the next|Response contract reminder)/i)[0] ?? body
   return cut.trim()
 }

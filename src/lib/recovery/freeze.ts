@@ -5,10 +5,10 @@
  *
  *   /chat → LegacyChatPage → chatEngine → travel-agent → travelAgentService.planTurn
  *
- * Voice = browser voice *input* into the same spine (not realtime duplex concierge).
+ * Voice = browser STT → chatEngine → OpenAI Conversation Brain → TTS (same spine).
  *
- * @see RECOVERY_AUDIT.md
- * @see RECOVERY_PHASE_1_REPORT.md
+ * @see docs/ARCHITECTURE_CONVERSATION_FIRST.md
+ * @see docs/MIGRATION_CONVERSATION_FIRST.md
  */
 
 /** Sole conversation system for product traffic. */
@@ -46,7 +46,6 @@ export const RECOVERY_FROZEN_OFF_FLAGS = [
   'ui.experience_v1',
   'ui.chatgpt_experience',
   'ui.conversation_experience',
-  'ui.voice_conversation',
   'brain.enabled',
   'brain.conversation_ui',
   'brain.ai_orchestrator',
@@ -54,9 +53,6 @@ export const RECOVERY_FROZEN_OFF_FLAGS = [
   'brain.finance_platform',
   'brain.context_memory',
   'brain.memory',
-  'voice.realtime',
-  'voice.provider',
-  'voice.mock',
   'ai.memory_engine',
   'ai.orchestrator',
   'ai.execution_pipeline',

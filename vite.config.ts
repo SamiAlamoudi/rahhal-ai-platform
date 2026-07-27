@@ -2,7 +2,6 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { amadeusApiPlugin } from './src/lib/viteAmadeusApiPlugin.js'
-import { openAiRealtimeApiPlugin } from './src/lib/viteOpenAiRealtimeApiPlugin.js'
 
 /**
  * Security headers for Vite middleware.
@@ -20,9 +19,8 @@ function securityHeaders(development: boolean): Record<string, string> {
     'wss://*.supabase.co',
     'https://test.api.amadeus.com',
     'https://api.amadeus.com',
-    // Integration Sprint 1 — OpenAI Realtime (ephemeral client secrets + WS)
+    // Conversation-First — OpenAI Chat Completions (ChatGPT intelligence engine)
     'https://api.openai.com',
-    'wss://api.openai.com',
     'https://fonts.googleapis.com',
     'https://fonts.gstatic.com',
     ...(development ? ['ws:', 'wss:', 'http://localhost:*', 'http://127.0.0.1:*'] : []),
@@ -84,7 +82,6 @@ export default defineConfig({
     tailwindcss(),
     securityHeadersPlugin(),
     amadeusApiPlugin(),
-    openAiRealtimeApiPlugin(),
   ],
   build: {
     // Documented performance budget signal (Phase X) — warn above ~900kB uncompressed chunk.
@@ -145,16 +142,12 @@ export default defineConfig({
               test: /[\\/]src[\\/]lib[\\/]agent[\\/]conversationIntelligence([\\/]|$)/,
             },
             {
-              name: 'layer-llm-brain',
-              test: /[\\/]src[\\/]lib[\\/]agent[\\/]llmBrain([\\/]|$)/,
+              name: 'layer-conversation-brain',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]conversationBrain([\\/]|$)/,
             },
             {
-              name: 'layer-agent-runtime',
-              test: /[\\/]src[\\/]lib[\\/]agent[\\/]agentRuntime([\\/]|$)/,
-            },
-            {
-              name: 'layer-realtime-voice',
-              test: /[\\/]src[\\/]lib[\\/]realtimeVoice([\\/]|$)/,
+              name: 'layer-agent-llm',
+              test: /[\\/]src[\\/]lib[\\/]agent[\\/]llm([\\/]|$)/,
             },
           ],
         },

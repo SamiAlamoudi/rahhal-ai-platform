@@ -23,7 +23,6 @@ import {
   type SearchOption,
 } from '../brain'
 import type { ExecutionResult } from '../brain/execution'
-import { createMockVoiceProvider, createVoiceSession } from '../voiceConversation'
 
 function userMessage(content: string, conversationId = 'c-s24'): ChatMessage {
   const now = '2026-07-19T00:00:00.000Z'
@@ -472,7 +471,7 @@ describe('Sprint 24 SearchAggregationEngine', () => {
     }
   })
 
-  it('text and voice share the search aggregation pipeline', async () => {
+  it('runIntegratedBrainPipeline shares the search aggregation pipeline', async () => {
     const registry = getFeatureRegistry()
     registry.setEnabled('brain.enabled', true)
     registry.setEnabled('brain.concierge', true)
@@ -480,7 +479,6 @@ describe('Sprint 24 SearchAggregationEngine', () => {
     registry.setEnabled('brain.trip_planning', true)
     registry.setEnabled('brain.execution', true)
     registry.setEnabled('brain.search', true)
-    registry.setEnabled('brain.voice', true)
 
     await completeTripPlan('c-parity-search-text')
     const text = await runIntegratedBrainPipeline({
@@ -496,19 +494,6 @@ describe('Sprint 24 SearchAggregationEngine', () => {
     const textSearch = text.search as SearchAggregationTurnResult
     expect(textSearch.recommendation.top).toBeTruthy()
     expect(textSearch.timeline.length).toBe(6)
-
-    await completeTripPlan('c-parity-search-voice')
-    const session = createVoiceSession({
-      conversationId: 'c-parity-search-voice',
-      provider: createMockVoiceProvider(),
-    })
-    await session.start()
-    session.commitUserUtterance('confirm the Dubai trip plan')
-    await session.awaitPendingExecution()
-    expect(session.getSnapshot().lastBrainPlan).toBeTruthy()
-    expect(session.getSnapshot().lastExecution).toBeTruthy()
-    expect(session.getSnapshot().lastSearch).toBeTruthy()
-    session.dispose()
   })
 
   it('leaves Sprint 23 behavior intact when only execution is on', async () => {

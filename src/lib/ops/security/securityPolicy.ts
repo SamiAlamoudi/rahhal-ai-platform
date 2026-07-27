@@ -25,7 +25,6 @@ export function buildSecurityHeaders(
     'https://*.supabase.co',
     'wss://*.supabase.co',
     'https://api.openai.com',
-    'wss://api.openai.com',
     'https://fonts.googleapis.com',
     'https://fonts.gstatic.com',
     // Vite HMR websocket + local module graph (port varies; allow ws/http schemes in dev only).

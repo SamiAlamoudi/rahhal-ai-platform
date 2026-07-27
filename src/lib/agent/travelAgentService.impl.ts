@@ -828,9 +828,30 @@ async function speakTravelFacts(input: {
   conversationId: string
   messages: ChatMessage[]
   facts: TravelFacts
+  userProfile?: Record<string, unknown> | null
   signal?: AbortSignal
 }): Promise<{ displayText: string; spokenText: string; providerId: string }> {
-  return runConversationBrain(input)
+  const injectedProfile: Record<string, unknown> = {
+    conversationId: input.conversationId,
+    locale: input.facts.locale,
+    travelPreferences: {
+      hotelPreference: input.facts.known.hotelPreference ?? null,
+      budgetStyle: input.facts.known.budgetStyle ?? null,
+      interests: input.facts.known.interests ?? [],
+      travelerType: input.facts.known.travelerType ?? null,
+      tripPurpose: input.facts.known.tripPurpose ?? null,
+      weatherPreference: input.facts.known.weatherPreference ?? null,
+      packageScope: input.facts.known.packageScope ?? null,
+      budgetFlexible: input.facts.known.budgetFlexible ?? null,
+    },
+  }
+  if (input.userProfile) {
+    Object.assign(injectedProfile, input.userProfile)
+  }
+  return runConversationBrain({
+    ...input,
+    userProfile: injectedProfile,
+  })
 }
 
 function mapConciergeObjective(action: string): ConversationObjective {

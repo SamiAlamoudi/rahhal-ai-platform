@@ -2,12 +2,14 @@
 
 ## Responsibilities
 
-Voice conversation sessions and speech providers (STT/TTS), including chat-attached voice helpers.
+Production voice I/O for `/chat`: Speech-to-Text → chatEngine → Text-to-Speech.
 
 ## Public API
 
-- `src/lib/voiceConversation` (package index)
-- Selective exports from `src/lib/chat/voice/*` (no package index yet)
+- `src/lib/chat/voice/voiceSession.ts`
+- `src/lib/chat/voice/voiceProviderFactory.ts`
+- `src/lib/chat/voice/microphonePermission.ts`
+- `src/lib/chat/voice/voiceTypes.ts`
 
 ## Dependencies
 
@@ -15,5 +17,5 @@ May use `shared`, `conversation`, `infrastructure`. Must not import UI.
 
 ## Rules
 
-- `src/lib/chat/voice` has no `index.ts`; exports are named from concrete files.
+- Sole production voice path. Experimental realtime / Sprint 18 runtimes were removed.
 - Compatibility shim only.

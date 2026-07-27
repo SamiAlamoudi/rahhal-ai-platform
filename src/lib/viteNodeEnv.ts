@@ -24,7 +24,7 @@ export function buildAmadeusEnvBag(): Record<string, string | undefined> {
   }
 }
 
-/** Env bag for api/_lib/openaiRealtimeEnv helpers. */
+/** Env bag for managed API plugins (Amadeus, etc.). */
 export function buildOpenAiEnvBag(): Record<string, string | undefined> {
   return {
     OPENAI_API_KEY: read('OPENAI_API_KEY'),

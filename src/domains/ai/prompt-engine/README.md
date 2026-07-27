@@ -2,16 +2,16 @@
 
 ## Responsibilities
 
-Reply formatting for agent itineraries and Rahhal persona/voice copy.
+Conversation-First system prompt export for Rahhal (OpenAI ChatGPT intelligence engine).
 
 ## Public API
 
 - `src/lib/agent/formatReply`
-- `src/utils/rahhalVoice`
+- `src/lib/agent/conversationBrain/systemPrompt` (via shim)
 
 ## Dependencies
 
-Agent types / travel session types. No UI.
+Agent conversation brain. No UI.
 
 ## Rules
 

@@ -1,6 +1,7 @@
 /**
- * Experience Sprint 2 — Conversation Brain.
- * Owns all user-facing language. Travel Intelligence only supplies facts.
+ * Conversation-First — Conversation Brain.
+ * OpenAI ChatGPT authors user-facing language from Rahhal-injected Travel Facts.
+ * Local generative model is the offline/fallback path only.
  */
 
 import type { ChatMessage } from '../../chat/chatTypes'

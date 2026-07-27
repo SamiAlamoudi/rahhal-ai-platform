@@ -31,8 +31,6 @@ export const RC2_MUST_STAY_OFF = [
   'provider.booking',
   'payments.live',
   'providers.live_master',
-  'ai.realtime_voice',
-  'voice.realtime',
 ] as const
 
 function ownershipFor(id: string): string {

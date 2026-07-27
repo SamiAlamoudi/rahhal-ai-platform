@@ -10,7 +10,6 @@ import {
   resetBrainIntegrationSessions,
   runIntegratedBrainTurn,
 } from '../brain'
-import { createMockVoiceProvider, createVoiceSession } from '../voiceConversation'
 
 function userMessage(content: string, conversationId = 'c-s20'): ChatMessage {
   const now = '2026-07-19T00:00:00.000Z'
@@ -151,35 +150,5 @@ describe('Sprint 20 shared text/voice Brain pipeline', () => {
     })
     expect(textPlan.plan.intent).toBe('SearchHotels')
     expect(textPlan.plan.summary).toMatch(/^(need_slot:|ready:)/)
-  })
-
-  it('voice session stores lastBrainPlan when brain.voice is enabled', async () => {
-    const registry = getFeatureRegistry()
-    registry.setEnabled('brain.enabled', true)
-    registry.setEnabled('brain.concierge', true)
-    registry.setEnabled('brain.voice', true)
-
-    const session = createVoiceSession({
-      conversationId: 'voice-brain-1',
-      provider: createMockVoiceProvider(),
-    })
-    await session.start()
-    session.commitUserUtterance('Find flights to Tokyo')
-    const snap = session.getSnapshot()
-    expect(snap.lastBrainPlan).toBeTruthy()
-    expect(snap.lastBrainPlan?.summary).toMatch(/^(need_slot:|ready:)/)
-    expect(snap.state).toBe('thinking')
-    session.dispose()
-  })
-
-  it('voice session does not run Brain when brain.voice is off', async () => {
-    const session = createVoiceSession({
-      conversationId: 'voice-brain-off',
-      provider: createMockVoiceProvider(),
-    })
-    await session.start()
-    session.commitUserUtterance('Find flights to Tokyo')
-    expect(session.getSnapshot().lastBrainPlan).toBeNull()
-    session.dispose()
   })
 })

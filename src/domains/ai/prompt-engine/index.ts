@@ -1,3 +1,3 @@
 /** AI sub-module shim — prompt-engine. */
-export * from '../../../lib/agent/formatReply'
-export * from '../../../utils/rahhalVoice'
+
+export { RAHHAL_CONVERSATION_SYSTEM_PROMPT } from '../../../lib/agent/conversationBrain/systemPrompt'

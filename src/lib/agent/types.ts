@@ -557,42 +557,13 @@ export interface AgentProviderMeta {
     streaming: boolean
   }
   /**
-   * Recovery Phase 5 — LLM Conversation Brain snapshot (reasoning, tools, confidence).
-   * Additive structured facts / debug stages only — production APIs disabled by default.
-   * Present when `ai.llm_conversation_brain` is ON for the turn.
+   * @deprecated Removed in Conversation-First reset — experimental Phase 5 soft-enrich deleted.
    */
-  llmBrain?: {
-    intent: string
-    dialect: string
-    confidence: string
-    primaryTool: string
-    destination: string | null
-    usedRulesFallback: boolean
-    providerMode: string
-    stageCount: number
-    proactiveTipCount: number
-    responsePreview: string
-    /** Hidden in production UI — stage traces for debug panel consumers. */
-    debugStages?: Array<{ id: string; label: string; detail: string; confidence: string; source: string }>
-  }
+  llmBrain?: never
   /**
-   * Recovery Phase 6 — Agent Runtime snapshot (tool lifecycle, events, stream chunks).
-   * Additive debug timeline only — mock tools; no production UI. Flag OFF by default.
+   * @deprecated Removed in Conversation-First reset — experimental Phase 6 soft-enrich deleted.
    */
-  agentRuntime?: {
-    intent: string
-    dialect: string
-    tool: string
-    toolStatus: string | null
-    confidence: string
-    eventCount: number
-    traceCount: number
-    interrupted: boolean
-    durationMs: number
-    responsePreview: string
-    /** Hidden in production — runtime event timeline */
-    events?: Array<{ type: string; detail: string }>
-  }
+  agentRuntime?: never
   /**
    * Sprint 76 — Traveler Personalization snapshot (profile, confidence, ranking deltas).
    * Additive structured facts only — Conversation Brain authors traveler-facing text.

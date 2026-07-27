@@ -17,7 +17,6 @@ import {
   taskTypesInOrder,
 } from '../brain'
 import type { FlightProvider, TravelExecutionTurnResult } from '../brain/execution'
-import { createMockVoiceProvider, createVoiceSession } from '../voiceConversation'
 
 function userMessage(content: string, conversationId = 'c-s23'): ChatMessage {
   const now = '2026-07-19T00:00:00.000Z'
@@ -293,14 +292,13 @@ describe('Sprint 23 planTurn + voice parity', () => {
     }
   })
 
-  it('text and voice share the execution pipeline', async () => {
+  it('runIntegratedBrainPipeline shares the execution pipeline', async () => {
     const registry = getFeatureRegistry()
     registry.setEnabled('brain.enabled', true)
     registry.setEnabled('brain.concierge', true)
     registry.setEnabled('brain.travel_engine', true)
     registry.setEnabled('brain.trip_planning', true)
     registry.setEnabled('brain.execution', true)
-    registry.setEnabled('brain.voice', true)
 
     // Seed a complete plan via planning engine, then pipeline utterance that keeps it complete
     await completeTripPlan('c-parity-text')
@@ -314,17 +312,5 @@ describe('Sprint 23 planTurn + voice parity', () => {
     expect(text.execution).toBeTruthy()
     const textExec = text.execution as TravelExecutionTurnResult
     expect(textExec.plan.tasks[0]?.type).toBe('flight_search')
-
-    await completeTripPlan('c-parity-voice')
-    const session = createVoiceSession({
-      conversationId: 'c-parity-voice',
-      provider: createMockVoiceProvider(),
-    })
-    await session.start()
-    session.commitUserUtterance('confirm the Dubai trip plan')
-    await session.awaitPendingExecution()
-    expect(session.getSnapshot().lastBrainPlan).toBeTruthy()
-    expect(session.getSnapshot().lastExecution).toBeTruthy()
-    session.dispose()
   })
 })

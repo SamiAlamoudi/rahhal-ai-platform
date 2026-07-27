@@ -186,39 +186,6 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: conversation_intelligence. Default OFF. Does not redesign UI or replace extractFromUserText / booking / search engines. No production API keys.',
   },
   {
-    id: 'ai.llm_conversation_brain',
-    name: 'LLM Conversation Brain',
-    description:
-      'Recovery Phase 5 — LLM-first conversation brain (mock reasoner primary; Phase 4 rules fallback): travel reasoning, tool decisions, confidence, context optimization, dialect-aware consultant replies. Additive soft enrich on planTurn.',
-    lifecycle: 'experimental',
-    enabled: false,
-    dependsOn: ['ai.concierge'],
-    notes:
-      'Product alias: llm_conversation_brain. Default OFF. Production remote LLM APIs remain disabled; mock LLM path only. Uses Phase 4 conversationIntelligence as rules fallback in-process (no flag coupling). Does not redesign UI or replace search/booking engines.',
-  },
-  {
-    id: 'ai.agent_runtime',
-    name: 'AI Agent Runtime & Tool Execution',
-    description:
-      'Recovery Phase 6 — executable runtime connecting Conversation Intelligence + LLM Brain with mock tool adapters, lifecycle events, interruption, streaming chunks, and debug traces. Additive soft enrich on planTurn.',
-    lifecycle: 'experimental',
-    enabled: false,
-    dependsOn: ['ai.concierge'],
-    notes:
-      'Product alias: agent_runtime. Default OFF. Reuses existing CI/llmBrain modules — no new reasoning layer. Mock tools only; no production API calls. Distinct from Sprint 113 ai.orchestrator.',
-  },
-  {
-    id: 'ai.realtime_voice',
-    name: 'Real AI Voice Integration',
-    description:
-      'Recovery Phase 7 — multi-provider realtime voice (OpenAI Realtime / Gemini Live / Azure / Web Speech / Mock) with failover, reconnect, latency metrics, and Agent Runtime incremental reasoning. Production default OFF; live sockets require VITE_VOICE_LIVE_ALLOW.',
-    lifecycle: 'experimental',
-    enabled: false,
-    dependsOn: ['ai.concierge'],
-    notes:
-      'Product alias: realtime_voice. Production disabled by default. Dev opt-in via VITE_REALTIME_VOICE_DEV + VITE_VOICE_LIVE_ALLOW for sockets. Uses Agent Runtime in-process (no flag coupling). Distinct from frozen Sprint 18 ui.voice_conversation / voice.realtime. No API keys committed.',
-  },
-  {
     id: 'ai.traveler_personalization',
     name: 'Traveler Personalization Intelligence',
     description:
@@ -985,50 +952,6 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     enabled: true,
     dependsOn: ['ui.smart_itinerary'],
     notes: 'Product alias: daily_planner',
-  },
-  {
-    id: 'ui.voice_conversation',
-    name: 'Voice Conversation UI',
-    description:
-      'Sprint 18 voice conversation foundation UI (orb/indicators) — architecture only; default OFF.',
-    lifecycle: 'deprecated',
-    enabled: false,
-    dependsOn: ['ai.concierge'],
-    notes:
-      'Product alias: voice_conversation. Does not enable realtime providers. Recovery Phase 1 FREEZE: quarantined parallel stack.',
-  },
-  {
-    id: 'voice.realtime',
-    name: 'Voice Realtime Transport',
-    description:
-      'Sprint 18 flag for future realtime transport. Default OFF — no OpenAI/Azure/ElevenLabs I/O.',
-    lifecycle: 'deprecated',
-    enabled: false,
-    dependsOn: ['ui.voice_conversation'],
-    notes:
-      'Product alias: voice_realtime. Stubs only in Sprint 18. Recovery Phase 1 FREEZE: quarantined parallel stack.',
-  },
-  {
-    id: 'voice.provider',
-    name: 'Voice Provider Selection',
-    description:
-      'Sprint 18 provider abstraction gate. Default OFF; factory still resolves to mock when exercised.',
-    lifecycle: 'deprecated',
-    enabled: false,
-    dependsOn: ['ui.voice_conversation'],
-    notes:
-      'Product alias: voice_provider Recovery Phase 1 FREEZE: quarantined parallel stack.',
-  },
-  {
-    id: 'voice.mock',
-    name: 'Mock Voice Provider',
-    description:
-      'Sprint 18 mock voice provider harness (no audio, no fake dialogue). Default OFF.',
-    lifecycle: 'deprecated',
-    enabled: false,
-    dependsOn: ['ui.voice_conversation'],
-    notes:
-      'Product alias: voice_mock. Only non-live provider in Sprint 18. Recovery Phase 1 FREEZE: quarantined parallel stack.',
   },
   {
     id: 'brain.enabled',

@@ -17,7 +17,6 @@ import {
   resetBrainIntegrationSessions,
   runIntegratedBrainTurn,
 } from '../brain'
-import { createMockVoiceProvider, createVoiceSession } from '../voiceConversation'
 
 function userMessage(content: string, conversationId = 'c-s21'): ChatMessage {
   const now = '2026-07-19T00:00:00.000Z'
@@ -309,7 +308,7 @@ describe('Sprint 21 planTurn contextual replies', () => {
   })
 })
 
-describe('Sprint 21 voice parity', () => {
+describe('Sprint 21 text pipeline parity', () => {
   beforeEach(() => {
     resetFeatureRegistry()
     resetBrainIntegrationSessions()
@@ -320,12 +319,11 @@ describe('Sprint 21 voice parity', () => {
     resetBrainIntegrationSessions()
   })
 
-  it('text and voice share the same TravelPlan pipeline when flags are on', async () => {
+  it('runIntegratedBrainTurn builds TravelPlan when flags are on', () => {
     const registry = getFeatureRegistry()
     registry.setEnabled('brain.enabled', true)
     registry.setEnabled('brain.concierge', true)
     registry.setEnabled('brain.travel_engine', true)
-    registry.setEnabled('brain.voice', true)
 
     const textResult = runIntegratedBrainTurn({
       conversationId: 'c-voice-parity',
@@ -335,16 +333,5 @@ describe('Sprint 21 voice parity', () => {
     })
     expect(textResult.plan.travelPlan).toBeTruthy()
     expect(textResult.domain?.searchDraft?.departureCity).toBe('Riyadh')
-
-    const session = createVoiceSession({
-      conversationId: 'c-voice-parity-v',
-      provider: createMockVoiceProvider(),
-    })
-    await session.start()
-    session.commitUserUtterance('Flights from Riyadh to Dubai for 2 travelers, 4 days')
-    const snap = session.getSnapshot()
-    expect(snap.lastBrainPlan).toBeTruthy()
-    expect(snap.lastBrainPlan?.summary).toMatch(/^(need_slot:|ready:)/)
-    session.dispose()
   })
 })

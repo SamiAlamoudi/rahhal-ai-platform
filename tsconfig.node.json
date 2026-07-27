@@ -22,7 +22,6 @@
   "include": [
     "vite.config.ts",
     "src/lib/viteAmadeusApiPlugin.ts",
-    "src/lib/viteOpenAiRealtimeApiPlugin.ts",
     "src/lib/viteNodeEnv.ts",
     "api/**/*.ts"
   ]
