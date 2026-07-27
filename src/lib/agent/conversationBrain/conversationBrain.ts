@@ -11,7 +11,7 @@ import {
   RAHHAL_CONVERSATION_SYSTEM_PROMPT,
 } from './systemPrompt'
 import type { TravelFacts } from './travelFacts'
-import { generateLocalConversation, looksLikeDeadEndAck } from './localConversationModel'
+import { generateLocalConversation, looksLikeDeadEndAck, looksLikeDurationReask } from './localConversationModel'
 import {
   formatConsultantParagraphs,
   looksLikeInventoryDump,
@@ -200,6 +200,8 @@ function finalizeBrainResult(
         && (
           looksLikeDeadEndAck(displayText, 'ar')
           || looksLikeDeadEndAck(spokenText, 'ar')
+          || looksLikeDurationReask(displayText, facts)
+          || looksLikeDurationReask(spokenText, facts)
         )
       )
     )

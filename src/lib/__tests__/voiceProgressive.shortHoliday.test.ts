@@ -20,7 +20,8 @@ describe('short holiday duration + progressive speech', () => {
         budgetAmount: null,
         budgetCurrency: null,
       },
-      missingSlots: ['budgetAmount'],
+      // Stale askFields must not force a duration re-ask.
+      missingSlots: ['durationDays', 'budgetAmount'],
     } as unknown as TravelFacts
 
     const out = generateLocalConversation({

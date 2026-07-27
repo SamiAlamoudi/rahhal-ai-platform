@@ -9,4 +9,4 @@ export {
 } from './consultantLocale'
 export type { ConversationBrainResult, ConversationBrainDelta } from './conversationBrain'
 export { RAHHAL_CONVERSATION_SYSTEM_PROMPT, RAHHAL_RESPONSE_CONTRACT } from './systemPrompt'
-export { generateLocalConversation, looksLikeDeadEndAck, nextHardSlot } from './localConversationModel'
+export { generateLocalConversation, looksLikeDeadEndAck, looksLikeDurationReask, nextHardSlot } from './localConversationModel'

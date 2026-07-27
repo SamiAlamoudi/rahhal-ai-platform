@@ -45,16 +45,35 @@ function dest(facts: TravelFacts): string {
 
 /** Next hard intake slot derived from known facts (not only concierge askFields). */
 export function nextHardSlot(facts: TravelFacts): string | null {
-  const fromMissing = facts.missingSlots[0]
-  if (fromMissing) return fromMissing
   const known = facts.known
-  if (!known.destination && !(known.destinations && known.destinations.length > 0)) {
-    return 'destination'
+  const isFilled = (slot: string): boolean => {
+    if (slot === 'destination') {
+      return Boolean(known.destination || (known.destinations && known.destinations.length > 0))
+    }
+    if (slot === 'durationDays') return known.durationDays != null
+    if (slot === 'budgetAmount') return known.budgetAmount != null || Boolean(known.budgetFlexible)
+    if (slot === 'travelers') return known.travelers != null || Boolean(known.travelerType)
+    if (slot === 'origin') return Boolean(known.origin)
+    return false
   }
-  if (known.durationDays == null) return 'durationDays'
-  if (known.budgetAmount == null && !known.budgetFlexible) return 'budgetAmount'
-  if (known.travelers == null && !known.travelerType) return 'travelers'
-  if (!known.origin) return 'origin'
+
+  const ordered = [
+    ...facts.missingSlots,
+    'destination',
+    'durationDays',
+    'budgetAmount',
+    'travelers',
+    'origin',
+  ]
+  const seen = new Set<string>()
+  for (const slot of ordered) {
+    if (!slot || seen.has(slot)) continue
+    seen.add(slot)
+    if (!['destination', 'durationDays', 'budgetAmount', 'travelers', 'origin'].includes(slot)) {
+      continue
+    }
+    if (!isFilled(slot)) return slot
+  }
   return null
 }
 
@@ -420,13 +439,19 @@ export function looksLikeDeadEndAck(text: string, locale: 'ar' | 'en' = 'ar'): b
   if (!t) return true
   if (/[؟?]/.test(t)) return false
   if (locale === 'ar') {
-    if (/نركز على|سأبني الرحلة على|حسنًا\s*[—\-،,]?\s*نثبّت|واضح أن الوجهة/.test(t)) {
-      // Ack phrases without a follow-up question / next step.
+    if (/نركز على|سأبني الرحلة على|حسنًا\s*[—\-،,]?\s*نثبّت|واضح أن الوجهة|ممتاز/.test(t)) {
       const hasContinue = /كم يوم|ميزانية|تميلون|أسبوع|مغادرة|أجهّز|سأجهّز|ابني الخطة|رحلات|فنادق/.test(t)
       return !hasContinue
     }
-    // Very short acknowledgements
     if (t.length < 60 && /^(حسنًا|واضح|فهمت|تمام)/.test(t)) return true
   }
   return false
+}
+
+/** True when the model re-asks duration even though durationDays is already known. */
+export function looksLikeDurationReask(text: string, facts: TravelFacts): boolean {
+  if (facts.known.durationDays == null) return false
+  const t = (text || '').trim()
+  return /عطلة قصيرة|أسبوع كامل|كم يوم|كم يوما|short break|full week|how many days/i.test(t)
+    && /(?:أم|أو|or|\?|؟)/.test(t)
 }
