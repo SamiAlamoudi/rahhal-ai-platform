@@ -1,5 +1,6 @@
 /**
- * Reliable TTS via /api/tts → HTMLAudioElement.
+ * Reliable TTS via Edge neural voices in-browser → HTMLAudioElement.
+ * Falls back to POST /api/tts when the browser path fails.
  * Survives Chrome speechSynthesis autoplay/paused bugs; plays real MP3 audio.
  */
 import type { TextToSpeechProvider, TextToSpeechSpeakOptions, VoiceLocale } from './voiceTypes'
@@ -54,19 +55,58 @@ export function isAudioPlaybackUnlocked(): boolean {
   return unlocked
 }
 
-async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob> {
-  const response = await fetch('/api/tts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, locale }),
-  })
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '')
-    throw new Error(detail || `تعذر توليد الصوت (${response.status})`)
+function pickVoice(locale: VoiceLocale): string {
+  return locale === 'en' ? 'en-US-JennyNeural' : 'ar-SA-ZariyahNeural'
+}
+
+async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Promise<Blob> {
+  const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
+  const tts = new EdgeTTSBrowser(text, pickVoice(locale), { rate: '-5%' })
+  const result = await tts.synthesize()
+  const audio = result.audio as Blob | ArrayBuffer | { arrayBuffer: () => Promise<ArrayBuffer> }
+  if (typeof Blob !== 'undefined' && audio instanceof Blob) return audio
+  if (audio instanceof ArrayBuffer) {
+    return new Blob([audio], { type: 'audio/mpeg' })
   }
-  const blob = await response.blob()
-  if (!blob.size) throw new Error('تعذر توليد الصوت')
-  return blob
+  if (audio && typeof (audio as { arrayBuffer?: unknown }).arrayBuffer === 'function') {
+    return new Blob([await (audio as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer()], {
+      type: 'audio/mpeg',
+    })
+  }
+  throw new Error('empty_edge_audio')
+}
+
+async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), 12_000)
+  try {
+    const response = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, locale }),
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '')
+      throw new Error(detail || `تعذر توليد الصوت (${response.status})`)
+    }
+    const blob = await response.blob()
+    if (!blob.size || !(blob.type.includes('audio') || blob.type.includes('mpeg') || blob.type === '')) {
+      // Some servers omit type; still accept non-tiny binary payloads.
+      if (blob.size < 64) throw new Error('تعذر توليد الصوت')
+    }
+    return blob
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
+async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob> {
+  try {
+    return await synthesizeViaEdgeBrowser(text, locale)
+  } catch {
+    return await synthesizeViaApi(text, locale)
+  }
 }
 
 export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {

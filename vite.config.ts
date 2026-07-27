@@ -24,6 +24,9 @@ function securityHeaders(development: boolean): Record<string, string> {
     'https://api.openai.com',
     'https://fonts.googleapis.com',
     'https://fonts.gstatic.com',
+    // Edge neural TTS (browser WebSocket synthesizer)
+    'https://speech.platform.bing.com',
+    'wss://speech.platform.bing.com',
     ...(development ? ['ws:', 'wss:', 'http://localhost:*', 'http://127.0.0.1:*'] : []),
   ].join(' ')
 

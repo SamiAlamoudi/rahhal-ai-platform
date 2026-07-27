@@ -29,6 +29,9 @@ export function buildSecurityHeaders(
     'https://api.openai.com',
     'https://fonts.googleapis.com',
     'https://fonts.gstatic.com',
+    // Edge neural TTS (browser WebSocket synthesizer)
+    'https://speech.platform.bing.com',
+    'wss://speech.platform.bing.com',
     // Vite HMR websocket + local module graph (port varies; allow ws/http schemes in dev only).
     ...(development ? ['ws:', 'wss:', 'http://localhost:*', 'http://127.0.0.1:*'] : []),
   ].join(' ')
