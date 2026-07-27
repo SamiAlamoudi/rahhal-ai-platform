@@ -283,7 +283,7 @@ describe('Sprint 22 planTurn + voice parity', () => {
     expect(result.reply).not.toBe(result.meta.brain?.clarificationQuestion)
     expect(result.reply).toMatch(/Tokyo|Japan/i)
     // Infer-first: recommend a duration default, or ask only if still blocked.
-    expect(result.reply).toMatch(/\?|5–7 day|roughly a week|recommend|assume|approximate period|day count|متى|كم يوم|الإطار الزمني|اطار زمني/i)
+    expect(result.reply).toMatch(/\?|5–7 day|roughly a week|set a|locked|recommend|assume|approximate period|day count|متى|كم يوم|الإطار الزمني|اطار زمني/i)
     expect(result.meta.spokenText).toBeTruthy()
   })
 

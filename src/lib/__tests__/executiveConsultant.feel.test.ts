@@ -46,6 +46,11 @@ describe('Executive AI Travel Consultant', () => {
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/INFERENCE PRIORITY|Infer first/i)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Never ask a question if you can infer/i)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Ask only if uncertainty|uncertainty truly blocks/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/EXECUTION BEFORE EXPLANATION/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Search before asking/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Compare before asking/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Recommend before asking/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Do not ask permission|never ask permission/i)
   })
 
   it('never returns acknowledgement-only replies', async () => {
@@ -74,6 +79,7 @@ describe('Executive AI Travel Consultant', () => {
     expect(turn.reply.toLowerCase()).not.toMatch(/^when do you want to travel\??$/)
     expect(turn.reply.toLowerCase()).not.toMatch(/how can i help you today/)
     expect(turn.reply.toLowerCase()).not.toMatch(/next question|please choose|select from/)
+    expect(turn.reply.toLowerCase()).not.toMatch(/would you like me to|shall i search|do you want me to (search|compare|recommend)/)
     expect((turn.reply.match(/\?/g) ?? []).length).toBeLessThanOrEqual(1)
     // Remembers destination and advances with value or a useful preference.
     expect(turn.meta.memory?.requirements?.destination).toMatch(/Japan/i)
@@ -122,7 +128,32 @@ describe('Executive AI Travel Consultant', () => {
       userMessage: 'Japan trip',
       conversationId: 'c-infer-duration',
     })
-    expect(out.displayText).toMatch(/5–7 day|roughly a week|recommend|assume/i)
+    expect(out.displayText).toMatch(/5–7 day|roughly a week|set a|locked|recommend|assume/i)
     expect(out.displayText).not.toMatch(/\?/)
+  })
+
+  it('executes flight/hotel guidance without asking permission', async () => {
+    const { generateLocalConversation, buildTravelFacts } = await import('../agent/conversationBrain')
+    const { emptyMemory, emptyRequirements } = await import('../agent/types')
+    const memory = emptyMemory('en')
+    memory.requirements = {
+      ...emptyRequirements(),
+      destination: 'Japan',
+      destinations: ['Japan'],
+      durationDays: 7,
+      budgetAmount: 12000,
+      budgetCurrency: 'SAR',
+    }
+    const facts = buildTravelFacts({
+      memory,
+      objective: 'advise',
+    })
+    const out = generateLocalConversation({
+      facts,
+      userMessage: 'Japan for a week with 12000 SAR',
+      conversationId: 'c-exec-first',
+    })
+    expect(out.displayText.toLowerCase()).not.toMatch(/would you like me to|shall i (search|compare|look)|do you want me to/)
+    expect(out.displayText).toMatch(/recommend|compared|searched|set |locked|morning|flight|hotel|central|default/i)
   })
 })

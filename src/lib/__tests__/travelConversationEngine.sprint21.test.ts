@@ -303,7 +303,7 @@ describe('Sprint 21 planTurn contextual replies', () => {
     expect(result.reply).not.toBe(result.meta.brain?.contextualReply)
     expect(result.reply).toMatch(/Tokyo|Japan/i)
     // Infer-first: recommend a duration default, or ask only if still blocked.
-    expect(result.reply).toMatch(/\?|5–7 day|roughly a week|recommend|assume|approximate period|day count|متى|كم يوم|الإطار الزمني|اطار زمني/i)
+    expect(result.reply).toMatch(/\?|5–7 day|roughly a week|set a|locked|recommend|assume|approximate period|day count|متى|كم يوم|الإطار الزمني|اطار زمني/i)
     expect(result.reply).toMatch(/8000|Saudia|resort|adult|two of you|couple|family/i)
     expect(result.meta.spokenText).toBeTruthy()
   })
