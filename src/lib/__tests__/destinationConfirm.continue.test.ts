@@ -62,7 +62,7 @@ describe('destination confirm continuation', () => {
     ).toBe(false)
   })
 
-  it('optimize path replaces dead-end via local guard pattern', () => {
+  it('optimize helpers still preserve destination words for local shaping', () => {
     const spoken = optimizeSpokenText(
       'ممتاز، سأبني الرحلة على إسطنبول. لـإسطنبول، هل تفكّرون في عطلة قصيرة، أم أسبوع كامل تقريباً؟',
       'fallback',

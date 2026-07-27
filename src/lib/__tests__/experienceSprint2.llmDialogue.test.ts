@@ -33,6 +33,7 @@ describe('Experience Sprint 2 — LLM Conversation Brain', () => {
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Rahhal/)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Never say/)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/displayText/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/YOU generate 100%/)
   })
 
   it('OpenAI adapter is available only with a key', () => {
