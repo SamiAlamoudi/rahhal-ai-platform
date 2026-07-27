@@ -143,9 +143,19 @@ export function HomeVoiceConsultant({
     return created.id
   }, [locale])
 
-  const startListening = useCallback(async () => {
-    setError(null)
+  const beginFreshConversation = useCallback(() => {
+    conversationIdRef.current = null
+    setPartial('')
+    setUserHeard('')
+    setAssistantText('')
+    setAssistantMessage(null)
     setCards([])
+    setError(null)
+  }, [])
+
+  const startListening = useCallback(async () => {
+    // Each mic start is a NEW voice conversation — never reuse prior trip memory.
+    beginFreshConversation()
     unlockAudioPlayback().catch(() => undefined)
     try {
       const id = await ensureConversation()
@@ -160,7 +170,7 @@ export function HomeVoiceConsultant({
         setError(e instanceof Error ? e.message : t('تعذر بدء الصوت', 'Could not start voice'))
       }
     }
-  }, [ensureConversation, t])
+  }, [beginFreshConversation, ensureConversation, t])
 
   const stopListening = useCallback(async () => {
     await voiceRef.current?.stopListening()
@@ -171,6 +181,7 @@ export function HomeVoiceConsultant({
   }, [])
 
   const onVoiceClick = useCallback(() => {
+    // Unlock on every mic gesture (even stop) so TTS can autoplay after the AI turn.
     unlockAudioPlayback().catch(() => undefined)
     if (voiceStatus === 'listening') {
       void stopListening()
@@ -191,8 +202,15 @@ export function HomeVoiceConsultant({
     setUserHeard(trimmed)
     setAssistantText('')
     setAssistantMessage(null)
-    unlockAudioPlayback().catch(() => undefined)
+    // Await unlock under the send gesture — critical for autoplay after async turn.
+    await unlockAudioPlayback().catch(() => undefined)
     try {
+      // If we already finished a prior reply, treat a new typed trip request as a fresh conversation.
+      const looksLikeNewTrip = /(?:أريد|ابغى|أبغى|ودي|أريد السفر|سافر|سفر|trip to|i want to (?:go|travel))/i.test(trimmed)
+      if (assistantMessage?.status === 'complete' && looksLikeNewTrip) {
+        beginFreshConversation()
+        setUserHeard(trimmed)
+      }
       const id = await ensureConversation()
       const controller = new AbortController()
       // Text turn on the same Home surface — still speak the reply.
@@ -211,6 +229,7 @@ export function HomeVoiceConsultant({
               setVoiceStatus('speaking')
               setAudioPlaying(true)
               try {
+                await unlockAudioPlayback().catch(() => undefined)
                 await voiceRef.current.speakText(spoken)
               } catch (e) {
                 if (!isBenignChatError(e)) {
@@ -233,7 +252,7 @@ export function HomeVoiceConsultant({
         setError(e instanceof Error ? e.message : t('تعذر إرسال الرسالة', 'Could not send message'))
       }
     }
-  }, [ensureConversation, onDraftChange, t, upsertAssistant])
+  }, [assistantMessage?.status, beginFreshConversation, ensureConversation, onDraftChange, t, upsertAssistant])
 
   const statusLabel = (() => {
     switch (voiceStatus) {

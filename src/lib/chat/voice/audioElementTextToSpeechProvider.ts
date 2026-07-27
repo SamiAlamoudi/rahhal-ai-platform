@@ -1,14 +1,16 @@
 /**
- * Reliable TTS via POST /api/tts → persistent HTMLAudioElement.
+ * Reliable TTS via POST /api/tts → DOM-attached HTMLAudioElement.
  *
- * Autoplay rule: browsers block `new Audio().play()` after an async AI turn
- * unless the *same* media element was unlocked during a user gesture (mic / send).
- * We keep one shared element, warm it with a silent clip on unlock, then reuse it.
+ * Autoplay rules (Chrome/Safari):
+ * - Unlock must happen during a user gesture (mic / send).
+ * - Unlock must NOT mutate the playback element (no src wipe / load()).
+ * - The playback element should live in the DOM (Safari is picky).
  */
 import type { TextToSpeechProvider, TextToSpeechSpeakOptions, VoiceLocale } from './voiceTypes'
 
 let unlocked = false
 let sharedAudio: HTMLAudioElement | null = null
+let unlockWarmAudio: HTMLAudioElement | null = null
 let activeObjectUrl: string | null = null
 let audioContext: AudioContext | null = null
 
@@ -16,16 +18,21 @@ let audioContext: AudioContext | null = null
 const SILENT_WAV =
   'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='
 
-function getSharedAudio(): HTMLAudioElement {
+function ensurePlaybackAudio(): HTMLAudioElement {
   if (typeof window === 'undefined' || typeof Audio === 'undefined') {
     throw new Error('Audio playback is only available in the browser.')
   }
   if (!sharedAudio) {
-    sharedAudio = new Audio()
+    sharedAudio = document.createElement('audio')
     sharedAudio.setAttribute('playsinline', 'true')
     sharedAudio.setAttribute('webkit-playsinline', 'true')
+    sharedAudio.setAttribute('data-rahhal-tts', 'playback')
     sharedAudio.preload = 'auto'
-    sharedAudio.crossOrigin = 'anonymous'
+    sharedAudio.controls = false
+    sharedAudio.style.cssText = 'position:fixed;width:0;height:0;opacity:0;pointer-events:none;left:-9999px;'
+    document.body.appendChild(sharedAudio)
+  } else if (!sharedAudio.isConnected && document.body) {
+    document.body.appendChild(sharedAudio)
   }
   return sharedAudio
 }
@@ -50,7 +57,6 @@ async function resumeAudioContext(): Promise<void> {
     if (audioContext.state === 'suspended') {
       await audioContext.resume()
     }
-    // Brief near-silent tick keeps gesture→audio association alive.
     const osc = audioContext.createOscillator()
     const gain = audioContext.createGain()
     gain.gain.value = 0.00001
@@ -63,23 +69,38 @@ async function resumeAudioContext(): Promise<void> {
   }
 }
 
-/** Call from a user gesture (mic tap / send) before the async reply returns. */
+/**
+ * Call from a user gesture (mic tap / send) before the async reply returns.
+ * Uses a *separate* warm-up element so we never wipe the playback element's src.
+ */
 export async function unlockAudioPlayback(): Promise<void> {
   if (typeof window === 'undefined' || typeof Audio === 'undefined') return
 
   await resumeAudioContext()
 
+  // Ensure playback node exists in the DOM under the gesture stack.
   try {
-    const audio = getSharedAudio()
-    audio.muted = true
-    audio.volume = 1
-    audio.src = SILENT_WAV
-    await audio.play().catch(() => undefined)
-    audio.pause()
-    audio.currentTime = 0
-    audio.muted = false
-    audio.removeAttribute('src')
-    audio.load()
+    ensurePlaybackAudio()
+  } catch {
+    // ignore
+  }
+
+  try {
+    if (!unlockWarmAudio) {
+      unlockWarmAudio = new Audio(SILENT_WAV)
+      unlockWarmAudio.setAttribute('playsinline', 'true')
+      unlockWarmAudio.preload = 'auto'
+      unlockWarmAudio.volume = 0.01
+    } else {
+      unlockWarmAudio.src = SILENT_WAV
+    }
+    await unlockWarmAudio.play().catch(() => undefined)
+    unlockWarmAudio.pause()
+    try {
+      unlockWarmAudio.currentTime = 0
+    } catch {
+      // ignore
+    }
     unlocked = true
   } catch {
     unlocked = true
@@ -152,18 +173,7 @@ async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob
   }
 }
 
-async function playOnSharedElement(
-  blob: Blob,
-  token: number,
-  generationRef: { current: number },
-): Promise<void> {
-  if (!unlocked) {
-    await unlockAudioPlayback()
-  } else {
-    await resumeAudioContext()
-  }
-
-  const audio = getSharedAudio()
+function playBlobOnElement(audio: HTMLAudioElement, blob: Blob): Promise<void> {
   revokeActiveUrl()
   const objectUrl = URL.createObjectURL(blob)
   activeObjectUrl = objectUrl
@@ -172,7 +182,7 @@ async function playOnSharedElement(
   audio.muted = false
   audio.volume = 1
 
-  await new Promise<void>((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     let settled = false
     const finish = (err?: Error) => {
       if (settled) return
@@ -184,48 +194,51 @@ async function playOnSharedElement(
         revokeActiveUrl()
         reject(err)
       } else {
-        revokeActiveUrl()
+        // Keep object URL until next speak/stop so late decode isn't disrupted.
         resolve()
       }
     }
 
-    if (token !== generationRef.current) {
+    audio.onended = () => {
+      revokeActiveUrl()
       finish()
-      return
     }
-
-    audio.onended = () => finish()
     audio.onerror = () => finish(new Error('تعذر تشغيل الصوت'))
 
-    const attempt = () => {
+    const attemptPlay = () => {
+      if (settled) return
       const playAttempt = audio.play()
       if (playAttempt && typeof playAttempt.then === 'function') {
-        playAttempt.catch(() => {
-          void unlockAudioPlayback().then(() => {
-            if (token !== generationRef.current) {
-              finish()
-              return
-            }
-            audio.muted = false
-            audio.volume = 1
-            void audio.play().then(() => {
-              // playing
-            }).catch(() => {
-              finish(new Error('تعذر تشغيل الصوت — اسمح بالتشغيل التلقائي'))
-            })
-          })
+        playAttempt.then(() => {
+          // Playing — wait for ended.
+        }).catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err)
+          finish(new Error(`تعذر تشغيل الصوت — اسمح بالتشغيل التلقائي (${message})`))
         })
       }
     }
 
-    attempt()
+    // readyState 0/1: wait for enough data before play for Safari.
+    if (audio.readyState >= 2) {
+      attemptPlay()
+    } else {
+      const onCanPlay = () => {
+        audio.removeEventListener('canplay', onCanPlay)
+        attemptPlay()
+      }
+      audio.addEventListener('canplay', onCanPlay)
+      // Safety: if canplay never fires, try anyway.
+      window.setTimeout(() => {
+        audio.removeEventListener('canplay', onCanPlay)
+        if (!settled) attemptPlay()
+      }, 1500)
+    }
   })
 }
 
 export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
   let speaking = false
   let generation = 0
-  const generationRef = { current: 0 }
 
   return {
     providerId: 'audio-element-tts',
@@ -238,8 +251,7 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
         generation += 1
         speaking = false
         try {
-          const audio = getSharedAudio()
-          audio.pause()
+          if (sharedAudio) sharedAudio.pause()
         } catch {
           // ignore
         }
@@ -247,32 +259,35 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
       }
 
       const token = ++generation
-      generationRef.current = token
       speaking = true
 
       try {
-        // Re-assert unlock association right before fetch completes path.
-        if (!unlocked) await unlockAudioPlayback()
+        // Gesture unlock must already have happened; re-assert AudioContext only.
+        if (!unlocked) {
+          await unlockAudioPlayback()
+        } else {
+          await resumeAudioContext()
+        }
 
         const blob = await fetchSpeechAudio(text, options.locale)
-        if (token !== generationRef.current) {
+        if (token !== generation) {
           speaking = false
           return
         }
-        await playOnSharedElement(blob, token, generationRef)
+
+        const audio = ensurePlaybackAudio()
+        await playBlobOnElement(audio, blob)
       } finally {
-        if (token === generationRef.current) speaking = false
+        if (token === generation) speaking = false
       }
     },
     stop() {
       generation += 1
-      generationRef.current = generation
       speaking = false
       try {
         if (sharedAudio) {
           sharedAudio.pause()
-          sharedAudio.removeAttribute('src')
-          sharedAudio.load()
+          // Do not load()/clear in a way that fights the next speak — just pause.
         }
       } catch {
         // ignore
