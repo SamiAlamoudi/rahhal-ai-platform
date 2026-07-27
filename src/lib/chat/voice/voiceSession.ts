@@ -153,9 +153,30 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     vadSpeaking = false
   }
 
+  /**
+   * Commit buffered STT text into the shared chatEngine turn.
+   * Returns true when sendTranscript was kicked off.
+   */
+  const commitUtterance = (reason: string): boolean => {
+    if (disposed || sending || mode !== 'hands_free' || !handsFreeConversationId) return false
+    const transcript = utteranceBuffer.trim() || partial.trim()
+    if (!transcript) return false
+    clearSilenceTimer()
+    logPipeline({
+      stage: 'stt',
+      event: 'utterance_committed',
+      meta: { reason, silenceTimeoutMs, length: transcript.length },
+    })
+    utteranceBuffer = ''
+    utterancePrefix = ''
+    partial = ''
+    void sendTranscript(handsFreeConversationId, transcript)
+    return true
+  }
+
   const bumpUtteranceSilenceTimer = () => {
     if (mode !== 'hands_free' || !handsFreeConversationId || sending || disposed) return
-    if (status !== 'listening') return
+    if (status !== 'listening' && status !== 'reconnecting') return
     clearSilenceTimer()
     silenceTimer = setTimeout(() => {
       // Never finalize while VAD still hears speech energy.
@@ -163,16 +184,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         bumpUtteranceSilenceTimer()
         return
       }
-      const transcript = utteranceBuffer.trim() || partial.trim()
-      if (!transcript || !handsFreeConversationId) return
-      logPipeline({
-        stage: 'stt',
-        event: 'utterance_committed',
-        meta: { silenceTimeoutMs, length: transcript.length },
-      })
-      utteranceBuffer = ''
-      utterancePrefix = ''
-      void sendTranscript(handsFreeConversationId, transcript)
+      commitUtterance('silence_timeout')
     }, silenceTimeoutMs)
   }
 
@@ -227,6 +239,16 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       continuous,
       interimResults: true,
     })
+    // If we resumed mid-utterance, the previous silence timer was cleared above.
+    // Re-arm it so a completed transcript cannot sit forever without sendMessage.
+    if (
+      opts?.preserveUtterance
+      && mode === 'hands_free'
+      && handsFreeConversationId
+      && (utteranceBuffer.trim() || utterancePrefix.trim() || partial.trim())
+    ) {
+      bumpUtteranceSilenceTimer()
+    }
   }
 
   const maybeResumeHandsFree = async () => {
@@ -418,7 +440,15 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     listening = false
     if (disposed) return
     if (status === 'listening' && mode === 'hands_free' && handsFreeConversationId && !sending) {
-      // Browser ended recognition mid-session — resume without flushing utterance early.
+      const transcript = utteranceBuffer.trim() || partial.trim()
+      // Chrome/Safari often end recognition immediately after a final result.
+      // Resuming hands-free used to clearSilenceTimer() and drop the pending
+      // sendMessage forever (UI showed transcript, never Thinking/TTS).
+      if (transcript && !vadSpeaking) {
+        commitUtterance('recognition_ended')
+        return
+      }
+      // Mid-thought browser restart — keep buffer and re-arm silence commit.
       void maybeResumeHandsFree()
       return
     }

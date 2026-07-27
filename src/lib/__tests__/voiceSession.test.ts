@@ -127,6 +127,70 @@ describe('voiceSession', () => {
     vi.useRealTimers()
   })
 
+  it('hands-free commits and calls sendMessage when STT ends after final (no silence wait)', async () => {
+    const { provider: stt, controller } = createMockSpeechToTextProvider('')
+    const tts = createMockTextToSpeechProvider()
+    const statuses: string[] = []
+    const sendTurn = vi.fn(async (_input, handlers) => {
+      const assistant = assistantMessage(
+        'ميزانيتكم ممتازة لرحلة إلى المغرب. أرشح مراكش أو أكادير.',
+      )
+      assistant.providerMeta = { spokenText: 'ميزانيتكم ممتازة لرحلة إلى المغرب.' }
+      await handlers.onAssistantCreate?.(assistant)
+      await handlers.onComplete?.(assistant)
+      return {
+        user: {
+          ...assistant,
+          id: 'u1',
+          role: 'user' as const,
+          modality: 'audio' as const,
+          content: 'أريد السفر إلى المغرب لمدة أسبوع ميزانيتي 10000 مع زوجتي',
+        },
+        assistant,
+      }
+    })
+
+    const session = createVoiceSession({
+      stt,
+      tts,
+      sendTurn: sendTurn as never,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      mode: 'hands_free',
+      silenceTimeoutMs: 3500,
+      activityMonitor: {
+        start: async () => {},
+        stop: () => {},
+        isSpeaking: () => false,
+        getLevel: () => 0,
+        isActive: () => false,
+      },
+      callbacks: { onStatus: (s) => statuses.push(s) },
+    })
+
+    await session.startHandsFree('c1')
+    const transcript = 'أريد السفر إلى المغرب لمدة أسبوع ميزانيتي 10000 مع زوجتي'
+    controller.emitFinal(transcript)
+    // Browser ends recognition immediately after final — previously cleared the
+    // silence timer via resume and never called sendMessage.
+    controller.emitEnd()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(sendTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: 'c1',
+        content: transcript,
+        modality: 'audio',
+      }),
+      expect.any(Object),
+    )
+    expect(statuses).toContain('thinking')
+    await Promise.resolve()
+    expect(statuses).toContain('speaking')
+    expect(tts.spoken.some((t) => t.includes('المغرب'))).toBe(true)
+    session.dispose()
+  })
+
   it('hands-free interrupt while sending resumes after benign abort', async () => {
     vi.useFakeTimers()
     const { provider: stt, controller } = createMockSpeechToTextProvider('')
