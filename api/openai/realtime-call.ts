@@ -148,9 +148,11 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   const sessionConfig = buildSessionConfig({ voice, instructions, dialectHint })
+  // OpenAI unified interface expects multipart *string* fields (not file Blobs).
+  // Blob+filename uploads are rejected: "field \"sdp\" is required but not found".
   const fd = new FormData()
-  fd.set('sdp', new Blob([sdpOffer], { type: 'application/sdp' }), 'offer.sdp')
-  fd.set('session', new Blob([sessionConfig], { type: 'application/json' }), 'session.json')
+  fd.set('sdp', sdpOffer)
+  fd.set('session', sessionConfig)
 
   const safety = req.headers.get('openai-safety-identifier') || undefined
   const upstream = await fetch('https://api.openai.com/v1/realtime/calls', {
@@ -167,15 +169,24 @@ export default async function handler(req: Request): Promise<Response> {
     return new Response(JSON.stringify({
       error: 'upstream_realtime_error',
       status: upstream.status,
-      detail: answer.slice(0, 600),
+      detail: answer.slice(0, 800),
+      model: process.env.VITE_OPENAI_REALTIME_MODEL?.trim() || REALTIME_VOICE_MODEL,
     }), {
+      // Preserve upstream 4xx as 502 for client contract, but surface detail for logs.
       status: 502,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+        'X-Rahhal-Upstream-Status': String(upstream.status),
+      },
     })
   }
 
+  // Successful unified-interface calls return SDP answer text.
+  const okStatus = upstream.status === 200 || upstream.status === 201 ? upstream.status : 201
   return new Response(answer, {
-    status: 201,
+    status: okStatus,
     headers: {
       ...corsHeaders,
       'Content-Type': 'application/sdp',
