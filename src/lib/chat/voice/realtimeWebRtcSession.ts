@@ -49,8 +49,16 @@ export type RealtimeWebRtcCallbacks = {
 
 export type RealtimeWebRtcSession = {
   connect: () => Promise<void>
+  /** End the WebRTC call but allow a later connect() on the same session object. */
   disconnect: () => void
+  /** Permanent teardown (component unmount). Further connect() calls are no-ops. */
+  dispose: () => void
   interrupt: () => void
+  /**
+   * Re-arm mic + turn detection after an assistant turn without recreating WebRTC.
+   * Safe no-op when not connected.
+   */
+  ensureListening: () => void
   /** Send a text user turn into the live session (no classic TTS). */
   sendText: (text: string) => void
   /**
@@ -138,6 +146,71 @@ export function createRealtimeWebRtcSession(
     }
   }
 
+  const ensureLocalMicLive = () => {
+    try {
+      localStream?.getAudioTracks().forEach((track) => {
+        if (track.readyState === 'live') track.enabled = true
+      })
+      pc?.getSenders().forEach((sender) => {
+        const track = sender.track
+        if (track && track.kind === 'audio' && track.readyState === 'live') {
+          track.enabled = true
+        }
+      })
+    } catch {
+      // ignore
+    }
+  }
+
+  const reassertTurnDetection = () => {
+    const prefs = loadVoiceExperiencePrefs()
+    const voice = mapPrefsToRealtimeVoice(prefs)
+    sendEvent({
+      type: 'session.update',
+      session: {
+        type: 'realtime',
+        audio: {
+          input: {
+            turn_detection: buildRealtimeTurnDetection(),
+          },
+          output: { voice },
+        },
+      },
+    })
+  }
+
+  const tearDownPeer = () => {
+    try {
+      dc?.close()
+    } catch {
+      // ignore
+    }
+    try {
+      pc?.getSenders().forEach((s) => s.track?.stop())
+      pc?.close()
+    } catch {
+      // ignore
+    }
+    try {
+      localStream?.getTracks().forEach((t) => t.stop())
+    } catch {
+      // ignore
+    }
+    try {
+      remoteAudio?.remove()
+    } catch {
+      // ignore
+    }
+    pc = null
+    dc = null
+    localStream = null
+    remoteAudio = null
+    remoteTrack = null
+    assistantBuffer = ''
+    interruptedPartial = ''
+    activeLanguage = null
+  }
+
   const interruptInternal = (fromBargeIn = false) => {
     const partial = assistantBuffer.trim()
     const wasSpeaking = status === 'speaking'
@@ -145,7 +218,10 @@ export function createRealtimeWebRtcSession(
     sendEvent({ type: 'output_audio_buffer.clear' })
     muteRemote(true)
     // Brief mute then re-arm listening — never replay cancelled buffer.
-    queueMicrotask(() => muteRemote(false))
+    queueMicrotask(() => {
+      muteRemote(false)
+      ensureLocalMicLive()
+    })
     if (fromBargeIn) {
       quality.markSpeechStarted(wasSpeaking)
     } else {
@@ -226,16 +302,23 @@ export function createRealtimeWebRtcSession(
     if (
       type === 'response.output_audio_transcript.done'
       || type === 'response.audio_transcript.done'
-      || type === 'response.done'
     ) {
+      // Finalize transcript text only — do NOT flip to listening yet.
+      // On iPhone, transcript can finish before remote audio ends; early "listening"
+      // made the mic button look idle and a tap tore the session down.
+      if (assistantBuffer) callbacks.onAssistantTranscript?.(assistantBuffer, true)
+      return
+    }
+
+    if (type === 'response.done') {
       if (assistantBuffer) callbacks.onAssistantTranscript?.(assistantBuffer, true)
       assistantBuffer = ''
       interruptedPartial = ''
-      if (type === 'response.done') {
-        quality.markResponseDone()
-        emitQuality()
-        logChat('debug', 'voice', 'realtime_quality', quality.snapshot() as unknown as Record<string, unknown>)
-      }
+      quality.markResponseDone()
+      emitQuality()
+      logChat('debug', 'voice', 'realtime_quality', quality.snapshot() as unknown as Record<string, unknown>)
+      ensureLocalMicLive()
+      reassertTurnDetection()
       setStatus('listening')
       return
     }
@@ -254,7 +337,16 @@ export function createRealtimeWebRtcSession(
     getQualitySnapshot: () => quality.snapshot(),
     async connect() {
       if (disposed) return
-      if (pc) return
+      // Allow reconnect after a clean disconnect on the same session object.
+      if (pc && dc && dc.readyState === 'open') {
+        ensureLocalMicLive()
+        reassertTurnDetection()
+        setStatus('listening')
+        return
+      }
+      if (pc) {
+        tearDownPeer()
+      }
       setStatus('connecting')
 
       const prefs = loadVoiceExperiencePrefs()
@@ -347,24 +439,7 @@ export function createRealtimeWebRtcSession(
         })
         callbacks.onError?.(`تعذر بدء الصوت المباشر (${res.status})`)
         setStatus('error')
-        try {
-          dc?.close()
-        } catch {
-          // ignore
-        }
-        try {
-          pc?.close()
-        } catch {
-          // ignore
-        }
-        try {
-          localStream?.getTracks().forEach((t) => t.stop())
-        } catch {
-          // ignore
-        }
-        pc = null
-        dc = null
-        localStream = null
+        tearDownPeer()
         throw new Error(`realtime_call_failed:${res.status}`)
       }
 
@@ -372,40 +447,31 @@ export function createRealtimeWebRtcSession(
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
     },
     disconnect() {
-      disposed = true
-      activeLanguage = null
+      // Soft end: release peer/mic so connect() can start a new call later.
+      // Do NOT set disposed — that permanently kills the session object (iPhone bug).
       interruptInternal()
-      try {
-        dc?.close()
-      } catch {
-        // ignore
-      }
-      try {
-        pc?.getSenders().forEach((s) => s.track?.stop())
-        pc?.close()
-      } catch {
-        // ignore
-      }
-      try {
-        localStream?.getTracks().forEach((t) => t.stop())
-      } catch {
-        // ignore
-      }
-      try {
-        remoteAudio?.remove()
-      } catch {
-        // ignore
-      }
-      pc = null
-      dc = null
-      localStream = null
-      remoteAudio = null
-      remoteTrack = null
+      tearDownPeer()
       setStatus('idle')
       callbacks.onDisconnected?.()
     },
+    dispose() {
+      disposed = true
+      interruptInternal()
+      tearDownPeer()
+      setStatus('idle')
+      callbacks.onDisconnected?.()
+    },
+    ensureListening() {
+      if (disposed) return
+      if (!pc || !dc || dc.readyState !== 'open') return
+      ensureLocalMicLive()
+      reassertTurnDetection()
+      muteRemote(false)
+      if (status !== 'listening') setStatus('listening')
+    },
     interrupt() {
       interruptInternal(true)
+      ensureLocalMicLive()
       setStatus('listening')
     },
     sendText(text: string) {

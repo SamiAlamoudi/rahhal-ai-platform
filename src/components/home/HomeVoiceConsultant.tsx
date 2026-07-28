@@ -257,7 +257,8 @@ export function HomeVoiceConsultant({
     return () => {
       disposed = true
       session?.dispose()
-      realtimeRef.current?.disconnect()
+      // Permanent teardown on unmount — disconnect alone must remain reconnectable.
+      realtimeRef.current?.dispose()
       realtimeRef.current = null
       if (voiceRef.current === session) voiceRef.current = null
     }
@@ -298,6 +299,9 @@ export function HomeVoiceConsultant({
       if (preferRealtimeRef.current && realtimeRef.current) {
         if (!realtimeRef.current.isConnected()) {
           await realtimeRef.current.connect()
+        } else {
+          // Same live session — re-arm mic/VAD for the next turn (no refresh).
+          realtimeRef.current.ensureListening()
         }
         return
       }
@@ -337,6 +341,21 @@ export function HomeVoiceConsultant({
 
   const onVoiceClick = useCallback(() => {
     unlockAudioPlayback().catch(() => undefined)
+    // Realtime is continuous: while listening, keep the session alive.
+    // A second tap must NOT permanently kill reconnect (iPhone multi-turn bug).
+    if (preferRealtimeRef.current && realtimeRef.current) {
+      if (voiceStatus === 'speaking' || voiceStatus === 'responding' || voiceStatus === 'thinking') {
+        interrupt()
+        return
+      }
+      if (voiceStatus === 'listening') {
+        // Soft hang-up — disconnect() is reconnectable; dispose() is only for unmount.
+        void stopListening()
+        return
+      }
+      void startListening()
+      return
+    }
     if (voiceStatus === 'listening') {
       void stopListening()
       return
