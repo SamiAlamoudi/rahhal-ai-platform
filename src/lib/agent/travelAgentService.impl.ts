@@ -858,9 +858,27 @@ async function speakTravelFacts(input: {
   if (input.userProfile) {
     Object.assign(injectedProfile, input.userProfile)
   }
+  let voiceStyleNote: string | undefined
+  try {
+    const {
+      dialectChatGuidance,
+      dialectLabel,
+      loadVoiceExperiencePrefs,
+    } = await import('../chat/voice/voiceExperiencePrefs')
+    const prefs = loadVoiceExperiencePrefs()
+    voiceStyleNote = [
+      `Arabic dialect preference: ${dialectLabel(prefs.dialect)} (${prefs.dialect}).`,
+      dialectChatGuidance(prefs.dialect),
+      'Do not claim native dialect quality. Fall back to clear natural Arabic rather than poor imitation.',
+      'Dialect must never invent travel facts.',
+    ].join(' ')
+  } catch {
+    voiceStyleNote = undefined
+  }
   return runConversationBrain({
     ...input,
     userProfile: injectedProfile,
+    voiceStyleNote,
     onDelta: input.onDelta
       ? (partial) => {
         input.onDelta?.({

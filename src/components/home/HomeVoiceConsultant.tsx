@@ -5,7 +5,7 @@ import { chatEngine } from '../../lib/chat/chatEngine'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import type { VoiceSession } from '../../lib/chat/voice/voiceSession'
 import type { VoiceSessionStatus } from '../../lib/chat/voice/voiceTypes'
-import { unlockAudioPlayback } from '../../lib/chat/voice/audioElementTextToSpeechProvider'
+import { unlockAudioPlayback, preconnectOpenAiTtsRoute } from '../../lib/chat/voice/audioElementTextToSpeechProvider'
 import { isBenignChatError } from '../../lib/chat/chatLogger'
 import { isGreetingOnly } from '../../lib/agent/conversationBrain/greetingGuard'
 import {
@@ -305,13 +305,15 @@ export function HomeVoiceConsultant({
             if (pending) flushAssistant(pending)
           }
           voiceRef.current?.armHandsFree?.(id)
-          if (marks) marks.audioStartedAt = performance.now()
+          preconnectOpenAiTtsRoute()
+          // speakText → one TTS; detailed latency marks come from voiceSession for mic turns.
           await voiceRef.current?.speakText(piece, {
             resumeHandsFree: false,
             interrupt: true,
           })
           if (marks) {
             marks.ttsDoneAt = performance.now()
+            if (marks.audioStartedAt == null) marks.audioStartedAt = marks.ttsDoneAt
             logPipeline({
               stage: 'tts',
               event: 'latency_report',

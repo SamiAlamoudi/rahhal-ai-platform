@@ -273,6 +273,8 @@ export async function runConversationBrain(input: {
   messages: ChatMessage[]
   facts: TravelFacts
   userProfile?: Record<string, unknown> | null
+  /** Speaking style only — never travel slot assumptions. */
+  voiceStyleNote?: string | null
   signal?: AbortSignal
   onDelta?: (partial: ConversationBrainDelta) => void
 }): Promise<ConversationBrainResult> {
@@ -302,6 +304,7 @@ export async function runConversationBrain(input: {
     userProfileJson: groundedEmpty
       ? undefined
       : (input.userProfile ? JSON.stringify(input.userProfile) : undefined),
+    voiceStyleNote: input.voiceStyleNote?.trim() || undefined,
     currentUserMessage: userMessage,
     groundingNote: groundedEmpty
       ? 'Greeting-only turn with empty known slots. Reply with a brief greeting and ONE neutral destination question only. Inventing budget, travelers, destination, dates, or itinerary is forbidden.'

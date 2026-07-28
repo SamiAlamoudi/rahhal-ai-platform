@@ -26,11 +26,16 @@ import {
   MIN_HANDS_FREE_SILENCE_MS,
   normalizeVoiceLocale,
 } from './voiceTypes'
-import { unlockAudioPlayback } from './audioElementTextToSpeechProvider'
+import { unlockAudioPlayback, preconnectOpenAiTtsRoute } from './audioElementTextToSpeechProvider'
 import {
   createVoiceLatencyMarks,
   summarizeVoiceLatency,
 } from './voiceLatency'
+import {
+  buildTtsSpeechInstructions,
+  loadVoiceExperiencePrefs,
+  speakingSpeedRate,
+} from './voiceExperiencePrefs'
 
 function performanceNow(): number {
   if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
@@ -342,24 +347,53 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       if (!text) return
       speakChain = speakChain.then(async () => {
         if (disposed || controller.signal.aborted) return
-        latency.ttsStartedAt = performanceNow()
         if (!speechStarted) {
           speechStarted = true
           setStatus('speaking')
           callbacks.onSpeechStarted?.()
           logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase: 'final', once: true } })
+          preconnectOpenAiTtsRoute()
           await unlockAudioPlayback()
         } else {
           setStatus('speaking')
         }
         try {
-          latency.audioStartedAt = performanceNow()
-          await tts.speak({ locale, text, interrupt: true })
+          const prefs = loadVoiceExperiencePrefs()
+          await tts.speak({
+            locale,
+            text,
+            interrupt: true,
+            voice: locale === 'ar' ? prefs.voiceId : 'nova',
+            speed: speakingSpeedRate(prefs.speed),
+            dialect: locale === 'ar' ? prefs.dialect : undefined,
+            instructions: buildTtsSpeechInstructions({
+              locale,
+              dialect: prefs.dialect,
+            }),
+            format: 'wav',
+            onTtsRequestStart: () => {
+              latency.ttsStartedAt = performanceNow()
+            },
+            onTtsResponseComplete: () => {
+              latency.ttsResponseAt = performanceNow()
+            },
+            onAudioDecodeComplete: () => {
+              latency.audioDecodedAt = performanceNow()
+            },
+            onAudioPlaybackStart: () => {
+              latency.audioStartedAt = performanceNow()
+            },
+          })
           latency.ttsDoneAt = performanceNow()
           logPipeline({
             stage: 'tts',
             event: 'latency_report',
-            meta: summarizeVoiceLatency(latency) as unknown as Record<string, unknown>,
+            meta: {
+              ...summarizeVoiceLatency(latency),
+              voice: prefs.voiceId,
+              dialect: prefs.dialect,
+              speed: prefs.speed,
+            } as unknown as Record<string, unknown>,
           })
         } catch (e) {
           if (!isBenignChatError(e) && !disposed) {
@@ -677,12 +711,22 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       setStatus('speaking')
       const cleaned = stripMarkdownForSpeech(text)
       try {
+        preconnectOpenAiTtsRoute()
         await unlockAudioPlayback()
+        const prefs = loadVoiceExperiencePrefs()
         // One continuous utterance per call (interrupt replaces any prior clip).
         await tts.speak({
           locale,
           text: cleaned,
           interrupt: opts?.interrupt !== false,
+          voice: locale === 'ar' ? prefs.voiceId : 'nova',
+          speed: speakingSpeedRate(prefs.speed),
+          dialect: locale === 'ar' ? prefs.dialect : undefined,
+          instructions: buildTtsSpeechInstructions({
+            locale,
+            dialect: prefs.dialect,
+          }),
+          format: 'wav',
         })
       } catch (e) {
         if (!isBenignChatError(e)) throw e

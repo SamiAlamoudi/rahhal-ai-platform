@@ -50,7 +50,7 @@ export function createTextToSpeechProvider(
 }
 
 /** Log TTS failures instead of silently swapping engines. */
-function createLoggingTextToSpeechProvider(primary: TextToSpeechProvider): TextToSpeechProvider {
+export function createLoggingTextToSpeechProvider(primary: TextToSpeechProvider): TextToSpeechProvider {
   return {
     providerId: primary.providerId,
     isSupported: () => primary.isSupported(),

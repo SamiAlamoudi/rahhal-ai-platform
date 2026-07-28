@@ -1,5 +1,10 @@
 /**
- * Reliable TTS via POST /api/tts → DOM-attached HTMLAudioElement.
+ * Reliable TTS via POST /api/openai/tts → DOM-attached HTMLAudioElement.
+ *
+ * Architecture (Voice Experience Sprint):
+ * - Exactly one OpenAI speech request per assistant turn.
+ * - No progressive mid-stream chunk TTS.
+ * - Preferences (voice / dialect / speed) come from speak() options.
  *
  * Autoplay rules (Chrome/Safari):
  * - Unlock must happen during a user gesture (mic / send).
@@ -8,6 +13,14 @@
  */
 import type { TextToSpeechProvider, TextToSpeechSpeakOptions, VoiceLocale } from './voiceTypes'
 import { logChat } from '../chatLogger'
+import {
+  DEFAULT_VOICE_PREFS,
+  buildTtsSpeechInstructions,
+  loadVoiceExperiencePrefs,
+  speakingSpeedRate,
+  type ArabicDialectPreference,
+  type OpenAiTtsVoiceId,
+} from './voiceExperiencePrefs'
 
 let unlocked = false
 let sharedAudio: HTMLAudioElement | null = null
@@ -17,10 +30,46 @@ let activeObjectUrl: string | null = null
 let activeObjectUrlB: string | null = null
 let useBufferB = false
 let audioContext: AudioContext | null = null
+let preconnected = false
 
 /** Tiny silent WAV — primes autoplay permission after a click/tap. */
 const SILENT_WAV =
   'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='
+
+type TtsRequestBody = {
+  text: string
+  locale: VoiceLocale
+  voice: string
+  speed: number
+  dialect?: string
+  instructions: string
+  format: 'wav' | 'mp3'
+}
+
+function resolveTtsRequest(options: Pick<
+  TextToSpeechSpeakOptions,
+  'locale' | 'text' | 'voice' | 'speed' | 'dialect' | 'instructions' | 'format'
+>): TtsRequestBody {
+  const prefs = loadVoiceExperiencePrefs()
+  const locale = options.locale
+  const voice = (options.voice || (locale === 'ar' ? prefs.voiceId : 'nova')).trim()
+  const speed = typeof options.speed === 'number' && Number.isFinite(options.speed)
+    ? options.speed
+    : speakingSpeedRate(prefs.speed)
+  const dialect = (options.dialect || prefs.dialect) as ArabicDialectPreference
+  const instructions = options.instructions?.trim()
+    || buildTtsSpeechInstructions({ locale, dialect })
+  const format = options.format === 'mp3' ? 'mp3' : 'wav'
+  return {
+    text: options.text.trim(),
+    locale,
+    voice,
+    speed,
+    dialect: locale === 'ar' ? dialect : undefined,
+    instructions,
+    format,
+  }
+}
 
 function createHiddenAudio(tag: string): HTMLAudioElement {
   const el = document.createElement('audio')
@@ -46,7 +95,7 @@ function ensurePlaybackAudio(): HTMLAudioElement {
   return sharedAudio
 }
 
-/** Second buffer for gapless mid-reply clips (ChatGPT-like continuity). */
+/** Second buffer kept only so interrupt can pause both; one-shot path uses A primarily. */
 function ensurePlaybackAudioB(): HTMLAudioElement {
   if (typeof window === 'undefined' || typeof Audio === 'undefined') {
     throw new Error('Audio playback is only available in the browser.')
@@ -98,6 +147,29 @@ async function resumeAudioContext(): Promise<void> {
   }
 }
 
+/** DNS/TLS warm-up for the TTS route — does not synthesize audio. */
+export function preconnectOpenAiTtsRoute(): void {
+  if (typeof document === 'undefined' || preconnected) return
+  preconnected = true
+  try {
+    const link = document.createElement('link')
+    link.rel = 'preconnect'
+    link.href = window.location.origin
+    link.setAttribute('data-rahhal-tts-preconnect', '1')
+    document.head.appendChild(link)
+  } catch {
+    // ignore
+  }
+  // Tiny OPTIONS/HEAD-less warm: fire a cheap OPTIONS via fetch no-cors is useless;
+  // instead poke the route with an abortable empty body so the edge function stays warm.
+  const controller = new AbortController()
+  window.setTimeout(() => controller.abort(), 2500)
+  void fetch('/api/openai/tts', {
+    method: 'OPTIONS',
+    signal: controller.signal,
+  }).catch(() => undefined)
+}
+
 /**
  * Call from a user gesture (mic tap / send) before the async reply returns.
  * Uses a *separate* warm-up element so we never wipe the playback element's src.
@@ -106,6 +178,7 @@ export async function unlockAudioPlayback(): Promise<void> {
   if (typeof window === 'undefined' || typeof Audio === 'undefined') return
 
   await resumeAudioContext()
+  preconnectOpenAiTtsRoute()
 
   // Ensure playback node exists in the DOM under the gesture stack.
   try {
@@ -114,11 +187,20 @@ export async function unlockAudioPlayback(): Promise<void> {
     // ignore
   }
 
-  // Warm OpenAI TTS path (not Edge) so first spoken reply stays on the real pipeline.
+  // Warm OpenAI TTS path with the user's preferred voice (still not Edge).
+  const prefs = loadVoiceExperiencePrefs()
   void fetch('/api/openai/tts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: 'مرحبا', locale: 'ar', voice: 'coral' }),
+    body: JSON.stringify({
+      text: 'مرحبا',
+      locale: 'ar',
+      voice: prefs.voiceId,
+      speed: speakingSpeedRate(prefs.speed),
+      dialect: prefs.dialect,
+      instructions: buildTtsSpeechInstructions({ locale: 'ar', dialect: prefs.dialect }),
+      format: 'wav',
+    }),
   })
     .then(async (res) => {
       if (!res.ok) {
@@ -174,32 +256,7 @@ export function isAudioPlaybackUnlocked(): boolean {
   return unlocked
 }
 
-async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob> {
-  // OpenAI TTS is the only happy-path synthesizer.
-  try {
-    const openaiRes = await fetch('/api/openai/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, locale, voice: locale === 'ar' ? 'coral' : 'nova' }),
-    })
-    if (openaiRes.ok) {
-      const blob = await openaiRes.blob()
-      if (blob.size >= 64) return blob
-      logChat('warn', 'tts', 'openai_tts_empty_blob', { status: openaiRes.status, size: blob.size })
-    } else {
-      const detail = await openaiRes.text().catch(() => '')
-      logChat('warn', 'tts', 'openai_tts_http_error', {
-        status: openaiRes.status,
-        detail: detail.slice(0, 300),
-      })
-    }
-  } catch (error) {
-    logChat('warn', 'tts', 'openai_tts_network_error', {
-      message: error instanceof Error ? error.message : String(error),
-    })
-  }
-
-  // Legacy /api/tts only when OpenAI is completely unavailable.
+async function synthesizeViaLegacyApi(text: string, locale: VoiceLocale): Promise<Blob> {
   logChat('warn', 'tts', 'openai_unavailable_falling_back_legacy_api_tts', { locale })
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), 20_000)
@@ -226,19 +283,32 @@ async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob
  * OpenAI TTS is the only runtime path while healthy.
  * Edge / legacy TTS run only after OpenAI is confirmed unavailable, and always log why.
  */
-async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob> {
+async function fetchSpeechAudio(
+  request: TtsRequestBody,
+  hooks?: {
+    onTtsRequestStart?: () => void
+    onTtsResponseComplete?: () => void
+  },
+): Promise<Blob> {
   let lastOpenAiReason = 'unknown'
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
+      hooks?.onTtsRequestStart?.()
       const openaiRes = await fetch('/api/openai/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, locale, voice: locale === 'ar' ? 'coral' : 'nova' }),
+        body: JSON.stringify(request),
       })
       if (openaiRes.ok) {
         const blob = await openaiRes.blob()
+        hooks?.onTtsResponseComplete?.()
         if (blob.size >= 64) {
-          logChat('debug', 'tts', 'openai_tts_ok', { bytes: blob.size, attempt: attempt + 1 })
+          logChat('debug', 'tts', 'openai_tts_ok', {
+            bytes: blob.size,
+            attempt: attempt + 1,
+            voice: request.voice,
+            format: request.format,
+          })
           return blob
         }
         lastOpenAiReason = `empty_blob:${blob.size}`
@@ -264,26 +334,25 @@ async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob
   // OpenAI completely unavailable — last-resort backups with explicit logs (never silent).
   logChat('error', 'tts', 'openai_tts_unavailable_using_backup', {
     reason: lastOpenAiReason,
-    locale,
-    backup: locale === 'ar' ? 'edge_neural' : 'edge_or_legacy',
+    locale: request.locale,
+    backup: request.locale === 'ar' ? 'edge_neural' : 'edge_or_legacy',
   })
 
   try {
-    return await synthesizeViaEdgeBrowser(text, locale)
+    return await synthesizeViaEdgeBrowser(request.text, request.locale)
   } catch (edgeError) {
     logChat('warn', 'tts', 'edge_tts_failed', {
       message: edgeError instanceof Error ? edgeError.message : String(edgeError),
     })
-    if (locale === 'ar') {
+    if (request.locale === 'ar') {
       throw new Error(`arabic_tts_unavailable:${lastOpenAiReason}`)
     }
-    return await synthesizeViaApi(text, locale)
+    return await synthesizeViaLegacyApi(request.text, request.locale)
   }
 }
 
 async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Promise<Blob> {
   const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
-  // Conversational Arabic neural — slight slowdown for clarity without dragging.
   const voice = locale === 'en' ? 'en-US-JennyNeural' : 'ar-SA-ZariyahNeural'
   const tts = new EdgeTTSBrowser(text, voice, {
     rate: locale === 'ar' ? '-5.00%' : '-2.00%',
@@ -308,7 +377,12 @@ async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Prom
   throw new Error('empty_edge_audio')
 }
 
-function playBlobOnElement(audio: HTMLAudioElement, blob: Blob, useB: boolean): Promise<void> {
+function playBlobOnElement(
+  audio: HTMLAudioElement,
+  blob: Blob,
+  useB: boolean,
+  onPlaybackStart?: () => void,
+): Promise<void> {
   if (useB) revokeActiveUrlB()
   else revokeActiveUrl()
   const objectUrl = URL.createObjectURL(blob)
@@ -321,6 +395,7 @@ function playBlobOnElement(audio: HTMLAudioElement, blob: Blob, useB: boolean): 
 
   return new Promise<void>((resolve, reject) => {
     let settled = false
+    let playbackStarted = false
     const finish = (err?: Error) => {
       if (settled) return
       settled = true
@@ -339,6 +414,11 @@ function playBlobOnElement(audio: HTMLAudioElement, blob: Blob, useB: boolean): 
 
     activePlayFinish = finish
 
+    audio.onplaying = () => {
+      if (playbackStarted) return
+      playbackStarted = true
+      onPlaybackStart?.()
+    }
     audio.onended = () => {
       if (useB) revokeActiveUrlB()
       else revokeActiveUrl()
@@ -351,7 +431,10 @@ function playBlobOnElement(audio: HTMLAudioElement, blob: Blob, useB: boolean): 
       const playAttempt = audio.play()
       if (playAttempt && typeof playAttempt.then === 'function') {
         playAttempt.then(() => {
-          // Playing — wait for ended.
+          if (!playbackStarted) {
+            playbackStarted = true
+            onPlaybackStart?.()
+          }
         }).catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err)
           finish(new Error(`تعذر تشغيل الصوت — اسمح بالتشغيل التلقائي (${message})`))
@@ -367,7 +450,6 @@ function playBlobOnElement(audio: HTMLAudioElement, blob: Blob, useB: boolean): 
         attemptPlay()
       }
       audio.addEventListener('canplay', onCanPlay)
-      // Fail fast into play — waiting 1.5s feels like ChatGPT silence.
       window.setTimeout(() => {
         audio.removeEventListener('canplay', onCanPlay)
         if (!settled) attemptPlay()
@@ -381,8 +463,15 @@ let activePlayFinish: ((err?: Error) => void) | null = null
 
 const prefetchCache = new Map<string, Promise<Blob>>()
 
-function prefetchKey(locale: VoiceLocale, text: string): string {
-  return `${locale}\0${text}`
+function prefetchKey(request: TtsRequestBody): string {
+  return [
+    request.locale,
+    request.voice,
+    request.speed,
+    request.dialect || '',
+    request.format,
+    request.text,
+  ].join('\0')
 }
 
 export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
@@ -395,15 +484,15 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
     prefetch(options) {
       const text = options.text.trim()
       if (!text || typeof window === 'undefined') return
-      const key = prefetchKey(options.locale, text)
+      const request = resolveTtsRequest({ ...options, text })
+      const key = prefetchKey(request)
       if (prefetchCache.has(key)) return
-      const pending = fetchSpeechAudio(text, options.locale)
+      const pending = fetchSpeechAudio(request)
         .catch((error) => {
           prefetchCache.delete(key)
           throw error
         })
       prefetchCache.set(key, pending)
-      // Bound cache size — keep latest handful of phrases.
       if (prefetchCache.size > 8) {
         const oldest = prefetchCache.keys().next().value
         if (oldest) prefetchCache.delete(oldest)
@@ -423,7 +512,6 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
         } catch {
           // ignore
         }
-        // Resolve any prior play promise so callers are not stuck.
         activePlayFinish?.()
         activePlayFinish = null
         revokeActiveUrl()
@@ -432,35 +520,45 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
 
       const token = ++generation
       speaking = true
+      const request = resolveTtsRequest({ ...options, text })
 
       try {
         if (!unlocked) {
           await unlockAudioPlayback()
         } else {
           await resumeAudioContext()
+          preconnectOpenAiTtsRoute()
         }
 
-        const key = prefetchKey(options.locale, text)
-        const pending = prefetchCache.get(key) ?? fetchSpeechAudio(text, options.locale)
+        const key = prefetchKey(request)
+        let requestStartFired = false
+        const pending = prefetchCache.get(key) ?? fetchSpeechAudio(request, {
+          onTtsRequestStart: () => {
+            if (requestStartFired) return
+            requestStartFired = true
+            options.onTtsRequestStart?.()
+          },
+          onTtsResponseComplete: () => options.onTtsResponseComplete?.(),
+        })
         prefetchCache.delete(key)
         const blob = await pending
+        options.onAudioDecodeComplete?.()
         if (token !== generation) {
           speaking = false
           return
         }
 
-        // Alternate A/B elements so the next clip can be decoded while the prior ends.
-        const bufferB = !options.interrupt && useBufferB
+        // Prefer a single buffer for one-shot turns (interrupt: true).
+        const bufferB = options.interrupt === false && useBufferB
         useBufferB = !bufferB
         const audio = bufferB ? ensurePlaybackAudioB() : ensurePlaybackAudio()
-        // Stop the other buffer so we never overlap two voices.
         try {
           const other = bufferB ? sharedAudio : sharedAudioB
           other?.pause()
         } catch {
           // ignore
         }
-        await playBlobOnElement(audio, blob, bufferB)
+        await playBlobOnElement(audio, blob, bufferB, () => options.onAudioPlaybackStart?.())
       } finally {
         if (token === generation) speaking = false
       }
@@ -476,7 +574,6 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
       } catch {
         // ignore
       }
-      // Critical: settle hung speak() so hands-free resume can run after interrupt.
       activePlayFinish?.()
       activePlayFinish = null
       revokeActiveUrl()
@@ -486,4 +583,9 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
       return speaking
     },
   }
+}
+
+/** Test helper — default voice used when prefs are unset. */
+export function defaultOpenAiVoiceForLocale(locale: VoiceLocale): OpenAiTtsVoiceId | 'nova' {
+  return locale === 'ar' ? DEFAULT_VOICE_PREFS.voiceId : 'nova'
 }
