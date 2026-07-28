@@ -89,7 +89,6 @@ describe('final voice experience scenarios', () => {
   it('natural variation changes robotic openings without inventing facts', () => {
     const base = 'حسناً، خلنا نرتب رحلتك.'
     const a = applyNaturalVariation(base, 'seed-a', 'ar')
-    const b = applyNaturalVariation(base, 'seed-b', 'ar')
     // Same seed is stable
     expect(applyNaturalVariation(base, 'seed-a', 'ar')).toBe(a)
     // Across several seeds, openings should not all stay "حسناً"
@@ -97,8 +96,7 @@ describe('final voice experience scenarios', () => {
       applyNaturalVariation(base, s, 'ar'),
     )
     expect(new Set(variants).size).toBeGreaterThan(1)
-    expect(variants.some((v) => !/^حسناً/.test(v))).toBe(true)
-    expect(a === b || a !== b).toBe(true)
+    expect(variants.some((v) => !v.startsWith('حسناً'))).toBe(true)
     expect(replyInventedTravelFacts(a)).toEqual([])
   })
 
@@ -111,6 +109,15 @@ describe('final voice experience scenarios', () => {
     expect(moodToneCue('angry')).toMatch(/de-escalat/i)
     expect(moodToneCue('honeymoon')).toMatch(/celebratory|warm/i)
     expect(moodToneCue('budget')).toMatch(/practical|value/i)
+  })
+
+  it('strips customer-support openers and keeps one question', () => {
+    const spoken = toSpokenDialogue(
+      'وعليكم السلام! كيف أقدر أساعدك اليوم؟ وين حاب تسافر؟ وهل تفضل أوروبا؟',
+      { locale: 'ar' },
+    )
+    expect(spoken).not.toMatch(/كيف أقدر أساعدك/)
+    expect((spoken.match(/[؟?]/g) || []).length).toBeLessThanOrEqual(1)
   })
 
   it('maps luxury / family / business assistant cues', () => {
