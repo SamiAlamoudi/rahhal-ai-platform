@@ -172,6 +172,21 @@ export function isAudioPlaybackUnlocked(): boolean {
 }
 
 async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob> {
+  // Prefer OpenAI gpt-4o-mini-tts (ChatGPT-like) via same-origin proxy.
+  try {
+    const openaiRes = await fetch('/api/openai/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, locale }),
+    })
+    if (openaiRes.ok) {
+      const blob = await openaiRes.blob()
+      if (blob.size >= 64) return blob
+    }
+  } catch {
+    // Fall through to legacy /api/tts
+  }
+
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), 20_000)
   try {
@@ -190,6 +205,57 @@ async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob
     return blob
   } finally {
     window.clearTimeout(timer)
+  }
+}
+
+/**
+ * ChatGPT Voice parity: OpenAI TTS first, then Edge neural, never robotic gTTS for Arabic.
+ */
+async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob> {
+  // 1) OpenAI speech (closest to ChatGPT Voice)
+  try {
+    const openaiRes = await fetch('/api/openai/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, locale }),
+    })
+    if (openaiRes.ok) {
+      const blob = await openaiRes.blob()
+      if (blob.size >= 64) return blob
+    }
+  } catch {
+    // continue
+  }
+
+  // 2) Edge neural (browser) as backup
+  try {
+    return await synthesizeViaEdgeBrowser(text, locale)
+  } catch {
+    if (locale === 'ar') {
+      try {
+        const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
+        const tts = new EdgeTTSBrowser(text, 'ar-SA-HamedNeural', { rate: '-4.00%', pitch: '+0Hz' })
+        const result = await Promise.race([
+          tts.synthesize(),
+          new Promise<never>((_, reject) => {
+            window.setTimeout(() => reject(new Error('edge_tts_timeout')), 8_000)
+          }),
+        ])
+        const audio = result.audio as Blob | ArrayBuffer | { arrayBuffer: () => Promise<ArrayBuffer> }
+        if (typeof Blob !== 'undefined' && audio instanceof Blob) return audio
+        if (audio instanceof ArrayBuffer) return new Blob([audio], { type: 'audio/mpeg' })
+        if (audio && typeof (audio as { arrayBuffer?: unknown }).arrayBuffer === 'function') {
+          return new Blob(
+            [await (audio as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer()],
+            { type: 'audio/mpeg' },
+          )
+        }
+      } catch {
+        // fall through
+      }
+      throw new Error('arabic_tts_unavailable')
+    }
+    return await synthesizeViaApi(text, locale)
   }
 }
 
@@ -218,39 +284,6 @@ async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Prom
     })
   }
   throw new Error('empty_edge_audio')
-}
-
-/**
- * Prefer Edge neural voices for natural Arabic.
- * Arabic: never fall to robotic gTTS — throw so failover can use Web Speech.
- * English: gTTS remains a last-resort API fallback.
- */
-async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob> {
-  try {
-    return await synthesizeViaEdgeBrowser(text, locale)
-  } catch {
-    if (locale === 'ar') {
-      const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
-      const tts = new EdgeTTSBrowser(text, 'ar-SA-HamedNeural', { rate: '-4.00%', pitch: '+0Hz' })
-      const result = await Promise.race([
-        tts.synthesize(),
-        new Promise<never>((_, reject) => {
-          window.setTimeout(() => reject(new Error('edge_tts_timeout')), 8_000)
-        }),
-      ])
-      const audio = result.audio as Blob | ArrayBuffer | { arrayBuffer: () => Promise<ArrayBuffer> }
-      if (typeof Blob !== 'undefined' && audio instanceof Blob) return audio
-      if (audio instanceof ArrayBuffer) return new Blob([audio], { type: 'audio/mpeg' })
-      if (audio && typeof (audio as { arrayBuffer?: unknown }).arrayBuffer === 'function') {
-        return new Blob(
-          [await (audio as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer()],
-          { type: 'audio/mpeg' },
-        )
-      }
-      throw new Error('empty_edge_audio_ar')
-    }
-    return await synthesizeViaApi(text, locale)
-  }
 }
 
 function playBlobOnElement(audio: HTMLAudioElement, blob: Blob, useB: boolean): Promise<void> {

@@ -271,7 +271,7 @@ export async function runConversationBrain(input: {
       systemPrompt: RAHHAL_CONVERSATION_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: payload }],
       signal: input.signal,
-      temperature: 0.85,
+      temperature: 0.9,
       stream: true,
       onDelta: input.onDelta
         ? (accumulated) => {
@@ -307,10 +307,25 @@ export async function runConversationBrain(input: {
           input.facts.locale,
         )
       }
+      // Model returned non-JSON prose — still pass through verbatim (no local rewrite).
+      const raw = result.text.trim()
+      return finalizeBrainResult(raw, raw, result.providerId, 'remote', input.facts.locale)
+    }
+
+    // OpenAI/remote was selected — NEVER substitute local travel templates.
+    // A short reconnect line is orchestration chrome, not a canned itinerary.
+    const ar = input.facts.locale !== 'en'
+    const reconnect = ar
+      ? 'لحظة واحدة أعد الاتصال الآن وأكمل معكم بنفس النبرة.'
+      : 'One moment — reconnecting so we can continue naturally.'
+    return {
+      displayText: reconnect,
+      spokenText: reconnect,
+      providerId: `${llm.providerId}+unavailable`,
     }
   }
 
-  // Guaranteed local generative path (also used when remote LLM fails).
+  // Explicit local provider only.
   const local = generateLocalConversation({
     facts: input.facts,
     userMessage,
@@ -319,7 +334,7 @@ export async function runConversationBrain(input: {
   return finalizeBrainResult(
     local.displayText,
     local.spokenText,
-    `${llm.providerId}+local-fallback`,
+    'local',
     'local',
     input.facts.locale,
   )
