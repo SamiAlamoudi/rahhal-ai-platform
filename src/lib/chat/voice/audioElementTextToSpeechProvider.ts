@@ -7,6 +7,7 @@
  * - The playback element should live in the DOM (Safari is picky).
  */
 import type { TextToSpeechProvider, TextToSpeechSpeakOptions, VoiceLocale } from './voiceTypes'
+import { logChat } from '../chatLogger'
 
 let unlocked = false
 let sharedAudio: HTMLAudioElement | null = null
@@ -113,23 +114,25 @@ export async function unlockAudioPlayback(): Promise<void> {
     // ignore
   }
 
-  // Prefetch Edge neural TTS module + warm a tiny Arabic neural synth for TTFB.
-  void import('edge-tts-universal/browser')
-    .then(async ({ EdgeTTSBrowser }) => {
-      try {
-        const warm = new EdgeTTSBrowser('مرحبا', 'ar-SA-ZariyahNeural', {
-          rate: '-10.00%',
-          pitch: '+0Hz',
-        })
-        await Promise.race([
-          warm.synthesize(),
-          new Promise<void>((resolve) => { window.setTimeout(resolve, 2500) }),
-        ])
-      } catch {
-        // Best-effort warm-up only.
+  // Warm OpenAI TTS path (not Edge) so first spoken reply stays on the real pipeline.
+  void fetch('/api/openai/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: 'مرحبا', locale: 'ar', voice: 'coral' }),
+  })
+    .then(async (res) => {
+      if (!res.ok) {
+        logChat('warn', 'tts', 'openai_tts_warmup_failed', { status: res.status })
+        return
       }
+      await res.arrayBuffer().catch(() => undefined)
+      logChat('debug', 'tts', 'openai_tts_warmup_ok')
     })
-    .catch(() => undefined)
+    .catch((error) => {
+      logChat('warn', 'tts', 'openai_tts_warmup_network_error', {
+        message: error instanceof Error ? error.message : String(error),
+      })
+    })
 
   try {
     if (!unlockWarmAudio) {
@@ -172,21 +175,32 @@ export function isAudioPlaybackUnlocked(): boolean {
 }
 
 async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob> {
-  // Prefer OpenAI gpt-4o-mini-tts (ChatGPT-like) via same-origin proxy.
+  // OpenAI TTS is the only happy-path synthesizer.
   try {
     const openaiRes = await fetch('/api/openai/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, locale }),
+      body: JSON.stringify({ text, locale, voice: locale === 'ar' ? 'coral' : 'nova' }),
     })
     if (openaiRes.ok) {
       const blob = await openaiRes.blob()
       if (blob.size >= 64) return blob
+      logChat('warn', 'tts', 'openai_tts_empty_blob', { status: openaiRes.status, size: blob.size })
+    } else {
+      const detail = await openaiRes.text().catch(() => '')
+      logChat('warn', 'tts', 'openai_tts_http_error', {
+        status: openaiRes.status,
+        detail: detail.slice(0, 300),
+      })
     }
-  } catch {
-    // Fall through to legacy /api/tts
+  } catch (error) {
+    logChat('warn', 'tts', 'openai_tts_network_error', {
+      message: error instanceof Error ? error.message : String(error),
+    })
   }
 
+  // Legacy /api/tts only when OpenAI is completely unavailable.
+  logChat('warn', 'tts', 'openai_unavailable_falling_back_legacy_api_tts', { locale })
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), 20_000)
   try {
@@ -209,11 +223,11 @@ async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob
 }
 
 /**
- * ChatGPT Voice parity: OpenAI TTS only on the happy path.
- * Edge neural is a last-resort backup when OpenAI speech is unavailable (quota/network).
+ * OpenAI TTS is the only runtime path while healthy.
+ * Edge / legacy TTS run only after OpenAI is confirmed unavailable, and always log why.
  */
 async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob> {
-  // 1) OpenAI speech (closest to ChatGPT Voice) — try twice before falling back.
+  let lastOpenAiReason = 'unknown'
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const openaiRes = await fetch('/api/openai/tts', {
@@ -223,40 +237,45 @@ async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob
       })
       if (openaiRes.ok) {
         const blob = await openaiRes.blob()
-        if (blob.size >= 64) return blob
+        if (blob.size >= 64) {
+          logChat('debug', 'tts', 'openai_tts_ok', { bytes: blob.size, attempt: attempt + 1 })
+          return blob
+        }
+        lastOpenAiReason = `empty_blob:${blob.size}`
+        logChat('warn', 'tts', 'openai_tts_empty_blob', { size: blob.size, attempt: attempt + 1 })
+      } else {
+        const detail = await openaiRes.text().catch(() => '')
+        lastOpenAiReason = `http_${openaiRes.status}`
+        logChat('warn', 'tts', 'openai_tts_http_error', {
+          status: openaiRes.status,
+          detail: detail.slice(0, 300),
+          attempt: attempt + 1,
+        })
       }
-    } catch {
-      // retry / continue
+    } catch (error) {
+      lastOpenAiReason = error instanceof Error ? error.message : String(error)
+      logChat('warn', 'tts', 'openai_tts_network_error', {
+        message: lastOpenAiReason,
+        attempt: attempt + 1,
+      })
     }
   }
 
-  // 2) Edge neural (browser) as last-resort backup only
+  // OpenAI completely unavailable — last-resort backups with explicit logs (never silent).
+  logChat('error', 'tts', 'openai_tts_unavailable_using_backup', {
+    reason: lastOpenAiReason,
+    locale,
+    backup: locale === 'ar' ? 'edge_neural' : 'edge_or_legacy',
+  })
+
   try {
     return await synthesizeViaEdgeBrowser(text, locale)
-  } catch {
+  } catch (edgeError) {
+    logChat('warn', 'tts', 'edge_tts_failed', {
+      message: edgeError instanceof Error ? edgeError.message : String(edgeError),
+    })
     if (locale === 'ar') {
-      try {
-        const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
-        const tts = new EdgeTTSBrowser(text, 'ar-SA-HamedNeural', { rate: '-4.00%', pitch: '+0Hz' })
-        const result = await Promise.race([
-          tts.synthesize(),
-          new Promise<never>((_, reject) => {
-            window.setTimeout(() => reject(new Error('edge_tts_timeout')), 8_000)
-          }),
-        ])
-        const audio = result.audio as Blob | ArrayBuffer | { arrayBuffer: () => Promise<ArrayBuffer> }
-        if (typeof Blob !== 'undefined' && audio instanceof Blob) return audio
-        if (audio instanceof ArrayBuffer) return new Blob([audio], { type: 'audio/mpeg' })
-        if (audio && typeof (audio as { arrayBuffer?: unknown }).arrayBuffer === 'function') {
-          return new Blob(
-            [await (audio as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer()],
-            { type: 'audio/mpeg' },
-          )
-        }
-      } catch {
-        // fall through
-      }
-      throw new Error('arabic_tts_unavailable')
+      throw new Error(`arabic_tts_unavailable:${lastOpenAiReason}`)
     }
     return await synthesizeViaApi(text, locale)
   }

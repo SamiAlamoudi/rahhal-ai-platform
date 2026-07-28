@@ -355,7 +355,15 @@ export async function runConversationBrain(input: {
     }
 
     // OpenAI/remote was selected — NEVER substitute local travel templates.
-    return remoteUnavailableReply(input.facts.locale, llm.providerId)
+    const unavailable = remoteUnavailableReply(input.facts.locale, llm.providerId)
+    if (typeof console !== 'undefined') {
+      console.warn('[rahhal] openai_conversation_unavailable', {
+        providerId: unavailable.providerId,
+        status: result.status,
+        error: 'error' in result ? result.error : undefined,
+      })
+    }
+    return unavailable
   }
 
   // No converse() — browser still must not fall back to local templates.
