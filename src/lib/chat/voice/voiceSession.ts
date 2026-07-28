@@ -36,6 +36,7 @@ import {
   loadVoiceExperiencePrefs,
   speakingSpeedRate,
 } from './voiceExperiencePrefs'
+import { toSpokenDialogue } from './spokenDialoguePostProcessor'
 
 function performanceNow(): number {
   if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
@@ -305,9 +306,12 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   const readSpokenText = (message: ChatMessage): string => {
     const meta = message.providerMeta ?? {}
     const spoken = typeof meta.spokenText === 'string' ? meta.spokenText.trim() : ''
-    if (spoken) return spoken
-    // Never read a long itinerary dump aloud.
-    return stripMarkdownForSpeech(message.content).slice(0, 320)
+    const raw = spoken || stripMarkdownForSpeech(message.content)
+    // Transform long written replies into short spoken consultant dialogue.
+    return toSpokenDialogue(raw, {
+      locale: locale === 'en' ? 'en' : 'ar',
+      maxChars: 220,
+    })
   }
 
   const sendTranscript = async (conversationId: string, transcript: string): Promise<ChatMessage | null> => {

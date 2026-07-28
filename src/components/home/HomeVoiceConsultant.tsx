@@ -441,8 +441,12 @@ export function HomeVoiceConsultant({
           }
           voiceRef.current?.armHandsFree?.(id)
           preconnectOpenAiTtsRoute()
-          // speakText → one TTS; detailed latency marks come from voiceSession for mic turns.
-          await voiceRef.current?.speakText(piece, {
+          const { toSpokenDialogue } = await import('../../lib/chat/voice/spokenDialoguePostProcessor')
+          const spokenDialogue = toSpokenDialogue(piece, {
+            locale: locale === 'en' ? 'en' : 'ar',
+            maxChars: 220,
+          })
+          await voiceRef.current?.speakText(spokenDialogue || piece, {
             resumeHandsFree: false,
             interrupt: true,
           })

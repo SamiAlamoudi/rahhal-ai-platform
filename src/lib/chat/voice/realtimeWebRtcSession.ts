@@ -9,6 +9,12 @@
 import { logChat } from '../chatLogger'
 import { dialectChatGuidance, loadVoiceExperiencePrefs } from './voiceExperiencePrefs'
 import { REALTIME_PUBLIC_MODEL } from './voiceArchitecture'
+import { buildConsultantConversationalInstructions } from './consultantConversationalStyle'
+import {
+  inferSpokenContext,
+  toSpokenDialogue,
+  spokenToneCue,
+} from './spokenDialoguePostProcessor'
 
 export type RealtimeSessionStatus =
   | 'idle'
@@ -22,6 +28,8 @@ export type RealtimeWebRtcCallbacks = {
   onStatus?: (status: RealtimeSessionStatus) => void
   onUserTranscript?: (text: string, isFinal: boolean) => void
   onAssistantTranscript?: (text: string, isFinal: boolean) => void
+  /** Fired when barge-in cancels a reply mid-stream (partial text kept). */
+  onInterrupted?: (partialAssistantText: string) => void
   onError?: (message: string) => void
   onConnected?: () => void
   onDisconnected?: () => void
@@ -33,26 +41,22 @@ export type RealtimeWebRtcSession = {
   interrupt: () => void
   /** Send a text user turn into the live session (no classic TTS). */
   sendText: (text: string) => void
+  /**
+   * Speak a written assistant draft via Realtime after spoken-dialogue post-processing.
+   * Does not change the Realtime engine — only the words fed into it.
+   */
+  speakWrittenDraft: (written: string, opts?: { locale?: 'ar' | 'en' }) => void
   getStatus: () => RealtimeSessionStatus
   isConnected: () => boolean
 }
 
 function buildInstructions(): string {
   const prefs = loadVoiceExperiencePrefs()
-  return [
-    'You are Rahhal (رحّال), an experienced Arabic travel consultant on a live voice call.',
-    'Speak naturally like a human consultant — warm, calm, concise, confident, never pushy.',
-    'Prefer short spoken replies (1–2 sentences) unless presenting a confirmed plan.',
-    'GROUNDING: Use ONLY facts the traveler stated in this call.',
-    'NEVER invent traveler count, budget, destination, dates, duration, origin, or trip purpose.',
-    'Greeting-only with empty facts → brief greeting + ONE neutral destination question.',
-    'Example: وعليكم السلام، حياك الله. وين حاب تسافر؟',
-    'Ask at most ONE follow-up question per turn.',
-    'Do not mention OpenAI, ChatGPT, models, or being an AI unless asked.',
-    'Absolutely no English words when speaking Arabic.',
-    dialectChatGuidance(prefs.dialect),
-    'If a strong regional accent would sound unnatural, use clear natural Arabic instead of a poor imitation.',
-  ].join(' ')
+  return buildConsultantConversationalInstructions({
+    dialect: prefs.dialect,
+    dialectHint: dialectChatGuidance(prefs.dialect),
+    locale: 'ar',
+  })
 }
 
 export function createRealtimeWebRtcSession(
@@ -65,6 +69,7 @@ export function createRealtimeWebRtcSession(
   let remoteAudio: HTMLAudioElement | null = null
   let assistantBuffer = ''
   let disposed = false
+  let interruptedPartial = ''
 
   const setStatus = (next: RealtimeSessionStatus) => {
     status = next
@@ -74,6 +79,26 @@ export function createRealtimeWebRtcSession(
   const sendEvent = (event: Record<string, unknown>) => {
     if (!dc || dc.readyState !== 'open') return
     dc.send(JSON.stringify(event))
+  }
+
+  const interruptInternal = (fromBargeIn = false) => {
+    const partial = assistantBuffer.trim()
+    sendEvent({ type: 'response.cancel' })
+    sendEvent({ type: 'output_audio_buffer.clear' })
+    try {
+      if (remoteAudio) {
+        remoteAudio.pause()
+      }
+    } catch {
+      // ignore
+    }
+    if (fromBargeIn && partial) {
+      interruptedPartial = partial
+      callbacks.onInterrupted?.(partial)
+      // Keep partial on screen — do not restart / clear the whole reply text.
+      callbacks.onAssistantTranscript?.(partial, true)
+    }
+    assistantBuffer = ''
   }
 
   const handleServerEvent = (raw: string) => {
@@ -94,8 +119,8 @@ export function createRealtimeWebRtcSession(
     }
 
     if (type === 'input_audio_buffer.speech_started') {
-      // Barge-in: user started speaking while model may be talking.
-      interruptInternal()
+      // Barge-in: stop audio immediately; do not restart the cancelled reply.
+      interruptInternal(true)
       setStatus('listening')
       return
     }
@@ -132,6 +157,7 @@ export function createRealtimeWebRtcSession(
     ) {
       if (assistantBuffer) callbacks.onAssistantTranscript?.(assistantBuffer, true)
       assistantBuffer = ''
+      interruptedPartial = ''
       setStatus('listening')
       return
     }
@@ -139,19 +165,6 @@ export function createRealtimeWebRtcSession(
     if (type === 'response.created') {
       assistantBuffer = ''
       setStatus('thinking')
-    }
-  }
-
-  const interruptInternal = () => {
-    sendEvent({ type: 'response.cancel' })
-    sendEvent({ type: 'output_audio_buffer.clear' })
-    try {
-      if (remoteAudio) {
-        remoteAudio.pause()
-        // Keep srcObject; just pause — next track activity resumes via autoplay/ontrack.
-      }
-    } catch {
-      // ignore
     }
   }
 
@@ -297,7 +310,7 @@ export function createRealtimeWebRtcSession(
       callbacks.onDisconnected?.()
     },
     interrupt() {
-      interruptInternal()
+      interruptInternal(true)
       setStatus('listening')
     },
     sendText(text: string) {
@@ -305,6 +318,21 @@ export function createRealtimeWebRtcSession(
       if (!cleaned) return
       assistantBuffer = ''
       setStatus('thinking')
+      // If we were interrupted mid-reply, remind the model not to restart it.
+      if (interruptedPartial) {
+        sendEvent({
+          type: 'conversation.item.create',
+          item: {
+            type: 'message',
+            role: 'system',
+            content: [{
+              type: 'input_text',
+              text: 'Previous assistant reply was interrupted. Do not restart or repeat it. Respond only to the traveler\'s new message with a short spoken reply.',
+            }],
+          },
+        })
+        interruptedPartial = ''
+      }
       sendEvent({
         type: 'conversation.item.create',
         item: {
@@ -314,6 +342,37 @@ export function createRealtimeWebRtcSession(
         },
       })
       sendEvent({ type: 'response.create' })
+    },
+    speakWrittenDraft(written, opts) {
+      const locale = opts?.locale === 'en' ? 'en' : 'ar'
+      const spoken = toSpokenDialogue(written, {
+        locale,
+        maxChars: 220,
+        context: inferSpokenContext(written),
+      })
+      if (!spoken) return
+      const context = inferSpokenContext(spoken)
+      assistantBuffer = ''
+      setStatus('thinking')
+      // Post-processed dialogue is fed as a speak-this instruction — engine unchanged.
+      sendEvent({
+        type: 'conversation.item.create',
+        item: {
+          type: 'message',
+          role: 'system',
+          content: [{
+            type: 'input_text',
+            text: [
+              'Speak the following consultant dialogue aloud now, verbatim, as a live call.',
+              spokenToneCue(context),
+              'Do not expand into an article. Do not add extra questions beyond what is written.',
+              `DIALOGUE: ${spoken}`,
+            ].join('\n'),
+          }],
+        },
+      })
+      sendEvent({ type: 'response.create' })
+      callbacks.onAssistantTranscript?.(spoken, false)
     },
   }
 }

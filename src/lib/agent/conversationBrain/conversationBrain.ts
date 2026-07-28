@@ -23,6 +23,7 @@ import {
   isGreetingOnly,
   replyInventedTravelFacts,
 } from './greetingGuard'
+import { toSpokenDialogue } from '../../chat/voice/spokenDialoguePostProcessor'
 
 export type ConversationBrainResult = {
   displayText: string
@@ -129,11 +130,15 @@ function passthroughDisplayText(display: string): string {
   return display.trim()
 }
 
-/** Remote OpenAI: spoken text is the model’s words; TTS strip only. */
-function passthroughSpokenText(spoken: string, displayFallback: string): string {
+/** Remote OpenAI: display verbatim; spoken path → short spoken dialogue. */
+function passthroughSpokenText(spoken: string, displayFallback: string, locale?: string): string {
   const raw = (spoken || displayFallback || '').trim()
   if (!raw) return ''
-  return stripMarkdownForSpeech(raw) || raw
+  const stripped = stripMarkdownForSpeech(raw) || raw
+  return toSpokenDialogue(stripped, {
+    locale: locale === 'en' ? 'en' : 'ar',
+    maxChars: 220,
+  })
 }
 
 /**
@@ -239,14 +244,17 @@ function finalizeBrainResult(
   if (mode === 'remote') {
     return {
       displayText: passthroughDisplayText(displayRaw),
-      spokenText: passthroughSpokenText(spokenRaw, displayRaw),
+      spokenText: passthroughSpokenText(spokenRaw, displayRaw, locale),
       providerId,
     }
   }
 
   return {
     displayText: optimizeDisplayText(displayRaw, locale),
-    spokenText: optimizeSpokenText(spokenRaw, displayRaw, locale),
+    spokenText: toSpokenDialogue(
+      optimizeSpokenText(spokenRaw, displayRaw, locale),
+      { locale: locale === 'en' ? 'en' : 'ar', maxChars: 220 },
+    ),
     providerId,
   }
 }

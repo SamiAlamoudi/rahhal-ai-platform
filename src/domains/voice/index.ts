@@ -10,6 +10,8 @@ export {
   ARABIC_DIALECT_OPTIONS,
   OPENAI_TTS_VOICES,
 } from '../../lib/chat/voice/voiceExperiencePrefs'
+export { toSpokenDialogue, inferSpokenContext } from '../../lib/chat/voice/spokenDialoguePostProcessor'
+export { buildConsultantConversationalInstructions } from '../../lib/chat/voice/consultantConversationalStyle'
 export type {
   VoiceInputMode,
   VoiceLocale,
