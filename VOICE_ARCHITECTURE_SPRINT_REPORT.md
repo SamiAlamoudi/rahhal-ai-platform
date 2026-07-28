@@ -92,3 +92,19 @@ After deploy, hit:
 - `GET /api/openai/realtime-session` → `{ configured, model, chatgptVoiceParity }`
 - `POST /api/openai/realtime-session` → ephemeral `ek_…` or upstream error detail
 - Home mic → Network shows `/api/openai/realtime-call` (SDP), not `/api/openai/tts`
+
+---
+
+## Final Voice Experience Sprint (engine frozen)
+
+**Goal:** feel like a senior Saudi travel consultant — not traditional TTS narration.  
+**Constraint:** Realtime architecture unchanged; conversational layer only.
+
+Shipped:
+- Mood-aware emotion cues (greeting / honeymoon / luxury / budget / family / business / disruption / angry / open)
+- Saudi / Gulf / Neutral wording guidance (vocabulary change, not accent theatre)
+- Spoken-dialogue post-processor: short breaths, one question, formal strip, natural variation
+- `session.update` mood refresh on each traveler text turn (instructions only)
+- Scenario unit coverage in `finalVoiceExperience.scenarios.test.ts`
+
+**Freeze:** after this sprint, voice stack is frozen unless critical bugs. Next milestone: flights / hotels / cars / multi-provider price comparison.
