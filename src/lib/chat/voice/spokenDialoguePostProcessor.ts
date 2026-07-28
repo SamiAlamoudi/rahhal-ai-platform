@@ -11,6 +11,9 @@ export type SpokenDialogueContext =
   | 'empathy'
   | 'confirmation'
   | 'follow_up'
+  | 'luxury'
+  | 'family'
+  | 'business'
   | 'general'
 
 export type SpokenDialogueOptions = {
@@ -20,6 +23,8 @@ export type SpokenDialogueOptions = {
   /** Known facts already understood — strip redundant restatements when safe. */
   knownFacts?: string[]
   context?: SpokenDialogueContext
+  /** Seed for deterministic natural variation (default: hash of text). */
+  variationSeed?: string
 }
 
 const FORMAL_AR = [
@@ -32,6 +37,9 @@ const FORMAL_AR = [
   /بشكل عام[,،]?\s*/gi,
   /في الختام[,،]?\s*/gi,
   /خلاصة القول[,،]?\s*/gi,
+  /كيف يمكنني مساعدتك(?: اليوم)?[؟?]?\s*/gi,
+  /مرحباً بك في\s*/gi,
+  /عزيزي العميل[,،]?\s*/gi,
 ]
 
 const FORMAL_EN = [
@@ -48,12 +56,66 @@ function detectContext(text: string, explicit?: SpokenDialogueContext): SpokenDi
   if (explicit) return explicit
   const t = text.trim()
   if (/^(?:ال)?سلام|مرحبا|أهلا|وعليكم|hello|hi\b/i.test(t) && t.length < 80) return 'greeting'
-  if (/آسف|للأسف|صعب|مشكلة|sorry|unfortunately|empath/i.test(t)) return 'empathy'
+  if (/آسف|للأسف|صعب|مشكلة|تأخير|إلغاء|sorry|unfortunately|empath|delay|cancel/i.test(t)) return 'empathy'
+  if (/فاخر|فخم|luxury|سويت|درجة أولى/i.test(t)) return 'luxury'
+  if (/عائلة|أطفال|family|kids/i.test(t)) return 'family'
+  if (/عمل|بيزنس|business|مؤتمر/i.test(t)) return 'business'
   if (/أنصح|أفضل خيار|أقترح|recommend|suggest|option/i.test(t)) return 'recommendation'
   if (/صحيح\?|تمام\?|موافق|confirm|right\?/i.test(t)) return 'confirmation'
   if (/\?|؟/.test(t)) return 'follow_up'
   if (/فرصة|ممتاز|رائع|exciting|great news/i.test(t)) return 'excitement'
   return 'general'
+}
+
+function hashSeed(value: string): number {
+  let h = 0
+  for (let i = 0; i < value.length; i += 1) h = ((h << 5) - h + value.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+/**
+ * Soft natural variation of robotic acknowledgements / openings.
+ * Deterministic per seed so the same reply stays stable in one turn.
+ */
+export function applyNaturalVariation(text: string, seed: string, locale: 'ar' | 'en'): string {
+  if (locale !== 'ar' || !text.trim()) return text
+  const h = hashSeed(seed)
+  const pick = h % 5
+  let out = text
+
+  const roboticAck = /^(حسناً|حسنا|طيب|أوكي|اوكي|OK|Ok)[,،.]?\s+/i
+  if (roboticAck.test(out)) {
+    const alts = ['تمام، ', 'أبشر، ', 'خلاص، ', 'على عيني، ', '']
+    out = out.replace(roboticAck, alts[pick] ?? '')
+  }
+
+  // Soften identical "ممتاز" openers without removing genuine praise mid-sentence.
+  if (/^ممتاز[,،!]?\s+/i.test(out) && pick !== 0) {
+    const alts = ['حلو، ', 'تمام، ', 'على عيني، ', 'زين، ', '']
+    out = out.replace(/^ممتاز[,،!]?\s+/i, alts[pick] ?? '')
+  }
+
+  // Vary stiff confirmations / yes-openers.
+  if (/^(نعم|بالتأكيد|طبعاً|طبعا)[,،.]?\s+/i.test(out) && pick % 2 === 1) {
+    const alts = ['أيوه، ', 'أكيد، ', 'تمام، ', 'أبشر، ', '']
+    out = out.replace(/^(نعم|بالتأكيد|طبعاً|طبعا)[,،.]?\s+/i, alts[pick] ?? '')
+  }
+
+  // Soften brochure connectors into spoken breath markers (not read as punctuation theatre).
+  out = out
+    .replace(/\bعلاوة على ذلك[,،]?\s*/gi, pick % 2 === 0 ? 'وكمان، ' : 'وبعدين، ')
+    .replace(/\bبالإضافة إلى ذلك[,،]?\s*/gi, pick % 2 === 0 ? 'وكمان، ' : '')
+    .replace(/\bمن ناحية أخرى[,،]?\s*/gi, pick % 2 === 0 ? 'وفي نفس الوقت، ' : 'وبعدين، ')
+
+  // Occasional micro-pause after a short opener (helps Realtime pacing without engine changes).
+  if (pick === 2 || pick === 4) {
+    out = out.replace(
+      /^(تمام|أبشر|خلاص|حلو|زين|على عيني|حياك)[,،]\s+/u,
+      '$1… ',
+    )
+  }
+
+  return out.replace(/\s{2,}/g, ' ').trim()
 }
 
 function stripChrome(text: string): string {
@@ -204,10 +266,15 @@ export function toSpokenDialogue(
   const breaths = splitSpokenBreaths(text)
   let spoken = trimToSpokenBudget(breaths, maxChars)
   spoken = enforceOneQuestion(spoken)
+  spoken = applyNaturalVariation(
+    spoken,
+    options.variationSeed || spoken,
+    locale,
+  )
 
   // Prefer ending on a complete breath.
   if (spoken.length > 12 && !/[.!?؟…]$/.test(spoken)) {
-    spoken = `${spoken}${locale === 'ar' ? '.' : '.'}`
+    spoken = `${spoken}.`
   }
 
   return spoken.trim()
@@ -231,6 +298,12 @@ export function spokenToneCue(context: SpokenDialogueContext): string {
       return 'Delivery: crisp and calm; confirm only what is new; ask one yes/no if needed.'
     case 'follow_up':
       return 'Delivery: curious and light; exactly one question; short lead-in.'
+    case 'luxury':
+      return 'Delivery: elegant, refined, understated; premium calm.'
+    case 'family':
+      return 'Delivery: friendly and reassuring; easy pacing.'
+    case 'business':
+      return 'Delivery: professional and concise; minimal small talk.'
     default:
       return 'Delivery: natural live-call consultant; short breaths; never article narration.'
   }

@@ -61,21 +61,21 @@ export const ARABIC_DIALECT_OPTIONS: Array<{
     id: 'white',
     labelAr: 'العربية البيضاء',
     guidance:
-      'Use clear, widely understood modern Arabic (العربية البيضاء). Natural conversational rhythm; avoid heavy regional slang.',
+      'Neutral educated Arabic (العربية البيضاء): clear, modern, widely understood. Still warm spoken dialogue — not formal written Arabic. Change wording toward clarity, not regional slang.',
     verifiedNativeQuality: true,
   },
   {
     id: 'saudi',
     labelAr: 'السعودية',
     guidance:
-      'Prefer natural Saudi phrasing and rhythm when comfortable (حياك، وين، إن شاء الله). Stay clear and professional — do not force exaggerated dialect.',
+      'Educated Saudi travel-consultant wording: حياك، تمام، خلنا، وين، أبشري، إن شاء الله، على راحتك. Natural rhythm — never exaggerated Najdi caricature, never MSA brochure tone.',
     verifiedNativeQuality: false,
   },
   {
     id: 'gulf',
     labelAr: 'الخليجية',
     guidance:
-      'Prefer natural Gulf phrasing and warm pacing when comfortable. Stay clear — do not caricature.',
+      'Natural Gulf conversational wording and warm pacing when clear. Prefer soft Gulf rhythm over dialect theatre. If unclear, fall back to natural clear Arabic.',
     verifiedNativeQuality: false,
   },
   {

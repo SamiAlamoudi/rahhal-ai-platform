@@ -57,10 +57,10 @@ describe('spoken dialogue post-processor', () => {
 describe('consultant conversational style', () => {
   it('requires spoken not narrated behavior and interruption handling', () => {
     const instructions = buildConsultantConversationalInstructions({ dialect: 'saudi' })
-    expect(instructions).toMatch(/SPEAK, do not narrate/i)
-    expect(instructions).toMatch(/ONE question/i)
+    expect(instructions).toMatch(/SPEAK spontaneously|SPEAK, do not narrate/i)
+    expect(instructions).toMatch(/ONE (follow-up )?question/i)
     expect(instructions).toMatch(/interrupted/i)
     expect(instructions).toMatch(/Never invent/i)
-    expect(instructions).toMatch(/natural pauses|short spoken sentences/i)
+    expect(instructions).toMatch(/natural|Short natural sentences|Brief pauses|breathing rhythm/i)
   })
 })

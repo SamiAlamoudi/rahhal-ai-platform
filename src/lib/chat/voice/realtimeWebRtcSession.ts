@@ -9,7 +9,7 @@
 import { logChat } from '../chatLogger'
 import { dialectChatGuidance, loadVoiceExperiencePrefs } from './voiceExperiencePrefs'
 import { REALTIME_PUBLIC_MODEL } from './voiceArchitecture'
-import { buildConsultantConversationalInstructions } from './consultantConversationalStyle'
+import { buildConsultantConversationalInstructions, inferTripMood } from './consultantConversationalStyle'
 import {
   inferSpokenContext,
   toSpokenDialogue,
@@ -318,6 +318,22 @@ export function createRealtimeWebRtcSession(
       if (!cleaned) return
       assistantBuffer = ''
       setStatus('thinking')
+      const prefs = loadVoiceExperiencePrefs()
+      const mood = inferTripMood(cleaned)
+      // Refresh conversational cues for this utterance — engine unchanged.
+      sendEvent({
+        type: 'session.update',
+        session: {
+          type: 'realtime',
+          instructions: buildConsultantConversationalInstructions({
+            dialect: prefs.dialect,
+            dialectHint: dialectChatGuidance(prefs.dialect),
+            locale: 'ar',
+            mood,
+            dialogueContext: inferSpokenContext(cleaned),
+          }),
+        },
+      })
       // If we were interrupted mid-reply, remind the model not to restart it.
       if (interruptedPartial) {
         sendEvent({
