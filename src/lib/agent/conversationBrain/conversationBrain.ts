@@ -18,6 +18,11 @@ import {
   formatConsultantParagraphs,
   polishConsultantProse,
 } from './consultantLocale'
+import {
+  hasConfirmedHardFacts,
+  isGreetingOnly,
+  replyInventedTravelFacts,
+} from './greetingGuard'
 
 export type ConversationBrainResult = {
   displayText: string
@@ -176,18 +181,18 @@ export function extractRemoteUtterance(raw: string): { displayText: string; spok
   }
 }
 
-function buildTripStateJson(facts: TravelFacts): string {
+function buildTripStateJson(facts: TravelFacts, groundedEmpty: boolean): string {
   return JSON.stringify(
     {
       locale: facts.locale,
       objective: facts.objective,
       known: facts.known,
       missingSlots: facts.missingSlots,
-      plan: facts.plan ?? null,
-      planningDraft: facts.planningDraft ?? null,
-      warnings: facts.warnings ?? [],
-      recommendations: facts.recommendations ?? [],
-      optionHints: facts.optionHints ?? [],
+      plan: groundedEmpty ? null : (facts.plan ?? null),
+      planningDraft: groundedEmpty ? null : (facts.planningDraft ?? null),
+      warnings: groundedEmpty ? [] : (facts.warnings ?? []),
+      recommendations: groundedEmpty ? [] : (facts.recommendations ?? []),
+      optionHints: groundedEmpty ? [] : (facts.optionHints ?? []),
     },
     null,
     2,
@@ -206,6 +211,18 @@ function buildMemoryJson(facts: TravelFacts): string {
     null,
     2,
   )
+}
+
+function safeGreetingReply(locale: string | undefined): ConversationBrainResult {
+  const ar = locale !== 'en'
+  const text = ar
+    ? 'وعليكم السلام، حياك الله. وين حاب تسافر؟'
+    : 'Hello — welcome. Where would you like to travel?'
+  return { displayText: text, spokenText: text, providerId: 'openai+grounded' }
+}
+
+function isGroundedEmptyGreeting(userMessage: string, facts: TravelFacts): boolean {
+  return isGreetingOnly(userMessage) && !hasConfirmedHardFacts(facts.known)
 }
 
 /**
@@ -260,21 +277,51 @@ export async function runConversationBrain(input: {
   onDelta?: (partial: ConversationBrainDelta) => void
 }): Promise<ConversationBrainResult> {
   const userMessage = latestUserText(input.messages)
-  const factsJson = JSON.stringify(input.facts, null, 2)
+  const groundedEmpty = isGroundedEmptyGreeting(userMessage, input.facts)
+  const factsForModel: TravelFacts = groundedEmpty
+    ? {
+      ...input.facts,
+      objective: 'greet_or_continue',
+      optionHints: undefined,
+      recommendations: undefined,
+      warnings: undefined,
+      planningDraft: undefined,
+      plan: undefined,
+    }
+    : input.facts
+  const factsJson = JSON.stringify(factsForModel, null, 2)
+  const history = groundedEmpty
+    ? '(start of conversation)'
+    : historyLines(input.messages)
   const payload = buildConversationUserPayload({
-    objective: input.facts.objective,
+    objective: factsForModel.objective,
     factsJson,
-    tripStateJson: buildTripStateJson(input.facts),
-    memoryJson: buildMemoryJson(input.facts),
-    recentHistory: historyLines(input.messages),
-    userProfileJson: input.userProfile ? JSON.stringify(input.userProfile) : undefined,
+    tripStateJson: buildTripStateJson(factsForModel, groundedEmpty),
+    memoryJson: buildMemoryJson(factsForModel),
+    recentHistory: history,
+    userProfileJson: groundedEmpty
+      ? undefined
+      : (input.userProfile ? JSON.stringify(input.userProfile) : undefined),
     currentUserMessage: userMessage,
+    groundingNote: groundedEmpty
+      ? 'Greeting-only turn with empty known slots. Reply with a brief greeting and ONE neutral destination question only. Inventing budget, travelers, destination, dates, or itinerary is forbidden.'
+      : undefined,
   })
 
   const llm = input.llms.getActive()
 
-  // Browser traveler path must never hear local canned Arabic templates.
+  // Browser traveler path must never hear local canned Arabic templates —
+  // except a grounded empty greeting may use the safe greeting when offline.
   if (llm.providerId === 'local') {
+    if (groundedEmpty) {
+      const safe = safeGreetingReply(input.facts.locale)
+      input.onDelta?.({
+        displayText: safe.displayText,
+        spokenText: safe.spokenText,
+        raw: safe.displayText,
+      })
+      return { ...safe, providerId: 'local' }
+    }
     if (isBrowserTravelerPath()) {
       const unavailable = remoteUnavailableReply(input.facts.locale, 'openai')
       input.onDelta?.({
@@ -313,13 +360,17 @@ export async function runConversationBrain(input: {
       systemPrompt: RAHHAL_CONVERSATION_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: payload }],
       signal: input.signal,
-      temperature: 0.9,
+      temperature: groundedEmpty ? 0.4 : 0.85,
       stream: true,
       onDelta: input.onDelta
         ? (accumulated) => {
           const parsed = extractRemoteUtterance(accumulated)
           if (!parsed) return
           // Stream remote tokens as-is — never replace with local templates mid-turn.
+          // Greeting grounding enforcement happens only on the final complete reply.
+          if (groundedEmpty && replyInventedTravelFacts(parsed.displayText).length > 0) {
+            return
+          }
           const guarded = finalizeBrainResult(
             parsed.displayText,
             parsed.spokenText,
@@ -341,6 +392,20 @@ export async function runConversationBrain(input: {
     if (result.status === 'ok' && result.text.trim()) {
       const parsed = extractRemoteUtterance(result.text)
       if (parsed) {
+        if (groundedEmpty && replyInventedTravelFacts(parsed.displayText).length > 0) {
+          if (typeof console !== 'undefined') {
+            console.warn('[rahhal] greeting_hallucination_blocked', {
+              invented: replyInventedTravelFacts(parsed.displayText),
+            })
+          }
+          const safe = safeGreetingReply(input.facts.locale)
+          input.onDelta?.({
+            displayText: safe.displayText,
+            spokenText: safe.spokenText,
+            raw: safe.displayText,
+          })
+          return safe
+        }
         return finalizeBrainResult(
           parsed.displayText,
           parsed.spokenText,
@@ -351,6 +416,9 @@ export async function runConversationBrain(input: {
       }
       // Model returned non-empty text — still pass through verbatim.
       const raw = result.text.trim()
+      if (groundedEmpty && replyInventedTravelFacts(raw).length > 0) {
+        return safeGreetingReply(input.facts.locale)
+      }
       return finalizeBrainResult(raw, raw, result.providerId, 'remote', input.facts.locale)
     }
 

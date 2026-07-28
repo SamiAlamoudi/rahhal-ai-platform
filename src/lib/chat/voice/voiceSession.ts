@@ -27,6 +27,17 @@ import {
   normalizeVoiceLocale,
 } from './voiceTypes'
 import { unlockAudioPlayback } from './audioElementTextToSpeechProvider'
+import {
+  createVoiceLatencyMarks,
+  summarizeVoiceLatency,
+} from './voiceLatency'
+
+function performanceNow(): number {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now()
+  }
+  return Date.now()
+}
 
 export interface VoiceSessionCallbacks {
   onStatus?: (status: VoiceSessionStatus) => void
@@ -317,6 +328,9 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     let sawDelta = false
     let speechStarted = false
     let speakChain: Promise<void> = Promise.resolve()
+    const latency = createVoiceLatencyMarks()
+    latency.sttFinalAt = latency.turnStartedAt
+    latency.requestSentAt = performanceNow()
 
     /**
      * One assistant reply → one TTS synthesis → one continuous playback.
@@ -328,6 +342,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       if (!text) return
       speakChain = speakChain.then(async () => {
         if (disposed || controller.signal.aborted) return
+        latency.ttsStartedAt = performanceNow()
         if (!speechStarted) {
           speechStarted = true
           setStatus('speaking')
@@ -338,7 +353,14 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           setStatus('speaking')
         }
         try {
+          latency.audioStartedAt = performanceNow()
           await tts.speak({ locale, text, interrupt: true })
+          latency.ttsDoneAt = performanceNow()
+          logPipeline({
+            stage: 'tts',
+            event: 'latency_report',
+            meta: summarizeVoiceLatency(latency) as unknown as Record<string, unknown>,
+          })
         } catch (e) {
           if (!isBenignChatError(e) && !disposed) {
             diagnosePipelineError('tts', 'speak', e)
@@ -366,6 +388,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         if (!sawDelta) {
           sawDelta = true
           setStatus('responding')
+          latency.firstTokenAt = performanceNow()
           logPipeline({ stage: 'streaming', event: 'first_delta' })
         }
         // Stream text to the UI only — never invoke TTS on partial deltas.
@@ -373,11 +396,14 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       },
       onComplete: async (message) => {
         callbacks.onComplete?.(message)
+        latency.modelCompleteAt = performanceNow()
         logPipeline({
           stage: 'ai',
           event: 'turn_complete',
           meta: { length: message.content.length },
         })
+        // Warm audio path while we finalize spoken text — still one TTS call.
+        void unlockAudioPlayback().catch(() => undefined)
         if (!controller.signal.aborted && !disposed) {
           const spoken = readSpokenText(message)
           if (spoken) {
@@ -650,10 +676,9 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       if (disposed) return
       setStatus('speaking')
       const cleaned = stripMarkdownForSpeech(text)
-      tts.prefetch?.({ locale, text: cleaned })
       try {
         await unlockAudioPlayback()
-        // Progressive mid-stream chunks must not interrupt the prior sentence.
+        // One continuous utterance per call (interrupt replaces any prior clip).
         await tts.speak({
           locale,
           text: cleaned,
@@ -669,7 +694,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       } else if (resume && !disposed) {
         setStatus('idle')
       }
-      // When resumeHandsFree === false, stay in speaking for progressive chunks.
     },
     dispose() {
       disposed = true

@@ -7,6 +7,13 @@ import type { VoiceSession } from '../../lib/chat/voice/voiceSession'
 import type { VoiceSessionStatus } from '../../lib/chat/voice/voiceTypes'
 import { unlockAudioPlayback } from '../../lib/chat/voice/audioElementTextToSpeechProvider'
 import { isBenignChatError } from '../../lib/chat/chatLogger'
+import { isGreetingOnly } from '../../lib/agent/conversationBrain/greetingGuard'
+import {
+  createVoiceLatencyMarks,
+  summarizeVoiceLatency,
+  type VoiceLatencyMarks,
+} from '../../lib/chat/voice/voiceLatency'
+import { logPipeline } from '../../lib/chat/pipelineDiagnostics'
 import {
   buildResultCardsFromTripPlan,
   resultCardKindLabel,
@@ -48,6 +55,7 @@ export function HomeVoiceConsultant({
   const [audioPlaying, setAudioPlaying] = useState(false)
   const speechStartedRef = useRef(false)
   const pendingAssistantRef = useRef<ChatMessage | null>(null)
+  const latencyRef = useRef<VoiceLatencyMarks | null>(null)
 
   const flushAssistant = useCallback((message: ChatMessage) => {
     if (message.role !== 'assistant') return
@@ -186,6 +194,11 @@ export function HomeVoiceConsultant({
     setError(null)
   }, [])
 
+  // New page visit → completely clean conversation (no stale trip memory).
+  useEffect(() => {
+    beginFreshConversation()
+  }, [beginFreshConversation])
+
   const startListening = useCallback(async () => {
     // Continue the active trip conversation. Only wipe when there is no session yet.
     // (A full "new chat" is beginFreshConversation via looksLikeNewTrip on text, or reload.)
@@ -252,6 +265,13 @@ export function HomeVoiceConsultant({
     setAssistantMessage(null)
     speechStartedRef.current = false
     pendingAssistantRef.current = null
+    // Greeting-only → wipe prior trip conversation so we never continue Istanbul/budget state.
+    if (isGreetingOnly(trimmed)) {
+      beginFreshConversation()
+      setUserHeard(trimmed)
+    }
+    latencyRef.current = createVoiceLatencyMarks()
+    latencyRef.current.requestSentAt = performance.now()
     await unlockAudioPlayback().catch(() => undefined)
     try {
       // Only start a fresh trip on explicit reset — never wipe mid-answer
@@ -267,14 +287,15 @@ export function HomeVoiceConsultant({
 
       /**
        * One assistant reply → one TTS call → one continuous playback.
-       * Progressive chunk pumping re-spoke overlapping prefixes with different
-       * OpenAI intonation and caused stitched A/B volume changes.
+       * Start TTS immediately when the final turn is complete (no mid-stream clips).
        */
       const speakOnce = (fullSpoken: string) => {
         const piece = (fullSpoken || '').replace(/\s+/g, ' ').trim()
         if (!piece || !voiceRef.current) return
         speakChain = speakChain.then(async () => {
           if (controller.signal.aborted) return
+          const marks = latencyRef.current
+          if (marks) marks.ttsStartedAt = performance.now()
           if (!speechStartedRef.current) {
             speechStartedRef.current = true
             setVoiceStatus('speaking')
@@ -284,10 +305,19 @@ export function HomeVoiceConsultant({
             if (pending) flushAssistant(pending)
           }
           voiceRef.current?.armHandsFree?.(id)
+          if (marks) marks.audioStartedAt = performance.now()
           await voiceRef.current?.speakText(piece, {
             resumeHandsFree: false,
             interrupt: true,
           })
+          if (marks) {
+            marks.ttsDoneAt = performance.now()
+            logPipeline({
+              stage: 'tts',
+              event: 'latency_report',
+              meta: summarizeVoiceLatency(marks) as unknown as Record<string, unknown>,
+            })
+          }
         }).catch(() => undefined)
       }
 
@@ -301,13 +331,19 @@ export function HomeVoiceConsultant({
             setAssistantMessage(message)
             setAssistantText('')
             setVoiceStatus('thinking')
+            // Warm audio path while the model thinks — does not speak yet.
+            void unlockAudioPlayback().catch(() => undefined)
           },
           onDelta: (message) => {
             // Stream text to the UI only — never invoke TTS on partial deltas.
+            if (latencyRef.current && latencyRef.current.firstTokenAt == null) {
+              latencyRef.current.firstTokenAt = performance.now()
+            }
             upsertAssistant(message)
             setVoiceStatus((s) => (s === 'speaking' ? s : 'responding'))
           },
           onComplete: async (message) => {
+            if (latencyRef.current) latencyRef.current.modelCompleteAt = performance.now()
             const spoken =
               (typeof message.providerMeta?.spokenText === 'string' && message.providerMeta.spokenText.trim())
               || message.content.slice(0, 360)
