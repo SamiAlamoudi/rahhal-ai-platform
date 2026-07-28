@@ -146,7 +146,7 @@ describe('voice experience sprint', () => {
       }
     })
 
-    saveVoiceExperiencePrefs({ voiceId: 'marin', dialect: 'saudi', speed: 'natural' }, null)
+    saveVoiceExperiencePrefs({ voiceId: 'coral', dialect: 'saudi', speed: 'natural' }, null)
     const session = createVoiceSession({
       stt,
       tts,
@@ -159,7 +159,7 @@ describe('voice experience sprint', () => {
     await session.stopPushToTalkAndSend('c1')
     expect(speakSpy).toHaveBeenCalledTimes(1)
     expect(speakSpy.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
-      voice: 'marin',
+      voice: 'coral',
       dialect: 'saudi',
       interrupt: true,
       format: 'wav',

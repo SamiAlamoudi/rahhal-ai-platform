@@ -131,7 +131,7 @@ export default async function handler(req: Request): Promise<Response> {
     ? requestedVoice
     : (ALLOWED_VOICES.has(envVoice)
       ? envVoice
-      : (locale === 'ar' ? 'marin' : 'nova'))
+      : (locale === 'ar' ? 'coral' : 'nova'))
 
   const dialect = typeof body.dialect === 'string' ? body.dialect.trim().toLowerCase() : undefined
   const clientInstructions = typeof body.instructions === 'string' ? body.instructions.trim() : ''

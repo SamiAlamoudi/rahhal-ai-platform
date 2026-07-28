@@ -40,7 +40,7 @@ export interface VoiceExperiencePrefs {
 export const VOICE_PREFS_STORAGE_KEY = 'rahhal.voiceExperience.v1'
 
 /** Default selected after Arabic voice comparison pack (see artifacts). */
-export const DEFAULT_VOICE_ID: OpenAiTtsVoiceId = 'marin'
+export const DEFAULT_VOICE_ID: OpenAiTtsVoiceId = 'coral'
 
 export const DEFAULT_VOICE_PREFS: VoiceExperiencePrefs = {
   voiceId: DEFAULT_VOICE_ID,
