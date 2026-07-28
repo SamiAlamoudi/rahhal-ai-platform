@@ -64,7 +64,7 @@ function buildInstructions(moodText?: string): string {
   const mood = moodText ? inferTripMood(moodText) : undefined
   return buildConsultantConversationalInstructions({
     dialect: prefs.dialect,
-    dialectHint: dialectChatGuidance(prefs.dialect),
+    utterance: moodText,
     locale: 'ar',
     mood,
     dialogueContext: moodText ? inferSpokenContext(moodText) : undefined,
@@ -178,6 +178,23 @@ export function createRealtimeWebRtcSession(
 
     if (type === 'conversation.item.input_audio_transcription.completed' && typeof event.transcript === 'string') {
       callbacks.onUserTranscript?.(event.transcript, true)
+      // Language adaptation only: refresh dialect cues from the spoken utterance.
+      const prefs = loadVoiceExperiencePrefs()
+      sendEvent({
+        type: 'session.update',
+        session: {
+          type: 'realtime',
+          instructions: buildConsultantConversationalInstructions({
+            dialect: prefs.dialect,
+            utterance: event.transcript,
+            locale: 'ar',
+            mood: inferTripMood(event.transcript),
+            dialogueContext: inferSpokenContext(event.transcript),
+            speed: prefs.speed,
+            energy: prefs.energy,
+          }),
+        },
+      })
       return
     }
 
@@ -385,7 +402,7 @@ export function createRealtimeWebRtcSession(
           type: 'realtime',
           instructions: buildConsultantConversationalInstructions({
             dialect: prefs.dialect,
-            dialectHint: dialectChatGuidance(prefs.dialect),
+            utterance: cleaned,
             locale: 'ar',
             mood,
             dialogueContext: inferSpokenContext(cleaned),

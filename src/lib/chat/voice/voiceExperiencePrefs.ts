@@ -3,14 +3,15 @@
  * Persisted per user in localStorage. Never injected into trip memory.
  */
 
-export type ArabicDialectPreference =
-  | 'white'
-  | 'saudi'
-  | 'gulf'
-  | 'egyptian'
-  | 'levantine'
-  | 'moroccan'
-  | 'fusha'
+import {
+  ARABIC_DIALECT_CATALOG,
+  dialectGuidance,
+  isArabicDialectId,
+  type ArabicDialectId,
+} from './arabicDialectAdaptation'
+
+/** Prefers auto-adapt; MSA when dialect unknown. */
+export type ArabicDialectPreference = ArabicDialectId
 
 export type VoiceSpeakingSpeed = 'slow' | 'natural' | 'fast'
 
@@ -50,7 +51,8 @@ export const DEFAULT_VOICE_ID: OpenAiTtsVoiceId = 'coral'
 
 export const DEFAULT_VOICE_PREFS: VoiceExperiencePrefs = {
   voiceId: DEFAULT_VOICE_ID,
-  dialect: 'saudi',
+  /** Adapt to traveler speech; unknown → conversational MSA. */
+  dialect: 'auto',
   speed: 'natural',
   gender: 'female',
   energy: 'natural',
@@ -63,57 +65,13 @@ export const ARABIC_DIALECT_OPTIONS: Array<{
   guidance: string
   /** Whether we claim verified native dialect quality in product copy. */
   verifiedNativeQuality: boolean
-}> = [
-  {
-    id: 'white',
-    labelAr: 'العربية البيضاء',
-    guidance:
-      'Neutral educated Arabic (العربية البيضاء): clear, modern, widely understood. Still warm spoken dialogue — not formal written Arabic. Change wording toward clarity, not regional slang.',
-    verifiedNativeQuality: true,
-  },
-  {
-    id: 'saudi',
-    labelAr: 'السعودية',
-    guidance:
-      'Educated Saudi travel-consultant wording: حياك، تمام، خلنا، وين، أبشري، إن شاء الله، على راحتك. Natural rhythm — never exaggerated Najdi caricature, never MSA brochure tone.',
-    verifiedNativeQuality: false,
-  },
-  {
-    id: 'gulf',
-    labelAr: 'الخليجية',
-    guidance:
-      'Natural Gulf conversational wording and warm pacing when clear. Prefer soft Gulf rhythm over dialect theatre. If unclear, fall back to natural clear Arabic.',
-    verifiedNativeQuality: false,
-  },
-  {
-    id: 'egyptian',
-    labelAr: 'المصرية (قريباً)',
-    guidance:
-      'Future-ready Egyptian: light natural Egyptian coloring only if clear to a broad audience; otherwise clear natural Arabic. Do not force heavy dialect theatre.',
-    verifiedNativeQuality: false,
-  },
-  {
-    id: 'levantine',
-    labelAr: 'الشامية (قريباً)',
-    guidance:
-      'Future-ready Levantine: light natural Levantine coloring only if clear; otherwise clear natural Arabic.',
-    verifiedNativeQuality: false,
-  },
-  {
-    id: 'moroccan',
-    labelAr: 'المغربية',
-    guidance:
-      'Light Moroccan coloring only if it stays clear to a broad Arabic audience. If unsure, fall back to clear natural Arabic rather than heavy Darija imitation.',
-    verifiedNativeQuality: false,
-  },
-  {
-    id: 'fusha',
-    labelAr: 'الفصحى / MSA',
-    guidance:
-      'Use clear Modern Standard Arabic (فصحى معاصرة مبسّطة), still warm and conversational — not classical oratory.',
-    verifiedNativeQuality: true,
-  },
-]
+}> = ARABIC_DIALECT_CATALOG.map((d) => ({
+  id: d.id,
+  labelAr: d.labelAr,
+  guidance: d.guidance,
+  // MSA / white are widely safe; regional dialects are soft adaptation guidance.
+  verifiedNativeQuality: d.id === 'fusha' || d.id === 'white',
+}))
 
 export const OPENAI_TTS_VOICES: Array<{
   id: OpenAiTtsVoiceId
@@ -169,7 +127,7 @@ export function isOpenAiTtsVoiceId(value: string): value is OpenAiTtsVoiceId {
 }
 
 export function isArabicDialectPreference(value: string): value is ArabicDialectPreference {
-  return ARABIC_DIALECT_OPTIONS.some((d) => d.id === value)
+  return isArabicDialectId(value)
 }
 
 export function isVoiceSpeakingSpeed(value: string): value is VoiceSpeakingSpeed {
@@ -241,9 +199,7 @@ export function saveVoiceExperiencePrefs(
 
 /** Soft dialect hint for the chat model — never invents travel facts. */
 export function dialectChatGuidance(dialect: ArabicDialectPreference): string {
-  const opt = ARABIC_DIALECT_OPTIONS.find((d) => d.id === dialect)
-  return opt?.guidance
-    ?? 'Speak clear natural Arabic. Do not invent travel facts.'
+  return dialectGuidance(dialect)
 }
 
 /**

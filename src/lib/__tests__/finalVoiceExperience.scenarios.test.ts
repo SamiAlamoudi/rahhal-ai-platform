@@ -72,18 +72,16 @@ describe('final voice experience scenarios', () => {
     expect(instructions).toMatch(/guide, recommend, compare/i)
   })
 
-  it('Saudi / Gulf / MSA / future dialects differ', () => {
+  it('major dialect wording guidance differs without fixed one-style Arabic', () => {
     const saudi = enrichDialectWording('saudi')
-    const gulf = enrichDialectWording('gulf')
-    const white = enrichDialectWording('white')
     const egyptian = enrichDialectWording('egyptian')
     const levantine = enrichDialectWording('levantine')
-    expect(saudi).toMatch(/حياك|خلنا|أبشري/)
-    expect(gulf).toMatch(/Gulf/i)
-    expect(white).toMatch(/Neutral|بيضاء|clear/i)
-    expect(egyptian).toMatch(/Egyptian|Future-ready/i)
-    expect(levantine).toMatch(/Levantine|Future-ready/i)
-    expect(saudi).not.toEqual(gulf)
+    const fusha = enrichDialectWording('fusha')
+    expect(saudi).toMatch(/Saudi|نجدي|حجازي|خليجي/i)
+    expect(egyptian).toMatch(/Egyptian|مصرية/i)
+    expect(levantine).toMatch(/Levantine|شامية/i)
+    expect(fusha).toMatch(/Modern Standard|فصحى|MSA/i)
+    expect(saudi).not.toEqual(egyptian)
   })
 
   it('prosody cues change with speed and energy', () => {

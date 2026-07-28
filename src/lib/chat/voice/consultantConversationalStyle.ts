@@ -9,6 +9,10 @@ import type {
   VoiceSpeakingSpeed,
 } from './voiceExperiencePrefs'
 import { dialectChatGuidance } from './voiceExperiencePrefs'
+import {
+  buildDialectAdaptationInstructions,
+  resolveSpokenDialect,
+} from './arabicDialectAdaptation'
 import { spokenToneCue, type SpokenDialogueContext } from './spokenDialoguePostProcessor'
 
 /** Trip mood inferred from traveler utterance — drives emotion/pacing cues. */
@@ -107,57 +111,15 @@ export function prosodyPreferenceCue(input: {
   ].join(' ')
 }
 
-/** Stronger Saudi / Gulf / Neutral wording guidance (vocabulary, not caricature). */
+/** Dialect wording via the adaptation layer (no fixed one-style Arabic). */
 export function enrichDialectWording(dialect: ArabicDialectPreference | undefined): string {
-  const base = dialect ? dialectChatGuidance(dialect) : dialectChatGuidance('saudi')
-  switch (dialect) {
-    case 'saudi':
-      return [
-        base,
-        'Default: educated Saudi travel consultant speaking naturally.',
-        'Prefer spoken wording like: حياك، تمام، خلنا، وين، أبشري، إن شاء الله، على راحتك.',
-        'Avoid heavy Najdi slang caricature and avoid formal MSA brochure tone unless traveler asks for فصحى.',
-        'Never invent catchphrases; keep clarity first.',
-      ].join(' ')
-    case 'gulf':
-      return [
-        base,
-        'Prefer natural Gulf conversational wording and warm pacing when clear.',
-        'Soft particles and rhythm over exaggerated dialect theatre.',
-        'If unsure, fall back to clear natural Arabic.',
-      ].join(' ')
-    case 'white':
-      return [
-        base,
-        'Neutral educated Arabic: clear, modern, widely understood.',
-        'Still spoken and warm — not formal written Arabic.',
-      ].join(' ')
-    case 'fusha':
-      return [
-        base,
-        'Only when selected: simplified contemporary فصحى / MSA, still conversational — not classical oratory.',
-      ].join(' ')
-    case 'egyptian':
-      return [
-        base,
-        'Future-ready Egyptian coloring only if clear; otherwise natural clear Arabic.',
-      ].join(' ')
-    case 'levantine':
-      return [
-        base,
-        'Future-ready Levantine coloring only if clear; otherwise natural clear Arabic.',
-      ].join(' ')
-    case 'moroccan':
-      return [
-        base,
-        'Light Moroccan color only if clear to a broad audience; otherwise natural clear Arabic.',
-      ].join(' ')
-    default:
-      return [
-        'Default like an educated Saudi travel consultant speaking naturally.',
-        base,
-      ].join(' ')
-  }
+  const resolved = resolveSpokenDialect({ preference: dialect || 'auto' })
+  return [
+    dialectChatGuidance(resolved.dialect),
+    'Never use one fixed Arabic style for every traveler.',
+    'No exaggeration, no stereotypes, no mixing unrelated dialects in one reply.',
+    'Keep travel terminology clear.',
+  ].join(' ')
 }
 
 const ANTI_PATTERNS = [
@@ -185,13 +147,21 @@ export const CONSULTANT_FILLER_EXAMPLES = [
 export function buildConsultantConversationalInstructions(input: {
   dialect?: ArabicDialectPreference
   dialectHint?: string
+  /** Latest traveler utterance — used when dialect preference is `auto`. */
+  utterance?: string
   locale?: 'ar' | 'en'
   mood?: ConsultantTripMood
   dialogueContext?: SpokenDialogueContext
   speed?: VoiceSpeakingSpeed
   energy?: VoiceEnergyPreference
 } = {}): string {
-  const dialectLine = input.dialectHint || enrichDialectWording(input.dialect)
+  const dialectBlock = buildDialectAdaptationInstructions({
+    preference: input.dialect || 'auto',
+    utterance: input.utterance,
+  })
+  const dialectLine = input.dialectHint
+    ? `${dialectBlock}\nPreference note: ${input.dialectHint}`
+    : dialectBlock
   const mood = input.mood || 'general'
   const dialogueContext = input.dialogueContext || 'general'
 
@@ -239,10 +209,10 @@ export function buildConsultantConversationalInstructions(input: {
     '- Never open with كيف أقدر أساعدك / كيف يمكنني مساعدتك.',
     '',
     'ARABIC',
-    '- Native spoken Arabic — educated Saudi consultant by default when dialect is saudi/white/gulf.',
-    '- Avoid literal translations and AI wording. Avoid formal written Arabic unless فصحى/MSA selected.',
+    '- Adapt to the traveler dialect naturally; if unknown, use conversational Modern Standard Arabic.',
+    '- Avoid literal translations and AI wording. Avoid formal written brochure Arabic.',
     '- Zero English tokens in Arabic replies.',
-    '- Change wording with dialect preference — not pronunciation theatre alone.',
+    '- Change wording with dialect — not pronunciation theatre alone. Never mix unrelated dialects.',
     dialectLine,
     '',
     'FORBIDDEN',
