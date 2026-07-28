@@ -48,17 +48,21 @@ describe('final voice experience scenarios', () => {
     }
   })
 
-  it('senior consultant instructions encode personality and anti-patterns', () => {
+  it('senior consultant instructions encode think-together personality', () => {
     const instructions = buildConsultantConversationalInstructions({
       dialect: 'saudi',
       mood: 'luxury',
     })
     expect(instructions).toMatch(/senior human travel consultant/i)
-    expect(instructions).toMatch(/confident, warm, premium/i)
-    expect(instructions).toMatch(/GPS|news presenter|customer-support/i)
-    expect(instructions).toMatch(/Never sound identical/i)
+    expect(instructions).toMatch(/premium|confident, warm/i)
+    expect(instructions).toMatch(/THINK BEFORE|thinking TOGETHER/i)
+    expect(instructions).toMatch(/خلني أشوف|جميل|فكرة حلوة/)
+    expect(instructions).toMatch(/أقارن الأسعار|رحلات المباشرة|أعطني ثواني/)
+    expect(instructions).toMatch(/GPS|news presenter|customer-support|AI that answers/i)
+    expect(instructions).toMatch(/Never sound identical|freshly generated/i)
     expect(instructions).toMatch(/educated Saudi/i)
     expect(instructions).toMatch(/interrupted/i)
+    expect(instructions).toMatch(/أستطيع|يمكنني|يسعدني/)
   })
 
   it('Saudi / Gulf / Neutral dialect wording differs', () => {
@@ -124,5 +128,22 @@ describe('final voice experience scenarios', () => {
     expect(inferSpokenContext('عندي خيار فاخر في سويت مطل على البحر')).toBe('luxury')
     expect(inferSpokenContext('مناسب للعائلة مع الأطفال')).toBe('family')
     expect(inferSpokenContext('يناسب سفر العمل والاجتماعات')).toBe('business')
+  })
+
+  it('strips AI-answer scripts and adds a thinking breath on cold dumps', () => {
+    const spoken = toSpokenDialogue(
+      'أستطيع مساعدتك في اختيار الفندق. عندي خيارين مناسبين قريبين من الوسط.',
+      { locale: 'ar', variationSeed: 'cold-dump-1', context: 'recommendation' },
+    )
+    expect(spoken).not.toMatch(/أستطيع مساعدتك|يمكنني|يسعدني/)
+    expect(spoken).toMatch(/جميل|تمام|خلني|لحظة|فكرة|بصراحة|على حسب|أشوف|أقارن|ثواني|خيار/)
+  })
+
+  it('thinking breaths vary across seeds for the same cold content', () => {
+    const cold = 'عندي فندق مناسب قريب من الوسط.'
+    const variants = ['t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9'].map((s) =>
+      toSpokenDialogue(cold, { locale: 'ar', variationSeed: s, context: 'recommendation' }),
+    )
+    expect(new Set(variants).size).toBeGreaterThan(1)
   })
 })

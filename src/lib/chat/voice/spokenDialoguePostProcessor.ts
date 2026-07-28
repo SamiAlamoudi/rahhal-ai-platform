@@ -32,6 +32,12 @@ const FORMAL_AR = [
   /في هذا السياق[,،]?\s*/gi,
   /من المهم أن نوضح أن['’]?\s*/gi,
   /يسعدني أن أقدم لكم\s*/gi,
+  /يسعدني\s*(أن|بـ)?\s*/gi,
+  /أستطيع أن?\s*أساعد(?:ك|كم)\s*(في|بـ)?\s*/gi,
+  /أستطيع مساعدتك\s*/gi,
+  /يمكنني أن?\s*/gi,
+  /يمكنني مساعدتك\s*/gi,
+  /سأقوم بـ?\s*/gi,
   /أود أن أخبرك[م]?\s*(بأن|أن)\s*/gi,
   /كما تعلمون[,،]?\s*/gi,
   /بشكل عام[,،]?\s*/gi,
@@ -50,10 +56,35 @@ const FORMAL_EN = [
   /\bin this context[,.]?\s*/gi,
   /\bit is important to note that\s*/gi,
   /\bi('d| would) like to (inform|tell) you that\s*/gi,
+  /\bi (can|could) (help|assist) you (with|to)?\s*/gi,
   /\bas you (know|may know)[,.]?\s*/gi,
   /\bin conclusion[,.]?\s*/gi,
   /\boverall[,.]?\s*/gi,
 ]
+
+/** Soft thinking / filler openings — rotated; never invent travel facts. */
+export const THINKING_BREATHS_AR = [
+  'جميل… ',
+  'تمام… ',
+  'خلني أشوف… ',
+  'خلنا نفكر فيها… ',
+  'لحظة… ',
+  'فكرة حلوة… ',
+  'بصراحة… ',
+  'على حسب… ',
+  'ممكن يكون عندي لك خيارين… ',
+  'خلني أشوف أفضل الخيارات… ',
+] as const
+
+const SEARCH_BREATHS_AR = [
+  'خلني أقارن الأسعار أول… ',
+  'بشوف الرحلات المباشرة قبل… ',
+  'أعطني ثواني… ',
+  'لقيت خيار ممتاز… ',
+] as const
+
+const HAS_HUMAN_OPENER_AR =
+  /^(?:وعليكم|السلام|مرحبا|أهلا|حياك|ممتاز|جميل|تمام|حلو|زين|طيب|أبشر|خلاص|فكرة|خلني|خلنا|لحظة|بصراحة|على حسب|أشوف|آسف|فهمت|ممكن|ولا يهمك|يا ساتر)/u
 
 function detectContext(text: string, explicit?: SpokenDialogueContext): SpokenDialogueContext {
   if (explicit) return explicit
@@ -88,19 +119,19 @@ export function applyNaturalVariation(text: string, seed: string, locale: 'ar' |
 
   const roboticAck = /^(حسناً|حسنا|طيب|أوكي|اوكي|OK|Ok)[,،.]?\s+/i
   if (roboticAck.test(out)) {
-    const alts = ['تمام، ', 'أبشر، ', 'خلاص، ', 'على عيني، ', '']
+    const alts = ['تمام، ', 'جميل، ', 'خلني أشوف، ', 'فكرة حلوة، ', '']
     out = out.replace(roboticAck, alts[pick] ?? '')
   }
 
   // Soften identical "ممتاز" openers without removing genuine praise mid-sentence.
   if (/^ممتاز[,،!]?\s+/i.test(out) && pick !== 0) {
-    const alts = ['حلو، ', 'تمام، ', 'على عيني، ', 'زين، ', '']
+    const alts = ['جميل، ', 'تمام، ', 'فكرة حلوة، ', 'حلو، ', '']
     out = out.replace(/^ممتاز[,،!]?\s+/i, alts[pick] ?? '')
   }
 
   // Vary stiff confirmations / yes-openers.
   if (/^(نعم|بالتأكيد|طبعاً|طبعا)[,،.]?\s+/i.test(out) && pick % 2 === 1) {
-    const alts = ['أيوه، ', 'أكيد، ', 'تمام، ', 'أبشر، ', '']
+    const alts = ['أيوه، ', 'أكيد، ', 'تمام، ', 'بصراحة، ', '']
     out = out.replace(/^(نعم|بالتأكيد|طبعاً|طبعا)[,،.]?\s+/i, alts[pick] ?? '')
   }
 
@@ -113,12 +144,38 @@ export function applyNaturalVariation(text: string, seed: string, locale: 'ar' |
   // Occasional micro-pause after a short opener (helps Realtime pacing without engine changes).
   if (pick === 2 || pick === 4) {
     out = out.replace(
-      /^(تمام|أبشر|خلاص|حلو|زين|على عيني|حياك)[,،]\s+/u,
+      /^(تمام|جميل|حلو|زين|فكرة حلوة|خلني أشوف|لحظة|بصراحة|على حسب|حياك)[,،]\s+/u,
       '$1… ',
     )
   }
 
   return out.replace(/\s{2,}/g, ' ').trim()
+}
+
+/**
+ * If a reply jumps straight into content with no human lead-in, prepend a thinking breath.
+ * Deterministic per seed. Does not invent travel facts.
+ */
+export function ensureThinkingBreath(
+  text: string,
+  seed: string,
+  locale: 'ar' | 'en',
+  context?: SpokenDialogueContext,
+): string {
+  if (locale !== 'ar' || !text.trim()) return text
+  if (context === 'greeting' || context === 'empathy') return text
+  if (HAS_HUMAN_OPENER_AR.test(text.trim())) return text
+
+  const h = hashSeed(seed)
+  // Keep some turns without a prepend so not every reply gets a filler.
+  if (h % 5 === 0) return text
+
+  const pool =
+    context === 'recommendation' || /سعر|رحلة|خيار|فندق|طيرا/i.test(text)
+      ? [...THINKING_BREATHS_AR, ...SEARCH_BREATHS_AR]
+      : [...THINKING_BREATHS_AR]
+  const breath = pool[h % pool.length] ?? 'خلني أشوف… '
+  return `${breath}${text}`.replace(/\s{2,}/g, ' ').trim()
 }
 
 function stripChrome(text: string): string {
@@ -271,14 +328,13 @@ export function toSpokenDialogue(
     .replace(/\.\s*\./g, '.')
     .trim()
 
+  const ctx = detectContext(text, options.context)
+  const seed = options.variationSeed || text
   const breaths = splitSpokenBreaths(text)
   let spoken = trimToSpokenBudget(breaths, maxChars)
   spoken = enforceOneQuestion(spoken)
-  spoken = applyNaturalVariation(
-    spoken,
-    options.variationSeed || spoken,
-    locale,
-  )
+  spoken = ensureThinkingBreath(spoken, seed, locale, ctx)
+  spoken = applyNaturalVariation(spoken, seed, locale)
 
   // Prefer ending on a complete breath.
   if (spoken.length > 12 && !/[.!?؟…]$/.test(spoken)) {
