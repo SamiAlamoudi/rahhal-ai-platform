@@ -108,3 +108,12 @@ Shipped:
 - Scenario unit coverage in `finalVoiceExperience.scenarios.test.ts`
 
 **Freeze:** after this sprint, voice stack is frozen unless critical bugs. Next milestone: flights / hotels / cars / multi-provider price comparison.
+
+### Think-together refinement (freeze)
+
+- Acknowledge + brief reasoning before recommendations
+- Rotating fillers; AI-answer scripts stripped (`أستطيع` / `يمكنني` / `يسعدني`)
+- Search narration breaths; soft thinking-breath on cold dumps
+- Production: `dpl_5D7SwP1M8uEcXXBTvMottjHH1cBt`
+- **Voice stack frozen** unless critical bugs
+
