@@ -33,7 +33,8 @@ export interface HomeVoiceConsultantProps {
 
 /**
  * Voice-first consultant surface on Home.
- * Mic → STT → ChatGPT → on-screen streaming reply → TTS → listen again.
+ * Prefers OpenAI Realtime speech-to-speech (gpt-realtime-2.1) when available.
+ * Falls back to classic STT → Chat → TTS if Realtime is unavailable.
  * Never navigates to /chat.
  */
 export function HomeVoiceConsultant({
@@ -43,6 +44,8 @@ export function HomeVoiceConsultant({
 }: HomeVoiceConsultantProps) {
   const t = (ar: string, en: string) => (locale === 'ar' ? ar : en)
   const voiceRef = useRef<VoiceSession | null>(null)
+  const realtimeRef = useRef<import('../../lib/chat/voice/realtimeWebRtcSession').RealtimeWebRtcSession | null>(null)
+  const preferRealtimeRef = useRef(false)
   const conversationIdRef = useRef<string | null>(null)
   const [voiceStatus, setVoiceStatus] = useState<VoiceSessionStatus>('idle')
   const [partial, setPartial] = useState('')
@@ -100,12 +103,95 @@ export function HomeVoiceConsultant({
     let disposed = false
     let session: VoiceSession | null = null
     void (async () => {
-      const [{ createSpeechToTextProvider, createTextToSpeechProvider }, { createVoiceSession }] =
-        await Promise.all([
-          import('../../lib/chat/voice/voiceProviderFactory'),
-          import('../../lib/chat/voice/voiceSession'),
-        ])
+      const [
+        { createSpeechToTextProvider, createTextToSpeechProvider },
+        { createVoiceSession },
+        { probeRealtimeCapability, resolvePreferredVoiceArchitecture },
+        { createRealtimeWebRtcSession },
+      ] = await Promise.all([
+        import('../../lib/chat/voice/voiceProviderFactory'),
+        import('../../lib/chat/voice/voiceSession'),
+        import('../../lib/chat/voice/voiceArchitecture'),
+        import('../../lib/chat/voice/realtimeWebRtcSession'),
+      ])
       if (disposed) return
+
+      const preferred = resolvePreferredVoiceArchitecture(
+        (import.meta.env.VITE_VOICE_ARCHITECTURE as string | undefined) ?? 'realtime',
+      )
+      const capability = preferred === 'realtime_speech_to_speech'
+        ? await probeRealtimeCapability()
+        : null
+      preferRealtimeRef.current = Boolean(
+        preferred === 'realtime_speech_to_speech'
+        && capability?.configured,
+      )
+      logPipeline({
+        stage: 'voice',
+        event: 'architecture_selected',
+        meta: {
+          preferred,
+          realtimeConfigured: Boolean(capability?.configured),
+          model: capability?.model ?? null,
+          usingRealtime: preferRealtimeRef.current,
+        },
+      })
+
+      if (preferRealtimeRef.current) {
+        realtimeRef.current = createRealtimeWebRtcSession({
+          onStatus: (status) => {
+            if (disposed) return
+            const mapped: VoiceSessionStatus =
+              status === 'connecting' ? 'requesting_permission'
+                : status === 'thinking' ? 'thinking'
+                  : status === 'speaking' ? 'speaking'
+                    : status === 'listening' ? 'listening'
+                      : status === 'error' ? 'error'
+                        : 'idle'
+            setVoiceStatus(mapped)
+            setAudioPlaying(status === 'speaking')
+          },
+          onUserTranscript: (text, isFinal) => {
+            if (disposed) return
+            if (isFinal) {
+              setPartial('')
+              setUserHeard(text)
+              onDraftChange(text)
+            } else {
+              setPartial(text)
+            }
+          },
+          onAssistantTranscript: (text, isFinal) => {
+            if (disposed) return
+            setAssistantText(text)
+            setAssistantMessage({
+              id: 'realtime-assistant',
+              conversationId: conversationIdRef.current || 'realtime',
+              role: 'assistant',
+              modality: 'audio',
+              content: text,
+              audioUrl: null,
+              imageUrl: null,
+              attachments: [],
+              status: isFinal ? 'complete' : 'streaming',
+              error: null,
+              providerMeta: {
+                spokenText: text,
+                voiceArchitecture: 'realtime_speech_to_speech',
+              },
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            })
+            if (isFinal) setCards([])
+          },
+          onError: (err) => {
+            if (!disposed && !isBenignChatError(err)) setError(err)
+          },
+        })
+        setSessionReady(true)
+        return
+      }
+
       session = createVoiceSession({
         stt: createSpeechToTextProvider(),
         tts: createTextToSpeechProvider(),
@@ -171,6 +257,8 @@ export function HomeVoiceConsultant({
     return () => {
       disposed = true
       session?.dispose()
+      realtimeRef.current?.disconnect()
+      realtimeRef.current = null
       if (voiceRef.current === session) voiceRef.current = null
     }
   }, [flushAssistant, locale, onDraftChange, upsertAssistant])
@@ -200,20 +288,26 @@ export function HomeVoiceConsultant({
   }, [beginFreshConversation])
 
   const startListening = useCallback(async () => {
-    // Continue the active trip conversation. Only wipe when there is no session yet.
-    // (A full "new chat" is beginFreshConversation via looksLikeNewTrip on text, or reload.)
     if (!conversationIdRef.current) {
       beginFreshConversation()
     }
     setError(null)
     unlockAudioPlayback().catch(() => undefined)
     try {
-      const id = await ensureConversation()
+      await ensureConversation()
+      if (preferRealtimeRef.current && realtimeRef.current) {
+        if (!realtimeRef.current.isConnected()) {
+          await realtimeRef.current.connect()
+        }
+        return
+      }
       const permission = await voiceRef.current?.ensureMicPermission()
       if (permission && permission.state !== 'granted') {
         setError(permission.error || t('يلزم إذن الميكروفون', 'Microphone permission required'))
         return
       }
+      const id = conversationIdRef.current
+      if (!id) return
       await voiceRef.current?.startHandsFree(id)
     } catch (e) {
       if (!isBenignChatError(e)) {
@@ -223,10 +317,21 @@ export function HomeVoiceConsultant({
   }, [beginFreshConversation, ensureConversation, t])
 
   const stopListening = useCallback(async () => {
+    if (preferRealtimeRef.current && realtimeRef.current) {
+      realtimeRef.current.disconnect()
+      setVoiceStatus('idle')
+      setAudioPlaying(false)
+      return
+    }
     await voiceRef.current?.stopListening()
   }, [])
 
   const interrupt = useCallback(() => {
+    if (preferRealtimeRef.current && realtimeRef.current) {
+      realtimeRef.current.interrupt()
+      setAudioPlaying(false)
+      return
+    }
     voiceRef.current?.interrupt(undefined, { resumeHandsFree: true })
   }, [])
 
@@ -254,7 +359,11 @@ export function HomeVoiceConsultant({
       || voiceStatus === 'responding'
       || voiceStatus === 'speaking'
     ) {
-      voiceRef.current?.interrupt(undefined, { resumeHandsFree: false })
+      if (preferRealtimeRef.current && realtimeRef.current) {
+        realtimeRef.current.interrupt()
+      } else {
+        voiceRef.current?.interrupt(undefined, { resumeHandsFree: false })
+      }
       setVoiceStatus('idle')
       setAudioPlaying(false)
     }
@@ -269,10 +378,36 @@ export function HomeVoiceConsultant({
     if (isGreetingOnly(trimmed)) {
       beginFreshConversation()
       setUserHeard(trimmed)
+      if (preferRealtimeRef.current && realtimeRef.current?.isConnected()) {
+        realtimeRef.current.disconnect()
+      }
     }
     latencyRef.current = createVoiceLatencyMarks()
     latencyRef.current.requestSentAt = performance.now()
     await unlockAudioPlayback().catch(() => undefined)
+
+    // Prefer Realtime speech-to-speech (no classic TTS) when available.
+    if (preferRealtimeRef.current && realtimeRef.current) {
+      try {
+        await ensureConversation()
+        if (!realtimeRef.current.isConnected()) {
+          await realtimeRef.current.connect()
+        }
+        realtimeRef.current.sendText(trimmed)
+        onDraftChange('')
+        return
+      } catch (e) {
+        if (!isBenignChatError(e)) {
+          logPipeline({
+            stage: 'voice',
+            event: 'realtime_text_fallback_classic',
+            meta: { message: e instanceof Error ? e.message : String(e) },
+          })
+        }
+        // Fall through to classic STT/Chat/TTS path.
+      }
+    }
+
     try {
       // Only start a fresh trip on explicit reset — never wipe mid-answer
       // phrases like "أبغى أسافر أسبوع" that continue the same trip.
@@ -286,7 +421,7 @@ export function HomeVoiceConsultant({
       let speakChain: Promise<void> = Promise.resolve()
 
       /**
-       * One assistant reply → one TTS call → one continuous playback.
+       * Classic fallback: one assistant reply → one TTS call → one continuous playback.
        * Start TTS immediately when the final turn is complete (no mid-stream clips).
        */
       const speakOnce = (fullSpoken: string) => {
@@ -410,7 +545,9 @@ export function HomeVoiceConsultant({
           : t('يتحدث…', 'Speaking…')
       default:
         return sessionReady
-          ? t('اضغط الميكروفون للتحدث مع رحّال', 'Tap the mic to talk with Rahhal')
+          ? (preferRealtimeRef.current
+            ? t('اضغط الميكروفون — صوت مباشر (Realtime)', 'Tap the mic — live Realtime voice')
+            : t('اضغط الميكروفون للتحدث مع رحّال', 'Tap the mic to talk with Rahhal'))
           : t('تجهيز الصوت…', 'Preparing voice…')
     }
   })()
