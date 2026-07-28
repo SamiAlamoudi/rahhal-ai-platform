@@ -519,9 +519,16 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     if (disposed || intentionalAbort || isBenignChatError(error) || error === 'aborted') {
       return
     }
+    // Missing mic hardware: stay idle for text; never flash English browser errors.
+    const softMissingMic = /device not found|notfounderror|audio capture/i.test(error)
+    if (softMissingMic) {
+      diagnosePipelineError('stt', 'recognition', new Error(error))
+      setStatus('idle')
+      return
+    }
     diagnosePipelineError('stt', 'recognition', new Error(error))
     callbacks.onError?.(mapSttError(error))
-    setStatus('error')
+    setStatus(mode === 'hands_free' ? 'idle' : 'error')
   }
   stt.onEnd = () => {
     listening = false
@@ -726,5 +733,12 @@ function mapSttError(error: string): string {
   if (error === 'no-speech') return 'لم يتم التقاط كلام — حاول مجدداً'
   if (error === 'network') return 'مشكلة شبكة في التعرف على الكلام'
   if (error === 'aborted') return 'تم إيقاف الاستماع'
+  if (/device not found|notfounderror|audio capture/i.test(error)) {
+    return 'الميكروفون غير متاح — يمكنك الكتابة بدلًا من التحدث'
+  }
+  // Never leak raw English browser errors into the consultant surface.
+  if (/^[A-Za-z][A-Za-z0-9 _:-]{2,80}$/.test(error.trim())) {
+    return 'تعذر استخدام الميكروفون — جرّب الكتابة'
+  }
   return error || 'خطأ في التعرف على الكلام'
 }

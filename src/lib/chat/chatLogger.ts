@@ -42,5 +42,9 @@ export function isBenignChatError(error: unknown): boolean {
     || normalized === 'aborted'
     || normalized.includes('interrupted')
     || normalized.includes('تم إيقاف')
+    // Headless / no-mic environments — never show raw browser chrome to travelers.
+    || normalized.includes('requested device not found')
+    || normalized.includes('device not found')
+    || normalized.includes('notfounderror')
   )
 }
