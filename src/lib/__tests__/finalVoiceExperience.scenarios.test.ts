@@ -58,6 +58,8 @@ describe('final voice experience scenarios', () => {
   it('senior consultant instructions encode ChatGPT-Voice class experience', () => {
     const instructions = buildConsultantConversationalInstructions({
       dialect: 'saudi',
+      language: 'ar',
+      utterance: 'أبغى رحلة فاخرة',
       mood: 'luxury',
       speed: 'natural',
       energy: 'lively',
@@ -67,7 +69,7 @@ describe('final voice experience scenarios', () => {
     expect(instructions).toMatch(/ZERO NARRATION|zero process narration|Quietly do the work/i)
     expect(instructions).toMatch(/PROSODY|Vary pitch/i)
     expect(instructions).toMatch(/GPS|IVR|news presenter|customer-support/i)
-    expect(instructions).toMatch(/educated Saudi/i)
+    expect(instructions).toMatch(/MULTILINGUAL|DIALECT ADAPTATION|Saudi/i)
     expect(instructions).toMatch(/interrupted/i)
     expect(instructions).toMatch(/guide, recommend, compare/i)
   })

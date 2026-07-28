@@ -21,6 +21,10 @@ import {
   createRealtimeQualityTracker,
   type RealtimeQualitySnapshot,
 } from './realtimeQualityMetrics'
+import {
+  resolveConversationLanguage,
+  type ConversationLanguageCode,
+} from './conversationLanguageLayer'
 
 export type RealtimeSessionStatus =
   | 'idle'
@@ -59,18 +63,33 @@ export type RealtimeWebRtcSession = {
   getQualitySnapshot: () => RealtimeQualitySnapshot
 }
 
-function buildInstructions(moodText?: string): string {
+function buildInstructions(
+  moodText: string | undefined,
+  previousLanguage: Exclude<ConversationLanguageCode, 'auto'> | null,
+): { instructions: string; language: Exclude<ConversationLanguageCode, 'auto'> } {
   const prefs = loadVoiceExperiencePrefs()
   const mood = moodText ? inferTripMood(moodText) : undefined
-  return buildConsultantConversationalInstructions({
-    dialect: prefs.dialect,
+  const resolved = resolveConversationLanguage({
+    preference: prefs.language,
     utterance: moodText,
-    locale: 'ar',
-    mood,
-    dialogueContext: moodText ? inferSpokenContext(moodText) : undefined,
-    speed: prefs.speed,
-    energy: prefs.energy,
+    previousLanguage,
+    fallbackPreference: prefs.languageFallback,
   })
+  return {
+    language: resolved.language,
+    instructions: buildConsultantConversationalInstructions({
+      dialect: prefs.dialect,
+      utterance: moodText,
+      language: prefs.language,
+      previousLanguage,
+      languageFallback: prefs.languageFallback,
+      locale: resolved.language === 'ar' ? 'ar' : 'en',
+      mood,
+      dialogueContext: moodText ? inferSpokenContext(moodText) : undefined,
+      speed: prefs.speed,
+      energy: prefs.energy,
+    }),
+  }
 }
 
 export function createRealtimeWebRtcSession(
@@ -85,6 +104,8 @@ export function createRealtimeWebRtcSession(
   let assistantBuffer = ''
   let disposed = false
   let interruptedPartial = ''
+  /** Active spoken language for this Realtime call (language layer only). */
+  let activeLanguage: Exclude<ConversationLanguageCode, 'auto'> | null = null
   const quality = createRealtimeQualityTracker()
 
   const setStatus = (next: RealtimeSessionStatus) => {
@@ -178,21 +199,14 @@ export function createRealtimeWebRtcSession(
 
     if (type === 'conversation.item.input_audio_transcription.completed' && typeof event.transcript === 'string') {
       callbacks.onUserTranscript?.(event.transcript, true)
-      // Language adaptation only: refresh dialect cues from the spoken utterance.
-      const prefs = loadVoiceExperiencePrefs()
+      // Language layer only: refresh multilingual + dialect cues; preserve trip facts in memory.
+      const built = buildInstructions(event.transcript, activeLanguage)
+      activeLanguage = built.language
       sendEvent({
         type: 'session.update',
         session: {
           type: 'realtime',
-          instructions: buildConsultantConversationalInstructions({
-            dialect: prefs.dialect,
-            utterance: event.transcript,
-            locale: 'ar',
-            mood: inferTripMood(event.transcript),
-            dialogueContext: inferSpokenContext(event.transcript),
-            speed: prefs.speed,
-            energy: prefs.energy,
-          }),
+          instructions: built.instructions,
         },
       })
       return
@@ -281,12 +295,14 @@ export function createRealtimeWebRtcSession(
         if (typeof ev.data === 'string') handleServerEvent(ev.data)
       }
       dc.onopen = () => {
+        const built = buildInstructions(undefined, activeLanguage)
+        activeLanguage = built.language
         // Enable input transcription + ChatGPT-Voice-like turn detection.
         sendEvent({
           type: 'session.update',
           session: {
             type: 'realtime',
-            instructions: buildInstructions(),
+            instructions: built.instructions,
             audio: {
               input: {
                 transcription: { model: 'gpt-4o-mini-transcribe' },
@@ -303,19 +319,22 @@ export function createRealtimeWebRtcSession(
           model: REALTIME_PUBLIC_MODEL,
           voice,
           turnDetection: 'semantic_vad',
+          language: activeLanguage,
         })
       }
 
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
 
+      const initial = buildInstructions(undefined, activeLanguage)
+      activeLanguage = initial.language
       const res = await fetch('/api/openai/realtime-call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sdp: offer.sdp,
           voice,
-          instructions: buildInstructions(),
+          instructions: initial.instructions,
           dialectHint: dialectChatGuidance(prefs.dialect),
         }),
       })
@@ -354,6 +373,7 @@ export function createRealtimeWebRtcSession(
     },
     disconnect() {
       disposed = true
+      activeLanguage = null
       interruptInternal()
       try {
         dc?.close()
@@ -394,21 +414,14 @@ export function createRealtimeWebRtcSession(
       assistantBuffer = ''
       setStatus('thinking')
       const prefs = loadVoiceExperiencePrefs()
-      const mood = inferTripMood(cleaned)
-      // Refresh conversational cues for this utterance — engine unchanged.
+      const built = buildInstructions(cleaned, activeLanguage)
+      activeLanguage = built.language
+      // Refresh conversational + language cues for this utterance — engine unchanged.
       sendEvent({
         type: 'session.update',
         session: {
           type: 'realtime',
-          instructions: buildConsultantConversationalInstructions({
-            dialect: prefs.dialect,
-            utterance: cleaned,
-            locale: 'ar',
-            mood,
-            dialogueContext: inferSpokenContext(cleaned),
-            speed: prefs.speed,
-            energy: prefs.energy,
-          }),
+          instructions: built.instructions,
           audio: {
             input: {
               turn_detection: buildRealtimeTurnDetection(),

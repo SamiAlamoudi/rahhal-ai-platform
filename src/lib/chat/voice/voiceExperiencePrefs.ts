@@ -9,6 +9,11 @@ import {
   isArabicDialectId,
   type ArabicDialectId,
 } from './arabicDialectAdaptation'
+import {
+  CONVERSATION_LANGUAGES,
+  isConversationLanguageCode,
+  type ConversationLanguageCode,
+} from './conversationLanguageLayer'
 
 /** Prefers auto-adapt; MSA when dialect unknown. */
 export type ArabicDialectPreference = ArabicDialectId
@@ -19,6 +24,8 @@ export type VoiceGenderPreference = 'female' | 'male' | 'any'
 
 /** Speaking energy preference for Realtime prosody cues. */
 export type VoiceEnergyPreference = 'calm' | 'natural' | 'lively'
+
+export type ConversationLanguagePreference = ConversationLanguageCode
 
 /** Official OpenAI gpt-4o-mini-tts voices suitable for Arabic consultant speech. */
 export type OpenAiTtsVoiceId =
@@ -38,6 +45,10 @@ export type OpenAiTtsVoiceId =
 
 export interface VoiceExperiencePrefs {
   voiceId: OpenAiTtsVoiceId
+  /** Preferred conversation language (auto = detect / follow traveler). Not trip memory. */
+  language: ConversationLanguagePreference
+  /** Fallback when a requested language is not optimized. */
+  languageFallback: 'en' | 'ar'
   dialect: ArabicDialectPreference
   speed: VoiceSpeakingSpeed
   gender: VoiceGenderPreference
@@ -51,12 +62,22 @@ export const DEFAULT_VOICE_ID: OpenAiTtsVoiceId = 'coral'
 
 export const DEFAULT_VOICE_PREFS: VoiceExperiencePrefs = {
   voiceId: DEFAULT_VOICE_ID,
+  language: 'auto',
+  languageFallback: 'en',
   /** Adapt to traveler speech; unknown → conversational MSA. */
   dialect: 'auto',
   speed: 'natural',
   gender: 'female',
   energy: 'natural',
 }
+
+export const CONVERSATION_LANGUAGE_OPTIONS = CONVERSATION_LANGUAGES.map((l) => ({
+  id: l.id,
+  labelAr: l.labelNative,
+  labelEn: l.labelEn,
+  phase: l.phase,
+  productionReady: l.productionReady,
+}))
 
 export const ARABIC_DIALECT_OPTIONS: Array<{
   id: ArabicDialectPreference
@@ -142,12 +163,22 @@ export function isVoiceEnergyPreference(value: string): value is VoiceEnergyPref
   return value === 'calm' || value === 'natural' || value === 'lively'
 }
 
+export function isConversationLanguagePreference(
+  value: string,
+): value is ConversationLanguagePreference {
+  return isConversationLanguageCode(value)
+}
+
 export function normalizeVoiceExperiencePrefs(
   raw: Partial<VoiceExperiencePrefs> | null | undefined,
 ): VoiceExperiencePrefs {
   const base = { ...DEFAULT_VOICE_PREFS }
   if (!raw) return base
   if (raw.voiceId && isOpenAiTtsVoiceId(raw.voiceId)) base.voiceId = raw.voiceId
+  if (raw.language && isConversationLanguagePreference(raw.language)) base.language = raw.language
+  if (raw.languageFallback === 'ar' || raw.languageFallback === 'en') {
+    base.languageFallback = raw.languageFallback
+  }
   if (raw.dialect && isArabicDialectPreference(raw.dialect)) base.dialect = raw.dialect
   if (raw.speed && isVoiceSpeakingSpeed(raw.speed)) base.speed = raw.speed
   if (raw.gender && isVoiceGenderPreference(raw.gender)) base.gender = raw.gender

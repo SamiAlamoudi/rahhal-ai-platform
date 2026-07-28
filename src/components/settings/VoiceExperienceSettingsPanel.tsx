@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../../lib/auth'
 import {
   ARABIC_DIALECT_OPTIONS,
+  CONVERSATION_LANGUAGE_OPTIONS,
   OPENAI_TTS_VOICES,
   SPEAKING_SPEED_OPTIONS,
   VOICE_ENERGY_OPTIONS,
   loadVoiceExperiencePrefs,
   saveVoiceExperiencePrefs,
   type ArabicDialectPreference,
+  type ConversationLanguagePreference,
   type OpenAiTtsVoiceId,
   type VoiceEnergyPreference,
   type VoiceExperiencePrefs,
@@ -50,10 +52,44 @@ export function VoiceExperienceSettingsPanel() {
         تجربة الصوت
       </h2>
       <p className="mt-1 text-xs text-slate-400">
-        تفضيلات الصوت واللهجة وسرعة الكلام. لا تُحقن في ذاكرة الرحلة ولا تغيّر حقائق السفر.
+        تفضيلات اللغة والصوت واللهجة وسرعة الكلام. لا تُحقن في ذاكرة الرحلة ولا تغيّر حقائق السفر.
       </p>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className={labelClass} htmlFor="voice-language">لغة المحادثة</label>
+          <select
+            id="voice-language"
+            className={inputClass}
+            value={prefs.language}
+            onChange={(e) => update('language', e.target.value as ConversationLanguagePreference)}
+          >
+            {CONVERSATION_LANGUAGE_OPTIONS.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.labelAr}
+                {l.phase === 2 ? ' (قريباً)' : ''}
+                {l.id !== 'auto' && !l.productionReady ? ' — غير موثّق صوتياً بعد' : ''}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+            التلقائي يكتشف لغة المسافر ويتبدّل أثناء الحوار مع الحفاظ على تفاصيل الرحلة.
+          </p>
+        </div>
+
+        <div>
+          <label className={labelClass} htmlFor="voice-language-fallback">لغة الاحتياط</label>
+          <select
+            id="voice-language-fallback"
+            className={inputClass}
+            value={prefs.languageFallback}
+            onChange={(e) => update('languageFallback', e.target.value as 'en' | 'ar')}
+          >
+            <option value="en">English</option>
+            <option value="ar">العربية الفصحى</option>
+          </select>
+        </div>
+
         <div>
           <label className={labelClass} htmlFor="voice-gender">تفضيل الصوت</label>
           <select

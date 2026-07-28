@@ -13,6 +13,10 @@ import {
   buildDialectAdaptationInstructions,
   resolveSpokenDialect,
 } from './arabicDialectAdaptation'
+import {
+  buildMultilingualInstructions,
+  type ConversationLanguageCode,
+} from './conversationLanguageLayer'
 import { spokenToneCue, type SpokenDialogueContext } from './spokenDialoguePostProcessor'
 
 /** Trip mood inferred from traveler utterance — drives emotion/pacing cues. */
@@ -149,17 +153,29 @@ export function buildConsultantConversationalInstructions(input: {
   dialectHint?: string
   /** Latest traveler utterance — used when dialect preference is `auto`. */
   utterance?: string
+  /** Preferred conversation language (`auto` = detect). */
+  language?: ConversationLanguageCode | string
+  previousLanguage?: Exclude<ConversationLanguageCode, 'auto'> | null
+  languageFallback?: 'en' | 'ar'
   locale?: 'ar' | 'en'
   mood?: ConsultantTripMood
   dialogueContext?: SpokenDialogueContext
   speed?: VoiceSpeakingSpeed
   energy?: VoiceEnergyPreference
 } = {}): string {
-  const dialectBlock = buildDialectAdaptationInstructions({
-    preference: input.dialect || 'auto',
+  const { instructions: multilingualBlock, resolution } = buildMultilingualInstructions({
+    preference: input.language || 'auto',
     utterance: input.utterance,
+    previousLanguage: input.previousLanguage,
+    fallbackPreference: input.languageFallback || 'en',
   })
-  const dialectLine = input.dialectHint
+  const dialectBlock = resolution.language === 'ar'
+    ? buildDialectAdaptationInstructions({
+      preference: input.dialect || 'auto',
+      utterance: input.utterance,
+    })
+    : 'ARABIC DIALECT: inactive this turn (speaking another language).'
+  const dialectLine = input.dialectHint && resolution.language === 'ar'
     ? `${dialectBlock}\nPreference note: ${input.dialectHint}`
     : dialectBlock
   const mood = input.mood || 'general'
@@ -208,11 +224,13 @@ export function buildConsultantConversationalInstructions(input: {
     '- Example: وعليكم السلام، حياك الله. وين حاب تسافر؟',
     '- Never open with كيف أقدر أساعدك / كيف يمكنني مساعدتك.',
     '',
-    'ARABIC',
-    '- Adapt to the traveler dialect naturally; if unknown, use conversational Modern Standard Arabic.',
-    '- Avoid literal translations and AI wording. Avoid formal written brochure Arabic.',
-    '- Zero English tokens in Arabic replies.',
-    '- Change wording with dialect — not pronunciation theatre alone. Never mix unrelated dialects.',
+    multilingualBlock,
+    '',
+    'LANGUAGE / ARABIC DIALECT',
+    '- Follow the MULTILINGUAL block language for this turn.',
+    '- When speaking Arabic: adapt dialect naturally; if unknown, conversational MSA.',
+    '- Never mix languages or unrelated dialects unnecessarily.',
+    '- Do not invent travel facts when switching languages.',
     dialectLine,
     '',
     'FORBIDDEN',
