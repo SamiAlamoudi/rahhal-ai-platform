@@ -2,6 +2,7 @@ export type { TravelFacts, ConversationObjective } from './travelFacts'
 export { buildTravelFacts, buildPlanFacts, buildKnownFromRequirements } from './travelFacts'
 export {
   runConversationBrain,
+  extractRemoteUtterance,
   optimizeSpokenText,
   optimizeDisplayText,
   stripMarkdownForSpeech,
@@ -15,3 +16,8 @@ export {
 export type { ConversationBrainResult, ConversationBrainDelta } from './conversationBrain'
 export { RAHHAL_CONVERSATION_SYSTEM_PROMPT, RAHHAL_RESPONSE_CONTRACT } from './systemPrompt'
 export { generateLocalConversation, looksLikeDeadEndAck, looksLikeDurationReask, nextHardSlot } from './localConversationModel'
+export {
+  isGreetingOnly,
+  replyInventedTravelFacts,
+  hasConfirmedHardFacts,
+} from './greetingGuard'

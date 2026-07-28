@@ -1,6 +1,7 @@
 /**
- * Progressive speech helpers — ChatGPT-Voice style continuous utterance queue.
- * Prefer fewer, longer clips (joined sentences) so Edge TTS sounds continuous, not stitched.
+ * Progressive speech helpers — retained for analysis / optional future use.
+ * Production voiceSession speaks each assistant reply exactly ONCE (final text).
+ * Mid-stream chunk TTS caused duplicate intonation and stitched playback.
  */
 
 /** Split complete sentences; trailing incomplete fragment is left in `rest`. */

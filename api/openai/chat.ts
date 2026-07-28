@@ -96,7 +96,8 @@ export default async function handler(req: Request): Promise<Response> {
     })),
     stream,
   }
-  if (body.jsonObject !== false) {
+  // Default: natural prose (ChatGPT Voice). Opt-in JSON via jsonObject: true.
+  if (body.jsonObject === true) {
     upstreamBody.response_format = { type: 'json_object' }
   }
   if (typeof body.max_tokens === 'number' && body.max_tokens > 0) {

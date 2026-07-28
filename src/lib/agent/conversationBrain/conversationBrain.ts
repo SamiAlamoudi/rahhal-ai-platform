@@ -1,8 +1,9 @@
 /**
  * Conversation-First — Conversation Brain.
- * OpenAI ChatGPT authors 100% of traveler-facing language when remote is active.
- * Rahhal only orchestrates: parse JSON, strip markdown for TTS, inject facts/tools.
- * Local generative model is the offline / remote-failure fallback only.
+ * OpenAI authors 100% of traveler-facing language when remote is active.
+ * Rahhal only orchestrates: stream tokens, strip markdown for TTS, inject facts/tools.
+ * Local generative model is offline / explicit-local only — never used in the browser
+ * traveler path (ChatGPT Voice parity).
  */
 
 import type { ChatMessage } from '../../chat/chatTypes'
@@ -17,6 +18,12 @@ import {
   formatConsultantParagraphs,
   polishConsultantProse,
 } from './consultantLocale'
+import {
+  hasConfirmedHardFacts,
+  isGreetingOnly,
+  replyInventedTravelFacts,
+} from './greetingGuard'
+import { toSpokenDialogue } from '../../chat/voice/spokenDialoguePostProcessor'
 
 export type ConversationBrainResult = {
   displayText: string
@@ -123,54 +130,74 @@ function passthroughDisplayText(display: string): string {
   return display.trim()
 }
 
-/** Remote OpenAI: spoken text is the model’s words; TTS strip only. */
-function passthroughSpokenText(spoken: string, displayFallback: string): string {
+/** Remote OpenAI: display verbatim; spoken path → short spoken dialogue. */
+function passthroughSpokenText(spoken: string, displayFallback: string, locale?: string): string {
   const raw = (spoken || displayFallback || '').trim()
   if (!raw) return ''
-  return stripMarkdownForSpeech(raw) || raw
+  const stripped = stripMarkdownForSpeech(raw) || raw
+  return toSpokenDialogue(stripped, {
+    locale: locale === 'en' ? 'en' : 'ar',
+    maxChars: 220,
+  })
 }
 
-function parseModelJson(raw: string): { displayText: string; spokenText: string } | null {
+/**
+ * Extract traveler-facing utterance from model output.
+ * ChatGPT Voice path: plain prose is used verbatim.
+ * Legacy JSON { displayText, spokenText } is still accepted if a model returns it.
+ */
+export function extractRemoteUtterance(raw: string): { displayText: string; spokenText: string } | null {
   const trimmed = raw.trim()
+  if (!trimmed) return null
+
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/)
   const body = fenced?.[1]?.trim() ?? trimmed
-  try {
-    const parsed = JSON.parse(body) as { displayText?: unknown; spokenText?: unknown; reply?: unknown }
-    const displayText = String(parsed.displayText ?? parsed.reply ?? '').trim()
-    const spokenText = String(parsed.spokenText ?? displayText).trim()
-    if (!displayText) return null
-    return { displayText, spokenText: spokenText || displayText }
-  } catch {
-    const displayText = extractPartialJsonStringField(body, 'displayText')
-      ?? extractPartialJsonStringField(body, 'reply')
-    const spokenText = extractPartialJsonStringField(body, 'spokenText')
-    if (displayText?.trim()) {
-      return {
-        displayText: displayText.trim(),
-        spokenText: (spokenText ?? displayText).trim(),
+
+  // Legacy JSON object (older prompts) — accept but do not require.
+  if (body.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(body) as {
+        displayText?: unknown
+        spokenText?: unknown
+        reply?: unknown
+      }
+      const displayText = String(parsed.displayText ?? parsed.reply ?? '').trim()
+      const spokenText = String(parsed.spokenText ?? displayText).trim()
+      if (displayText) {
+        return { displayText, spokenText: spokenText || displayText }
+      }
+    } catch {
+      const displayText = extractPartialJsonStringField(body, 'displayText')
+        ?? extractPartialJsonStringField(body, 'reply')
+      const spokenText = extractPartialJsonStringField(body, 'spokenText')
+      if (displayText?.trim()) {
+        return {
+          displayText: displayText.trim(),
+          spokenText: (spokenText ?? displayText).trim(),
+        }
       }
     }
-    if (!trimmed) return null
-    const spoken = trimmed.split(/\n+/).map((l) => l.trim()).filter(Boolean)[0] ?? trimmed
-    return {
-      displayText: trimmed,
-      spokenText: spoken.slice(0, 360),
-    }
+  }
+
+  // Verbatim natural prose (ChatGPT Voice).
+  return {
+    displayText: trimmed,
+    spokenText: trimmed,
   }
 }
 
-function buildTripStateJson(facts: TravelFacts): string {
+function buildTripStateJson(facts: TravelFacts, groundedEmpty: boolean): string {
   return JSON.stringify(
     {
       locale: facts.locale,
       objective: facts.objective,
       known: facts.known,
       missingSlots: facts.missingSlots,
-      plan: facts.plan ?? null,
-      planningDraft: facts.planningDraft ?? null,
-      warnings: facts.warnings ?? [],
-      recommendations: facts.recommendations ?? [],
-      optionHints: facts.optionHints ?? [],
+      plan: groundedEmpty ? null : (facts.plan ?? null),
+      planningDraft: groundedEmpty ? null : (facts.planningDraft ?? null),
+      warnings: groundedEmpty ? [] : (facts.warnings ?? []),
+      recommendations: groundedEmpty ? [] : (facts.recommendations ?? []),
+      optionHints: groundedEmpty ? [] : (facts.optionHints ?? []),
     },
     null,
     2,
@@ -191,6 +218,18 @@ function buildMemoryJson(facts: TravelFacts): string {
   )
 }
 
+function safeGreetingReply(locale: string | undefined): ConversationBrainResult {
+  const ar = locale !== 'en'
+  const text = ar
+    ? 'وعليكم السلام، حياك الله. وين حاب تسافر؟'
+    : 'Hello — welcome. Where would you like to travel?'
+  return { displayText: text, spokenText: text, providerId: 'openai+grounded' }
+}
+
+function isGroundedEmptyGreeting(userMessage: string, facts: TravelFacts): boolean {
+  return isGreetingOnly(userMessage) && !hasConfirmedHardFacts(facts.known)
+}
+
 /**
  * @param mode `remote` — OpenAI owns every word (no polish, no local-guard replace).
  *             `local` — offline generative model; polish allowed.
@@ -205,15 +244,34 @@ function finalizeBrainResult(
   if (mode === 'remote') {
     return {
       displayText: passthroughDisplayText(displayRaw),
-      spokenText: passthroughSpokenText(spokenRaw, displayRaw),
+      spokenText: passthroughSpokenText(spokenRaw, displayRaw, locale),
       providerId,
     }
   }
 
   return {
     displayText: optimizeDisplayText(displayRaw, locale),
-    spokenText: optimizeSpokenText(spokenRaw, displayRaw, locale),
+    spokenText: toSpokenDialogue(
+      optimizeSpokenText(spokenRaw, displayRaw, locale),
+      { locale: locale === 'en' ? 'en' : 'ar', maxChars: 220 },
+    ),
     providerId,
+  }
+}
+
+function isBrowserTravelerPath(): boolean {
+  return typeof window !== 'undefined'
+}
+
+function remoteUnavailableReply(locale: string | undefined, providerId: string): ConversationBrainResult {
+  const ar = locale !== 'en'
+  const reconnect = ar
+    ? 'لحظة، فيه انقطاع بسيط بالمستشار الصوتي. نكمّل معكم بنفس النبرة حال ما يرجع الاتصال.'
+    : 'One moment — the voice consultant connection dropped. We’ll continue naturally as soon as it’s back.'
+  return {
+    displayText: reconnect,
+    spokenText: reconnect,
+    providerId: `${providerId}+unavailable`,
   }
 }
 
@@ -223,25 +281,67 @@ export async function runConversationBrain(input: {
   messages: ChatMessage[]
   facts: TravelFacts
   userProfile?: Record<string, unknown> | null
+  /** Speaking style only — never travel slot assumptions. */
+  voiceStyleNote?: string | null
   signal?: AbortSignal
   onDelta?: (partial: ConversationBrainDelta) => void
 }): Promise<ConversationBrainResult> {
   const userMessage = latestUserText(input.messages)
-  const factsJson = JSON.stringify(input.facts, null, 2)
+  const groundedEmpty = isGroundedEmptyGreeting(userMessage, input.facts)
+  const factsForModel: TravelFacts = groundedEmpty
+    ? {
+      ...input.facts,
+      objective: 'greet_or_continue',
+      optionHints: undefined,
+      recommendations: undefined,
+      warnings: undefined,
+      planningDraft: undefined,
+      plan: undefined,
+    }
+    : input.facts
+  const factsJson = JSON.stringify(factsForModel, null, 2)
+  const history = groundedEmpty
+    ? '(start of conversation)'
+    : historyLines(input.messages)
   const payload = buildConversationUserPayload({
-    objective: input.facts.objective,
+    objective: factsForModel.objective,
     factsJson,
-    tripStateJson: buildTripStateJson(input.facts),
-    memoryJson: buildMemoryJson(input.facts),
-    recentHistory: historyLines(input.messages),
-    userProfileJson: input.userProfile ? JSON.stringify(input.userProfile) : undefined,
+    tripStateJson: buildTripStateJson(factsForModel, groundedEmpty),
+    memoryJson: buildMemoryJson(factsForModel),
+    recentHistory: history,
+    userProfileJson: groundedEmpty
+      ? undefined
+      : (input.userProfile ? JSON.stringify(input.userProfile) : undefined),
+    voiceStyleNote: input.voiceStyleNote?.trim() || undefined,
     currentUserMessage: userMessage,
+    groundingNote: groundedEmpty
+      ? 'Greeting-only turn with empty known slots. Reply with a brief greeting and ONE neutral destination question only. Inventing budget, travelers, destination, dates, or itinerary is forbidden.'
+      : undefined,
   })
 
   const llm = input.llms.getActive()
 
-  // Local fallback — keep deterministic generative model (no HTTP).
+  // Browser traveler path must never hear local canned Arabic templates —
+  // except a grounded empty greeting may use the safe greeting when offline.
   if (llm.providerId === 'local') {
+    if (groundedEmpty) {
+      const safe = safeGreetingReply(input.facts.locale)
+      input.onDelta?.({
+        displayText: safe.displayText,
+        spokenText: safe.spokenText,
+        raw: safe.displayText,
+      })
+      return { ...safe, providerId: 'local' }
+    }
+    if (isBrowserTravelerPath()) {
+      const unavailable = remoteUnavailableReply(input.facts.locale, 'openai')
+      input.onDelta?.({
+        displayText: unavailable.displayText,
+        spokenText: unavailable.spokenText,
+        raw: unavailable.displayText,
+      })
+      return unavailable
+    }
     const local = generateLocalConversation({
       facts: input.facts,
       userMessage,
@@ -271,13 +371,17 @@ export async function runConversationBrain(input: {
       systemPrompt: RAHHAL_CONVERSATION_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: payload }],
       signal: input.signal,
-      temperature: 0.9,
+      temperature: groundedEmpty ? 0.4 : 0.85,
       stream: true,
       onDelta: input.onDelta
         ? (accumulated) => {
-          const parsed = parseModelJson(accumulated)
+          const parsed = extractRemoteUtterance(accumulated)
           if (!parsed) return
           // Stream remote tokens as-is — never replace with local templates mid-turn.
+          // Greeting grounding enforcement happens only on the final complete reply.
+          if (groundedEmpty && replyInventedTravelFacts(parsed.displayText).length > 0) {
+            return
+          }
           const guarded = finalizeBrainResult(
             parsed.displayText,
             parsed.spokenText,
@@ -297,8 +401,22 @@ export async function runConversationBrain(input: {
         : undefined,
     })
     if (result.status === 'ok' && result.text.trim()) {
-      const parsed = parseModelJson(result.text)
+      const parsed = extractRemoteUtterance(result.text)
       if (parsed) {
+        if (groundedEmpty && replyInventedTravelFacts(parsed.displayText).length > 0) {
+          if (typeof console !== 'undefined') {
+            console.warn('[rahhal] greeting_hallucination_blocked', {
+              invented: replyInventedTravelFacts(parsed.displayText),
+            })
+          }
+          const safe = safeGreetingReply(input.facts.locale)
+          input.onDelta?.({
+            displayText: safe.displayText,
+            spokenText: safe.spokenText,
+            raw: safe.displayText,
+          })
+          return safe
+        }
         return finalizeBrainResult(
           parsed.displayText,
           parsed.spokenText,
@@ -307,25 +425,31 @@ export async function runConversationBrain(input: {
           input.facts.locale,
         )
       }
-      // Model returned non-JSON prose — still pass through verbatim (no local rewrite).
+      // Model returned non-empty text — still pass through verbatim.
       const raw = result.text.trim()
+      if (groundedEmpty && replyInventedTravelFacts(raw).length > 0) {
+        return safeGreetingReply(input.facts.locale)
+      }
       return finalizeBrainResult(raw, raw, result.providerId, 'remote', input.facts.locale)
     }
 
     // OpenAI/remote was selected — NEVER substitute local travel templates.
-    // A short reconnect line is orchestration chrome, not a canned itinerary.
-    const ar = input.facts.locale !== 'en'
-    const reconnect = ar
-      ? 'لحظة واحدة أعد الاتصال الآن وأكمل معكم بنفس النبرة.'
-      : 'One moment — reconnecting so we can continue naturally.'
-    return {
-      displayText: reconnect,
-      spokenText: reconnect,
-      providerId: `${llm.providerId}+unavailable`,
+    const unavailable = remoteUnavailableReply(input.facts.locale, llm.providerId)
+    if (typeof console !== 'undefined') {
+      console.warn('[rahhal] openai_conversation_unavailable', {
+        providerId: unavailable.providerId,
+        status: result.status,
+        error: 'error' in result ? result.error : undefined,
+      })
     }
+    return unavailable
   }
 
-  // Explicit local provider only.
+  // No converse() — browser still must not fall back to local templates.
+  if (isBrowserTravelerPath()) {
+    return remoteUnavailableReply(input.facts.locale, llm.providerId || 'openai')
+  }
+
   const local = generateLocalConversation({
     facts: input.facts,
     userMessage,

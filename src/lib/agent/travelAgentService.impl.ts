@@ -90,7 +90,8 @@ import type {
   TripPlan,
   TripRequirements,
 } from './types'
-import { withTripPlan } from './types'
+import { emptyMemory, withTripPlan } from './types'
+import { isGreetingOnly } from './conversationBrain/greetingGuard'
 import { getBookingHistoryUserId } from '../booking/bookingHistoryContext'
 import type { BookingHistoryIntent, BookingRecord } from '../booking'
 import type { ConfirmationConciergeIntent } from '../bookingConfirmation'
@@ -857,9 +858,27 @@ async function speakTravelFacts(input: {
   if (input.userProfile) {
     Object.assign(injectedProfile, input.userProfile)
   }
+  let voiceStyleNote: string | undefined
+  try {
+    const {
+      dialectChatGuidance,
+      dialectLabel,
+      loadVoiceExperiencePrefs,
+    } = await import('../chat/voice/voiceExperiencePrefs')
+    const prefs = loadVoiceExperiencePrefs()
+    voiceStyleNote = [
+      `Arabic dialect preference: ${dialectLabel(prefs.dialect)} (${prefs.dialect}).`,
+      dialectChatGuidance(prefs.dialect),
+      'Do not claim native dialect quality. Fall back to clear natural Arabic rather than poor imitation.',
+      'Dialect must never invent travel facts.',
+    ].join(' ')
+  } catch {
+    voiceStyleNote = undefined
+  }
   return runConversationBrain({
     ...input,
     userProfile: injectedProfile,
+    voiceStyleNote,
     onDelta: input.onDelta
       ? (partial) => {
         input.onDelta?.({
@@ -1534,14 +1553,32 @@ export function createTravelAgentService(
       let extracted = extractFromUserText(userText, prior.locale)
       const preferenceUserId = getBookingHistoryUserId() || input.conversationId
 
-      let memory: AgentMemory = {
-        ...prior,
-        locale: extracted.locale || prior.locale,
-        lastIntent: extracted.intent,
-        requirements: mergeRequirements(prior.requirements, extracted.patch, {
-          replaceDestinations: extracted.flags?.replaceDestinations,
-        }),
-      }
+      // Greeting-only with no new travel extract → completely clean session memory.
+      // Prevents stale assistant meta (prior trip) from inventing budget/travelers/etc.
+      const greetingCleanStart = isGreetingOnly(userText)
+        && !extracted.patch.destination
+        && !(extracted.patch.destinations && extracted.patch.destinations.length > 0)
+        && extracted.patch.budgetAmount == null
+        && extracted.patch.durationDays == null
+        && extracted.patch.travelers == null
+        && extracted.patch.origin == null
+        && extracted.patch.startDate == null
+        && extracted.patch.endDate == null
+        && extracted.patch.tripPurpose == null
+
+      let memory: AgentMemory = greetingCleanStart
+        ? {
+          ...emptyMemory(extracted.locale || prior.locale),
+          lastIntent: extracted.intent,
+        }
+        : {
+          ...prior,
+          locale: extracted.locale || prior.locale,
+          lastIntent: extracted.intent,
+          requirements: mergeRequirements(prior.requirements, extracted.patch, {
+            replaceDestinations: extracted.flags?.replaceDestinations,
+          }),
+        }
       memory.missingFields = missingRequirementFields(memory.requirements)
 
       let conversationIntelligenceResult: ConversationIntelligenceResult | null = null
@@ -3266,24 +3303,17 @@ export function createTravelAgentService(
             })
             : null
 
+          // Structured travel intelligence only — never inject canned Arabic
+          // framingNote / preferenceQuestion (those steered OpenAI into templates).
           const valueNotes: string[] = []
           if (planningDraft) {
             const insightLines = planningDraftToInsightLines(planningDraft, memory.locale)
-            // Prefer draft ranking + city why-lines as option hints when we have estimates.
             optionHints = [
               ...planningDraft.cities.slice(0, 3).map((city) => `${city.name} — ${city.why}`),
               ...insightLines.slice(1, 3),
             ]
-            valueNotes.push(planningDraft.rankingNote)
-            if (conciergeResult.decision.preferenceQuestion) {
-              valueNotes.push(conciergeResult.decision.preferenceQuestion)
-            }
-          } else {
-            for (const row of [
-              conciergeResult.decision.framingNote,
-              conciergeResult.decision.preferenceQuestion,
-            ]) {
-              if (row && row.trim()) valueNotes.push(row)
+            if (planningDraft.rankingNote?.trim()) {
+              valueNotes.push(planningDraft.rankingNote.trim())
             }
           }
 

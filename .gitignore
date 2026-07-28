@@ -25,3 +25,6 @@ credentials.*
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+.vercel/
+.vercel
+.env*

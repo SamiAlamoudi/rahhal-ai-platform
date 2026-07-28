@@ -31,9 +31,11 @@ function user(content: string): ChatMessage {
 describe('Experience Sprint 2 — LLM Conversation Brain', () => {
   it('ships a single conversation system prompt', () => {
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Rahhal/)
-    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Never say/)
-    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/displayText/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Never say|Never invent/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/plain prose|VERBATIM|verbatim/i)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/YOU generate 100%/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/NEVER invent|Never invent/)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).not.toMatch(/"displayText"/)
   })
 
   it('OpenAI adapter is available only with a key', () => {
