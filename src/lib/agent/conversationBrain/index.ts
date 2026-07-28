@@ -2,6 +2,7 @@ export type { TravelFacts, ConversationObjective } from './travelFacts'
 export { buildTravelFacts, buildPlanFacts, buildKnownFromRequirements } from './travelFacts'
 export {
   runConversationBrain,
+  extractRemoteUtterance,
   optimizeSpokenText,
   optimizeDisplayText,
   stripMarkdownForSpeech,

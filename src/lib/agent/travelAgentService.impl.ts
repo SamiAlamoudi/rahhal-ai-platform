@@ -3266,24 +3266,17 @@ export function createTravelAgentService(
             })
             : null
 
+          // Structured travel intelligence only — never inject canned Arabic
+          // framingNote / preferenceQuestion (those steered OpenAI into templates).
           const valueNotes: string[] = []
           if (planningDraft) {
             const insightLines = planningDraftToInsightLines(planningDraft, memory.locale)
-            // Prefer draft ranking + city why-lines as option hints when we have estimates.
             optionHints = [
               ...planningDraft.cities.slice(0, 3).map((city) => `${city.name} — ${city.why}`),
               ...insightLines.slice(1, 3),
             ]
-            valueNotes.push(planningDraft.rankingNote)
-            if (conciergeResult.decision.preferenceQuestion) {
-              valueNotes.push(conciergeResult.decision.preferenceQuestion)
-            }
-          } else {
-            for (const row of [
-              conciergeResult.decision.framingNote,
-              conciergeResult.decision.preferenceQuestion,
-            ]) {
-              if (row && row.trim()) valueNotes.push(row)
+            if (planningDraft.rankingNote?.trim()) {
+              valueNotes.push(planningDraft.rankingNote.trim())
             }
           }
 

@@ -209,25 +209,28 @@ async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob
 }
 
 /**
- * ChatGPT Voice parity: OpenAI TTS first, then Edge neural, never robotic gTTS for Arabic.
+ * ChatGPT Voice parity: OpenAI TTS only on the happy path.
+ * Edge neural is a last-resort backup when OpenAI speech is unavailable (quota/network).
  */
 async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob> {
-  // 1) OpenAI speech (closest to ChatGPT Voice)
-  try {
-    const openaiRes = await fetch('/api/openai/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, locale }),
-    })
-    if (openaiRes.ok) {
-      const blob = await openaiRes.blob()
-      if (blob.size >= 64) return blob
+  // 1) OpenAI speech (closest to ChatGPT Voice) — try twice before falling back.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const openaiRes = await fetch('/api/openai/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, locale, voice: locale === 'ar' ? 'coral' : 'nova' }),
+      })
+      if (openaiRes.ok) {
+        const blob = await openaiRes.blob()
+        if (blob.size >= 64) return blob
+      }
+    } catch {
+      // retry / continue
     }
-  } catch {
-    // continue
   }
 
-  // 2) Edge neural (browser) as backup
+  // 2) Edge neural (browser) as last-resort backup only
   try {
     return await synthesizeViaEdgeBrowser(text, locale)
   } catch {

@@ -64,17 +64,21 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   const locale = body.locale === 'en' ? 'en' : 'ar'
+  // coral tracks closer to ChatGPT Voice warmth for Arabic consultant speech.
   const voice = typeof body.voice === 'string' && body.voice.trim()
     ? body.voice.trim()
-    : (locale === 'ar' ? 'coral' : 'nova')
+    : (locale === 'ar'
+      ? (process.env.VITE_OPENAI_TTS_VOICE?.trim() || 'coral')
+      : (process.env.VITE_OPENAI_TTS_VOICE?.trim() || 'nova'))
 
   const instructions = locale === 'ar'
     ? [
-      'Speak warm, natural Gulf/Saudi Arabic as a senior travel consultant.',
-      'Sound human and conversational — never robotic, never like a translated script.',
-      'Calm pace, clear diction, friendly confidence. No English words.',
+      'You are a senior Gulf/Saudi travel consultant on a live voice call.',
+      'Speak warm, natural colloquial Gulf Arabic — like ChatGPT Voice, not a newsreader.',
+      'Human pacing with light emotion; never robotic, never translated English intonation.',
+      'Clear diction, friendly confidence. Absolutely no English words.',
     ].join(' ')
-    : 'Speak as a calm, premium travel consultant. Natural conversational English.'
+    : 'Speak as a calm premium travel consultant on a live voice call. Natural conversational English, ChatGPT Voice style.'
 
   const upstream = await fetch('https://api.openai.com/v1/audio/speech', {
     method: 'POST',
@@ -88,6 +92,7 @@ export default async function handler(req: Request): Promise<Response> {
       input: text.slice(0, 2000),
       instructions,
       response_format: 'mp3',
+      speed: 1.0,
     }),
   })
 

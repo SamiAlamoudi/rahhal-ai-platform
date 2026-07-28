@@ -198,7 +198,7 @@ function buildRequestBody(
     messages: request.messages,
     stream,
   }
-  if (request.jsonObject !== false) {
+  if (request.jsonObject === true) {
     body.response_format = { type: 'json_object' }
   }
   if (config.maxCompletionTokens && config.maxCompletionTokens > 0) {
@@ -241,8 +241,8 @@ async function fetchOnce(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: request.messages,
-          temperature: request.temperature ?? 0.85,
-          jsonObject: request.jsonObject !== false,
+          temperature: request.temperature ?? 0.9,
+          jsonObject: request.jsonObject === true,
           stream,
           model: config.model,
           max_tokens: config.maxCompletionTokens ?? undefined,
