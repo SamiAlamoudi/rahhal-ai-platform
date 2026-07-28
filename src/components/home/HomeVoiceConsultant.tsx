@@ -533,7 +533,7 @@ export function HomeVoiceConsultant({
         // leave idle — composer still accepts text
       }
     }
-  }, [assistantMessage?.status, beginFreshConversation, ensureConversation, flushAssistant, onDraftChange, t, upsertAssistant, voiceStatus])
+  }, [assistantMessage?.status, beginFreshConversation, ensureConversation, flushAssistant, locale, onDraftChange, t, upsertAssistant, voiceStatus])
 
   const statusLabel = (() => {
     switch (voiceStatus) {
