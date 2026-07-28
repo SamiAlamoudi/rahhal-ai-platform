@@ -59,6 +59,8 @@ export type OpenAiClientConfig = {
   maxRetries: number
   /** Soft ceiling for spoken / completion logging context only. */
   maxCompletionTokens: number | null
+  /** Browser same-origin proxy (/api/openai/chat) — server holds the secret. */
+  useProxy: boolean
 }
 
 export type OpenAiChatRequest = {
@@ -87,23 +89,36 @@ function readPositiveInt(raw: string | null | undefined, fallback: number): numb
   return Math.floor(n)
 }
 
+function preferBrowserProxy(): boolean {
+  if (typeof window === 'undefined') return false
+  const forced = readManagedConfig('VITE_AGENT_LLM_PROVIDER')?.trim().toLowerCase()
+  if (forced === 'local') return false
+  // Always prefer same-origin proxy in the browser so production works with
+  // server-only OPENAI_API_KEY (no VITE_ key required in the SPA bundle).
+  return true
+}
+
 export function resolveOpenAiClientConfig(): OpenAiClientConfig | null {
   const apiKey = readOpenAiApiKey()
-  if (!apiKey) return null
+  const useProxy = preferBrowserProxy()
+  if (!apiKey && !useProxy) return null
   const maxTokensRaw = readManagedConfig('VITE_AGENT_OPENAI_MAX_TOKENS')?.trim()
   const maxCompletionTokens = maxTokensRaw ? readPositiveInt(maxTokensRaw, 0) || null : null
   return {
-    apiKey,
+    apiKey: apiKey || 'proxy',
     baseUrl: (readManagedConfig('VITE_AGENT_OPENAI_BASE_URL')?.trim() || 'https://api.openai.com/v1').replace(/\/$/, ''),
-    model: readManagedConfig('VITE_AGENT_OPENAI_MODEL')?.trim() || 'gpt-4o-mini',
+    // Prefer gpt-4o for natural Arabic consultant quality (override via env).
+    model: readManagedConfig('VITE_AGENT_OPENAI_MODEL')?.trim() || 'gpt-4o',
     timeoutMs: readPositiveInt(readManagedConfig('VITE_AGENT_OPENAI_TIMEOUT_MS'), 45_000),
     maxRetries: readPositiveInt(readManagedConfig('VITE_AGENT_OPENAI_MAX_RETRIES'), 2),
     maxCompletionTokens,
+    useProxy,
   }
 }
 
 export function isOpenAiConfigured(): boolean {
-  return Boolean(readOpenAiApiKey())
+  if (readOpenAiApiKey()) return true
+  return preferBrowserProxy()
 }
 
 function mergeAbortSignals(signals: Array<AbortSignal | undefined>): { signal: AbortSignal; cleanup: () => void } {
@@ -218,13 +233,30 @@ async function fetchOnce(
     if (request.signal?.aborted) {
       throw new OpenAiClientError('aborted', 'Request aborted', { retryable: false })
     }
+    const body = buildRequestBody(config, request, stream)
+    if (config.useProxy) {
+      // Same-origin Vercel Edge proxy — Authorization stays on the server.
+      return await fetch('/api/openai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: request.messages,
+          temperature: request.temperature ?? 0.85,
+          jsonObject: request.jsonObject !== false,
+          stream,
+          model: config.model,
+          max_tokens: config.maxCompletionTokens ?? undefined,
+        }),
+        signal,
+      })
+    }
     const res = await fetch(`${config.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${config.apiKey}`,
       },
-      body: JSON.stringify(buildRequestBody(config, request, stream)),
+      body: JSON.stringify(body),
       signal,
     })
     return res

@@ -76,17 +76,16 @@ export function HomeVoiceConsultant({
 
   const upsertAssistant = useCallback((message: ChatMessage, opts?: { force?: boolean }) => {
     if (message.role !== 'assistant') return
-    // ChatGPT-Voice lockstep: hold text until audio starts (unless forced / complete after speech).
-    if (!opts?.force && !speechStartedRef.current && message.status !== 'complete') {
-      pendingAssistantRef.current = message
+    // ChatGPT Voice shows words as they arrive — never leave a blank screen
+    // while audio is still synthesizing. Speech still progresses separately.
+    if (opts?.force || message.status === 'complete' || speechStartedRef.current) {
+      flushAssistant(message)
       return
     }
-    if (!opts?.force && !speechStartedRef.current && message.status === 'complete') {
-      // Complete arrived before speech — keep buffered until onSpeechStarted, then force.
-      pendingAssistantRef.current = message
-      return
-    }
-    flushAssistant(message)
+    pendingAssistantRef.current = message
+    // Reveal streaming text immediately so the traveler never stares at silence.
+    setAssistantMessage(message)
+    if (message.content) setAssistantText(message.content)
   }, [flushAssistant])
 
   useEffect(() => {
@@ -255,7 +254,9 @@ export function HomeVoiceConsultant({
     pendingAssistantRef.current = null
     await unlockAudioPlayback().catch(() => undefined)
     try {
-      const looksLikeNewTrip = /(?:أريد السفر|ابغى أسافر|أبغى أسافر|ودي أسافر|trip to|i want to (?:go|travel))/i.test(trimmed)
+      // Only start a fresh trip on explicit reset — never wipe mid-answer
+      // phrases like "أبغى أسافر أسبوع" that continue the same trip.
+      const looksLikeNewTrip = /(?:^|\s)(?:رحلة جديدة|ابدأ من جديد|محادثة جديدة|new trip|start over)(?:\s|$|[.!?؟])/i.test(trimmed)
       if (assistantMessage?.status === 'complete' && looksLikeNewTrip) {
         beginFreshConversation()
         setUserHeard(trimmed)

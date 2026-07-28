@@ -44,7 +44,7 @@ export function createTextToSpeechProvider(
   return web.isSupported() ? web : createMockTextToSpeechProvider()
 }
 
-/** Try primary (MP3) first; on failure fall back to Web Speech. */
+/** Try primary (MP3/Edge) first; on failure fall back to Web Speech. */
 function createFailoverTextToSpeechProvider(
   primary: TextToSpeechProvider,
   fallback: TextToSpeechProvider | null,
@@ -53,6 +53,9 @@ function createFailoverTextToSpeechProvider(
   return {
     providerId: `failover:${primary.providerId}${fallback ? `+${fallback.providerId}` : ''}`,
     isSupported: () => primary.isSupported() || !!fallback?.isSupported(),
+    prefetch(options) {
+      primary.prefetch?.(options)
+    },
     async speak(options) {
       speaking = true
       try {

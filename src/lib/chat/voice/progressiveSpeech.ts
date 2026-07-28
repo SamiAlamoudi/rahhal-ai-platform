@@ -1,6 +1,6 @@
 /**
- * Progressive speech helpers — ChatGPT-Voice style sentence queue.
- * Goal: first audio ASAP (<700ms path) and continuous speech while tokens arrive.
+ * Progressive speech helpers — ChatGPT-Voice style continuous utterance queue.
+ * Prefer fewer, longer clips (joined sentences) so Edge TTS sounds continuous, not stitched.
  */
 
 /** Split complete sentences; trailing incomplete fragment is left in `rest`. */
@@ -10,7 +10,6 @@ export function splitSpokenSentences(text: string): { ready: string[]; rest: str
 
   const ready: string[] = []
   let rest = cleaned
-  // Arabic / Latin sentence enders
   const re = /(.+?[.!?؟。！]+)\s*/
   while (rest.length > 0) {
     const m = rest.match(re)
@@ -23,11 +22,9 @@ export function splitSpokenSentences(text: string): { ready: string[]; rest: str
 }
 
 /**
- * Given growing spoken text and how much was already enqueued,
- * return newly completed sentences to speak and the new cursor.
- *
- * Always returns *all* newly ready sentences (not just the first) so mid-stream
- * TTS continues while the LLM is still generating.
+ * Return newly speakable text since `alreadySpokenChars`.
+ * Mid-stream: join all newly completed sentences into ONE continuous chunk
+ * so TTS does not restart between every period (ChatGPT-like continuity).
  */
 export function takeNewSpokenChunks(
   fullSpoken: string,
@@ -40,7 +37,7 @@ export function takeNewSpokenChunks(
 
   const { ready, rest } = splitSpokenSentences(full)
   let consumed = 0
-  const chunks: string[] = []
+  const newlyReady: string[] = []
   for (const sentence of ready) {
     const end = full.indexOf(sentence, consumed)
     if (end < 0) continue
@@ -49,41 +46,38 @@ export function takeNewSpokenChunks(
       consumed = after
       continue
     }
-    chunks.push(sentence)
+    newlyReady.push(sentence)
     consumed = after
   }
 
-  // Fast first audio: speak a natural opener before punctuation arrives.
-  if (chunks.length === 0 && alreadySpokenChars === 0) {
-    const opener = full.slice(0, Math.min(full.length, 96)).trim()
-    // Prefer clause break (، , ; :) once we have enough voiceable text.
+  // Fast first audio: natural clause before punctuation arrives.
+  if (newlyReady.length === 0 && alreadySpokenChars === 0) {
+    const opener = full.slice(0, Math.min(full.length, 88)).trim()
     const breakAt = opener.search(/[،,;:]\s/)
-    if (breakAt >= 14) {
+    if (breakAt >= 12) {
       const piece = opener.slice(0, breakAt + 1).trim()
-      if (piece.length >= 14) {
+      if (piece.length >= 12) {
         return { chunks: [piece], nextCursor: full.indexOf(piece) + piece.length }
       }
     }
-    // Otherwise, after ~36 chars of streaming, start on a word boundary.
-    if (opener.length >= 36 && (rest.length > 0 || full.length >= 36)) {
-      const soft = opener.slice(0, 48)
+    // Soft start ~28 chars on a word boundary (Arabic often delays punctuation).
+    if (opener.length >= 28) {
+      const soft = opener.slice(0, 44)
       const space = soft.lastIndexOf(' ')
-      const piece = (space >= 20 ? soft.slice(0, space) : soft).trim()
-      if (piece.length >= 20) {
+      const piece = (space >= 16 ? soft.slice(0, space) : soft).trim()
+      if (piece.length >= 16) {
         return { chunks: [piece], nextCursor: full.indexOf(piece) + piece.length }
       }
     }
   }
 
-  // Mid-stream: if a long unfinished clause grew past the cursor, speak a breath chunk.
-  if (chunks.length === 0 && alreadySpokenChars > 0 && !rest) {
-    // full ended mid-sentence with no terminal punctuation yet — wait.
-  } else if (chunks.length === 0 && alreadySpokenChars > 0) {
+  // Mid-stream clause breath (only after first audio has started).
+  if (newlyReady.length === 0 && alreadySpokenChars > 0) {
     const pending = full.slice(alreadySpokenChars).trim()
     const breakAt = pending.search(/[،,;:]\s/)
-    if (breakAt >= 18 && pending.length >= 40) {
+    if (breakAt >= 22 && pending.length >= 48) {
       const piece = pending.slice(0, breakAt + 1).trim()
-      if (piece.length >= 18) {
+      if (piece.length >= 22) {
         return {
           chunks: [piece],
           nextCursor: alreadySpokenChars + pending.indexOf(piece) + piece.length,
@@ -92,13 +86,19 @@ export function takeNewSpokenChunks(
     }
   }
 
-  let nextCursor = alreadySpokenChars
-  if (chunks.length > 0) {
-    const last = chunks[chunks.length - 1]!
-    const idx = full.lastIndexOf(last)
-    nextCursor = idx >= 0 ? idx + last.length : full.length - rest.length
+  if (newlyReady.length === 0) {
+    return { chunks: [], nextCursor: alreadySpokenChars }
   }
-  return { chunks, nextCursor: Math.max(nextCursor, alreadySpokenChars) }
+
+  // Join into one continuous utterance — one Edge synth = one natural breath group.
+  const joined = newlyReady.join(' ').replace(/\s+/g, ' ').trim()
+  const last = newlyReady[newlyReady.length - 1]!
+  const idx = full.lastIndexOf(last)
+  const nextCursor = idx >= 0 ? idx + last.length : full.length - rest.length
+  return {
+    chunks: joined ? [joined] : [],
+    nextCursor: Math.max(nextCursor, alreadySpokenChars),
+  }
 }
 
 /** Flush any unspoken tail at end of turn. */

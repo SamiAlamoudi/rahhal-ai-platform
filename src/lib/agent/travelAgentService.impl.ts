@@ -1855,6 +1855,68 @@ export function createTravelAgentService(
           smart: isClarificationEnabled(),
         })
 
+        // ChatGPT Voice UX — incomplete-trip turns speak before enrichment/tools.
+        // Only when hard intake slots are still open — never skip planning once ready.
+        const hardIntakeReady = Boolean(
+          (memory.requirements.destination || (memory.requirements.destinations?.length ?? 0) > 0)
+          && (
+            memory.requirements.durationDays != null
+            || (memory.requirements.startDate && memory.requirements.endDate)
+          )
+          && memory.requirements.travelers != null
+          && (
+            memory.requirements.budgetAmount != null
+            || memory.requirements.budgetFlexible === true
+          ),
+        )
+        const voiceIntakeFastPath =
+          !alphaJourneyCue
+          && !memory.tripPlan
+          && !hardIntakeReady
+          && memory.missingFields.length > 0
+          && userText.trim().length > 0
+          && !SMART_ITINERARY_INTENTS.has(extracted.intent)
+          && !ORDER_PAYMENT_INTENTS.has(extracted.intent)
+          && !CONFIRMATION_INTENTS.has(extracted.intent)
+          && !BOOKING_HISTORY_INTENTS.has(extracted.intent)
+
+        if (voiceIntakeFastPath) {
+          memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
+          const facts = buildTravelFacts({
+            memory,
+            objective: memory.requirements.destination ? 'advise' : 'collect_missing',
+            missingSlots: memory.missingFields.map(String),
+            heardSummary: [userText.slice(0, 160)],
+          })
+          const spoken = await speakTravelFacts({
+            llms,
+            conversationId: input.conversationId,
+            messages: input.messages,
+            facts,
+            signal: input.signal,
+            onDelta: input.onDialogueDelta,
+          })
+          const meta: AgentProviderMeta = {
+            kind: 'travel_agent',
+            version: 2,
+            memory,
+            tripPlan: memory.tripPlan,
+            itinerary: memory.tripPlan,
+            spokenText: spoken.spokenText,
+            voicePhase: 'final',
+            toolResults: [],
+            reasoning: reasoningMeta,
+            clarification: clarificationMeta,
+          }
+          return {
+            reply: spoken.displayText,
+            memory,
+            tripPlan: memory.tripPlan,
+            meta,
+            toolBatch: null,
+          }
+        }
+
         // Integration Sprint 5 — Destination Intelligence (advisor; no booking required).
         if (isIntegrationDestinationIntelligenceOn() && userText.trim()) {
           const __mod_destinationIntelligence = await loadIntegrationDestinationIntelligence()

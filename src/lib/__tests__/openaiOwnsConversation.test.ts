@@ -113,7 +113,7 @@ describe('OpenAI owns conversation (remote pass-through)', () => {
     expect(result.displayText).toMatch(/Morocco|SAR/)
   })
 
-  it('falls back to local generative model only when remote fails', async () => {
+  it('falls back to a short reconnect line — never local travel templates — when remote fails', async () => {
     const remote = mockRemote(async () => ({
       status: 'error',
       text: '',
@@ -132,7 +132,8 @@ describe('OpenAI owns conversation (remote pass-through)', () => {
       facts: baseFacts,
     })
 
-    expect(result.providerId).toBe('openai+local-fallback')
-    expect(result.displayText.length).toBeGreaterThan(10)
+    expect(result.providerId).toBe('openai+unavailable')
+    expect(result.displayText).not.toMatch(/أيّهما أقرب لكم|أجهّز الرحلات والفنادق/)
+    expect(result.displayText.length).toBeGreaterThan(5)
   })
 })
