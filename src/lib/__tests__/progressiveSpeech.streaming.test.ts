@@ -40,13 +40,21 @@ describe('progressive speech — ChatGPT Voice streaming', () => {
     const { ready } = splitSpokenSentences('أولاً. ثانياً. ثالثاً؟')
     expect(ready.length).toBe(3)
     const all = takeNewSpokenChunks('أولاً. ثانياً. ثالثاً؟', 0)
-    expect(all.chunks.length).toBe(3)
+    // Continuous speech: join into a single Edge utterance.
+    expect(all.chunks.length).toBe(1)
+    expect(all.chunks[0]).toMatch(/أولاً/)
   })
 
-  it('soft-starts after ~36 chars without punctuation for TTFB', () => {
+  it('soft-starts after ~28 chars without punctuation for TTFB', () => {
     const growing = 'سأجهز لكم أفضل الخيارات المناسبة لرحلتكم القادمة إلى'
     const first = takeNewSpokenChunks(growing, 0)
     expect(first.chunks.length).toBe(1)
-    expect(first.chunks[0]!.length).toBeGreaterThanOrEqual(20)
+    expect(first.chunks[0]!.length).toBeGreaterThanOrEqual(16)
+  })
+
+  it('joins multiple ready sentences into one continuous clip', () => {
+    const all = takeNewSpokenChunks('أولاً. ثانياً. ثالثاً؟', 0)
+    expect(all.chunks.length).toBe(1)
+    expect(all.chunks[0]).toMatch(/أولاً.*ثانياً.*ثالثاً/)
   })
 })

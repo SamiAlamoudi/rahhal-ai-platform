@@ -18,7 +18,7 @@ export type VoiceSessionStatus =
   | 'error'
 
 /** Default end-of-utterance silence for hands-free (think-pause tolerance). */
-export const DEFAULT_HANDS_FREE_SILENCE_MS = 3500
+export const DEFAULT_HANDS_FREE_SILENCE_MS = 2500
 
 /** Hard floor / ceiling for configurable silence timeout. */
 export const MIN_HANDS_FREE_SILENCE_MS = 2000

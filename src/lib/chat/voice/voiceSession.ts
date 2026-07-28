@@ -261,7 +261,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   const maybeResumeHandsFree = async () => {
     if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
     // Brief gap after TTS so the mic isn't captured while speakers are still draining.
-    await new Promise((r) => setTimeout(r, 220))
+    await new Promise((r) => setTimeout(r, 80))
     if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
     try {
       setStatus('reconnecting')
@@ -269,7 +269,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     } catch (e) {
       // One retry — Chrome STT often fails if restarted immediately after TTS.
       try {
-        await new Promise((r) => setTimeout(r, 350))
+        await new Promise((r) => setTimeout(r, 180))
         if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
         setStatus('reconnecting')
         await startListening(true, { preserveUtterance: true })

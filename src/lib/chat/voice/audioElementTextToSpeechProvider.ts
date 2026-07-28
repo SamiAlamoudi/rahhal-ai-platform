@@ -10,37 +10,65 @@ import type { TextToSpeechProvider, TextToSpeechSpeakOptions, VoiceLocale } from
 
 let unlocked = false
 let sharedAudio: HTMLAudioElement | null = null
+let sharedAudioB: HTMLAudioElement | null = null
 let unlockWarmAudio: HTMLAudioElement | null = null
 let activeObjectUrl: string | null = null
+let activeObjectUrlB: string | null = null
+let useBufferB = false
 let audioContext: AudioContext | null = null
 
 /** Tiny silent WAV — primes autoplay permission after a click/tap. */
 const SILENT_WAV =
   'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='
 
+function createHiddenAudio(tag: string): HTMLAudioElement {
+  const el = document.createElement('audio')
+  el.setAttribute('playsinline', 'true')
+  el.setAttribute('webkit-playsinline', 'true')
+  el.setAttribute('data-rahhal-tts', tag)
+  el.preload = 'auto'
+  el.controls = false
+  el.style.cssText = 'position:fixed;width:0;height:0;opacity:0;pointer-events:none;left:-9999px;'
+  document.body.appendChild(el)
+  return el
+}
+
 function ensurePlaybackAudio(): HTMLAudioElement {
   if (typeof window === 'undefined' || typeof Audio === 'undefined') {
     throw new Error('Audio playback is only available in the browser.')
   }
   if (!sharedAudio) {
-    sharedAudio = document.createElement('audio')
-    sharedAudio.setAttribute('playsinline', 'true')
-    sharedAudio.setAttribute('webkit-playsinline', 'true')
-    sharedAudio.setAttribute('data-rahhal-tts', 'playback')
-    sharedAudio.preload = 'auto'
-    sharedAudio.controls = false
-    sharedAudio.style.cssText = 'position:fixed;width:0;height:0;opacity:0;pointer-events:none;left:-9999px;'
-    document.body.appendChild(sharedAudio)
+    sharedAudio = createHiddenAudio('playback-a')
   } else if (!sharedAudio.isConnected && document.body) {
     document.body.appendChild(sharedAudio)
   }
   return sharedAudio
 }
 
+/** Second buffer for gapless mid-reply clips (ChatGPT-like continuity). */
+function ensurePlaybackAudioB(): HTMLAudioElement {
+  if (typeof window === 'undefined' || typeof Audio === 'undefined') {
+    throw new Error('Audio playback is only available in the browser.')
+  }
+  if (!sharedAudioB) {
+    sharedAudioB = createHiddenAudio('playback-b')
+  } else if (!sharedAudioB.isConnected && document.body) {
+    document.body.appendChild(sharedAudioB)
+  }
+  return sharedAudioB
+}
+
 function revokeActiveUrl(): void {
   if (activeObjectUrl) {
     URL.revokeObjectURL(activeObjectUrl)
     activeObjectUrl = null
+  }
+}
+
+function revokeActiveUrlB(): void {
+  if (activeObjectUrlB) {
+    URL.revokeObjectURL(activeObjectUrlB)
+    activeObjectUrlB = null
   }
 }
 
@@ -167,16 +195,16 @@ async function synthesizeViaApi(text: string, locale: VoiceLocale): Promise<Blob
 
 async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Promise<Blob> {
   const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
-  // Warm conversational Arabic neural voice.
+  // Conversational Arabic neural — slight slowdown for clarity without dragging.
   const voice = locale === 'en' ? 'en-US-JennyNeural' : 'ar-SA-ZariyahNeural'
   const tts = new EdgeTTSBrowser(text, voice, {
-    rate: locale === 'ar' ? '-10.00%' : '-3.00%',
+    rate: locale === 'ar' ? '-5.00%' : '-2.00%',
     pitch: '+0Hz',
   })
   const result = await Promise.race([
     tts.synthesize(),
     new Promise<never>((_, reject) => {
-      window.setTimeout(() => reject(new Error('edge_tts_timeout')), 10_000)
+      window.setTimeout(() => reject(new Error('edge_tts_timeout')), 8_000)
     }),
   ])
   const audio = result.audio as Blob | ArrayBuffer | { arrayBuffer: () => Promise<ArrayBuffer> }
@@ -193,45 +221,44 @@ async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Prom
 }
 
 /**
- * Prefer Edge neural voices for natural Arabic; fall back to /api/tts (gTTS).
- * Edge runs in-browser — avoids robotic Translate TTS on the happy path.
+ * Prefer Edge neural voices for natural Arabic.
+ * Arabic: never fall to robotic gTTS — throw so failover can use Web Speech.
+ * English: gTTS remains a last-resort API fallback.
  */
 async function fetchSpeechAudio(text: string, locale: VoiceLocale): Promise<Blob> {
   try {
     return await synthesizeViaEdgeBrowser(text, locale)
   } catch {
-    try {
-      // Second neural attempt with Hamed before robotic gTTS.
-      if (locale === 'ar') {
-        const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
-        const tts = new EdgeTTSBrowser(text, 'ar-SA-HamedNeural', { rate: '-8.00%', pitch: '+0Hz' })
-        const result = await Promise.race([
-          tts.synthesize(),
-          new Promise<never>((_, reject) => {
-            window.setTimeout(() => reject(new Error('edge_tts_timeout')), 10_000)
-          }),
-        ])
-        const audio = result.audio as Blob | ArrayBuffer | { arrayBuffer: () => Promise<ArrayBuffer> }
-        if (typeof Blob !== 'undefined' && audio instanceof Blob) return audio
-        if (audio instanceof ArrayBuffer) return new Blob([audio], { type: 'audio/mpeg' })
-        if (audio && typeof (audio as { arrayBuffer?: unknown }).arrayBuffer === 'function') {
-          return new Blob(
-            [await (audio as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer()],
-            { type: 'audio/mpeg' },
-          )
-        }
+    if (locale === 'ar') {
+      const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
+      const tts = new EdgeTTSBrowser(text, 'ar-SA-HamedNeural', { rate: '-4.00%', pitch: '+0Hz' })
+      const result = await Promise.race([
+        tts.synthesize(),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => reject(new Error('edge_tts_timeout')), 8_000)
+        }),
+      ])
+      const audio = result.audio as Blob | ArrayBuffer | { arrayBuffer: () => Promise<ArrayBuffer> }
+      if (typeof Blob !== 'undefined' && audio instanceof Blob) return audio
+      if (audio instanceof ArrayBuffer) return new Blob([audio], { type: 'audio/mpeg' })
+      if (audio && typeof (audio as { arrayBuffer?: unknown }).arrayBuffer === 'function') {
+        return new Blob(
+          [await (audio as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer()],
+          { type: 'audio/mpeg' },
+        )
       }
-    } catch {
-      // fall through to API
+      throw new Error('empty_edge_audio_ar')
     }
     return await synthesizeViaApi(text, locale)
   }
 }
 
-function playBlobOnElement(audio: HTMLAudioElement, blob: Blob): Promise<void> {
-  revokeActiveUrl()
+function playBlobOnElement(audio: HTMLAudioElement, blob: Blob, useB: boolean): Promise<void> {
+  if (useB) revokeActiveUrlB()
+  else revokeActiveUrl()
   const objectUrl = URL.createObjectURL(blob)
-  activeObjectUrl = objectUrl
+  if (useB) activeObjectUrlB = objectUrl
+  else activeObjectUrl = objectUrl
   audio.src = objectUrl
   audio.currentTime = 0
   audio.muted = false
@@ -247,7 +274,8 @@ function playBlobOnElement(audio: HTMLAudioElement, blob: Blob): Promise<void> {
       audio.onerror = null
       audio.onplaying = null
       if (err) {
-        revokeActiveUrl()
+        if (useB) revokeActiveUrlB()
+        else revokeActiveUrl()
         reject(err)
       } else {
         resolve()
@@ -257,7 +285,8 @@ function playBlobOnElement(audio: HTMLAudioElement, blob: Blob): Promise<void> {
     activePlayFinish = finish
 
     audio.onended = () => {
-      revokeActiveUrl()
+      if (useB) revokeActiveUrlB()
+      else revokeActiveUrl()
       finish()
     }
     audio.onerror = () => finish(new Error('تعذر تشغيل الصوت'))
@@ -283,10 +312,11 @@ function playBlobOnElement(audio: HTMLAudioElement, blob: Blob): Promise<void> {
         attemptPlay()
       }
       audio.addEventListener('canplay', onCanPlay)
+      // Fail fast into play — waiting 1.5s feels like ChatGPT silence.
       window.setTimeout(() => {
         audio.removeEventListener('canplay', onCanPlay)
         if (!settled) attemptPlay()
-      }, 1500)
+      }, 400)
     }
   })
 }
@@ -331,8 +361,10 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
       if (options.interrupt !== false) {
         generation += 1
         speaking = false
+        useBufferB = false
         try {
-          if (sharedAudio) sharedAudio.pause()
+          sharedAudio?.pause()
+          sharedAudioB?.pause()
         } catch {
           // ignore
         }
@@ -340,6 +372,7 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
         activePlayFinish?.()
         activePlayFinish = null
         revokeActiveUrl()
+        revokeActiveUrlB()
       }
 
       const token = ++generation
@@ -361,8 +394,18 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
           return
         }
 
-        const audio = ensurePlaybackAudio()
-        await playBlobOnElement(audio, blob)
+        // Alternate A/B elements so the next clip can be decoded while the prior ends.
+        const bufferB = !options.interrupt && useBufferB
+        useBufferB = !bufferB
+        const audio = bufferB ? ensurePlaybackAudioB() : ensurePlaybackAudio()
+        // Stop the other buffer so we never overlap two voices.
+        try {
+          const other = bufferB ? sharedAudio : sharedAudioB
+          other?.pause()
+        } catch {
+          // ignore
+        }
+        await playBlobOnElement(audio, blob, bufferB)
       } finally {
         if (token === generation) speaking = false
       }
@@ -370,11 +413,11 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
     stop() {
       generation += 1
       speaking = false
+      useBufferB = false
       prefetchCache.clear()
       try {
-        if (sharedAudio) {
-          sharedAudio.pause()
-        }
+        sharedAudio?.pause()
+        sharedAudioB?.pause()
       } catch {
         // ignore
       }
@@ -382,6 +425,7 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
       activePlayFinish?.()
       activePlayFinish = null
       revokeActiveUrl()
+      revokeActiveUrlB()
     },
     isSpeaking() {
       return speaking
