@@ -263,16 +263,19 @@ export function HomeVoiceConsultant({
       }
       const id = await ensureConversation()
       const controller = new AbortController()
-      const { takeNewSpokenChunks, takeSpokenTail } = await import('../../lib/chat/voice/progressiveSpeech')
-      let spokenCursor = 0
       let speakChain: Promise<void> = Promise.resolve()
 
-      const enqueueChunk = (chunk: string, isFirst: boolean) => {
-        const piece = chunk.trim()
+      /**
+       * One assistant reply → one TTS call → one continuous playback.
+       * Progressive chunk pumping re-spoke overlapping prefixes with different
+       * OpenAI intonation and caused stitched A/B volume changes.
+       */
+      const speakOnce = (fullSpoken: string) => {
+        const piece = (fullSpoken || '').replace(/\s+/g, ' ').trim()
         if (!piece || !voiceRef.current) return
         speakChain = speakChain.then(async () => {
           if (controller.signal.aborted) return
-          if (isFirst && !speechStartedRef.current) {
+          if (!speechStartedRef.current) {
             speechStartedRef.current = true
             setVoiceStatus('speaking')
             setAudioPlaying(true)
@@ -283,29 +286,9 @@ export function HomeVoiceConsultant({
           voiceRef.current?.armHandsFree?.(id)
           await voiceRef.current?.speakText(piece, {
             resumeHandsFree: false,
-            interrupt: isFirst,
+            interrupt: true,
           })
         }).catch(() => undefined)
-      }
-
-      const pump = (full: string, final = false) => {
-        const normalized = (full || '').replace(/\s+/g, ' ').trim()
-        if (!normalized) return
-        // Continue speaking every newly completed sentence while tokens arrive.
-        const { chunks, nextCursor } = takeNewSpokenChunks(normalized, spokenCursor)
-        for (let i = 0; i < chunks.length; i += 1) {
-          enqueueChunk(chunks[i]!, spokenCursor === 0 && i === 0)
-        }
-        if (chunks.length > 0) spokenCursor = nextCursor
-        if (!final) return
-        const tail = takeSpokenTail(normalized, spokenCursor)
-        if (tail) {
-          enqueueChunk(tail, spokenCursor === 0)
-          spokenCursor = normalized.length
-        } else if (spokenCursor === 0) {
-          enqueueChunk(normalized, true)
-          spokenCursor = normalized.length
-        }
       }
 
       setVoiceStatus('thinking')
@@ -320,18 +303,15 @@ export function HomeVoiceConsultant({
             setVoiceStatus('thinking')
           },
           onDelta: (message) => {
+            // Stream text to the UI only — never invoke TTS on partial deltas.
             upsertAssistant(message)
             setVoiceStatus((s) => (s === 'speaking' ? s : 'responding'))
-            const spoken =
-              (typeof message.providerMeta?.spokenText === 'string' && message.providerMeta.spokenText.trim())
-              || message.content
-            if (spoken) pump(spoken, false)
           },
           onComplete: async (message) => {
             const spoken =
               (typeof message.providerMeta?.spokenText === 'string' && message.providerMeta.spokenText.trim())
               || message.content.slice(0, 360)
-            if (spoken) pump(spoken, true)
+            if (spoken) speakOnce(spoken)
             try {
               await speakChain
             } catch (e) {
