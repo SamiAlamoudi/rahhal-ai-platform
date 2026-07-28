@@ -137,6 +137,11 @@ function stripFormal(text: string, locale: 'ar' | 'en'): string {
   for (const re of locale === 'ar' ? FORMAL_AR : FORMAL_EN) {
     out = out.replace(re, '')
   }
+  if (locale === 'ar') {
+    // Soften residual CS closers without inventing new questions.
+    out = out.replace(/\s*علشان أقدر أساعدك[؟?]?\s*/gi, ' ')
+    out = out.replace(/\s*عشان أقدر أساعدك[؟?]?\s*/gi, ' ')
+  }
   return out
 }
 
