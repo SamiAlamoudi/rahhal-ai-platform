@@ -104,3 +104,14 @@ Closest public stack remains Realtime `gpt-realtime-2.1`. Side-by-side video vs 
 ## Deploy gate
 
 Deploy only when wording + turn config + metrics instrumentation meet the bar above and production probes show human, non-narrating, non-repetitive consultant speech.
+
+
+## Production validation (2026-07-28)
+
+- Deploy: `dpl_GLbb9neainTDGA2t81ceWRm5C3ga` → https://rahhal-ai-platform.vercel.app
+- Live wording probe: **16/16** hard-pass (0 process-narration / AI-script / multi-q failures)
+- Turn detection config live: `semantic_vad` + `interrupt_response`
+- Metrics artifact: `/opt/cursor/artifacts/realtime_quality_targets.json`
+- Unit tracker sample confirms overlap/interrupt/turn/first-audio fields populate
+- ChatGPT Voice side-by-side video: blocked for automated capture (GPT-Live is ChatGPT-app only); Rahhal Realtime demo recommended for human A/B
+
