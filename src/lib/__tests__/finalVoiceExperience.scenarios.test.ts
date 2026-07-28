@@ -4,6 +4,7 @@ import {
   inferTripMood,
   moodToneCue,
   enrichDialectWording,
+  prosodyPreferenceCue,
 } from '../chat/voice/consultantConversationalStyle'
 import {
   applyNaturalVariation,
@@ -11,10 +12,12 @@ import {
   inferSpokenContext,
 } from '../chat/voice/spokenDialoguePostProcessor'
 import { replyInventedTravelFacts } from '../agent/conversationBrain/greetingGuard'
+import { buildRealtimeTurnDetection } from '../chat/voice/realtimeTurnConfig'
+import { createRealtimeQualityTracker } from '../chat/voice/realtimeQualityMetrics'
 
 /**
- * Final Voice Experience — scenario validation (conversational behavior only).
- * Realtime engine is not exercised here; we validate wording / mood / spoken shape.
+ * Final Voice Experience — ChatGPT-Voice class conversational behavior.
+ * Realtime architecture is not rewritten; we validate wording / mood / turn config / metrics.
  */
 const SCENARIOS: Array<{
   id: string
@@ -30,6 +33,10 @@ const SCENARIOS: Array<{
   { id: 'angry_customer', user: 'أنا زعلان جدا من الخدمة هذا شيء غير مقبول', expectedMood: 'angry' },
   { id: 'family', user: 'رحلة عائلية مع أطفال لصيف', expectedMood: 'family' },
   { id: 'business', user: 'سفر عمل لاجتماع يومين في دبي', expectedMood: 'business' },
+  { id: 'weather', user: 'فيه عاصفة وطقس سيء هناك', expectedMood: 'weather' },
+  { id: 'price_drop', user: 'السعر نزل وصار أرخص من قبل', expectedMood: 'price_drop' },
+  { id: 'expensive', user: 'هذا الخيار غالي فوق الميزانية', expectedMood: 'expensive' },
+  { id: 'confirmation', user: 'أكد الحجز موافق عليه', expectedMood: 'confirmation' },
   { id: 'open', user: 'ما أدري وين أسافر اقترح علي', expectedMood: 'open' },
   {
     id: 'interruption_mid_sentence',
@@ -48,31 +55,65 @@ describe('final voice experience scenarios', () => {
     }
   })
 
-  it('senior consultant instructions encode think-together personality', () => {
+  it('senior consultant instructions encode ChatGPT-Voice class experience', () => {
     const instructions = buildConsultantConversationalInstructions({
       dialect: 'saudi',
       mood: 'luxury',
+      speed: 'natural',
+      energy: 'lively',
     })
     expect(instructions).toMatch(/senior human travel consultant/i)
-    expect(instructions).toMatch(/premium|confident, warm/i)
-    expect(instructions).toMatch(/THINK BEFORE|thinking TOGETHER/i)
-    expect(instructions).toMatch(/خلني أشوف|جميل|فكرة حلوة/)
-    expect(instructions).toMatch(/أقارن الأسعار|رحلات المباشرة|أعطني ثواني/)
-    expect(instructions).toMatch(/GPS|news presenter|customer-support|AI that answers/i)
-    expect(instructions).toMatch(/Never sound identical|freshly generated/i)
+    expect(instructions).toMatch(/ChatGPT Voice/i)
+    expect(instructions).toMatch(/ZERO NARRATION|zero process narration|Quietly do the work/i)
+    expect(instructions).toMatch(/PROSODY|Vary pitch/i)
+    expect(instructions).toMatch(/GPS|IVR|news presenter|customer-support/i)
     expect(instructions).toMatch(/educated Saudi/i)
     expect(instructions).toMatch(/interrupted/i)
-    expect(instructions).toMatch(/أستطيع|يمكنني|يسعدني/)
+    expect(instructions).toMatch(/guide, recommend, compare/i)
   })
 
-  it('Saudi / Gulf / Neutral dialect wording differs', () => {
+  it('Saudi / Gulf / MSA / future dialects differ', () => {
     const saudi = enrichDialectWording('saudi')
     const gulf = enrichDialectWording('gulf')
     const white = enrichDialectWording('white')
+    const egyptian = enrichDialectWording('egyptian')
+    const levantine = enrichDialectWording('levantine')
     expect(saudi).toMatch(/حياك|خلنا|أبشري/)
     expect(gulf).toMatch(/Gulf/i)
     expect(white).toMatch(/Neutral|بيضاء|clear/i)
+    expect(egyptian).toMatch(/Egyptian|Future-ready/i)
+    expect(levantine).toMatch(/Levantine|Future-ready/i)
     expect(saudi).not.toEqual(gulf)
+  })
+
+  it('prosody cues change with speed and energy', () => {
+    const calm = prosodyPreferenceCue({ speed: 'slow', energy: 'calm' })
+    const lively = prosodyPreferenceCue({ speed: 'fast', energy: 'lively' })
+    expect(calm).toMatch(/slower|calm/i)
+    expect(lively).toMatch(/quicker|lively/i)
+    expect(calm).not.toEqual(lively)
+  })
+
+  it('uses semantic_vad for ChatGPT-Voice-like turn detection', () => {
+    const td = buildRealtimeTurnDetection()
+    expect(td.type).toBe('semantic_vad')
+    expect(td.interrupt_response).toBe(true)
+    expect(td.create_response).toBe(true)
+  })
+
+  it('realtime quality tracker records interruption and turn latencies', () => {
+    const q = createRealtimeQualityTracker()
+    q.markSpeechStarted(true)
+    q.markSpeechStopped()
+    q.markResponseCreated()
+    q.markFirstAssistantAudio()
+    q.markResponseDone()
+    const snap = q.snapshot()
+    expect(snap.interruptCount).toBeGreaterThanOrEqual(1)
+    expect(snap.conversationOverlapCount).toBeGreaterThanOrEqual(1)
+    expect(snap.turnDetectionLatencyMs).not.toBeNull()
+    expect(snap.firstAudioLatencyMs).not.toBeNull()
+    expect(snap.averageResponseTimeMs).not.toBeNull()
   })
 
   it('spoken post-processor keeps greeting human and non-hallucinating', () => {
@@ -80,6 +121,15 @@ describe('final voice experience scenarios', () => {
     expect(replyInventedTravelFacts(spoken)).toEqual([])
     expect(spoken.length).toBeLessThan(120)
     expect(inferSpokenContext(spoken)).toBe('greeting')
+  })
+
+  it('strips process narration and AI-answer scripts', () => {
+    const spoken = toSpokenDialogue(
+      'خلني أقارن الأسعار أول… أستطيع مساعدتك. الخيار المباشر أوضح.',
+      { locale: 'ar', variationSeed: 'narr-1', context: 'recommendation' },
+    )
+    expect(spoken).not.toMatch(/خلني أقارن|أستطيع مساعدتك|I'm searching|Let me search/i)
+    expect(spoken).toMatch(/خيار|مباشر|أوضح|جميل|تمام|بصراحة|فكرة/)
   })
 
   it('interruption-style article dump becomes short spoken dialogue with one question', () => {
@@ -93,9 +143,7 @@ describe('final voice experience scenarios', () => {
   it('natural variation changes robotic openings without inventing facts', () => {
     const base = 'حسناً، خلنا نرتب رحلتك.'
     const a = applyNaturalVariation(base, 'seed-a', 'ar')
-    // Same seed is stable
     expect(applyNaturalVariation(base, 'seed-a', 'ar')).toBe(a)
-    // Across several seeds, openings should not all stay "حسناً"
     const variants = ['s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7'].map((s) =>
       applyNaturalVariation(base, s, 'ar'),
     )
@@ -106,13 +154,15 @@ describe('final voice experience scenarios', () => {
 
   it('mood cues encode required emotion mapping', () => {
     expect(moodToneCue('greeting')).toMatch(/warm/i)
-    expect(moodToneCue('luxury')).toMatch(/elegant/i)
+    expect(moodToneCue('luxury')).toMatch(/excited|refined/i)
     expect(moodToneCue('family')).toMatch(/friendly/i)
     expect(moodToneCue('business')).toMatch(/professional/i)
     expect(moodToneCue('disruption')).toMatch(/empathy/i)
     expect(moodToneCue('angry')).toMatch(/de-escalat/i)
-    expect(moodToneCue('honeymoon')).toMatch(/celebratory|warm/i)
-    expect(moodToneCue('budget')).toMatch(/practical|value/i)
+    expect(moodToneCue('weather')).toMatch(/concerned/i)
+    expect(moodToneCue('price_drop')).toMatch(/happy/i)
+    expect(moodToneCue('expensive')).toMatch(/careful/i)
+    expect(moodToneCue('confirmation')).toMatch(/confident/i)
   })
 
   it('strips customer-support openers and keeps one question', () => {
@@ -122,28 +172,5 @@ describe('final voice experience scenarios', () => {
     )
     expect(spoken).not.toMatch(/كيف أقدر أساعدك/)
     expect((spoken.match(/[؟?]/g) || []).length).toBeLessThanOrEqual(1)
-  })
-
-  it('maps luxury / family / business assistant cues', () => {
-    expect(inferSpokenContext('عندي خيار فاخر في سويت مطل على البحر')).toBe('luxury')
-    expect(inferSpokenContext('مناسب للعائلة مع الأطفال')).toBe('family')
-    expect(inferSpokenContext('يناسب سفر العمل والاجتماعات')).toBe('business')
-  })
-
-  it('strips AI-answer scripts and adds a thinking breath on cold dumps', () => {
-    const spoken = toSpokenDialogue(
-      'أستطيع مساعدتك في اختيار الفندق. عندي خيارين مناسبين قريبين من الوسط.',
-      { locale: 'ar', variationSeed: 'cold-dump-1', context: 'recommendation' },
-    )
-    expect(spoken).not.toMatch(/أستطيع مساعدتك|يمكنني|يسعدني/)
-    expect(spoken).toMatch(/جميل|تمام|خلني|لحظة|فكرة|بصراحة|على حسب|أشوف|أقارن|ثواني|خيار/)
-  })
-
-  it('thinking breaths vary across seeds for the same cold content', () => {
-    const cold = 'عندي فندق مناسب قريب من الوسط.'
-    const variants = ['t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9'].map((s) =>
-      toSpokenDialogue(cold, { locale: 'ar', variationSeed: s, context: 'recommendation' }),
-    )
-    expect(new Set(variants).size).toBeGreaterThan(1)
   })
 })

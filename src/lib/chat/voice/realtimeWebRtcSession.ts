@@ -3,7 +3,8 @@
  * Uses the unified interface: browser SDP → /api/openai/realtime-call → SDP answer.
  *
  * One remote audio stream (no classic TTS clips) → no duplicate/stitched playback.
- * Barge-in: response.cancel + truncate + mute remote track immediately.
+ * Barge-in: response.cancel + output_audio_buffer.clear + mute remote track immediately.
+ * Never replays cancelled speech.
  */
 
 import { logChat } from '../chatLogger'
@@ -15,6 +16,11 @@ import {
   toSpokenDialogue,
   spokenToneCue,
 } from './spokenDialoguePostProcessor'
+import { buildRealtimeTurnDetection, mapPrefsToRealtimeVoice } from './realtimeTurnConfig'
+import {
+  createRealtimeQualityTracker,
+  type RealtimeQualitySnapshot,
+} from './realtimeQualityMetrics'
 
 export type RealtimeSessionStatus =
   | 'idle'
@@ -33,6 +39,8 @@ export type RealtimeWebRtcCallbacks = {
   onError?: (message: string) => void
   onConnected?: () => void
   onDisconnected?: () => void
+  /** Optional realtime quality metrics snapshots (barge-in / turn / first audio). */
+  onQualitySnapshot?: (snapshot: RealtimeQualitySnapshot) => void
 }
 
 export type RealtimeWebRtcSession = {
@@ -48,14 +56,20 @@ export type RealtimeWebRtcSession = {
   speakWrittenDraft: (written: string, opts?: { locale?: 'ar' | 'en' }) => void
   getStatus: () => RealtimeSessionStatus
   isConnected: () => boolean
+  getQualitySnapshot: () => RealtimeQualitySnapshot
 }
 
-function buildInstructions(): string {
+function buildInstructions(moodText?: string): string {
   const prefs = loadVoiceExperiencePrefs()
+  const mood = moodText ? inferTripMood(moodText) : undefined
   return buildConsultantConversationalInstructions({
     dialect: prefs.dialect,
     dialectHint: dialectChatGuidance(prefs.dialect),
     locale: 'ar',
+    mood,
+    dialogueContext: moodText ? inferSpokenContext(moodText) : undefined,
+    speed: prefs.speed,
+    energy: prefs.energy,
   })
 }
 
@@ -67,13 +81,19 @@ export function createRealtimeWebRtcSession(
   let dc: RTCDataChannel | null = null
   let localStream: MediaStream | null = null
   let remoteAudio: HTMLAudioElement | null = null
+  let remoteTrack: MediaStreamTrack | null = null
   let assistantBuffer = ''
   let disposed = false
   let interruptedPartial = ''
+  const quality = createRealtimeQualityTracker()
 
   const setStatus = (next: RealtimeSessionStatus) => {
     status = next
     callbacks.onStatus?.(next)
+  }
+
+  const emitQuality = () => {
+    callbacks.onQualitySnapshot?.(quality.snapshot())
   }
 
   const sendEvent = (event: Record<string, unknown>) => {
@@ -81,17 +101,36 @@ export function createRealtimeWebRtcSession(
     dc.send(JSON.stringify(event))
   }
 
-  const interruptInternal = (fromBargeIn = false) => {
-    const partial = assistantBuffer.trim()
-    sendEvent({ type: 'response.cancel' })
-    sendEvent({ type: 'output_audio_buffer.clear' })
+  const muteRemote = (muted: boolean) => {
     try {
+      if (remoteTrack) remoteTrack.enabled = !muted
       if (remoteAudio) {
-        remoteAudio.pause()
+        if (muted) {
+          remoteAudio.pause()
+          remoteAudio.currentTime = 0
+        } else {
+          void remoteAudio.play().catch(() => undefined)
+        }
       }
     } catch {
       // ignore
     }
+  }
+
+  const interruptInternal = (fromBargeIn = false) => {
+    const partial = assistantBuffer.trim()
+    const wasSpeaking = status === 'speaking'
+    sendEvent({ type: 'response.cancel' })
+    sendEvent({ type: 'output_audio_buffer.clear' })
+    muteRemote(true)
+    // Brief mute then re-arm listening — never replay cancelled buffer.
+    queueMicrotask(() => muteRemote(false))
+    if (fromBargeIn) {
+      quality.markSpeechStarted(wasSpeaking)
+    } else {
+      quality.markManualInterrupt()
+    }
+    emitQuality()
     if (fromBargeIn && partial) {
       interruptedPartial = partial
       callbacks.onInterrupted?.(partial)
@@ -126,6 +165,8 @@ export function createRealtimeWebRtcSession(
     }
 
     if (type === 'input_audio_buffer.speech_stopped') {
+      quality.markSpeechStopped()
+      emitQuality()
       setStatus('thinking')
       return
     }
@@ -144,6 +185,7 @@ export function createRealtimeWebRtcSession(
       (type === 'response.output_audio_transcript.delta' || type === 'response.audio_transcript.delta')
       && typeof event.delta === 'string'
     ) {
+      if (!assistantBuffer) quality.markFirstAssistantAudio()
       assistantBuffer += event.delta
       callbacks.onAssistantTranscript?.(assistantBuffer, false)
       setStatus('speaking')
@@ -158,12 +200,19 @@ export function createRealtimeWebRtcSession(
       if (assistantBuffer) callbacks.onAssistantTranscript?.(assistantBuffer, true)
       assistantBuffer = ''
       interruptedPartial = ''
+      if (type === 'response.done') {
+        quality.markResponseDone()
+        emitQuality()
+        logChat('debug', 'voice', 'realtime_quality', quality.snapshot() as unknown as Record<string, unknown>)
+      }
       setStatus('listening')
       return
     }
 
     if (type === 'response.created') {
       assistantBuffer = ''
+      quality.markResponseCreated()
+      emitQuality()
       setStatus('thinking')
     }
   }
@@ -171,13 +220,14 @@ export function createRealtimeWebRtcSession(
   return {
     getStatus: () => status,
     isConnected: () => Boolean(pc && dc && dc.readyState === 'open'),
+    getQualitySnapshot: () => quality.snapshot(),
     async connect() {
       if (disposed) return
       if (pc) return
       setStatus('connecting')
 
       const prefs = loadVoiceExperiencePrefs()
-      const voice = prefs.voiceId === 'onyx' || prefs.gender === 'male' ? 'cedar' : 'marin'
+      const voice = mapPrefsToRealtimeVoice(prefs)
 
       pc = new RTCPeerConnection()
       remoteAudio = document.createElement('audio')
@@ -188,8 +238,13 @@ export function createRealtimeWebRtcSession(
 
       pc.ontrack = (e) => {
         if (!remoteAudio) return
-        remoteAudio.srcObject = e.streams[0] ?? null
-        void remoteAudio.play().catch(() => undefined)
+        const stream = e.streams[0] ?? null
+        remoteAudio.srcObject = stream
+        remoteTrack = stream?.getAudioTracks()?.[0] ?? e.track ?? null
+        void remoteAudio.play().catch(() => {
+          quality.markAudioRestart()
+          emitQuality()
+        })
         setStatus('listening')
       }
 
@@ -209,7 +264,7 @@ export function createRealtimeWebRtcSession(
         if (typeof ev.data === 'string') handleServerEvent(ev.data)
       }
       dc.onopen = () => {
-        // Enable input transcription so UI can show what the traveler said.
+        // Enable input transcription + ChatGPT-Voice-like turn detection.
         sendEvent({
           type: 'session.update',
           session: {
@@ -218,17 +273,19 @@ export function createRealtimeWebRtcSession(
             audio: {
               input: {
                 transcription: { model: 'gpt-4o-mini-transcribe' },
-                turn_detection: { type: 'server_vad', silence_duration_ms: 700 },
+                turn_detection: buildRealtimeTurnDetection(),
               },
               output: { voice },
             },
           },
         })
+        quality.markSessionConnected()
         callbacks.onConnected?.()
         setStatus('listening')
         logChat('debug', 'voice', 'realtime_connected', {
           model: REALTIME_PUBLIC_MODEL,
           voice,
+          turnDetection: 'semantic_vad',
         })
       }
 
@@ -306,6 +363,7 @@ export function createRealtimeWebRtcSession(
       dc = null
       localStream = null
       remoteAudio = null
+      remoteTrack = null
       setStatus('idle')
       callbacks.onDisconnected?.()
     },
@@ -331,7 +389,15 @@ export function createRealtimeWebRtcSession(
             locale: 'ar',
             mood,
             dialogueContext: inferSpokenContext(cleaned),
+            speed: prefs.speed,
+            energy: prefs.energy,
           }),
+          audio: {
+            input: {
+              turn_detection: buildRealtimeTurnDetection(),
+            },
+            output: { voice: mapPrefsToRealtimeVoice(prefs) },
+          },
         },
       })
       // If we were interrupted mid-reply, remind the model not to restart it.
@@ -349,6 +415,7 @@ export function createRealtimeWebRtcSession(
         })
         interruptedPartial = ''
       }
+      quality.markSpeechStopped()
       sendEvent({
         type: 'conversation.item.create',
         item: {
@@ -381,7 +448,8 @@ export function createRealtimeWebRtcSession(
             text: [
               'Speak the following consultant dialogue aloud now, verbatim, as a live call.',
               spokenToneCue(context),
-              'Do not expand into an article. Do not add extra questions beyond what is written.',
+              'Vary prosody naturally. Do not expand into an article. Do not add process narration.',
+              'Do not add extra questions beyond what is written.',
               `DIALOGUE: ${spoken}`,
             ].join('\n'),
           }],

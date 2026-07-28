@@ -4,10 +4,12 @@ import {
   ARABIC_DIALECT_OPTIONS,
   OPENAI_TTS_VOICES,
   SPEAKING_SPEED_OPTIONS,
+  VOICE_ENERGY_OPTIONS,
   loadVoiceExperiencePrefs,
   saveVoiceExperiencePrefs,
   type ArabicDialectPreference,
   type OpenAiTtsVoiceId,
+  type VoiceEnergyPreference,
   type VoiceExperiencePrefs,
   type VoiceGenderPreference,
   type VoiceSpeakingSpeed,
@@ -110,6 +112,20 @@ export function VoiceExperienceSettingsPanel() {
             onChange={(e) => update('speed', e.target.value as VoiceSpeakingSpeed)}
           >
             {SPEAKING_SPEED_OPTIONS.map((s) => (
+              <option key={s.id} value={s.id}>{s.labelAr}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className={labelClass} htmlFor="voice-energy">طاقة الصوت</label>
+          <select
+            id="voice-energy"
+            className={inputClass}
+            value={prefs.energy}
+            onChange={(e) => update('energy', e.target.value as VoiceEnergyPreference)}
+          >
+            {VOICE_ENERGY_OPTIONS.map((s) => (
               <option key={s.id} value={s.id}>{s.labelAr}</option>
             ))}
           </select>

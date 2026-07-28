@@ -62,29 +62,31 @@ const FORMAL_EN = [
   /\boverall[,.]?\s*/gi,
 ]
 
-/** Soft thinking / filler openings — rotated; never invent travel facts. */
+/** Soft thinking / filler openings — rotated; never invent travel facts. Never process narration. */
 export const THINKING_BREATHS_AR = [
   'جميل… ',
   'تمام… ',
-  'خلني أشوف… ',
-  'خلنا نفكر فيها… ',
-  'لحظة… ',
   'فكرة حلوة… ',
   'بصراحة… ',
   'على حسب… ',
-  'ممكن يكون عندي لك خيارين… ',
-  'خلني أشوف أفضل الخيارات… ',
+  'أشوف أن… ',
+  'ممكن يكون عندك خيارين… ',
 ] as const
 
-const SEARCH_BREATHS_AR = [
-  'خلني أقارن الأسعار أول… ',
-  'بشوف الرحلات المباشرة قبل… ',
-  'أعطني ثواني… ',
-  'لقيت خيار ممتاز… ',
-] as const
+const PROCESS_NARRATION_AR = [
+  /خلني أبحث[^.؟!]*[.؟!…]?\s*/gi,
+  /خلني أدور[^.؟!]*[.؟!…]?\s*/gi,
+  /خلني أقارن الأسعار أول[….]*\s*/gi,
+  /بشوف الرحلات المباشرة قبل[….]*\s*/gi,
+  /أعطني ثواني[….]*\s*/gi,
+  /الآن سأبحث[^.؟!]*[.؟!…]?\s*/gi,
+  /سأقوم بالبحث[^.؟!]*[.؟!…]?\s*/gi,
+  /\bI(?:'m| am) (?:now )?(?:searching|looking|comparing)[^.?!]*[.?!]?\s*/gi,
+  /\bLet me (?:now )?(?:search|look|compare|check)[^.?!]*[.?!]?\s*/gi,
+]
 
 const HAS_HUMAN_OPENER_AR =
-  /^(?:وعليكم|السلام|مرحبا|أهلا|حياك|ممتاز|جميل|تمام|حلو|زين|طيب|أبشر|خلاص|فكرة|خلني|خلنا|لحظة|بصراحة|على حسب|أشوف|آسف|فهمت|ممكن|ولا يهمك|يا ساتر)/u
+  /^(?:وعليكم|السلام|مرحبا|أهلا|حياك|ممتاز|جميل|تمام|حلو|زين|طيب|أبشر|خلاص|فكرة|بصراحة|على حسب|أشوف|آسف|فهمت|ممكن|ولا يهمك|يا ساتر)/u
 
 function detectContext(text: string, explicit?: SpokenDialogueContext): SpokenDialogueContext {
   if (explicit) return explicit
@@ -119,7 +121,7 @@ export function applyNaturalVariation(text: string, seed: string, locale: 'ar' |
 
   const roboticAck = /^(حسناً|حسنا|طيب|أوكي|اوكي|OK|Ok)[,،.]?\s+/i
   if (roboticAck.test(out)) {
-    const alts = ['تمام، ', 'جميل، ', 'خلني أشوف، ', 'فكرة حلوة، ', '']
+    const alts = ['تمام، ', 'جميل، ', 'فكرة حلوة، ', 'بصراحة، ', '']
     out = out.replace(roboticAck, alts[pick] ?? '')
   }
 
@@ -144,7 +146,7 @@ export function applyNaturalVariation(text: string, seed: string, locale: 'ar' |
   // Occasional micro-pause after a short opener (helps Realtime pacing without engine changes).
   if (pick === 2 || pick === 4) {
     out = out.replace(
-      /^(تمام|جميل|حلو|زين|فكرة حلوة|خلني أشوف|لحظة|بصراحة|على حسب|حياك)[,،]\s+/u,
+      /^(تمام|جميل|حلو|زين|فكرة حلوة|بصراحة|على حسب|أشوف أن|حياك)[,،]\s+/u,
       '$1… ',
     )
   }
@@ -153,8 +155,8 @@ export function applyNaturalVariation(text: string, seed: string, locale: 'ar' |
 }
 
 /**
- * If a reply jumps straight into content with no human lead-in, prepend a thinking breath.
- * Deterministic per seed. Does not invent travel facts.
+ * If a reply jumps straight into content with no human lead-in, prepend a soft acknowledgement.
+ * Deterministic per seed. Does not invent travel facts. Never process narration.
  */
 export function ensureThinkingBreath(
   text: string,
@@ -170,11 +172,7 @@ export function ensureThinkingBreath(
   // Keep some turns without a prepend so not every reply gets a filler.
   if (h % 5 === 0) return text
 
-  const pool =
-    context === 'recommendation' || /سعر|رحلة|خيار|فندق|طيرا/i.test(text)
-      ? [...THINKING_BREATHS_AR, ...SEARCH_BREATHS_AR]
-      : [...THINKING_BREATHS_AR]
-  const breath = pool[h % pool.length] ?? 'خلني أشوف… '
+  const breath = THINKING_BREATHS_AR[h % THINKING_BREATHS_AR.length] ?? 'تمام… '
   return `${breath}${text}`.replace(/\s{2,}/g, ' ').trim()
 }
 
@@ -198,6 +196,9 @@ function stripFormal(text: string, locale: 'ar' | 'en'): string {
     // Soften residual CS closers without inventing new questions.
     out = out.replace(/\s*علشان أقدر أساعدك[؟?]?\s*/gi, ' ')
     out = out.replace(/\s*عشان أقدر أساعدك[؟?]?\s*/gi, ' ')
+    for (const re of PROCESS_NARRATION_AR) {
+      out = out.replace(re, '')
+    }
   }
   return out
 }

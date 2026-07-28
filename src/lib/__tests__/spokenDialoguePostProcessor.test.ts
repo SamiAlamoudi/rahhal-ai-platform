@@ -55,13 +55,13 @@ describe('spoken dialogue post-processor', () => {
 })
 
 describe('consultant conversational style', () => {
-  it('requires think-together behavior and interruption handling', () => {
+  it('requires ChatGPT-Voice class presence and zero narration', () => {
     const instructions = buildConsultantConversationalInstructions({ dialect: 'saudi' })
-    expect(instructions).toMatch(/thinking TOGETHER|Think TOGETHER|THINK BEFORE/i)
+    expect(instructions).toMatch(/ChatGPT Voice|ZERO NARRATION|zero process narration/i)
     expect(instructions).toMatch(/ONE (follow-up )?question|ONE question mark/i)
     expect(instructions).toMatch(/interrupted/i)
     expect(instructions).toMatch(/Never invent/i)
-    expect(instructions).toMatch(/خلني أشوف|جميل|filler/i)
-    expect(instructions).toMatch(/natural|Short natural sentences|Brief pauses|breathing rhythm/i)
+    expect(instructions).toMatch(/جميل|تمام|بصراحة|filler|acknowledgement/i)
+    expect(instructions).not.toMatch(/خلني أقارن الأسعار أول/)
   })
 })

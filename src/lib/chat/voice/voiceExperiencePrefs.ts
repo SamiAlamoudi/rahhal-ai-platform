@@ -1,5 +1,5 @@
 /**
- * Voice Experience preferences — TTS voice, Arabic dialect, speed, gender.
+ * Voice Experience preferences — voice, dialect, speed, gender, energy.
  * Persisted per user in localStorage. Never injected into trip memory.
  */
 
@@ -7,12 +7,17 @@ export type ArabicDialectPreference =
   | 'white'
   | 'saudi'
   | 'gulf'
+  | 'egyptian'
+  | 'levantine'
   | 'moroccan'
   | 'fusha'
 
 export type VoiceSpeakingSpeed = 'slow' | 'natural' | 'fast'
 
 export type VoiceGenderPreference = 'female' | 'male' | 'any'
+
+/** Speaking energy preference for Realtime prosody cues. */
+export type VoiceEnergyPreference = 'calm' | 'natural' | 'lively'
 
 /** Official OpenAI gpt-4o-mini-tts voices suitable for Arabic consultant speech. */
 export type OpenAiTtsVoiceId =
@@ -35,6 +40,7 @@ export interface VoiceExperiencePrefs {
   dialect: ArabicDialectPreference
   speed: VoiceSpeakingSpeed
   gender: VoiceGenderPreference
+  energy: VoiceEnergyPreference
 }
 
 export const VOICE_PREFS_STORAGE_KEY = 'rahhal.voiceExperience.v1'
@@ -47,6 +53,7 @@ export const DEFAULT_VOICE_PREFS: VoiceExperiencePrefs = {
   dialect: 'saudi',
   speed: 'natural',
   gender: 'female',
+  energy: 'natural',
 }
 
 export const ARABIC_DIALECT_OPTIONS: Array<{
@@ -79,6 +86,20 @@ export const ARABIC_DIALECT_OPTIONS: Array<{
     verifiedNativeQuality: false,
   },
   {
+    id: 'egyptian',
+    labelAr: 'المصرية (قريباً)',
+    guidance:
+      'Future-ready Egyptian: light natural Egyptian coloring only if clear to a broad audience; otherwise clear natural Arabic. Do not force heavy dialect theatre.',
+    verifiedNativeQuality: false,
+  },
+  {
+    id: 'levantine',
+    labelAr: 'الشامية (قريباً)',
+    guidance:
+      'Future-ready Levantine: light natural Levantine coloring only if clear; otherwise clear natural Arabic.',
+    verifiedNativeQuality: false,
+  },
+  {
     id: 'moroccan',
     labelAr: 'المغربية',
     guidance:
@@ -87,7 +108,7 @@ export const ARABIC_DIALECT_OPTIONS: Array<{
   },
   {
     id: 'fusha',
-    labelAr: 'الفصحى',
+    labelAr: 'الفصحى / MSA',
     guidance:
       'Use clear Modern Standard Arabic (فصحى معاصرة مبسّطة), still warm and conversational — not classical oratory.',
     verifiedNativeQuality: true,
@@ -126,6 +147,15 @@ export const SPEAKING_SPEED_OPTIONS: Array<{
   { id: 'fast', labelAr: 'سريع', rate: 1.12 },
 ]
 
+export const VOICE_ENERGY_OPTIONS: Array<{
+  id: VoiceEnergyPreference
+  labelAr: string
+}> = [
+  { id: 'calm', labelAr: 'هادئ' },
+  { id: 'natural', labelAr: 'طبيعي' },
+  { id: 'lively', labelAr: 'حيوي' },
+]
+
 export function dialectLabel(id: ArabicDialectPreference): string {
   return ARABIC_DIALECT_OPTIONS.find((d) => d.id === id)?.labelAr ?? id
 }
@@ -150,6 +180,10 @@ export function isVoiceGenderPreference(value: string): value is VoiceGenderPref
   return value === 'female' || value === 'male' || value === 'any'
 }
 
+export function isVoiceEnergyPreference(value: string): value is VoiceEnergyPreference {
+  return value === 'calm' || value === 'natural' || value === 'lively'
+}
+
 export function normalizeVoiceExperiencePrefs(
   raw: Partial<VoiceExperiencePrefs> | null | undefined,
 ): VoiceExperiencePrefs {
@@ -159,6 +193,7 @@ export function normalizeVoiceExperiencePrefs(
   if (raw.dialect && isArabicDialectPreference(raw.dialect)) base.dialect = raw.dialect
   if (raw.speed && isVoiceSpeakingSpeed(raw.speed)) base.speed = raw.speed
   if (raw.gender && isVoiceGenderPreference(raw.gender)) base.gender = raw.gender
+  if (raw.energy && isVoiceEnergyPreference(raw.energy)) base.energy = raw.energy
   // Align voice with gender preference when mismatched.
   const voiceMeta = OPENAI_TTS_VOICES.find((v) => v.id === base.voiceId)
   if (base.gender !== 'any' && voiceMeta && voiceMeta.gender !== base.gender) {
@@ -218,24 +253,40 @@ export function dialectChatGuidance(dialect: ArabicDialectPreference): string {
 export function buildTtsSpeechInstructions(input: {
   locale: 'ar' | 'en'
   dialect?: ArabicDialectPreference
+  energy?: VoiceEnergyPreference
+  speed?: VoiceSpeakingSpeed
 }): string {
   if (input.locale !== 'ar') {
     return [
       'Speak naturally and conversationally as an experienced travel consultant.',
       'Warm, confident, calm. Avoid announcer-style delivery and exaggerated emotion.',
-      'Use natural pauses. Keep volume, tone, and pace consistent.',
+      'Use natural pauses. Vary cadence slightly — never identical robotic rhythm.',
       'Do not sound like a navigation system or text reader.',
     ].join(' ')
   }
 
   const dialect = input.dialect ?? DEFAULT_VOICE_PREFS.dialect
   const dialectLine = dialectChatGuidance(dialect)
+  const energy =
+    input.energy === 'calm'
+      ? 'Calm grounded energy.'
+      : input.energy === 'lively'
+        ? 'Lively engaged energy without shouting.'
+        : 'Natural mid-range energy.'
+  const pace =
+    input.speed === 'slow'
+      ? 'Slightly slower pace.'
+      : input.speed === 'fast'
+        ? 'Slightly quicker pace, still clear.'
+        : 'Natural conversational pace.'
 
   return [
     'Speak naturally and conversationally in Arabic as Rahhal, an experienced travel consultant.',
-    'Warm, confident, calm, concise — human live-call tone.',
+    'Warm, confident, concise — human live-call tone.',
     'Avoid announcer-style delivery, navigation-system tone, and exaggerated emotion.',
-    'Use natural pauses. Keep volume, tone, and pace consistent throughout.',
+    'Use natural pauses. Vary pitch and stress — never identical cadence.',
+    energy,
+    pace,
     'Do not sound like a text reader.',
     dialectLine,
     'If a strong regional accent would sound unnatural, use clear natural Arabic instead of a poor imitation.',
