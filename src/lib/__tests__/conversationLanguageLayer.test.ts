@@ -174,7 +174,7 @@ describe('conversation language layer', () => {
           dialect: 'auto',
         })
         expect(instructions, `${code}:${utterance}`).toMatch(/MULTILINGUAL CONVERSATION/)
-        expect(instructions, `${code}:${utterance}`).toMatch(/Speak this turn in:/i)
+        expect(instructions, `${code}:${utterance}`).toMatch(/Speak this entire assistant turn in:/i)
         // Interruption discipline remains across languages
         expect(instructions).toMatch(/If interrupted/i)
       }

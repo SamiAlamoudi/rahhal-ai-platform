@@ -275,7 +275,7 @@ export function resolveConversationLanguage(input: {
   const utterance = input.utterance || ''
   const explicit = detectExplicitLanguageSwitch(utterance)
   const pref = (input.preference || 'auto') as string
-  const fallbackPref = input.fallbackPreference === 'ar' ? 'ar' : 'en'
+  const fallbackPref = input.fallbackPreference === 'en' ? 'en' : 'ar'
 
   let language: Exclude<ConversationLanguageCode, 'auto'>
   let source: LanguageResolution['source']
@@ -343,10 +343,16 @@ export function buildMultilingualInstructions(input: {
   const meta = languageMeta(resolution.language)
   const lines = [
     'MULTILINGUAL CONVERSATION (language layer only — do not change tools or trip facts)',
-    `- Speak this turn in: ${meta.labelEn} (${resolution.language}), source=${resolution.source}.`,
+    `- Speak this entire assistant turn in: ${meta.labelEn} (${resolution.language}), source=${resolution.source}.`,
     meta.spokenStyle,
-    '- Automatic detection: follow the traveler language; honor explicit switches immediately (e.g. "Let\'s continue in English").',
-    '- Mid-conversation switch: change language immediately WITHOUT losing destination, dates, travelers, budget, preferences, or search state.',
+    'LANGUAGE LOCK (mandatory):',
+    `- Lock ${meta.labelEn} for the FULL assistant reply — never switch mid-sentence or mid-turn.`,
+    '- Destination names, hotel names, airline names, and other proper nouns may stay in their original form — surrounding speech MUST stay in the locked language.',
+    '- Do NOT switch to English (or any other language) merely because a place name is Latin-script.',
+    '- NEVER translate the traveler\'s speech. Transcribe and understand it in the original spoken language.',
+    '- Only switch languages when the traveler EXPLICITLY requests it (e.g. "تكلم معي بالإنجليزي", "Let\'s continue in English").',
+    '- Automatic detection: follow the traveler\'s latest stable utterance language; honor explicit switches immediately.',
+    '- Mid-conversation explicit switch: change language on the NEXT assistant turn WITHOUT losing destination, dates, travelers, budget, preferences, or search state.',
     '- Trip facts live in memory — language change must not invent, drop, or rewrite them.',
     '- Native conversational style: do NOT translate Arabic wording literally into other languages.',
     '- Avoid formal written register unless the traveler asks. Do not mix languages unnecessarily.',

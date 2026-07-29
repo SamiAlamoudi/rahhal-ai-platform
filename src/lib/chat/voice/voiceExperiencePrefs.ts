@@ -63,7 +63,8 @@ export const DEFAULT_VOICE_ID: OpenAiTtsVoiceId = 'coral'
 export const DEFAULT_VOICE_PREFS: VoiceExperiencePrefs = {
   voiceId: DEFAULT_VOICE_ID,
   language: 'auto',
-  languageFallback: 'en',
+  /** Arabic-first product: prefer Arabic when detection is uncertain. */
+  languageFallback: 'ar',
   /** Adapt to traveler speech; unknown → conversational MSA. */
   dialect: 'auto',
   speed: 'natural',

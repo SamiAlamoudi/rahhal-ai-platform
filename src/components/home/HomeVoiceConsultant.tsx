@@ -7,6 +7,10 @@ import type { VoiceSession } from '../../lib/chat/voice/voiceSession'
 import type { VoiceSessionStatus } from '../../lib/chat/voice/voiceTypes'
 import { unlockAudioPlayback, preconnectOpenAiTtsRoute } from '../../lib/chat/voice/audioElementTextToSpeechProvider'
 import { isBenignChatError } from '../../lib/chat/chatLogger'
+import {
+  toUserFacingVoiceError,
+  VOICE_RECOVERABLE_ERROR_AR,
+} from '../../lib/chat/voice/voiceUserFacingError'
 import { isGreetingOnly } from '../../lib/agent/conversationBrain/greetingGuard'
 import {
   createVoiceLatencyMarks,
@@ -185,7 +189,9 @@ export function HomeVoiceConsultant({
             if (isFinal) setCards([])
           },
           onError: (err) => {
-            if (!disposed && !isBenignChatError(err)) setError(err)
+            if (disposed || isBenignChatError(err)) return
+            const facing = toUserFacingVoiceError(err)
+            if (facing) setError(facing)
           },
         })
         setSessionReady(true)
@@ -219,7 +225,9 @@ export function HomeVoiceConsultant({
             }
           },
           onError: (err) => {
-            if (!disposed && !isBenignChatError(err)) setError(err)
+            if (disposed || isBenignChatError(err)) return
+            const facing = toUserFacingVoiceError(err)
+            if (facing) setError(facing)
           },
           onSpeechStarted: () => {
             if (disposed) return
@@ -247,7 +255,9 @@ export function HomeVoiceConsultant({
             }
           },
           onStreamError: (_message, err) => {
-            if (!disposed && !isBenignChatError(err)) setError(err)
+            if (disposed || isBenignChatError(err)) return
+            const facing = toUserFacingVoiceError(err)
+            if (facing) setError(facing)
           },
         },
       })
@@ -315,7 +325,7 @@ export function HomeVoiceConsultant({
       await voiceRef.current?.startHandsFree(id)
     } catch (e) {
       if (!isBenignChatError(e)) {
-        setError(e instanceof Error ? e.message : t('تعذر بدء الصوت', 'Could not start voice'))
+        setError(toUserFacingVoiceError(e) || VOICE_RECOVERABLE_ERROR_AR)
       }
     }
   }, [beginFreshConversation, ensureConversation, t])
@@ -512,7 +522,7 @@ export function HomeVoiceConsultant({
               await speakChain
             } catch (e) {
               if (!isBenignChatError(e)) {
-                setError(e instanceof Error ? e.message : t('تعذر تشغيل الصوت', 'Could not play audio'))
+                setError(toUserFacingVoiceError(e) || VOICE_RECOVERABLE_ERROR_AR)
               }
             }
             speechStartedRef.current = true
@@ -529,7 +539,10 @@ export function HomeVoiceConsultant({
             ))
           },
           onError: async (_message, err) => {
-            if (!isBenignChatError(err)) setError(err)
+            if (!isBenignChatError(err)) {
+              const facing = toUserFacingVoiceError(err)
+              if (facing) setError(facing)
+            }
             setVoiceStatus('idle')
             try {
               await voiceRef.current?.startHandsFree(id)
@@ -542,7 +555,7 @@ export function HomeVoiceConsultant({
       onDraftChange('')
     } catch (e) {
       if (!isBenignChatError(e)) {
-        setError(e instanceof Error ? e.message : t('تعذر إرسال الرسالة', 'Could not send message'))
+        setError(toUserFacingVoiceError(e) || VOICE_RECOVERABLE_ERROR_AR)
       }
       setVoiceStatus('idle')
       try {
@@ -658,9 +671,21 @@ export function HomeVoiceConsultant({
         ) : null}
 
         {error ? (
-          <p className="mt-3 text-xs text-rose-600" role="alert">
-            {error}
-          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2" role="alert">
+            <p className="text-xs text-rose-600">
+              {toUserFacingVoiceError(error) || VOICE_RECOVERABLE_ERROR_AR}
+            </p>
+            <button
+              type="button"
+              className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
+              onClick={() => {
+                setError(null)
+                void startListening()
+              }}
+            >
+              {t('إعادة المحاولة', 'Retry')}
+            </button>
+          </div>
         ) : null}
       </div>
     </div>

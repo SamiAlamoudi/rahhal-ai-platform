@@ -3,8 +3,8 @@
  * Uses the unified interface: browser SDP → /api/openai/realtime-call → SDP answer.
  *
  * One remote audio stream (no classic TTS clips) → no duplicate/stitched playback.
- * Barge-in: response.cancel + output_audio_buffer.clear + mute remote track immediately.
- * Never replays cancelled speech.
+ * Barge-in: response.cancel ONLY when an active response is generating/speaking.
+ * Never replays cancelled speech. Never surface cancel noise to the UI.
  */
 
 import { logChat } from '../chatLogger'
@@ -25,6 +25,16 @@ import {
   resolveConversationLanguage,
   type ConversationLanguageCode,
 } from './conversationLanguageLayer'
+import {
+  createUserTranscriptGate,
+  transcriptionLanguageHint,
+  type LockedSpeechLanguage,
+} from './userTranscriptGate'
+import {
+  isHarmlessRealtimeCancelError,
+  toUserFacingVoiceError,
+  VOICE_RECOVERABLE_ERROR_AR,
+} from './voiceUserFacingError'
 
 export type RealtimeSessionStatus =
   | 'idle'
@@ -71,6 +81,17 @@ export type RealtimeWebRtcSession = {
   getQualitySnapshot: () => RealtimeQualitySnapshot
 }
 
+type ActiveResponseState = {
+  id: string
+  createdAt: number
+  audioStarted: boolean
+  audioDone: boolean
+  responseDone: boolean
+  cancelled: boolean
+  /** Language locked for this assistant turn — never switch mid-reply. */
+  language: LockedSpeechLanguage
+}
+
 function buildInstructions(
   moodText: string | undefined,
   previousLanguage: Exclude<ConversationLanguageCode, 'auto'> | null,
@@ -81,7 +102,8 @@ function buildInstructions(
     preference: prefs.language,
     utterance: moodText,
     previousLanguage,
-    fallbackPreference: prefs.languageFallback,
+    // Arabic-first product default when fallback unset
+    fallbackPreference: prefs.languageFallback || 'ar',
   })
   return {
     language: resolved.language,
@@ -90,7 +112,7 @@ function buildInstructions(
       utterance: moodText,
       language: prefs.language,
       previousLanguage,
-      languageFallback: prefs.languageFallback,
+      languageFallback: prefs.languageFallback || 'ar',
       locale: resolved.language === 'ar' ? 'ar' : 'en',
       mood,
       dialogueContext: moodText ? inferSpokenContext(moodText) : undefined,
@@ -98,6 +120,13 @@ function buildInstructions(
       energy: prefs.energy,
     }),
   }
+}
+
+function transcriptionConfig(language: LockedSpeechLanguage | null) {
+  const hint = transcriptionLanguageHint(language)
+  return hint
+    ? { model: 'gpt-4o-mini-transcribe' as const, language: hint }
+    : { model: 'gpt-4o-mini-transcribe' as const }
 }
 
 export function createRealtimeWebRtcSession(
@@ -113,8 +142,15 @@ export function createRealtimeWebRtcSession(
   let disposed = false
   let interruptedPartial = ''
   /** Active spoken language for this Realtime call (language layer only). */
-  let activeLanguage: Exclude<ConversationLanguageCode, 'auto'> | null = null
+  let activeLanguage: LockedSpeechLanguage | null = null
+  /** Language frozen for the current assistant response. */
+  let assistantTurnLanguage: LockedSpeechLanguage | null = null
+  let activeResponse: ActiveResponseState | null = null
+  /** Echo protection: ignore VAD barge-in until assistant has been speaking this long. */
+  let assistantAudioStartedAt = 0
   const quality = createRealtimeQualityTracker()
+
+  const transcriptGate = createUserTranscriptGate(() => activeLanguage)
 
   const setStatus = (next: RealtimeSessionStatus) => {
     status = next
@@ -128,6 +164,16 @@ export function createRealtimeWebRtcSession(
   const sendEvent = (event: Record<string, unknown>) => {
     if (!dc || dc.readyState !== 'open') return
     dc.send(JSON.stringify(event))
+  }
+
+  const telemetry = (event: string, detail?: Record<string, unknown>) => {
+    logChat('debug', 'voice', event, {
+      activeResponseId: activeResponse?.id ?? null,
+      status,
+      language: activeLanguage,
+      assistantTurnLanguage,
+      ...detail,
+    })
   }
 
   const muteRemote = (muted: boolean) => {
@@ -162,6 +208,19 @@ export function createRealtimeWebRtcSession(
     }
   }
 
+  const clearActiveResponse = () => {
+    activeResponse = null
+    assistantTurnLanguage = null
+    assistantAudioStartedAt = 0
+  }
+
+  const hasCancellableResponse = (): boolean => {
+    if (!activeResponse) return false
+    if (activeResponse.cancelled) return false
+    if (activeResponse.responseDone && activeResponse.audioDone) return false
+    return true
+  }
+
   const reassertTurnDetection = () => {
     const prefs = loadVoiceExperiencePrefs()
     const voice = mapPrefsToRealtimeVoice(prefs)
@@ -172,8 +231,41 @@ export function createRealtimeWebRtcSession(
         audio: {
           input: {
             turn_detection: buildRealtimeTurnDetection(),
+            transcription: transcriptionConfig(activeLanguage),
           },
           output: { voice },
+        },
+      },
+    })
+  }
+
+  /**
+   * Refresh multilingual + dialect instructions ONLY when idle (no active response).
+   * Mid-response session.update was a root cause of Arabic→English mid-turn switches.
+   */
+  const refreshLanguageInstructionsIfIdle = (utterance?: string) => {
+    if (hasCancellableResponse()) {
+      telemetry('session_update_skipped_active_response', { utterance: utterance?.slice(0, 40) })
+      return
+    }
+    const built = buildInstructions(utterance, activeLanguage)
+    // If assistant turn language is locked, keep speaking that language.
+    if (assistantTurnLanguage && built.language !== assistantTurnLanguage) {
+      // Explicit switch only applies after the current assistant turn finishes.
+      activeLanguage = built.language
+      return
+    }
+    activeLanguage = built.language
+    sendEvent({
+      type: 'session.update',
+      session: {
+        type: 'realtime',
+        instructions: built.instructions,
+        audio: {
+          input: {
+            transcription: transcriptionConfig(activeLanguage),
+            turn_detection: buildRealtimeTurnDetection(),
+          },
         },
       },
     })
@@ -209,36 +301,81 @@ export function createRealtimeWebRtcSession(
     assistantBuffer = ''
     interruptedPartial = ''
     activeLanguage = null
+    clearActiveResponse()
+    transcriptGate.resetTurn()
   }
 
+  /**
+   * Cancel only when a response is actively generating or speaking.
+   * Root cause of "Cancellation failed: no active response found":
+   * every speech_started / disconnect previously sent response.cancel blindly.
+   */
   const interruptInternal = (fromBargeIn = false) => {
     const partial = assistantBuffer.trim()
-    const wasSpeaking = status === 'speaking'
-    sendEvent({ type: 'response.cancel' })
-    sendEvent({ type: 'output_audio_buffer.clear' })
-    muteRemote(true)
-    // Brief mute then re-arm listening — never replay cancelled buffer.
-    queueMicrotask(() => {
-      muteRemote(false)
+    const wasSpeaking = status === 'speaking' || Boolean(activeResponse)
+    const canCancel = hasCancellableResponse()
+
+    if (canCancel) {
+      telemetry(fromBargeIn ? 'user_barge_in' : 'response_cancel_manual', {
+        responseId: activeResponse?.id,
+      })
+      sendEvent({ type: 'response.cancel' })
+      sendEvent({ type: 'output_audio_buffer.clear' })
+      if (activeResponse) {
+        activeResponse.cancelled = true
+        telemetry('response_cancelled', { responseId: activeResponse.id, source: fromBargeIn ? 'barge_in' : 'manual' })
+      }
+      muteRemote(true)
+      queueMicrotask(() => {
+        muteRemote(false)
+        ensureLocalMicLive()
+      })
+    } else {
+      // Skip network cancel entirely — harmless local no-op.
+      telemetry('response_cancel_skipped_no_active', { fromBargeIn })
       ensureLocalMicLive()
-    })
+    }
+
     if (fromBargeIn) {
       quality.markSpeechStarted(wasSpeaking)
     } else {
       quality.markManualInterrupt()
     }
     emitQuality()
-    if (fromBargeIn && partial) {
+
+    if (fromBargeIn && partial && canCancel) {
       interruptedPartial = partial
       callbacks.onInterrupted?.(partial)
-      // Keep partial on screen — do not restart / clear the whole reply text.
       callbacks.onAssistantTranscript?.(partial, true)
     }
-    assistantBuffer = ''
+    if (canCancel) {
+      assistantBuffer = ''
+      clearActiveResponse()
+    }
+  }
+
+  const maybeEnterListening = () => {
+    // Do not switch to listening until the assistant audio has genuinely completed.
+    if (activeResponse && !activeResponse.cancelled) {
+      if (!activeResponse.responseDone) return
+      // If audio started, wait for audio.done; if text-only, response.done is enough.
+      if (activeResponse.audioStarted && !activeResponse.audioDone) return
+    }
+    clearActiveResponse()
+    ensureLocalMicLive()
+    reassertTurnDetection()
+    setStatus('listening')
   }
 
   const handleServerEvent = (raw: string) => {
-    let event: { type?: string; transcript?: string; delta?: string; error?: { message?: string } }
+    let event: {
+      type?: string
+      transcript?: string
+      delta?: string
+      response?: { id?: string }
+      response_id?: string
+      error?: { message?: string; code?: string }
+    }
     try {
       event = JSON.parse(raw) as typeof event
     } catch {
@@ -248,43 +385,127 @@ export function createRealtimeWebRtcSession(
 
     if (type === 'error' || type === 'response.failed') {
       const message = event.error?.message || 'Realtime session error'
+      if (isHarmlessRealtimeCancelError(message)) {
+        // Private debug only — never UI, never error status.
+        logChat('debug', 'voice', 'realtime_cancel_noop', { message })
+        return
+      }
       logChat('error', 'voice', 'realtime_server_error', { type, message })
-      callbacks.onError?.(message)
+      const facing = toUserFacingVoiceError(message) || VOICE_RECOVERABLE_ERROR_AR
+      callbacks.onError?.(facing)
       setStatus('error')
       return
     }
 
     if (type === 'input_audio_buffer.speech_started') {
-      // Barge-in: stop audio immediately; do not restart the cancelled reply.
-      interruptInternal(true)
-      setStatus('listening')
+      transcriptGate.resetTurn()
+      // Root cause of early audio cut on iPhone: speaker echo → VAD speech_started
+      // → response.cancel mid-reply while transcript deltas already painted.
+      // Only barge-in when a response is active AND assistant has been audibly
+      // speaking long enough that echo alone is unlikely (or user is clearly overlapping).
+      const ECHO_GUARD_MS = 1800
+      const speakingLongEnough =
+        assistantAudioStartedAt > 0
+        && (typeof performance !== 'undefined' ? performance.now() : Date.now()) - assistantAudioStartedAt >= ECHO_GUARD_MS
+
+      if (hasCancellableResponse() && (status === 'speaking' || status === 'thinking') && speakingLongEnough) {
+        interruptInternal(true)
+        setStatus('listening')
+      } else {
+        // Idle / early echo / no active response → never send response.cancel.
+        quality.markSpeechStarted(status === 'speaking')
+        emitQuality()
+        telemetry('speech_started_no_cancel', {
+          hadActive: Boolean(activeResponse),
+          speakingLongEnough,
+          status,
+        })
+        if (status === 'listening' || status === 'thinking') {
+          // User started a new utterance — stay listening/thinking; no cancel.
+        }
+      }
       return
     }
 
     if (type === 'input_audio_buffer.speech_stopped') {
       quality.markSpeechStopped()
       emitQuality()
-      setStatus('thinking')
+      if (!hasCancellableResponse()) setStatus('thinking')
       return
     }
 
     if (type === 'conversation.item.input_audio_transcription.delta' && typeof event.delta === 'string') {
-      callbacks.onUserTranscript?.(event.delta, false)
+      const gated = transcriptGate.ingestDelta(event.delta)
+      if (gated.displayText != null) {
+        callbacks.onUserTranscript?.(gated.displayText, false)
+      }
+      // suppressed → UI keeps prior stable text / listening indicator (no foreign flash)
       return
     }
 
     if (type === 'conversation.item.input_audio_transcription.completed' && typeof event.transcript === 'string') {
-      callbacks.onUserTranscript?.(event.transcript, true)
-      // Language layer only: refresh multilingual + dialect cues; preserve trip facts in memory.
-      const built = buildInstructions(event.transcript, activeLanguage)
-      activeLanguage = built.language
-      sendEvent({
-        type: 'session.update',
-        session: {
-          type: 'realtime',
-          instructions: built.instructions,
-        },
-      })
+      const gated = transcriptGate.ingestFinal(event.transcript)
+      if (gated.accepted && gated.displayText) {
+        callbacks.onUserTranscript?.(gated.displayText, true)
+        if (gated.lockedLanguage) {
+          activeLanguage = gated.lockedLanguage
+        }
+        // Refresh language for NEXT assistant turn only when idle.
+        refreshLanguageInstructionsIfIdle(gated.displayText)
+      } else if (gated.suppressed) {
+        telemetry('final_transcript_suppressed_foreign_script', {
+          sample: event.transcript.slice(0, 40),
+        })
+      }
+      return
+    }
+
+    if (type === 'response.created') {
+      const id = event.response?.id || event.response_id || `resp_${Date.now()}`
+      const lang = activeLanguage || 'ar'
+      assistantTurnLanguage = lang
+      activeResponse = {
+        id,
+        createdAt: typeof performance !== 'undefined' ? performance.now() : Date.now(),
+        audioStarted: false,
+        audioDone: false,
+        responseDone: false,
+        cancelled: false,
+        language: lang,
+      }
+      assistantBuffer = ''
+      quality.markResponseCreated()
+      emitQuality()
+      telemetry('response_created', { responseId: id, language: lang })
+      setStatus('thinking')
+      return
+    }
+
+    if (
+      type === 'response.output_audio.delta'
+      || type === 'response.audio.delta'
+    ) {
+      if (activeResponse && !activeResponse.audioStarted) {
+        activeResponse.audioStarted = true
+        assistantAudioStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
+        quality.markFirstAssistantAudio()
+        emitQuality()
+        telemetry('response_audio_started', { responseId: activeResponse.id })
+      }
+      setStatus('speaking')
+      muteRemote(false)
+      return
+    }
+
+    if (
+      type === 'response.output_audio.done'
+      || type === 'response.audio.done'
+    ) {
+      if (activeResponse) {
+        activeResponse.audioDone = true
+        telemetry('response_audio_done', { responseId: activeResponse.id })
+      }
+      maybeEnterListening()
       return
     }
 
@@ -292,7 +513,15 @@ export function createRealtimeWebRtcSession(
       (type === 'response.output_audio_transcript.delta' || type === 'response.audio_transcript.delta')
       && typeof event.delta === 'string'
     ) {
-      if (!assistantBuffer) quality.markFirstAssistantAudio()
+      if (!assistantBuffer) {
+        quality.markFirstAssistantAudio()
+        if (activeResponse && !activeResponse.audioStarted) {
+          // Transcript often starts with/before audio on some builds — mark speaking.
+          activeResponse.audioStarted = true
+          assistantAudioStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
+          telemetry('response_audio_started', { responseId: activeResponse.id, via: 'transcript' })
+        }
+      }
       assistantBuffer += event.delta
       callbacks.onAssistantTranscript?.(assistantBuffer, false)
       setStatus('speaking')
@@ -304,30 +533,33 @@ export function createRealtimeWebRtcSession(
       || type === 'response.audio_transcript.done'
     ) {
       // Finalize transcript text only — do NOT flip to listening yet.
-      // On iPhone, transcript can finish before remote audio ends; early "listening"
-      // made the mic button look idle and a tap tore the session down.
       if (assistantBuffer) callbacks.onAssistantTranscript?.(assistantBuffer, true)
       return
     }
 
-    if (type === 'response.done') {
+    if (type === 'response.done' || type === 'response.cancelled') {
+      if (type === 'response.cancelled') {
+        telemetry('response_cancelled', { responseId: activeResponse?.id, source: 'server' })
+        if (activeResponse) activeResponse.cancelled = true
+      }
       if (assistantBuffer) callbacks.onAssistantTranscript?.(assistantBuffer, true)
       assistantBuffer = ''
       interruptedPartial = ''
+      if (activeResponse) {
+        activeResponse.responseDone = true
+        // Text-only / no audio deltas: treat audio as done so we can listen.
+        if (!activeResponse.audioStarted) activeResponse.audioDone = true
+      }
       quality.markResponseDone()
       emitQuality()
+      telemetry('response_done', {
+        responseId: activeResponse?.id,
+        audioDone: activeResponse?.audioDone ?? true,
+        cancelled: type === 'response.cancelled',
+      })
       logChat('debug', 'voice', 'realtime_quality', quality.snapshot() as unknown as Record<string, unknown>)
-      ensureLocalMicLive()
-      reassertTurnDetection()
-      setStatus('listening')
+      maybeEnterListening()
       return
-    }
-
-    if (type === 'response.created') {
-      assistantBuffer = ''
-      quality.markResponseCreated()
-      emitQuality()
-      setStatus('thinking')
     }
   }
 
@@ -389,7 +621,7 @@ export function createRealtimeWebRtcSession(
       dc.onopen = () => {
         const built = buildInstructions(undefined, activeLanguage)
         activeLanguage = built.language
-        // Enable input transcription + ChatGPT-Voice-like turn detection.
+        // Enable input transcription with language hint + ChatGPT-Voice-like turn detection.
         sendEvent({
           type: 'session.update',
           session: {
@@ -397,7 +629,7 @@ export function createRealtimeWebRtcSession(
             instructions: built.instructions,
             audio: {
               input: {
-                transcription: { model: 'gpt-4o-mini-transcribe' },
+                transcription: transcriptionConfig(activeLanguage),
                 turn_detection: buildRealtimeTurnDetection(),
               },
               output: { voice },
@@ -412,6 +644,7 @@ export function createRealtimeWebRtcSession(
           voice,
           turnDetection: 'semantic_vad',
           language: activeLanguage,
+          transcriptionLanguage: transcriptionLanguageHint(activeLanguage),
         })
       }
 
@@ -437,7 +670,7 @@ export function createRealtimeWebRtcSession(
           status: res.status,
           detail: detail.slice(0, 400),
         })
-        callbacks.onError?.(`تعذر بدء الصوت المباشر (${res.status})`)
+        callbacks.onError?.(VOICE_RECOVERABLE_ERROR_AR)
         setStatus('error')
         tearDownPeer()
         throw new Error(`realtime_call_failed:${res.status}`)
@@ -449,14 +682,14 @@ export function createRealtimeWebRtcSession(
     disconnect() {
       // Soft end: release peer/mic so connect() can start a new call later.
       // Do NOT set disposed — that permanently kills the session object (iPhone bug).
-      interruptInternal()
+      interruptInternal(false)
       tearDownPeer()
       setStatus('idle')
       callbacks.onDisconnected?.()
     },
     dispose() {
       disposed = true
-      interruptInternal()
+      interruptInternal(false)
       tearDownPeer()
       setStatus('idle')
       callbacks.onDisconnected?.()
@@ -464,12 +697,15 @@ export function createRealtimeWebRtcSession(
     ensureListening() {
       if (disposed) return
       if (!pc || !dc || dc.readyState !== 'open') return
+      // Never force listening while an assistant response is still speaking.
+      if (hasCancellableResponse() && status === 'speaking') return
       ensureLocalMicLive()
       reassertTurnDetection()
       muteRemote(false)
       if (status !== 'listening') setStatus('listening')
     },
     interrupt() {
+      // Explicit user barge-in (mic tap) — always allowed when a response is active.
       interruptInternal(true)
       ensureLocalMicLive()
       setStatus('listening')
@@ -483,6 +719,7 @@ export function createRealtimeWebRtcSession(
       const built = buildInstructions(cleaned, activeLanguage)
       activeLanguage = built.language
       // Refresh conversational + language cues for this utterance — engine unchanged.
+      // Only when no active response (sendText starts a new turn).
       sendEvent({
         type: 'session.update',
         session: {
@@ -491,6 +728,7 @@ export function createRealtimeWebRtcSession(
           audio: {
             input: {
               turn_detection: buildRealtimeTurnDetection(),
+              transcription: transcriptionConfig(activeLanguage),
             },
             output: { voice: mapPrefsToRealtimeVoice(prefs) },
           },
