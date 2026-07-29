@@ -1892,20 +1892,33 @@ export function createTravelAgentService(
           smart: isClarificationEnabled(),
         })
 
-        // ChatGPT Voice UX — incomplete-trip turns speak before enrichment/tools.
-        // Only when hard intake slots are still open — never skip planning once ready.
-        const hardIntakeReady = Boolean(
-          (memory.requirements.destination || (memory.requirements.destinations?.length ?? 0) > 0)
-          && (
-            memory.requirements.durationDays != null
-            || (memory.requirements.startDate && memory.requirements.endDate)
-          )
-          && memory.requirements.travelers != null
-          && (
-            memory.requirements.budgetAmount != null
-            || memory.requirements.budgetFlexible === true
-          ),
+        // Booking-agent UX — incomplete-trip turns speak before enrichment/tools.
+        // Required for first search: destination + dates + travelers.
+        // Budget is optional refine-after-options (auto-flexible when omitted).
+        const hasDestination = Boolean(
+          memory.requirements.destination || (memory.requirements.destinations?.length ?? 0) > 0,
         )
+        const hasDates = Boolean(
+          memory.requirements.durationDays != null
+          || (memory.requirements.startDate && memory.requirements.endDate)
+          || memory.requirements.startDate,
+        )
+        const hasTravelers = memory.requirements.travelers != null
+        const bookingSearchReady = hasDestination && hasDates && hasTravelers
+        if (
+          bookingSearchReady
+          && memory.requirements.budgetAmount == null
+          && memory.requirements.budgetFlexible !== true
+        ) {
+          memory.requirements = {
+            ...memory.requirements,
+            budgetFlexible: true,
+          }
+          memory.missingFields = missingRequirementFields(memory.requirements, {
+            smart: isClarificationEnabled(),
+          })
+        }
+        const hardIntakeReady = bookingSearchReady
         const voiceIntakeFastPath =
           !alphaJourneyCue
           && !memory.tripPlan

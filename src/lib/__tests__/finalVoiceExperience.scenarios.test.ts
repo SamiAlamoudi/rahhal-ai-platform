@@ -55,7 +55,7 @@ describe('final voice experience scenarios', () => {
     }
   })
 
-  it('senior consultant instructions encode ChatGPT-Voice class experience', () => {
+  it('booking-agent instructions encode ChatGPT-Voice class presence without consultant lectures', () => {
     const instructions = buildConsultantConversationalInstructions({
       dialect: 'saudi',
       language: 'ar',
@@ -64,14 +64,15 @@ describe('final voice experience scenarios', () => {
       speed: 'natural',
       energy: 'lively',
     })
-    expect(instructions).toMatch(/senior human travel consultant/i)
-    expect(instructions).toMatch(/ChatGPT Voice/i)
-    expect(instructions).toMatch(/ZERO NARRATION|zero process narration|Quietly do the work/i)
+    expect(instructions).toMatch(/BOOKING AGENT/i)
+    expect(instructions).toMatch(/ChatGPT-Voice|ChatGPT Voice/i)
+    expect(instructions).toMatch(/ZERO process narration|ZERO NARRATION|zero process narration/i)
     expect(instructions).toMatch(/PROSODY|Vary pitch/i)
     expect(instructions).toMatch(/GPS|IVR|news presenter|customer-support/i)
     expect(instructions).toMatch(/MULTILINGUAL|DIALECT ADAPTATION|Saudi/i)
     expect(instructions).toMatch(/interrupted/i)
-    expect(instructions).toMatch(/guide, recommend, compare/i)
+    expect(instructions).toMatch(/Collect → Search → Show options/i)
+    expect(instructions).not.toMatch(/guide, recommend, compare/i)
   })
 
   it('major dialect wording guidance differs without fixed one-style Arabic', () => {

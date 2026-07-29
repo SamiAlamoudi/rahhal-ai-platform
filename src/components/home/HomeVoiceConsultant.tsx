@@ -63,6 +63,64 @@ export function HomeVoiceConsultant({
   const speechStartedRef = useRef(false)
   const pendingAssistantRef = useRef<ChatMessage | null>(null)
   const latencyRef = useRef<VoiceLatencyMarks | null>(null)
+  const bookingSearchGenRef = useRef(0)
+  const bookingSearchRef = useRef<(text: string) => void>(() => undefined)
+
+  /**
+   * Realtime speaks via WebRTC; this runs the same chatEngine/planTurn path
+   * so bookable flight/hotel cards appear as soon as required fields exist.
+   * Does not replace Realtime spoken text (avoids double speech).
+   */
+  const runRealtimeBookingSearch = useCallback(async (transcript: string) => {
+    const text = transcript.trim()
+    if (!text || isGreetingOnly(text)) return
+    const gen = ++bookingSearchGenRef.current
+    const controller = new AbortController()
+    try {
+      let id = conversationIdRef.current
+      if (!id) {
+        const created = await chatEngine.createConversation(
+          locale === 'ar' ? 'محادثة صوتية' : 'Voice conversation',
+        )
+        id = created.id
+        conversationIdRef.current = id
+      }
+      await chatEngine.sendMessage(
+        { conversationId: id, content: text, modality: 'audio' },
+        {
+          signal: controller.signal,
+          onDelta: () => undefined,
+          onComplete: (message) => {
+            if (gen !== bookingSearchGenRef.current) return
+            const memory = message.providerMeta?.memory as
+              | { requirements?: { destination?: string | null; destinations?: string[] } }
+              | undefined
+            const destinationHint =
+              memory?.requirements?.destination
+              || memory?.requirements?.destinations?.[0]
+              || null
+            const plan = tripPlanFromMeta(message.providerMeta)
+            if (!plan) return
+            setCards(
+              buildResultCardsFromTripPlan(plan, {
+                destinationHint: destinationHint || plan.destinations?.[0] || null,
+                limit: 6,
+              }),
+            )
+          },
+          onError: () => undefined,
+        },
+      )
+    } catch {
+      // Realtime already owns the spoken turn — search bridge failures stay silent.
+    }
+  }, [locale])
+
+  useEffect(() => {
+    bookingSearchRef.current = (text: string) => {
+      void runRealtimeBookingSearch(text)
+    }
+  }, [runRealtimeBookingSearch])
 
   const flushAssistant = useCallback((message: ChatMessage) => {
     if (message.role !== 'assistant') return
@@ -161,6 +219,8 @@ export function HomeVoiceConsultant({
               setPartial('')
               setUserHeard(text)
               onDraftChange(text)
+              // Same booking engine as classic voice — show options when ready.
+              bookingSearchRef.current(text)
             } else {
               setPartial(text)
             }
@@ -186,7 +246,7 @@ export function HomeVoiceConsultant({
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             })
-            if (isFinal) setCards([])
+            // Keep booking cards — do not clear on transcript final.
           },
           onError: (err) => {
             if (disposed || isBenignChatError(err)) return
@@ -423,6 +483,7 @@ export function HomeVoiceConsultant({
           await realtimeRef.current.connect()
         }
         realtimeRef.current.sendText(trimmed)
+        bookingSearchRef.current(trimmed)
         onDraftChange('')
         return
       } catch (e) {

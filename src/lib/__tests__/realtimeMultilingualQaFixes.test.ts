@@ -97,7 +97,7 @@ describe('voice user-facing errors', () => {
 })
 
 describe('consultant trip-fact gathering policy', () => {
-  it('instructs concise fact gathering before neighborhood essays', () => {
+  it('instructs booking-agent fact gathering before neighborhood essays', () => {
     const instructions = buildConsultantConversationalInstructions({
       language: 'auto',
       utterance: 'أريد السفر إلى تايلند',
@@ -105,11 +105,11 @@ describe('consultant trip-fact gathering policy', () => {
       languageFallback: 'ar',
     })
     expect(instructions).toMatch(/origin city\/airport/i)
-    expect(instructions).toMatch(/ONE useful follow-up/i)
-    expect(instructions).toMatch(/Sukhumvit|neighborhood/i)
-    expect(instructions).toMatch(/ممتاز، السفر من أي مدينة/)
+    expect(instructions).toMatch(/ONE follow-up question/i)
+    expect(instructions).toMatch(/Sukhumvit|Chaweng|neighborhood/i)
+    expect(instructions).toMatch(/BOOKING AGENT/i)
     expect(instructions).toMatch(/never switch mid-reply/i)
-    expect(instructions).toMatch(/Do NOT invent booking confirmation/i)
+    expect(instructions).toMatch(/Do NOT invent live prices|invent live prices/i)
   })
 })
 

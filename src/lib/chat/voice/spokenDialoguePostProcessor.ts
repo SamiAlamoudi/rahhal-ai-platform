@@ -85,6 +85,49 @@ const PROCESS_NARRATION_AR = [
   /\bLet me (?:now )?(?:search|look|compare|check)[^.?!]*[.?!]?\s*/gi,
 ]
 
+/** Unsolicited advice — strip unless the traveler asked for advice (handled upstream). */
+const UNSOLICITED_ADVICE_AR = [
+  /أنصحك(?: بأن| بـ)?\s*/gi,
+  /أقترح عليك(?: أن)?\s*/gi,
+  /أنصح(?:ك|كم)\s*/gi,
+  /(?:لازم\s+)?تحجز بدري[^.؟!]*[.؟!…]?\s*/gi,
+  /(?:لازم\s+)?احجز بدري[^.؟!]*[.؟!…]?\s*/gi,
+  /احجز مبكر[اًا]?[^.؟!]*[.؟!…]?\s*/gi,
+  /(?:مع\s+)?شركات موثوقة[^.؟!]*[.؟!…]?\s*/gi,
+  /احجز مع شركات موثوقة[^.؟!]*[.؟!…]?\s*/gi,
+]
+
+const UNSOLICITED_ADVICE_EN = [
+  /\bI (?:would )?suggest(?: that)?\s*/gi,
+  /\bI recommend(?: that)?\s*/gi,
+  /\bYou should\s+/gi,
+  /\bBook with trusted (?:companies|agencies)[^.?!]*[.?!]?\s*/gi,
+  /\bBook early[^.?!]*[.?!]?\s*/gi,
+]
+
+/** Praise / echo fillers after short confirmations — booking agent never uses these. */
+const PRAISE_OPENERS_AR = [
+  /^(?:ممتاز|رائع|عظيم|جميل جد[اًا]|wonderful|great|excellent)[!！.,،…]?\s*/gi,
+]
+
+const PRAISE_OPENERS_EN = [
+  /^(?:Great|Excellent|Wonderful|Amazing|Perfect)[!.,…]?\s+/gi,
+]
+
+function stripUnsolicitedAdvice(text: string, locale: 'ar' | 'en'): string {
+  let out = text
+  const patterns = locale === 'en' ? UNSOLICITED_ADVICE_EN : [...UNSOLICITED_ADVICE_AR, ...UNSOLICITED_ADVICE_EN]
+  for (const re of patterns) out = out.replace(re, '')
+  return out.replace(/\s{2,}/g, ' ').trim()
+}
+
+function stripPraiseOpeners(text: string, locale: 'ar' | 'en'): string {
+  let out = text
+  const patterns = locale === 'en' ? PRAISE_OPENERS_EN : [...PRAISE_OPENERS_AR, ...PRAISE_OPENERS_EN]
+  for (const re of patterns) out = out.replace(re, '')
+  return out.replace(/\s{2,}/g, ' ').trim()
+}
+
 const HAS_HUMAN_OPENER_AR =
   /^(?:وعليكم|السلام|مرحبا|أهلا|حياك|ممتاز|جميل|تمام|حلو|زين|طيب|أبشر|خلاص|فكرة|بصراحة|على حسب|أشوف|آسف|فهمت|ممكن|ولا يهمك|يا ساتر)/u
 
@@ -164,16 +207,21 @@ export function ensureThinkingBreath(
   locale: 'ar' | 'en',
   context?: SpokenDialogueContext,
 ): string {
+  // Booking agent: never prepend praise/filler breaths.
   if (locale !== 'ar' || !text.trim()) return text
-  if (context === 'greeting' || context === 'empathy') return text
+  if (
+    context === 'greeting'
+    || context === 'empathy'
+    || context === 'confirmation'
+    || context === 'follow_up'
+    || context === 'business'
+  ) {
+    return text
+  }
   if (HAS_HUMAN_OPENER_AR.test(text.trim())) return text
-
-  const h = hashSeed(seed)
-  // Keep some turns without a prepend so not every reply gets a filler.
-  if (h % 5 === 0) return text
-
-  const breath = THINKING_BREATHS_AR[h % THINKING_BREATHS_AR.length] ?? 'تمام… '
-  return `${breath}${text}`.replace(/\s{2,}/g, ' ').trim()
+  // Prefer no filler — booking turns should start with substance.
+  void seed
+  return text
 }
 
 function stripChrome(text: string): string {
@@ -200,6 +248,8 @@ function stripFormal(text: string, locale: 'ar' | 'en'): string {
       out = out.replace(re, '')
     }
   }
+  out = stripUnsolicitedAdvice(out, locale)
+  out = stripPraiseOpeners(out, locale)
   return out
 }
 
@@ -308,14 +358,15 @@ function trimToSpokenBudget(breaths: string[], maxChars: number): string {
 }
 
 /**
- * Convert long written assistant text into short spoken consultant dialogue.
+ * Convert long written assistant text into short spoken booking-agent dialogue.
+ * Target ~20–40 spoken words (≈140 chars Arabic).
  */
 export function toSpokenDialogue(
   raw: string,
   options: SpokenDialogueOptions = {},
 ): string {
   const locale = options.locale === 'en' ? 'en' : 'ar'
-  const maxChars = options.maxChars ?? 220
+  const maxChars = options.maxChars ?? 140
   let text = (raw || '').trim()
   if (!text) return ''
 
@@ -336,6 +387,7 @@ export function toSpokenDialogue(
   spoken = enforceOneQuestion(spoken)
   spoken = ensureThinkingBreath(spoken, seed, locale, ctx)
   spoken = applyNaturalVariation(spoken, seed, locale)
+  spoken = stripPraiseOpeners(spoken, locale)
 
   // Prefer ending on a complete breath.
   if (spoken.length > 12 && !/[.!?؟…]$/.test(spoken)) {
@@ -360,17 +412,17 @@ export function spokenToneCue(context: SpokenDialogueContext): string {
     case 'empathy':
       return 'Delivery: slower, softer, reassuring; then one practical next step.'
     case 'confirmation':
-      return 'Delivery: crisp and calm; confirm only what is new; ask one yes/no if needed.'
+      return 'Delivery: no praise; continue to the next booking step immediately.'
     case 'follow_up':
-      return 'Delivery: curious and light; exactly one question; short lead-in.'
+      return 'Delivery: exactly one booking-field question; no lecture.'
     case 'luxury':
-      return 'Delivery: elegant, refined, understated; premium calm.'
+      return 'Delivery: elegant and brief; collect fields then show options.'
     case 'family':
-      return 'Delivery: friendly and reassuring; easy pacing.'
+      return 'Delivery: clear and reassuring; ask party size if missing.'
     case 'business':
-      return 'Delivery: professional and concise; minimal small talk.'
+      return 'Delivery: professional and concise; zero small talk.'
     default:
-      return 'Delivery: natural live-call consultant; short breaths; never article narration.'
+      return 'Delivery: efficient booking agent; 20–40 words; never article narration.'
   }
 }
 
