@@ -20,15 +20,17 @@ const REALTIME_VOICES = new Set<string>([
 ])
 
 /**
- * ChatGPT-Voice-like turn detection:
- * semantic_vad finishes when the utterance is complete (not fixed silence only),
- * interrupt_response cancels assistant audio the moment the traveler speaks.
+ * ChatGPT-Voice-like turn detection WITHOUT auto-response.
+ *
+ * create_response MUST stay false: on iPhone, silence / breathing / echo after
+ * response.done was treated as speech_stopped and spawned unsolicited assistant turns.
+ * The client creates a response only after a confirmed ASR transcript (or sendText).
  */
 export function buildRealtimeTurnDetection(): Record<string, unknown> {
   return {
     type: 'semantic_vad',
-    eagerness: 'medium',
-    create_response: true,
+    eagerness: 'low',
+    create_response: false,
     interrupt_response: true,
   }
 }
@@ -37,11 +39,10 @@ export function buildRealtimeTurnDetection(): Record<string, unknown> {
 export function buildServerVadFallback(): Record<string, unknown> {
   return {
     type: 'server_vad',
-    threshold: 0.5,
+    threshold: 0.65,
     prefix_padding_ms: 280,
-    // Closer to OpenAI default (500) than our prior 700 — feels more instantaneous.
-    silence_duration_ms: 520,
-    create_response: true,
+    silence_duration_ms: 700,
+    create_response: false,
     interrupt_response: true,
   }
 }

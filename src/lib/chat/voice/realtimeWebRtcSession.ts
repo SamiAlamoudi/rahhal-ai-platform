@@ -28,6 +28,8 @@ import {
 import {
   createUserTranscriptGate,
   transcriptionLanguageHint,
+  isConfirmedUserUtterance,
+  looksLikeAssistantEcho,
   type LockedSpeechLanguage,
 } from './userTranscriptGate'
 import {
@@ -148,9 +150,20 @@ export function createRealtimeWebRtcSession(
   let activeResponse: ActiveResponseState | null = null
   /** Echo protection: ignore VAD barge-in until assistant has been speaking this long. */
   let assistantAudioStartedAt = 0
+  /** Last finalized assistant spoken text — used to reject self-echo transcripts. */
+  let lastAssistantSpoken = ''
+  /** When the last assistant turn fully completed (for post-response silence guard). */
+  let responseDoneAt = 0
+  /**
+   * Client-authorized response.create only.
+   * If response.created arrives without this flag, cancel it (unsolicited auto-turn).
+   */
+  let clientRequestedResponse = false
   const quality = createRealtimeQualityTracker()
 
   const transcriptGate = createUserTranscriptGate(() => activeLanguage)
+
+  const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
 
   const setStatus = (next: RealtimeSessionStatus) => {
     status = next
@@ -218,6 +231,38 @@ export function createRealtimeWebRtcSession(
     if (!activeResponse) return false
     if (activeResponse.cancelled) return false
     if (activeResponse.responseDone && activeResponse.audioDone) return false
+    return true
+  }
+
+  /**
+   * Exactly one assistant response per confirmed user input.
+   * Never call this on speech_stopped / silence / noise.
+   */
+  const requestAssistantResponse = (reason: string) => {
+    if (disposed) return
+    if (hasCancellableResponse()) {
+      telemetry('response_create_skipped_active', { reason })
+      return
+    }
+    clientRequestedResponse = true
+    setStatus('thinking')
+    telemetry('response_create_requested', { reason })
+    sendEvent({ type: 'response.create' })
+  }
+
+  const shouldAcceptTranscriptForResponse = (text: string): boolean => {
+    if (!isConfirmedUserUtterance(text)) return false
+    const sinceDone = responseDoneAt > 0 ? nowMs() - responseDoneAt : Number.POSITIVE_INFINITY
+    // Hard tail guard: ignore ASR in the first 500ms after assistant audio ends (echo).
+    if (sinceDone < 500) {
+      telemetry('transcript_ignored_post_response_tail', { sample: text.slice(0, 40), sinceDone })
+      return false
+    }
+    // Reject transcripts that are the assistant answering itself.
+    if (looksLikeAssistantEcho(text, lastAssistantSpoken)) {
+      telemetry('transcript_ignored_assistant_echo', { sample: text.slice(0, 40) })
+      return false
+    }
     return true
   }
 
@@ -303,6 +348,9 @@ export function createRealtimeWebRtcSession(
     activeLanguage = null
     clearActiveResponse()
     transcriptGate.resetTurn()
+    lastAssistantSpoken = ''
+    responseDoneAt = 0
+    clientRequestedResponse = false
   }
 
   /**
@@ -361,10 +409,17 @@ export function createRealtimeWebRtcSession(
       // If audio started, wait for audio.done; if text-only, response.done is enough.
       if (activeResponse.audioStarted && !activeResponse.audioDone) return
     }
+    if (assistantBuffer.trim()) {
+      lastAssistantSpoken = assistantBuffer.trim()
+    }
+    responseDoneAt = nowMs()
+    clientRequestedResponse = false
     clearActiveResponse()
     ensureLocalMicLive()
     reassertTurnDetection()
+    // Idle listening — stay silent until a confirmed user utterance.
     setStatus('listening')
+    telemetry('entered_idle_listening', { responseDoneAt })
   }
 
   const handleServerEvent = (raw: string) => {
@@ -430,7 +485,12 @@ export function createRealtimeWebRtcSession(
     if (type === 'input_audio_buffer.speech_stopped') {
       quality.markSpeechStopped()
       emitQuality()
-      if (!hasCancellableResponse()) setStatus('thinking')
+      // Stay listening — do NOT enter thinking or create a response on VAD alone.
+      // Silence / breathing / noise stop events must leave the assistant idle.
+      if (!hasCancellableResponse() && status !== 'speaking') {
+        setStatus('listening')
+      }
+      telemetry('speech_stopped_no_auto_response', { status })
       return
     }
 
@@ -445,28 +505,43 @@ export function createRealtimeWebRtcSession(
 
     if (type === 'conversation.item.input_audio_transcription.completed' && typeof event.transcript === 'string') {
       const gated = transcriptGate.ingestFinal(event.transcript)
-      if (gated.accepted && gated.displayText) {
+      if (gated.accepted && gated.displayText && shouldAcceptTranscriptForResponse(gated.displayText)) {
         callbacks.onUserTranscript?.(gated.displayText, true)
         if (gated.lockedLanguage) {
           activeLanguage = gated.lockedLanguage
         }
         // Refresh language for NEXT assistant turn only when idle.
         refreshLanguageInstructionsIfIdle(gated.displayText)
-      } else if (gated.suppressed) {
-        telemetry('final_transcript_suppressed_foreign_script', {
+        // One confirmed user utterance → exactly one assistant response.
+        requestAssistantResponse('confirmed_asr')
+      } else {
+        telemetry('final_transcript_no_response', {
+          accepted: gated.accepted,
+          suppressed: gated.suppressed,
           sample: event.transcript.slice(0, 40),
         })
+        if (!hasCancellableResponse()) setStatus('listening')
       }
       return
     }
 
     if (type === 'response.created') {
       const id = event.response?.id || event.response_id || `resp_${Date.now()}`
+      // Defense: cancel unsolicited auto-turns (should not happen with create_response:false,
+      // but guards against server-side / race regressions).
+      if (!clientRequestedResponse) {
+        telemetry('unsolicited_response_cancelled', { responseId: id })
+        sendEvent({ type: 'response.cancel' })
+        sendEvent({ type: 'output_audio_buffer.clear' })
+        if (!hasCancellableResponse()) setStatus('listening')
+        return
+      }
+      clientRequestedResponse = false
       const lang = activeLanguage || 'ar'
       assistantTurnLanguage = lang
       activeResponse = {
         id,
-        createdAt: typeof performance !== 'undefined' ? performance.now() : Date.now(),
+        createdAt: nowMs(),
         audioStarted: false,
         audioDone: false,
         responseDone: false,
@@ -542,7 +617,10 @@ export function createRealtimeWebRtcSession(
         telemetry('response_cancelled', { responseId: activeResponse?.id, source: 'server' })
         if (activeResponse) activeResponse.cancelled = true
       }
-      if (assistantBuffer) callbacks.onAssistantTranscript?.(assistantBuffer, true)
+      if (assistantBuffer) {
+        callbacks.onAssistantTranscript?.(assistantBuffer, true)
+        lastAssistantSpoken = assistantBuffer.trim()
+      }
       assistantBuffer = ''
       interruptedPartial = ''
       if (activeResponse) {
@@ -758,7 +836,7 @@ export function createRealtimeWebRtcSession(
           content: [{ type: 'input_text', text: cleaned }],
         },
       })
-      sendEvent({ type: 'response.create' })
+      requestAssistantResponse('send_text')
     },
     speakWrittenDraft(written, opts) {
       const locale = opts?.locale === 'en' ? 'en' : 'ar'
@@ -789,7 +867,7 @@ export function createRealtimeWebRtcSession(
           }],
         },
       })
-      sendEvent({ type: 'response.create' })
+      requestAssistantResponse('speak_written_draft')
       callbacks.onAssistantTranscript?.(spoken, false)
     },
   }

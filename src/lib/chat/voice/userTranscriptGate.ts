@@ -215,3 +215,47 @@ export function createUserTranscriptGate(getExpectedLanguage: () => LockedSpeech
 }
 
 export type UserTranscriptGate = ReturnType<typeof createUserTranscriptGate>
+
+/** Noise / filler / empty ASR that must never spawn an assistant turn. */
+const NOISE_ONLY_RE =
+  /^(?:um+|uh+|ah+|mm+|hmm+|mhm+|إم+|آه+|اه+|آ+|ه+|هه+|ها+|…+|\.+|-+|~+|\s)+$/iu
+
+/**
+ * Confirmed user utterance gate for turn management.
+ * Silence, breathing, and accidental sounds must not create a response.
+ */
+export function isConfirmedUserUtterance(text: string): boolean {
+  const t = (text || '').trim()
+  if (t.length < 2) return false
+  if (NOISE_ONLY_RE.test(t)) return false
+  // Require real letters (any script) — not punctuation-only ASR junk.
+  const letters = t.replace(/[^\p{L}]/gu, '')
+  if (letters.length < 2) return false
+  return true
+}
+
+/**
+ * True when a "user" transcript is likely echo of the assistant's own last reply.
+ * Prevents the model from answering itself after response.done.
+ */
+export function looksLikeAssistantEcho(userText: string, lastAssistantText: string): boolean {
+  const user = (userText || '').trim()
+  const assistant = (lastAssistantText || '').trim()
+  if (!user || !assistant) return false
+  if (user.length < 4) return false
+  const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase()
+  const u = normalize(user)
+  const a = normalize(assistant)
+  if (a.includes(u) && u.length >= 6) return true
+  if (u.includes(a) && a.length >= 12) return true
+  // High token overlap for short Arabic/English echoes
+  const userTokens = new Set(u.split(/[^\p{L}\p{N}]+/u).filter((x) => x.length >= 2))
+  const asstTokens = a.split(/[^\p{L}\p{N}]+/u).filter((x) => x.length >= 2)
+  if (userTokens.size === 0 || asstTokens.length === 0) return false
+  let hit = 0
+  for (const tok of asstTokens) {
+    if (userTokens.has(tok)) hit += 1
+  }
+  const overlap = hit / Math.min(userTokens.size, asstTokens.length)
+  return overlap >= 0.7 && hit >= 2
+}

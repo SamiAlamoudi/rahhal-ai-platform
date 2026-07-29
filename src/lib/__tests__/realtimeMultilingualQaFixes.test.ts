@@ -232,6 +232,13 @@ describe('realtime cancel-only-when-active lifecycle', () => {
     expect(channel.onmessage).toBeTypeOf('function')
 
     channel.send.mockClear()
+    // Authorize then create
+    channel.onmessage!({
+      data: JSON.stringify({
+        type: 'conversation.item.input_audio_transcription.completed',
+        transcript: 'أبغى حجز فندق',
+      }),
+    })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.created', response: { id: 'resp_1' } }) })
     channel.onmessage!({
       data: JSON.stringify({
@@ -258,6 +265,13 @@ describe('realtime cancel-only-when-active lifecycle', () => {
   it('waits for response.done before listening; does not listen on transcript.done alone', async () => {
     const { session, channel } = await bootSession()
 
+    // Authorize a client-requested turn (create_response is false).
+    channel.onmessage!({
+      data: JSON.stringify({
+        type: 'conversation.item.input_audio_transcription.completed',
+        transcript: 'أبغى تايلند أسبوع',
+      }),
+    })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.created', response: { id: 'resp_2' } }) })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.output_audio.delta', delta: '' }) })
     channel.onmessage!({

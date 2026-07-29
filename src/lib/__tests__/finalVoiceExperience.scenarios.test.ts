@@ -95,11 +95,11 @@ describe('final voice experience scenarios', () => {
     expect(calm).not.toEqual(lively)
   })
 
-  it('uses semantic_vad for ChatGPT-Voice-like turn detection', () => {
+  it('uses semantic_vad without auto-create (client owns response.create)', () => {
     const td = buildRealtimeTurnDetection()
     expect(td.type).toBe('semantic_vad')
     expect(td.interrupt_response).toBe(true)
-    expect(td.create_response).toBe(true)
+    expect(td.create_response).toBe(false)
   })
 
   it('realtime quality tracker records interruption and turn latencies', () => {
