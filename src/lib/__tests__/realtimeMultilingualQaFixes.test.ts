@@ -54,13 +54,38 @@ describe('user transcript gate — Arabic speech must not show foreign interim',
     expect(final.lockedLanguage).toBe('ar')
   })
 
-  it('rejects foreign-script final when Arabic is expected', () => {
+  it('commits exact FINAL ASR once and never substitutes interim', () => {
+    const gate = createUserTranscriptGate(() => 'ar')
+    gate.resetTurn()
+    gate.ingestDelta('أريد')
+    gate.ingestDelta(' السفر')
+    const finalText = 'أريد السفر إلى تايلند لمدة أسبوع'
+    const first = gate.ingestFinal(finalText)
+    expect(first.accepted).toBe(true)
+    expect(first.exactText).toBe(finalText)
+    expect(first.displayText).toBe(finalText)
+
+    // Later "rewrite" must not mutate the locked final
+    const second = gate.ingestFinal('I want to go to Thailand for a week')
+    expect(second.exactText).toBe(finalText)
+    expect(second.displayText).toBe(finalText)
+    expect(gate.getCommittedFinal()).toBe(finalText)
+
+    // Interim after final is suppressed
+    const delta = gate.ingestDelta(' شيء آخر')
+    expect(delta.suppressed).toBe(true)
+    expect(delta.displayText).toBeNull()
+  })
+
+  it('rejects foreign-script final without falling back to interim (no rewrite)', () => {
     const gate = createUserTranscriptGate(() => 'ar')
     gate.resetTurn()
     gate.lockLanguage('ar')
+    gate.ingestDelta('أريد السفر')
     const rejected = gate.ingestFinal('I want to travel to Thailand for a week')
     expect(rejected.accepted).toBe(false)
-    expect(rejected.suppressed).toBe(true)
+    expect(rejected.exactText).toBeNull()
+    expect(rejected.displayText).toBeNull()
   })
 
   it('hints Arabic transcription language by default', () => {
@@ -74,10 +99,8 @@ describe('user transcript gate — Arabic speech must not show foreign interim',
     gate.resetTurn()
     gate.ingestDelta('أريد السفر')
     expect(gate.getLockedLanguage()).toBe('ar')
-    // Even if a bogus Latin chunk arrives, lock stays Arabic
     const bogus = gate.ingestDelta(' Thailand')
     expect(gate.getLockedLanguage()).toBe('ar')
-    // Mixed with Arabic still allowed for proper nouns once Arabic present
     expect(bogus.lockedLanguage).toBe('ar')
   })
 })
@@ -262,10 +285,9 @@ describe('realtime cancel-only-when-active lifecycle', () => {
     session.dispose()
   })
 
-  it('waits for response.done before listening; does not listen on transcript.done alone', async () => {
+  it('waits for playback stopped — not response.done alone — before listening', async () => {
     const { session, channel } = await bootSession()
 
-    // Authorize a client-requested turn (create_response is false).
     channel.onmessage!({
       data: JSON.stringify({
         type: 'conversation.item.input_audio_transcription.completed',
@@ -273,17 +295,22 @@ describe('realtime cancel-only-when-active lifecycle', () => {
       }),
     })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.created', response: { id: 'resp_2' } }) })
-    channel.onmessage!({ data: JSON.stringify({ type: 'response.output_audio.delta', delta: '' }) })
+    channel.onmessage!({ data: JSON.stringify({ type: 'output_audio_buffer.started' }) })
     channel.onmessage!({
-      data: JSON.stringify({ type: 'response.output_audio_transcript.delta', delta: 'خط كامل من الرد' }),
+      data: JSON.stringify({ type: 'response.output_audio_transcript.delta', delta: 'خط كامل من الرد المنطوق' }),
     })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.output_audio_transcript.done' }) })
     expect(session.getStatus()).toBe('speaking')
 
     channel.onmessage!({ data: JSON.stringify({ type: 'response.output_audio.done' }) })
+    // Stream done ≠ playback done
     expect(session.getStatus()).toBe('speaking')
 
     channel.onmessage!({ data: JSON.stringify({ type: 'response.done' }) })
+    // Still must NOT listen — wait for output_audio_buffer.stopped
+    expect(session.getStatus()).toBe('speaking')
+
+    channel.onmessage!({ data: JSON.stringify({ type: 'output_audio_buffer.stopped' }) })
     expect(session.getStatus()).toBe('listening')
     session.dispose()
   })

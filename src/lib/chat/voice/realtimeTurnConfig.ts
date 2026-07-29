@@ -20,18 +20,19 @@ const REALTIME_VOICES = new Set<string>([
 ])
 
 /**
- * ChatGPT-Voice-like turn detection WITHOUT auto-response.
+ * ChatGPT-Voice-like turn detection WITHOUT auto-response or auto-interrupt.
  *
- * create_response MUST stay false: on iPhone, silence / breathing / echo after
- * response.done was treated as speech_stopped and spawned unsolicited assistant turns.
- * The client creates a response only after a confirmed ASR transcript (or sendText).
+ * create_response MUST stay false: silence/echo must not spawn turns.
+ * interrupt_response MUST stay false: on iPhone speakerphone, echo triggers
+ * server-side cancel mid-playback (spoken shorter than displayed text).
+ * Manual mic-tap barge-in still calls response.cancel from the client.
  */
 export function buildRealtimeTurnDetection(): Record<string, unknown> {
   return {
     type: 'semantic_vad',
     eagerness: 'low',
     create_response: false,
-    interrupt_response: true,
+    interrupt_response: false,
   }
 }
 
@@ -43,7 +44,7 @@ export function buildServerVadFallback(): Record<string, unknown> {
     prefix_padding_ms: 280,
     silence_duration_ms: 700,
     create_response: false,
-    interrupt_response: true,
+    interrupt_response: false,
   }
 }
 

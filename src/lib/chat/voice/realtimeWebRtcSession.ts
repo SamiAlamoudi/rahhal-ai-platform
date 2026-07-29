@@ -86,10 +86,14 @@ export type RealtimeWebRtcSession = {
 type ActiveResponseState = {
   id: string
   createdAt: number
-  audioStarted: boolean
-  audioDone: boolean
+  /** Server finished streaming audio bytes for this response. */
+  audioStreamDone: boolean
+  /** WebRTC output buffer drained — actual playback complete (preferred). */
+  playbackStopped: boolean
   responseDone: boolean
   cancelled: boolean
+  /** True once any audio/transcript audio path started for this response. */
+  hadAudio: boolean
   /** Language locked for this assistant turn — never switch mid-reply. */
   language: LockedSpeechLanguage
 }
@@ -148,8 +152,6 @@ export function createRealtimeWebRtcSession(
   /** Language frozen for the current assistant response. */
   let assistantTurnLanguage: LockedSpeechLanguage | null = null
   let activeResponse: ActiveResponseState | null = null
-  /** Echo protection: ignore VAD barge-in until assistant has been speaking this long. */
-  let assistantAudioStartedAt = 0
   /** Last finalized assistant spoken text — used to reject self-echo transcripts. */
   let lastAssistantSpoken = ''
   /** When the last assistant turn fully completed (for post-response silence guard). */
@@ -159,6 +161,8 @@ export function createRealtimeWebRtcSession(
    * If response.created arrives without this flag, cancel it (unsolicited auto-turn).
    */
   let clientRequestedResponse = false
+  /** Fallback timer when output_audio_buffer.stopped is missing. */
+  let playbackFallbackTimer: ReturnType<typeof setTimeout> | null = null
   const quality = createRealtimeQualityTracker()
 
   const transcriptGate = createUserTranscriptGate(() => activeLanguage)
@@ -224,13 +228,14 @@ export function createRealtimeWebRtcSession(
   const clearActiveResponse = () => {
     activeResponse = null
     assistantTurnLanguage = null
-    assistantAudioStartedAt = 0
   }
 
   const hasCancellableResponse = (): boolean => {
     if (!activeResponse) return false
     if (activeResponse.cancelled) return false
-    if (activeResponse.responseDone && activeResponse.audioDone) return false
+    // Still cancellable until playback has actually stopped (or text-only done).
+    if (activeResponse.playbackStopped) return false
+    if (!activeResponse.hadAudio && activeResponse.responseDone) return false
     return true
   }
 
@@ -351,6 +356,10 @@ export function createRealtimeWebRtcSession(
     lastAssistantSpoken = ''
     responseDoneAt = 0
     clientRequestedResponse = false
+    if (playbackFallbackTimer) {
+      clearTimeout(playbackFallbackTimer)
+      playbackFallbackTimer = null
+    }
   }
 
   /**
@@ -403,12 +412,36 @@ export function createRealtimeWebRtcSession(
   }
 
   const maybeEnterListening = () => {
-    // Do not switch to listening until the assistant audio has genuinely completed.
-    if (activeResponse && !activeResponse.cancelled) {
-      if (!activeResponse.responseDone) return
-      // If audio started, wait for audio.done; if text-only, response.done is enough.
-      if (activeResponse.audioStarted && !activeResponse.audioDone) return
+    /**
+     * Listening resumes only after actual playback completion.
+     * Do NOT use response.done alone — on WebRTC it fires before the output
+     * buffer finishes draining (spoken cut short while text already shown).
+     *
+     * Preferred signal: output_audio_buffer.stopped
+     * Fallback: audio stream done + short drain (if stopped event missing)
+     * Text-only: response.done with no audio
+     */
+    if (!activeResponse) {
+      setStatus('listening')
+      return
     }
+    if (activeResponse.cancelled) {
+      responseDoneAt = nowMs()
+      clientRequestedResponse = false
+      clearActiveResponse()
+      ensureLocalMicLive()
+      reassertTurnDetection()
+      setStatus('listening')
+      telemetry('entered_idle_listening', { reason: 'cancelled' })
+      return
+    }
+
+    if (activeResponse.hadAudio) {
+      if (!activeResponse.playbackStopped) return
+    } else if (!activeResponse.responseDone) {
+      return
+    }
+
     if (assistantBuffer.trim()) {
       lastAssistantSpoken = assistantBuffer.trim()
     }
@@ -417,9 +450,23 @@ export function createRealtimeWebRtcSession(
     clearActiveResponse()
     ensureLocalMicLive()
     reassertTurnDetection()
-    // Idle listening — stay silent until a confirmed user utterance.
     setStatus('listening')
-    telemetry('entered_idle_listening', { responseDoneAt })
+    telemetry('entered_idle_listening', { responseDoneAt, via: 'playback_complete' })
+  }
+
+  /** Fallback when output_audio_buffer.stopped is not delivered. */
+  const schedulePlaybackFallback = () => {
+    if (playbackFallbackTimer) clearTimeout(playbackFallbackTimer)
+    playbackFallbackTimer = setTimeout(() => {
+      playbackFallbackTimer = null
+      if (!activeResponse || activeResponse.cancelled) return
+      if (activeResponse.playbackStopped) return
+      // Only after server finished streaming audio.
+      if (!activeResponse.audioStreamDone) return
+      activeResponse.playbackStopped = true
+      telemetry('playback_stopped_fallback', { responseId: activeResponse.id })
+      maybeEnterListening()
+    }, 600)
   }
 
   const handleServerEvent = (raw: string) => {
@@ -453,32 +500,20 @@ export function createRealtimeWebRtcSession(
     }
 
     if (type === 'input_audio_buffer.speech_started') {
-      transcriptGate.resetTurn()
-      // Root cause of early audio cut on iPhone: speaker echo → VAD speech_started
-      // → response.cancel mid-reply while transcript deltas already painted.
-      // Only barge-in when a response is active AND assistant has been audibly
-      // speaking long enough that echo alone is unlikely (or user is clearly overlapping).
-      const ECHO_GUARD_MS = 1800
-      const speakingLongEnough =
-        assistantAudioStartedAt > 0
-        && (typeof performance !== 'undefined' ? performance.now() : Date.now()) - assistantAudioStartedAt >= ECHO_GUARD_MS
-
-      if (hasCancellableResponse() && (status === 'speaking' || status === 'thinking') && speakingLongEnough) {
-        interruptInternal(true)
-        setStatus('listening')
-      } else {
-        // Idle / early echo / no active response → never send response.cancel.
-        quality.markSpeechStarted(status === 'speaking')
-        emitQuality()
-        telemetry('speech_started_no_cancel', {
-          hadActive: Boolean(activeResponse),
-          speakingLongEnough,
-          status,
-        })
-        if (status === 'listening' || status === 'thinking') {
-          // User started a new utterance — stay listening/thinking; no cancel.
-        }
+      // Only reset transcript gate when idle (new user utterance). Never while speaking —
+      // echo must not clear state mid-playback.
+      if (status === 'listening' || status === 'idle') {
+        transcriptGate.resetTurn()
       }
+      // NEVER auto-cancel on VAD while the assistant is speaking.
+      // Root cause of cut-off audio: speaker echo → speech_started → cancel mid-reply
+      // (server interrupt_response is also false). Real barge-in = mic tap → interrupt().
+      quality.markSpeechStarted(status === 'speaking')
+      emitQuality()
+      telemetry('speech_started_no_auto_barge_in', {
+        hadActive: Boolean(activeResponse),
+        status,
+      })
       return
     }
 
@@ -505,14 +540,14 @@ export function createRealtimeWebRtcSession(
 
     if (type === 'conversation.item.input_audio_transcription.completed' && typeof event.transcript === 'string') {
       const gated = transcriptGate.ingestFinal(event.transcript)
-      if (gated.accepted && gated.displayText && shouldAcceptTranscriptForResponse(gated.displayText)) {
-        callbacks.onUserTranscript?.(gated.displayText, true)
+      // Commit exact FINAL only — never interim, never mutated substitute.
+      const exact = gated.exactText
+      if (gated.accepted && exact && shouldAcceptTranscriptForResponse(exact)) {
+        callbacks.onUserTranscript?.(exact, true)
         if (gated.lockedLanguage) {
           activeLanguage = gated.lockedLanguage
         }
-        // Refresh language for NEXT assistant turn only when idle.
-        refreshLanguageInstructionsIfIdle(gated.displayText)
-        // One confirmed user utterance → exactly one assistant response.
+        refreshLanguageInstructionsIfIdle(exact)
         requestAssistantResponse('confirmed_asr')
       } else {
         telemetry('final_transcript_no_response', {
@@ -527,8 +562,6 @@ export function createRealtimeWebRtcSession(
 
     if (type === 'response.created') {
       const id = event.response?.id || event.response_id || `resp_${Date.now()}`
-      // Defense: cancel unsolicited auto-turns (should not happen with create_response:false,
-      // but guards against server-side / race regressions).
       if (!clientRequestedResponse) {
         telemetry('unsolicited_response_cancelled', { responseId: id })
         sendEvent({ type: 'response.cancel' })
@@ -539,13 +572,18 @@ export function createRealtimeWebRtcSession(
       clientRequestedResponse = false
       const lang = activeLanguage || 'ar'
       assistantTurnLanguage = lang
+      if (playbackFallbackTimer) {
+        clearTimeout(playbackFallbackTimer)
+        playbackFallbackTimer = null
+      }
       activeResponse = {
         id,
         createdAt: nowMs(),
-        audioStarted: false,
-        audioDone: false,
+        audioStreamDone: false,
+        playbackStopped: false,
         responseDone: false,
         cancelled: false,
+        hadAudio: false,
         language: lang,
       }
       assistantBuffer = ''
@@ -556,19 +594,46 @@ export function createRealtimeWebRtcSession(
       return
     }
 
+    if (type === 'output_audio_buffer.started') {
+      if (activeResponse) {
+        activeResponse.hadAudio = true
+        quality.markFirstAssistantAudio()
+        emitQuality()
+        telemetry('response_audio_started', { responseId: activeResponse.id, via: 'output_buffer' })
+      }
+      setStatus('speaking')
+      return
+    }
+
+    if (type === 'output_audio_buffer.stopped') {
+      // WebRTC: buffer drained — this is actual playback completion.
+      if (activeResponse) {
+        activeResponse.hadAudio = true
+        activeResponse.playbackStopped = true
+        activeResponse.audioStreamDone = true
+        telemetry('response_playback_stopped', { responseId: activeResponse.id })
+      }
+      if (playbackFallbackTimer) {
+        clearTimeout(playbackFallbackTimer)
+        playbackFallbackTimer = null
+      }
+      maybeEnterListening()
+      return
+    }
+
     if (
       type === 'response.output_audio.delta'
       || type === 'response.audio.delta'
     ) {
-      if (activeResponse && !activeResponse.audioStarted) {
-        activeResponse.audioStarted = true
-        assistantAudioStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
-        quality.markFirstAssistantAudio()
-        emitQuality()
-        telemetry('response_audio_started', { responseId: activeResponse.id })
+      if (activeResponse) {
+        if (!activeResponse.hadAudio) {
+          activeResponse.hadAudio = true
+          quality.markFirstAssistantAudio()
+          emitQuality()
+          telemetry('response_audio_started', { responseId: activeResponse.id })
+        }
       }
       setStatus('speaking')
-      muteRemote(false)
       return
     }
 
@@ -576,11 +641,14 @@ export function createRealtimeWebRtcSession(
       type === 'response.output_audio.done'
       || type === 'response.audio.done'
     ) {
+      // Server finished *sending* audio — NOT playback complete yet.
       if (activeResponse) {
-        activeResponse.audioDone = true
-        telemetry('response_audio_done', { responseId: activeResponse.id })
+        activeResponse.hadAudio = true
+        activeResponse.audioStreamDone = true
+        telemetry('response_audio_stream_done', { responseId: activeResponse.id })
+        schedulePlaybackFallback()
       }
-      maybeEnterListening()
+      // Do NOT enter listening here — wait for output_audio_buffer.stopped.
       return
     }
 
@@ -588,14 +656,13 @@ export function createRealtimeWebRtcSession(
       (type === 'response.output_audio_transcript.delta' || type === 'response.audio_transcript.delta')
       && typeof event.delta === 'string'
     ) {
-      if (!assistantBuffer) {
+      if (!assistantBuffer && activeResponse) {
+        // Transcript may start before audio events — mark speaking but do NOT
+        // treat as playback complete.
         quality.markFirstAssistantAudio()
-        if (activeResponse && !activeResponse.audioStarted) {
-          // Transcript often starts with/before audio on some builds — mark speaking.
-          activeResponse.audioStarted = true
-          assistantAudioStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
-          telemetry('response_audio_started', { responseId: activeResponse.id, via: 'transcript' })
-        }
+        telemetry('response_audio_started', { responseId: activeResponse.id, via: 'transcript' })
+        // Note: hadAudio set only on real audio events / buffer.started so
+        // text-only responses can still complete via response.done.
       }
       assistantBuffer += event.delta
       callbacks.onAssistantTranscript?.(assistantBuffer, false)
@@ -607,7 +674,7 @@ export function createRealtimeWebRtcSession(
       type === 'response.output_audio_transcript.done'
       || type === 'response.audio_transcript.done'
     ) {
-      // Finalize transcript text only — do NOT flip to listening yet.
+      // Finalize displayed text only — do NOT flip to listening.
       if (assistantBuffer) callbacks.onAssistantTranscript?.(assistantBuffer, true)
       return
     }
@@ -625,14 +692,25 @@ export function createRealtimeWebRtcSession(
       interruptedPartial = ''
       if (activeResponse) {
         activeResponse.responseDone = true
-        // Text-only / no audio deltas: treat audio as done so we can listen.
-        if (!activeResponse.audioStarted) activeResponse.audioDone = true
+        // WebRTC often omits audio.delta events (media track carries audio).
+        // If we were speaking / have transcript, wait for playback drain — never
+        // treat response.done alone as playback complete.
+        if (status === 'speaking' || lastAssistantSpoken || assistantBuffer.length > 0) {
+          activeResponse.hadAudio = true
+          activeResponse.audioStreamDone = true
+          if (!activeResponse.playbackStopped) schedulePlaybackFallback()
+        } else if (!activeResponse.hadAudio) {
+          activeResponse.playbackStopped = true
+        } else if (activeResponse.audioStreamDone && !activeResponse.playbackStopped) {
+          schedulePlaybackFallback()
+        }
       }
       quality.markResponseDone()
       emitQuality()
       telemetry('response_done', {
         responseId: activeResponse?.id,
-        audioDone: activeResponse?.audioDone ?? true,
+        hadAudio: activeResponse?.hadAudio ?? false,
+        playbackStopped: activeResponse?.playbackStopped ?? false,
         cancelled: type === 'response.cancelled',
       })
       logChat('debug', 'voice', 'realtime_quality', quality.snapshot() as unknown as Record<string, unknown>)

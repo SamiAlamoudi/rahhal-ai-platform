@@ -6,9 +6,11 @@ import {
 import { buildRealtimeTurnDetection, buildServerVadFallback } from '../chat/voice/realtimeTurnConfig'
 
 describe('turn management — no unsolicited assistant speech', () => {
-  it('disables create_response so silence cannot auto-spawn replies', () => {
+  it('disables create_response and interrupt_response (client owns turns + barge-in)', () => {
     expect(buildRealtimeTurnDetection().create_response).toBe(false)
+    expect(buildRealtimeTurnDetection().interrupt_response).toBe(false)
     expect(buildServerVadFallback().create_response).toBe(false)
+    expect(buildServerVadFallback().interrupt_response).toBe(false)
     expect(buildRealtimeTurnDetection().eagerness).toBe('low')
   })
 
@@ -183,7 +185,7 @@ describe('realtime session — one response per confirmed ASR only', () => {
     session.dispose()
   })
 
-  it('after response.done stays listening and ignores echo of own reply', async () => {
+  it('after playback stops stays listening and ignores echo of own reply', async () => {
     const { session, channel } = await bootSession()
 
     // Authorized turn via confirmed ASR
@@ -196,6 +198,7 @@ describe('realtime session — one response per confirmed ASR only', () => {
     channel.onmessage!({
       data: JSON.stringify({ type: 'response.created', response: { id: 'resp_ok' } }),
     })
+    channel.onmessage!({ data: JSON.stringify({ type: 'output_audio_buffer.started' }) })
     channel.onmessage!({
       data: JSON.stringify({
         type: 'response.output_audio_transcript.delta',
@@ -204,6 +207,8 @@ describe('realtime session — one response per confirmed ASR only', () => {
     })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.output_audio.done' }) })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.done' }) })
+    expect(session.getStatus()).toBe('speaking')
+    channel.onmessage!({ data: JSON.stringify({ type: 'output_audio_buffer.stopped' }) })
     expect(session.getStatus()).toBe('listening')
 
     channel.send.mockClear()

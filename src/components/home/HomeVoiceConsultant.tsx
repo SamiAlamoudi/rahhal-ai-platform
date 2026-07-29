@@ -216,12 +216,13 @@ export function HomeVoiceConsultant({
           onUserTranscript: (text, isFinal) => {
             if (disposed) return
             if (isFinal) {
+              // Commit exact FINAL only — never overwrite with interim later.
               setPartial('')
               setUserHeard(text)
               onDraftChange(text)
-              // Same booking engine as classic voice — show options when ready.
               bookingSearchRef.current(text)
             } else {
+              // Interim preview only — never treat as the user's final message.
               setPartial(text)
             }
           },
@@ -676,10 +677,15 @@ export function HomeVoiceConsultant({
         aria-live="polite"
       >
         <p className="text-xs font-medium tracking-wide text-slate-500">{statusLabel}</p>
-        {partial || userHeard ? (
+        {userHeard ? (
           <p className="mt-3 text-sm leading-7 text-slate-600">
             <span className="font-medium text-slate-800">{t('أنت:', 'You:')}</span>{' '}
-            {partial || userHeard}
+            {userHeard}
+          </p>
+        ) : partial ? (
+          <p className="mt-3 text-sm leading-7 text-slate-500">
+            <span className="font-medium text-slate-700">{t('أنت:', 'You:')}</span>{' '}
+            {partial}
           </p>
         ) : null}
         <AnimatePresence mode="wait">

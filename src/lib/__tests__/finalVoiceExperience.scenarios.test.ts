@@ -95,10 +95,10 @@ describe('final voice experience scenarios', () => {
     expect(calm).not.toEqual(lively)
   })
 
-  it('uses semantic_vad without auto-create (client owns response.create)', () => {
+  it('uses semantic_vad without auto-create or auto-interrupt', () => {
     const td = buildRealtimeTurnDetection()
     expect(td.type).toBe('semantic_vad')
-    expect(td.interrupt_response).toBe(true)
+    expect(td.interrupt_response).toBe(false)
     expect(td.create_response).toBe(false)
   })
 

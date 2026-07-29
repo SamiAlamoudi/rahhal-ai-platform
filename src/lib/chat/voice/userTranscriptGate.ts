@@ -2,7 +2,7 @@
  * Gates Realtime input-transcription deltas so travelers never see
  * low-confidence interim text in an unrelated script (e.g. Chinese while speaking Arabic).
  *
- * Never translates user speech — only filters what is shown and locks the turn language.
+ * FINAL transcripts are committed exactly once — never rewritten or substituted with interim.
  */
 
 import type { ConversationLanguageCode } from './conversationLanguageLayer'
@@ -104,118 +104,6 @@ export type TranscriptGateResult = {
 const LOCK_MIN_CHARS = 4
 const STABLE_MIN_CHARS = 2
 
-/**
- * Per-user gate: buffers interim deltas, suppresses foreign scripts,
- * locks language once confident, never changes mid-turn.
- */
-export function createUserTranscriptGate(getExpectedLanguage: () => LockedSpeechLanguage | null) {
-  let lockedLanguage: LockedSpeechLanguage | null = null
-  let interimBuffer = ''
-  let lastStableDisplay: string | null = null
-
-  const tryLockFromText = (text: string) => {
-    if (lockedLanguage) return
-    const script = detectTranscriptScript(text)
-    const trimmed = text.replace(/\s+/g, '')
-    if (trimmed.length < LOCK_MIN_CHARS) return
-    if (script === 'arabic') {
-      lockedLanguage = 'ar'
-      return
-    }
-    if (script === 'cjk') {
-      // Never lock to CJK from interim alone when product expects Arabic/European —
-      // wait for final + explicit detection elsewhere.
-      return
-    }
-    if (script === 'latin') {
-      const expected = getExpectedLanguage()
-      // Only lock Latin if we already expect a Latin language, or no Arabic expectation.
-      if (expected && expected !== 'ar' && expected !== 'ur') {
-        lockedLanguage = expected
-      }
-    }
-    if (script === 'cyrillic') {
-      lockedLanguage = 'ru'
-    }
-  }
-
-  const effectiveLanguage = (): LockedSpeechLanguage | null =>
-    lockedLanguage || getExpectedLanguage()
-
-  return {
-    resetTurn() {
-      interimBuffer = ''
-      lastStableDisplay = null
-      lockedLanguage = null
-    },
-    getLockedLanguage(): LockedSpeechLanguage | null {
-      return lockedLanguage
-    },
-    /** Force lock (e.g. from completed transcript after validation). */
-    lockLanguage(lang: LockedSpeechLanguage) {
-      if (!lockedLanguage) lockedLanguage = lang
-    },
-    ingestDelta(delta: string): TranscriptGateResult {
-      if (!delta) {
-        return { displayText: lastStableDisplay, lockedLanguage, suppressed: false }
-      }
-      interimBuffer += delta
-      tryLockFromText(interimBuffer)
-
-      const lang = effectiveLanguage()
-      if (isUnsupportedInterimScript(interimBuffer, lang)) {
-        return { displayText: lastStableDisplay, lockedLanguage, suppressed: true }
-      }
-
-      const trimmed = interimBuffer.trim()
-      if (trimmed.length < STABLE_MIN_CHARS) {
-        return { displayText: lastStableDisplay, lockedLanguage, suppressed: true }
-      }
-
-      lastStableDisplay = trimmed
-      return { displayText: trimmed, lockedLanguage, suppressed: false }
-    },
-    ingestFinal(transcript: string): TranscriptGateResult & { accepted: boolean } {
-      const text = (transcript || '').trim()
-      interimBuffer = text
-      tryLockFromText(text)
-
-      const lang = effectiveLanguage()
-      if (text && isUnsupportedInterimScript(text, lang)) {
-        // Reject foreign-script "final" that contradicts the locked/expected language.
-        return {
-          displayText: lastStableDisplay,
-          lockedLanguage,
-          suppressed: true,
-          accepted: false,
-        }
-      }
-
-      if (text) {
-        lastStableDisplay = text
-        // Lock from final Arabic/Latin once accepted.
-        if (!lockedLanguage) {
-          const script = detectTranscriptScript(text)
-          if (script === 'arabic') lockedLanguage = 'ar'
-          else if (script === 'latin') {
-            const expected = getExpectedLanguage()
-            lockedLanguage = expected && expected !== 'ar' ? expected : 'en'
-          }
-        }
-      }
-
-      return {
-        displayText: text || lastStableDisplay,
-        lockedLanguage,
-        suppressed: false,
-        accepted: Boolean(text),
-      }
-    },
-  }
-}
-
-export type UserTranscriptGate = ReturnType<typeof createUserTranscriptGate>
-
 /** Noise / filler / empty ASR that must never spawn an assistant turn. */
 const NOISE_ONLY_RE =
   /^(?:um+|uh+|ah+|mm+|hmm+|mhm+|إم+|آه+|اه+|آ+|ه+|هه+|ها+|…+|\.+|-+|~+|\s)+$/iu
@@ -259,3 +147,162 @@ export function looksLikeAssistantEcho(userText: string, lastAssistantText: stri
   const overlap = hit / Math.min(userTokens.size, asstTokens.length)
   return overlap >= 0.7 && hit >= 2
 }
+
+/**
+ * Per-utterance gate: interim preview only; FINAL commits exact ASR text once.
+ * Never rewrites or substitutes the user's recognized words.
+ */
+export function createUserTranscriptGate(getExpectedLanguage: () => LockedSpeechLanguage | null) {
+  let lockedLanguage: LockedSpeechLanguage | null = null
+  let interimBuffer = ''
+  /** Ephemeral preview only — never promoted to final. */
+  let interimPreview: string | null = null
+  /** Locked exact FINAL transcript for this user turn (immutable once set). */
+  let committedFinal: string | null = null
+
+  const tryLockFromText = (text: string) => {
+    if (lockedLanguage) return
+    const script = detectTranscriptScript(text)
+    const trimmed = text.replace(/\s+/g, '')
+    if (trimmed.length < LOCK_MIN_CHARS) return
+    if (script === 'arabic') {
+      lockedLanguage = 'ar'
+      return
+    }
+    if (script === 'cjk') {
+      return
+    }
+    if (script === 'latin') {
+      const expected = getExpectedLanguage()
+      if (expected && expected !== 'ar' && expected !== 'ur') {
+        lockedLanguage = expected
+      }
+    }
+    if (script === 'cyrillic') {
+      lockedLanguage = 'ru'
+    }
+  }
+
+  const effectiveLanguage = (): LockedSpeechLanguage | null =>
+    lockedLanguage || getExpectedLanguage()
+
+  return {
+    resetTurn() {
+      interimBuffer = ''
+      interimPreview = null
+      committedFinal = null
+      lockedLanguage = null
+    },
+    getLockedLanguage(): LockedSpeechLanguage | null {
+      return lockedLanguage
+    },
+    getCommittedFinal(): string | null {
+      return committedFinal
+    },
+    /** Force lock (e.g. from completed transcript after validation). */
+    lockLanguage(lang: LockedSpeechLanguage) {
+      if (!lockedLanguage) lockedLanguage = lang
+    },
+    /**
+     * Interim preview only (isFinal=false). Never commits.
+     * Suppress unsupported-script flash; do not mutate prior committed final.
+     */
+    ingestDelta(delta: string): TranscriptGateResult {
+      if (committedFinal != null) {
+        // Final already locked — ignore interim rewrites for this turn.
+        return { displayText: null, lockedLanguage, suppressed: true }
+      }
+      if (!delta) {
+        return { displayText: interimPreview, lockedLanguage, suppressed: false }
+      }
+      interimBuffer += delta
+      tryLockFromText(interimBuffer)
+
+      const lang = effectiveLanguage()
+      if (isUnsupportedInterimScript(interimBuffer, lang)) {
+        return { displayText: interimPreview, lockedLanguage, suppressed: true }
+      }
+
+      const trimmed = interimBuffer.trim()
+      if (trimmed.length < STABLE_MIN_CHARS) {
+        return { displayText: interimPreview, lockedLanguage, suppressed: true }
+      }
+
+      interimPreview = trimmed
+      return { displayText: trimmed, lockedLanguage, suppressed: false }
+    },
+    /**
+     * Commit exact FINAL ASR once. Never substitute interim text.
+     * Returns accepted=false without a displayText commit when rejected.
+     */
+    ingestFinal(transcript: string): TranscriptGateResult & { accepted: boolean; exactText: string | null } {
+      // Already locked — return the exact committed text, ignore further rewrites.
+      if (committedFinal != null) {
+        return {
+          displayText: committedFinal,
+          lockedLanguage,
+          suppressed: false,
+          accepted: true,
+          exactText: committedFinal,
+        }
+      }
+
+      // Exact recognized text — only trim outer whitespace, never rewrite words.
+      const exact = (transcript || '').trim()
+      if (!exact) {
+        return {
+          displayText: null,
+          lockedLanguage,
+          suppressed: true,
+          accepted: false,
+          exactText: null,
+        }
+      }
+
+      tryLockFromText(exact)
+      const lang = effectiveLanguage()
+      if (isUnsupportedInterimScript(exact, lang)) {
+        // Reject entirely — do NOT fall back to interim (that rewrites the user).
+        return {
+          displayText: null,
+          lockedLanguage,
+          suppressed: true,
+          accepted: false,
+          exactText: null,
+        }
+      }
+
+      if (!isConfirmedUserUtterance(exact)) {
+        return {
+          displayText: null,
+          lockedLanguage,
+          suppressed: true,
+          accepted: false,
+          exactText: null,
+        }
+      }
+
+      committedFinal = exact
+      interimPreview = null
+      interimBuffer = exact
+      if (!lockedLanguage) {
+        const script = detectTranscriptScript(exact)
+        if (script === 'arabic') lockedLanguage = 'ar'
+        else if (script === 'latin') {
+          const expected = getExpectedLanguage()
+          lockedLanguage = expected && expected !== 'ar' ? expected : 'en'
+        }
+      }
+
+      return {
+        displayText: exact,
+        lockedLanguage,
+        suppressed: false,
+        accepted: true,
+        exactText: exact,
+      }
+    },
+  }
+}
+
+export type UserTranscriptGate = ReturnType<typeof createUserTranscriptGate>
