@@ -243,9 +243,11 @@ export function HomeVoiceConsultant({
                 ? message.providerMeta.spokenText.trim()
                 : '')
             if (!spokenRaw) {
+              // No playback — release mic; do not auto-listen (stuck red mic on iPhone).
               if (!userStoppedRef.current) {
-                setMicStatus('listening', { phase: 'empty_spoken' })
-                realtimeRef.current?.ensureListening()
+                realtimeRef.current?.releaseToIdle?.('empty_spoken')
+                setMicStatus('idle', { phase: 'empty_spoken' })
+                setAudioPlaying(false)
               }
               return
             }
@@ -263,11 +265,12 @@ export function HomeVoiceConsultant({
               setMicStatus('speaking', { phase: 'realtime_playback' })
               setAudioPlaying(true)
               realtimeRef.current.speakWrittenDraft(spokenRaw, { locale: speakLocale })
+              // Mic reopen only on explicit user tap after playback → idle.
             } else if (voiceRef.current && !userStoppedRef.current) {
               setMicStatus('speaking', { phase: 'classic_tts' })
               setAudioPlaying(true)
               void voiceRef.current.speakText(spokenRaw, {
-                resumeHandsFree: !userStoppedRef.current,
+                resumeHandsFree: false,
                 interrupt: true,
               }).finally(() => {
                 if (gen !== bookingSearchGenRef.current || userStoppedRef.current) {
@@ -275,10 +278,12 @@ export function HomeVoiceConsultant({
                   return
                 }
                 setAudioPlaying(false)
-                setMicStatus('listening', { phase: 'classic_tts_done' })
+                void voiceRef.current?.stopListening()
+                setMicStatus('idle', { phase: 'classic_tts_done' })
               })
             } else if (!userStoppedRef.current) {
-              setMicStatus('listening', { phase: 'no_playback_path' })
+              realtimeRef.current?.releaseToIdle?.('no_playback_path')
+              setMicStatus('idle', { phase: 'no_playback_path' })
             }
           },
           onError: (_message, err) => {
@@ -287,9 +292,11 @@ export function HomeVoiceConsultant({
               const facing = toUserFacingVoiceError(err)
               if (facing) setError(facing)
             }
+            // Errors must not leave the mic open.
             if (!userStoppedRef.current) {
-              setMicStatus('listening', { phase: 'stream_error' })
-              realtimeRef.current?.ensureListening()
+              realtimeRef.current?.releaseToIdle?.('stream_error')
+              setMicStatus('idle', { phase: 'stream_error' })
+              setAudioPlaying(false)
             }
           },
         },
@@ -301,8 +308,9 @@ export function HomeVoiceConsultant({
         if (facing) setError(facing)
       }
       if (!userStoppedRef.current) {
-        setMicStatus('listening', { phase: 'owned_turn_catch' })
-        realtimeRef.current?.ensureListening()
+        realtimeRef.current?.releaseToIdle?.('owned_turn_catch')
+        setMicStatus('idle', { phase: 'owned_turn_catch' })
+        setAudioPlaying(false)
       }
     }
   }, [flushAssistant, locale, setMicStatus])

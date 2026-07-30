@@ -150,6 +150,8 @@ describe('realtime cancel-only-when-active lifecycle', () => {
     readyState: string
     onmessage: ((ev: { data: string }) => void) | null
     onopen: (() => void) | null
+    onclose: (() => void) | null
+    onerror: (() => void) | null
     send: ReturnType<typeof vi.fn>
     close: () => void
   }
@@ -159,21 +161,30 @@ describe('realtime cancel-only-when-active lifecycle', () => {
       kind: 'audio',
       enabled: true,
       readyState: 'live',
+      muted: false,
       stop: vi.fn(),
+      getSettings: () => ({ sampleRate: 48000, channelCount: 1 }),
     }
     const stream = {
       getTracks: () => [track],
       getAudioTracks: () => [track],
+      clone: () => stream,
     }
     const holder: { channel: FakeChannel | null } = { channel: null }
 
     class FakeRTCPeerConnection {
+      connectionState = 'new'
+      iceConnectionState = 'new'
       ontrack: ((e: unknown) => void) | null = null
+      oniceconnectionstatechange: (() => void) | null = null
+      onconnectionstatechange: (() => void) | null = null
       createDataChannel() {
         const ch: FakeChannel = {
           readyState: 'connecting',
           onmessage: null,
           onopen: null,
+          onclose: null,
+          onerror: null,
           send: vi.fn(),
           close: () => {
             ch.readyState = 'closed'
@@ -189,8 +200,12 @@ describe('realtime cancel-only-when-active lifecycle', () => {
       addTrack = vi.fn()
       createOffer = vi.fn(async () => ({ type: 'offer', sdp: 'v=0\r\n' }))
       setLocalDescription = vi.fn(async () => undefined)
-      setRemoteDescription = vi.fn(async () => undefined)
-      getSenders = vi.fn(() => [{ track }])
+      setRemoteDescription = vi.fn(async () => {
+        this.connectionState = 'connected'
+        this.iceConnectionState = 'connected'
+      })
+      getSenders = vi.fn(() => [{ track, replaceTrack: vi.fn(async () => undefined) }])
+      getStats = vi.fn(async () => new Map())
       close = vi.fn()
     }
 
@@ -280,7 +295,7 @@ describe('realtime cancel-only-when-active lifecycle', () => {
     session.dispose()
   })
 
-  it('waits for playback stopped — not response.done alone — before listening', async () => {
+  it('waits for playback stopped — then releases mic to idle (no auto-listen)', async () => {
     const { session, channel } = await bootSession()
 
     // Sole Realtime speech path is speakWrittenDraft (planTurn owns words).
@@ -298,11 +313,11 @@ describe('realtime cancel-only-when-active lifecycle', () => {
     expect(session.getStatus()).toBe('speaking')
 
     channel.onmessage!({ data: JSON.stringify({ type: 'response.done' }) })
-    // Still must NOT listen — wait for output_audio_buffer.stopped
+    // Still speaking — wait for output_audio_buffer.stopped
     expect(session.getStatus()).toBe('speaking')
 
     channel.onmessage!({ data: JSON.stringify({ type: 'output_audio_buffer.stopped' }) })
-    expect(session.getStatus()).toBe('listening')
+    expect(session.getStatus()).toBe('idle')
     session.dispose()
   })
 })
