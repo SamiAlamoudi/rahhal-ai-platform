@@ -108,7 +108,7 @@ describe('realtime session — one response per confirmed ASR only', () => {
         this.connectionState = 'connected'
         this.iceConnectionState = 'connected'
       })
-      getSenders = vi.fn(() => [{ track }])
+      getSenders = vi.fn(() => [{ track, replaceTrack: vi.fn(async () => undefined) }])
       getStats = vi.fn(async () => new Map())
       close = vi.fn()
     }
@@ -214,7 +214,7 @@ describe('realtime session — one response per confirmed ASR only', () => {
     session.dispose()
   })
 
-  it('after playback stops stays listening and ignores echo of own reply', async () => {
+  it('after playback stops releases mic to idle and ignores echo of own reply', async () => {
     const { session, channel } = await bootSession()
 
     // Sole speech path: planTurn → speakWrittenDraft (not ASR → response.create).
@@ -233,10 +233,10 @@ describe('realtime session — one response per confirmed ASR only', () => {
     channel.onmessage!({ data: JSON.stringify({ type: 'response.done' }) })
     expect(session.getStatus()).toBe('speaking')
     channel.onmessage!({ data: JSON.stringify({ type: 'output_audio_buffer.stopped' }) })
-    expect(session.getStatus()).toBe('listening')
+    expect(session.getStatus()).toBe('idle')
 
     channel.send.mockClear()
-    // Echo of own words must not create another turn
+    // Echo of own words must not create another turn (mic released / not listening)
     channel.onmessage!({
       data: JSON.stringify({
         type: 'conversation.item.input_audio_transcription.completed',
@@ -244,7 +244,7 @@ describe('realtime session — one response per confirmed ASR only', () => {
       }),
     })
     expect(sentTypes(channel)).not.toContain('response.create')
-    expect(session.getStatus()).toBe('listening')
+    expect(session.getStatus()).toBe('idle')
     session.dispose()
   })
 

@@ -204,7 +204,7 @@ describe('realtime cancel-only-when-active lifecycle', () => {
         this.connectionState = 'connected'
         this.iceConnectionState = 'connected'
       })
-      getSenders = vi.fn(() => [{ track }])
+      getSenders = vi.fn(() => [{ track, replaceTrack: vi.fn(async () => undefined) }])
       getStats = vi.fn(async () => new Map())
       close = vi.fn()
     }
@@ -295,7 +295,7 @@ describe('realtime cancel-only-when-active lifecycle', () => {
     session.dispose()
   })
 
-  it('waits for playback stopped — not response.done alone — before listening', async () => {
+  it('waits for playback stopped — then releases mic to idle (no auto-listen)', async () => {
     const { session, channel } = await bootSession()
 
     // Sole Realtime speech path is speakWrittenDraft (planTurn owns words).
@@ -313,11 +313,11 @@ describe('realtime cancel-only-when-active lifecycle', () => {
     expect(session.getStatus()).toBe('speaking')
 
     channel.onmessage!({ data: JSON.stringify({ type: 'response.done' }) })
-    // Still must NOT listen — wait for output_audio_buffer.stopped
+    // Still speaking — wait for output_audio_buffer.stopped
     expect(session.getStatus()).toBe('speaking')
 
     channel.onmessage!({ data: JSON.stringify({ type: 'output_audio_buffer.stopped' }) })
-    expect(session.getStatus()).toBe('listening')
+    expect(session.getStatus()).toBe('idle')
     session.dispose()
   })
 })

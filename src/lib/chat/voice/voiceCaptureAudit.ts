@@ -76,6 +76,8 @@ export type VoiceCaptureAudit = {
   }) => VoiceCaptureTurnSnapshot
   getReconnectCount: () => number
   snapshot: () => Partial<VoiceCaptureTurnSnapshot>
+  /** Stop cloned-stream energy monitor only — keep peer stats across mic release. */
+  releaseMicMonitor: () => void
   dispose: () => void
 }
 
@@ -635,6 +637,11 @@ export function createVoiceCaptureAudit(): VoiceCaptureAudit {
         connectionState,
         iceConnectionState,
       }
+    },
+
+    releaseMicMonitor() {
+      stopMonitor()
+      localStream = null
     },
 
     dispose() {

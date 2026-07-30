@@ -95,10 +95,16 @@ export type RealtimeWebRtcSession = {
   dispose: () => void
   interrupt: () => void
   /**
-   * Re-arm mic + turn detection after an assistant turn without recreating WebRTC.
+   * Re-arm mic + turn detection after an explicit user mic press.
    * Safe no-op when not connected or after hardStop.
+   * Does not auto-run after assistant playback — that path releases the mic to idle.
    */
   ensureListening: () => void
+  /**
+   * Stop local mic capture and return to idle without latching hardStop.
+   * Clears the iOS Safari mic indicator; peer/datachannel may stay up for fast reopen.
+   */
+  releaseToIdle: (reason?: string) => void
   /** True after hardStop until the next explicit connect(). */
   isHardStopped: () => boolean
   /** Send a text user turn into the live session (no classic TTS). */
@@ -283,6 +289,123 @@ export function createRealtimeWebRtcSession(
     } catch {
       // ignore
     }
+  }
+
+  const hasLiveMicTrack = (): boolean => {
+    try {
+      if (localStream?.getAudioTracks().some((t) => t.readyState === 'live')) return true
+      return Boolean(
+        pc?.getSenders().some(
+          (s) => s.track?.kind === 'audio' && s.track.readyState === 'live',
+        ),
+      )
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Fully stop local capture so iOS Safari clears the red/orange mic indicator.
+   * Keeps the RTCPeerConnection / data channel for faster next user tap.
+   */
+  const stopLocalMicCapture = (reason: string) => {
+    try {
+      disableTurnDetection()
+    } catch {
+      // ignore
+    }
+    utteranceAssembler.cancelPendingCommit()
+    muteLocalMic()
+    try {
+      localStream?.getTracks().forEach((t) => t.stop())
+    } catch {
+      // ignore
+    }
+    try {
+      pc?.getSenders().forEach((sender) => {
+        if (sender.track?.kind === 'audio') {
+          try {
+            sender.track.stop()
+          } catch {
+            // ignore
+          }
+          try {
+            void sender.replaceTrack(null)
+          } catch {
+            // ignore
+          }
+        }
+      })
+    } catch {
+      // ignore
+    }
+    localStream = null
+    captureAudit.releaseMicMonitor()
+    telemetry('mic_capture_released', { reason, status })
+    logPipeline({
+      stage: 'microphone',
+      event: 'mic_capture_released',
+      meta: { reason, status },
+    })
+  }
+
+  const acquireLocalMic = async (): Promise<boolean> => {
+    if (hardStopped || disposed || !pc) return false
+    if (hasLiveMicTrack()) {
+      ensureLocalMicLive()
+      return true
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      })
+      if (hardStopped || disposed || !pc) {
+        stream.getTracks().forEach((t) => t.stop())
+        return false
+      }
+      localStream = stream
+      captureAudit.attachLocalStream(stream)
+      const track = stream.getAudioTracks()[0]
+      if (track) {
+        try {
+          if ('contentHint' in track) {
+            ;(track as MediaStreamTrack & { contentHint?: string }).contentHint = 'speech'
+          }
+        } catch {
+          // ignore
+        }
+        const audioSender = pc.getSenders().find(
+          (s) => s.track?.kind === 'audio' || s.track == null || s.track.readyState === 'ended',
+        )
+        if (audioSender && typeof audioSender.replaceTrack === 'function') {
+          await audioSender.replaceTrack(track)
+        } else {
+          pc.addTrack(track, stream)
+        }
+      }
+      ensureLocalMicLive()
+      telemetry('mic_capture_acquired', { sampleRate: track?.getSettings?.().sampleRate ?? null })
+      return true
+    } catch (error) {
+      telemetry('mic_reacquire_failed', {
+        message: error instanceof Error ? error.message : String(error),
+      })
+      return false
+    }
+  }
+
+  const releaseToIdleInternal = (reason: string) => {
+    if (disposed) return
+    stopLocalMicCapture(reason)
+    clearPlaybackTimers()
+    status = 'idle'
+    logMicSessionState('IDLE', { source: 'realtime', reason: `mic_released:${reason}` })
+    callbacks.onStatus?.('idle')
   }
 
   const disableTurnDetection = () => {
@@ -530,6 +653,9 @@ export function createRealtimeWebRtcSession(
         shrinkStage: capture.shrinkStage,
         partialCause: capture.partialCause,
       })
+      // Close mic immediately on commit — do not keep capturing during planTurn/playback.
+      stopLocalMicCapture('asr_final_committed')
+      setStatus('thinking')
       callbacks.onUserTranscript?.(result.committedTranscript, true, {
         committedTranscript: result.committedTranscript,
         normalizedForExtract: result.normalizedForExtract,
@@ -696,22 +822,22 @@ export function createRealtimeWebRtcSession(
 
   const maybeEnterListening = () => {
     /**
-     * Listening resumes only after actual playback completion.
-     * Do NOT use response.done alone — on WebRTC it fires before the output
-     * buffer finishes draining (spoken cut short while text already shown).
+     * After playback completion: release the mic to IDLE.
+     * Do NOT auto-reopen listening — iPhone users see a stuck red mic indicator
+     * and a second partial turn can start while results are already on screen.
+     * Next listen requires an explicit mic tap (ensureListening / connect).
      *
      * Preferred signal: output_audio_buffer.stopped
      * Fallback: audio stream done + short drain (if stopped event missing)
      * Text-only: response.done with no audio
-     *
-     * After hardStop: never re-enter listening (Stay IDLE until explicit connect).
      */
     if (hardStopped || disposed) {
       telemetry('enter_listening_blocked_hard_stopped')
       return
     }
     if (!activeResponse) {
-      setStatus('listening')
+      releaseToIdleInternal('no_active_response')
+      telemetry('entered_idle_mic_released', { reason: 'no_active_response' })
       return
     }
     if (activeResponse.cancelled) {
@@ -719,10 +845,8 @@ export function createRealtimeWebRtcSession(
       clientRequestedResponse = false
       clearActiveResponse()
       if (hardStopped) return
-      ensureLocalMicLive()
-      reassertTurnDetection()
-      setStatus('listening')
-      telemetry('entered_idle_listening', { reason: 'cancelled' })
+      releaseToIdleInternal('response_cancelled')
+      telemetry('entered_idle_mic_released', { reason: 'cancelled' })
       return
     }
 
@@ -739,10 +863,8 @@ export function createRealtimeWebRtcSession(
     clientRequestedResponse = false
     clearActiveResponse()
     if (hardStopped || disposed) return
-    ensureLocalMicLive()
-    reassertTurnDetection()
-    setStatus('listening')
-    telemetry('entered_idle_listening', { responseDoneAt, via: 'playback_complete' })
+    releaseToIdleInternal('playback_complete')
+    telemetry('entered_idle_mic_released', { responseDoneAt, via: 'playback_complete' })
   }
 
   /** Fallback when output_audio_buffer.stopped is not delivered (<300ms target). */
@@ -795,9 +917,9 @@ export function createRealtimeWebRtcSession(
     }
 
     if (type === 'input_audio_buffer.speech_started') {
-      // Only arm ASR assembly when idle/listening. Never while speaking —
-      // echo must not clear state mid-playback.
-      if (status === 'listening' || status === 'idle') {
+      // Only arm ASR while actively listening. Idle = mic released — ignore VAD.
+      // Never while speaking — echo must not clear state mid-playback.
+      if (status === 'listening') {
         // New utterance after a prior commit — clear lock. Mid-pause continuation
         // keeps assembling (assembler cancels the commit timer).
         if (lockedUserTranscript != null && !utteranceAssembler.hasPending()) {
@@ -831,13 +953,13 @@ export function createRealtimeWebRtcSession(
       captureAudit.onSpeechStopped(at)
       quality.markSpeechStopped()
       emitQuality()
-      if (status === 'listening' || status === 'idle') {
+      if (status === 'listening') {
         utteranceAssembler.onSpeechStopped(at)
         // Debounced commit — brief Arabic pauses must not finalize mid-sentence.
         utteranceAssembler.scheduleCommit(ARABIC_UTTERANCE_COMMIT_MS)
       }
       // Stay listening — do NOT enter thinking or create a response on VAD alone.
-      if (!hasCancellableResponse() && status !== 'speaking') {
+      if (status === 'listening' && !hasCancellableResponse()) {
         setStatus('listening')
       }
       telemetry('speech_stopped_no_auto_response', {
@@ -856,6 +978,13 @@ export function createRealtimeWebRtcSession(
     }
 
     if (type === 'conversation.item.input_audio_transcription.delta' && typeof event.delta === 'string') {
+      if (status !== 'listening') {
+        logAsrDiagnostics('asr_delta_ignored_not_listening', {
+          status,
+          sample: event.delta.slice(0, 40),
+        })
+        return
+      }
       // Already committed — ignore later deltas (lock integrity).
       if (lockedUserTranscript != null) {
         logAsrDiagnostics('asr_delta_ignored_after_lock', { sample: event.delta.slice(0, 40) })
@@ -875,6 +1004,13 @@ export function createRealtimeWebRtcSession(
     }
 
     if (type === 'conversation.item.input_audio_transcription.completed' && typeof event.transcript === 'string') {
+      if (status !== 'listening') {
+        logAsrDiagnostics('asr_segment_ignored_not_listening', {
+          status,
+          sample: event.transcript.slice(0, 40),
+        })
+        return
+      }
       // Locked turn — ignore late segment rewrites / translations.
       if (lockedUserTranscript != null) {
         logAsrDiagnostics('asr_segment_ignored_after_lock', {
@@ -1089,7 +1225,12 @@ export function createRealtimeWebRtcSession(
       // Allow reconnect after a clean disconnect on the same session object.
       // Prefer keeping the live peer — rebuilding mid-session drops mic frames.
       if (pc && dc && dc.readyState === 'open') {
-        ensureLocalMicLive()
+        const ok = await acquireLocalMic()
+        if (!ok) {
+          callbacks.onError?.(VOICE_RECOVERABLE_ERROR_AR)
+          setStatus('error')
+          return
+        }
         reassertTurnDetection()
         setStatus('listening')
         return
@@ -1302,10 +1443,18 @@ export function createRealtimeWebRtcSession(
       if (!pc || !dc || dc.readyState !== 'open') return
       // Never force listening while an assistant response is still speaking.
       if (hasCancellableResponse() && status === 'speaking') return
-      ensureLocalMicLive()
-      reassertTurnDetection()
-      muteRemote(false)
-      if (status !== 'listening') setStatus('listening')
+      void acquireLocalMic().then((ok) => {
+        if (!ok || hardStopped || disposed) return
+        if (hasCancellableResponse() && status === 'speaking') return
+        reassertTurnDetection()
+        muteRemote(false)
+        setStatus('listening')
+      })
+    },
+    releaseToIdle(reason = 'release_to_idle') {
+      if (disposed) return
+      // Do not latch hardStopped — user may tap mic again without a full reconnect.
+      releaseToIdleInternal(reason)
     },
     isHardStopped() {
       return hardStopped
@@ -1313,9 +1462,12 @@ export function createRealtimeWebRtcSession(
     interrupt() {
       if (hardStopped || disposed) return
       // Explicit user barge-in (mic tap) — always allowed when a response is active.
-      interruptInternal(true, { rearmMic: true })
-      ensureLocalMicLive()
-      setStatus('listening')
+      interruptInternal(true, { rearmMic: false })
+      void acquireLocalMic().then((ok) => {
+        if (!ok || hardStopped || disposed) return
+        reassertTurnDetection()
+        setStatus('listening')
+      })
     },
     sendText(text: string) {
       // Architecture: text turns are owned by planTurn (HomeVoiceConsultant).
@@ -1323,7 +1475,10 @@ export function createRealtimeWebRtcSession(
       const cleaned = text.trim()
       if (!cleaned) return
       telemetry('send_text_ignored_turn_owner_is_plan_turn', { sample: cleaned.slice(0, 40) })
-      if (!hardStopped) setStatus('listening')
+      // Text turns must not reopen the mic.
+      if (!hardStopped && status === 'listening') {
+        releaseToIdleInternal('send_text')
+      }
     },
     speakWrittenDraft(written, opts) {
       if (hardStopped || disposed) {
