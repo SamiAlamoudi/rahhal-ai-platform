@@ -36,6 +36,11 @@ import {
   destinationsConflict,
   resolveDestinationIdentity,
 } from './destinationIdentity'
+import { resolveAirportCode } from './airportCodes'
+import {
+  bookingFieldsSearchReady,
+  buildRequirementsProvenance,
+} from './fieldProvenance'
 import {
   buildBookingOptionsFromPlan,
   countProviderFlightOffers,
@@ -1711,6 +1716,30 @@ export function createTravelAgentService(
       )
       if (destinationChanged || destinationNewlySet || greetingCleanStart) {
         memory = withTripPlan({ ...memory, phase: 'collecting' }, null)
+        // Destination change / new trip: never keep fabricated traveler counts.
+        if (
+          (destinationChanged || greetingCleanStart)
+          && extracted.patch.travelers == null
+        ) {
+          memory = {
+            ...memory,
+            requirements: {
+              ...memory.requirements,
+              travelers: null,
+              travelerType: extracted.patch.travelerType ?? null,
+            },
+          }
+        }
+      }
+
+      memory = {
+        ...memory,
+        fieldProvenance: buildRequirementsProvenance({
+          patch: extracted.patch,
+          merged: memory.requirements,
+          prior: greetingCleanStart ? null : prior.fieldProvenance,
+          destinationChanged: destinationChanged || destinationNewlySet || greetingCleanStart,
+        }),
       }
 
       const transcriptDestination = destinationFromTranscript(userText)
@@ -1718,12 +1747,19 @@ export function createTravelAgentService(
       logPipeline({
         stage: 'conversation',
         event: 'destination_pipeline',
-        meta: buildDestinationTelemetry({
-          transcriptDestination,
-          extractedDestination,
-          memoryDestination: memory.requirements.destination,
-          identity: resolveDestinationIdentity(memory.requirements.destination),
-        }) as unknown as Record<string, unknown>,
+        meta: {
+          ...buildDestinationTelemetry({
+            transcriptDestination,
+            extractedDestination,
+            memoryDestination: memory.requirements.destination,
+            identity: resolveDestinationIdentity(memory.requirements.destination),
+          }) as unknown as Record<string, unknown>,
+          fieldProvenance: memory.fieldProvenance,
+          travelers: memory.requirements.travelers,
+          airportCode: memory.requirements.destination
+            ? resolveAirportCode(memory.requirements.destination)
+            : null,
+        },
       })
 
       memory.missingFields = missingRequirementFields(memory.requirements)
@@ -2050,8 +2086,29 @@ export function createTravelAgentService(
           || (memory.requirements.startDate && memory.requirements.endDate)
           || memory.requirements.startDate,
         )
-        const hasTravelers = memory.requirements.travelers != null
-        const bookingSearchReady = hasDestination && hasDates && hasTravelers
+        const provenanceGate = bookingFieldsSearchReady(memory.fieldProvenance)
+        const hasTravelers = Boolean(
+          memory.requirements.travelers != null
+          && memory.fieldProvenance?.travelers?.confirmed
+          && (memory.fieldProvenance.travelers.source === 'current_turn'
+            || memory.fieldProvenance.travelers.source === 'confirmed_memory'
+            || memory.fieldProvenance.travelers.source === 'user_selection'),
+        )
+        const bookingSearchReady = hasDestination && hasDates && hasTravelers && provenanceGate.ready
+        if (!bookingSearchReady) {
+          logPipeline({
+            stage: 'conversation',
+            event: 'booking_search_blocked_provenance',
+            meta: {
+              hasDestination,
+              hasDates,
+              hasTravelers,
+              travelers: memory.requirements.travelers,
+              provenance: memory.fieldProvenance,
+              missingProvenance: provenanceGate.missing,
+            },
+          })
+        }
         if (
           bookingSearchReady
           && memory.requirements.budgetAmount == null

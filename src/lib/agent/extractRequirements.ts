@@ -36,6 +36,7 @@ const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
   { keys: ['istanbul', 'اسطنبول', 'إسطنبول', 'تركيا', 'turkey'], value: 'Istanbul' },
   { keys: ['london', 'لندن', 'uk', 'britain'], value: 'London' },
   { keys: ['cairo', 'القاهرة', 'egypt', 'مصر'], value: 'Cairo' },
+  { keys: ['lebanon', 'لبنان', 'beirut', 'بيروت'], value: 'لبنان' },
   { keys: ['maldives', 'المالديف'], value: 'Maldives' },
   { keys: ['bali', 'بالي', 'indonesia', 'اندونيسيا', 'إندونيسيا'], value: 'Bali' },
   {
@@ -126,7 +127,7 @@ export function extractFromUserText(
   if (/\bhoneymoon\b|شهر عسل/.test(lower) || /شهر\s*عسل/.test(normalized)) {
     patch.tripPurpose = 'honeymoon'
     patch.travelerType = 'couple'
-    patch.travelers = patch.travelers ?? 2
+    // Do not invent travelers=2 — ask if count was not stated.
     patch.interests = uniqueInterests([...(patch.interests ?? []), 'romance', 'beach'])
   } else if (
     // Bare "Business" / بزنس is cabin class — only treat explicit work-trip cues as purpose.
@@ -135,7 +136,7 @@ export function extractFromUserText(
   ) {
     patch.tripPurpose = 'business'
     patch.travelerType = 'business'
-    patch.travelers = patch.travelers ?? 1
+    // Do not invent travelers=1 unless the user stated a count.
     patch.interests = uniqueInterests([...(patch.interests ?? []), 'meetings', 'city'])
   } else if (/\bfamily\b|عائلي|عائلة|أطفال|اطفال/.test(lower) || /عائلة/.test(normalized)) {
     patch.tripPurpose = 'family'
@@ -147,9 +148,17 @@ export function extractFromUserText(
     || /زوجتي|زوجي|زوجته|زوجها|خطيبتي|خطيبي/.test(normalized)
   ) {
     patch.travelerType = 'couple'
-    patch.travelers = patch.travelers ?? 2
+    // Explicit spouse / partner phrasing is a stated party of two.
+    // Bare "couple" / زوجين alone must NOT invent a count.
+    if (
+      /\b(?:with )?(?:my )?(?:wife|husband|spouse|partner)\b/.test(lower)
+      || /زوجتي|زوجي|زوجته|زوجها|خطيبتي|خطيبي|مع\s*زوجتي|مع\s*زوجي/.test(normalized)
+    ) {
+      patch.travelers = patch.travelers ?? 2
+    }
   } else if (/\bsolo\b|alone|وحدي|منفرد/.test(lower)) {
     patch.travelerType = 'solo'
+    // Solo wording is an explicit party-size signal.
     patch.travelers = patch.travelers ?? 1
   } else if (/\bfriends\b|أصدقاء|اصديق/.test(lower)) {
     patch.travelerType = 'friends'
@@ -794,9 +803,12 @@ function matchTravelers(lower: string, original: string): { count: number; type:
   if (/\bone person\b|\ba person\b|شخص واحد|فرد واحد/.test(lower) || /شخص\s*واحد|فرد\s*واحد/.test(original)) {
     return { count: 1, type: 'solo' }
   }
-  // Arabic dual / word forms: لشخصين، شخصين، اثنان، أنا وزوجتي…
+  // Arabic dual / word forms: لشخصين، شخصين، اثنان أشخاص، أنا وزوجتي…
+  // CRITICAL: do NOT match bare "اثنين" — it is a substring of weekday "الاثنين".
   if (
-    /ل?شخصين|شخصان|اثنين(?:\s*أشخاص)?|اثنان(?:\s*أشخاص)?|فردين/.test(original)
+    /ل?شخصين|شخصان|فردين/.test(original)
+    || /(?:^|[^\u0600-\u06FF])اثنين\s*(?:أشخاص|اشخاص|أفراد|افراد|مسافر)/.test(original)
+    || /(?:^|[^\u0600-\u06FF])اثنان\s*(?:أشخاص|اشخاص|أفراد|افراد|مسافر)/.test(original)
     || /أنا\s*وزوجتي|انا\s*وزوجتي|أنا\s*و\s*زوجتي|مع\s*زوجتي/.test(original)
   ) {
     return { count: 2, type: 'couple' }

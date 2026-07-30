@@ -1,6 +1,7 @@
 import { createProviderAdapter } from './baseAdapter'
 import { FUTURE_PROVIDER_CATALOG } from './capabilities'
 import { moneyFromSeed, pick, stableHash } from '../tools/mockData'
+import { resolveAirportCode } from '../airportCodes'
 import type {
   AggregatableDomain,
   AggregationQuery,
@@ -60,20 +61,7 @@ function ok(
 }
 
 function airportCode(destination: string): string {
-  const key = destination.toLowerCase()
-  if (key.includes('japan') || key.includes('tokyo')) return 'HND'
-  if (key.includes('london')) return 'LHR'
-  if (key.includes('bali')) return 'DPS'
-  if (key.includes('paris')) return 'CDG'
-  if (key.includes('dubai')) return 'DXB'
-  if (key.includes('riyadh')) return 'RUH'
-  if (key.includes('morocco') || key.includes('marrakech')) return 'RAK'
-  if (key.includes('casablanca')) return 'CMN'
-  if (key.includes('istanbul') || key.includes('turkey')) return 'IST'
-  if (key.includes('cairo') || key.includes('egypt')) return 'CAI'
-  if (key.includes('maldives')) return 'MLE'
-  if (key.includes('jeddah')) return 'JED'
-  return destination.slice(0, 3).toUpperCase() || 'XXX'
+  return resolveAirportCode(destination)
 }
 
 function createFlightAdapter(
@@ -92,7 +80,12 @@ function createFlightAdapter(
       const started = Date.now()
       const origin = String(query.input.origin ?? 'RUH')
       const destination = String(query.input.destination ?? 'TYO')
-      const travelers = Number(query.input.travelers ?? 2)
+      const travelersRaw = Number(query.input.travelers)
+      if (!Number.isFinite(travelersRaw) || travelersRaw <= 0) {
+        // Never invent party size for mock inventory.
+        return ok(String(metadata.id), started, [])
+      }
+      const travelers = Math.floor(travelersRaw)
       const currency = String(query.input.currency ?? 'USD')
       const to = airportCode(destination)
       const airline = pick(airlinePool, `${metadata.id}-${destination}`)

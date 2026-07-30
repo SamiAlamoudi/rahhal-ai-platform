@@ -6,32 +6,9 @@ import type { LiveFlightSearchCriteria } from '../liveFlightSearch'
 import type { FlightCabinClass, FlightSearchRequest } from '../flightSearchEngine'
 import type { TripRequirements } from '../types'
 import type { AgentToolContext } from '../tools/types'
+import { resolveAirportCode } from '../airportCodes'
 import { normalizeCalendarDate, normalizeTravelerTimezone } from './timezone'
 import type { DepartureTimeWindow } from './types'
-
-/** Local copy — avoid importing searchEngineBridge (circular). */
-function resolveAirportCode(place: string): string {
-  const key = place.trim().toLowerCase()
-  if (!key) return 'XXX'
-  if (/^[a-z]{3}$/i.test(place.trim())) return place.trim().toUpperCase()
-  if (key.includes('japan') || key.includes('tokyo')) return 'HND'
-  if (key.includes('osaka')) return 'KIX'
-  if (key.includes('london')) return 'LHR'
-  if (key.includes('bali')) return 'DPS'
-  if (key.includes('rome')) return 'FCO'
-  if (key.includes('paris')) return 'CDG'
-  if (key.includes('dubai')) return 'DXB'
-  if (key.includes('riyadh')) return 'RUH'
-  if (key.includes('morocco') || key.includes('marrakech') || key.includes('مراكش') || key.includes('المغرب')) return 'RAK'
-  if (key.includes('casablanca') || key.includes('الدار')) return 'CMN'
-  if (key.includes('istanbul') || key.includes('turkey')) return 'IST'
-  if (key.includes('cairo') || key.includes('egypt')) return 'CAI'
-  if (key.includes('maldives')) return 'MLE'
-  if (key.includes('jeddah')) return 'JED'
-  if (key.includes('new york') || key.includes('nyc')) return 'JFK'
-  if (key.includes('singapore')) return 'SIN'
-  return place.trim().slice(0, 3).toUpperCase() || 'XXX'
-}
 
 function defaultDepartureDate(): string {
   return normalizeCalendarDate(null, 7)
@@ -44,7 +21,7 @@ function addDays(isoDate: string, days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-export function adultsFromContext(ctx: AgentToolContext): number {
+export function adultsFromContext(ctx: AgentToolContext): number | null {
   const fromInput = Number(ctx.input?.adults ?? ctx.input?.travelers)
   if (Number.isFinite(fromInput) && fromInput > 0) return Math.floor(fromInput)
   const children = childrenFromContext(ctx)
@@ -52,10 +29,8 @@ export function adultsFromContext(ctx: AgentToolContext): number {
   if (typeof total === 'number' && total > 0) {
     return Math.max(1, Math.floor(total) - children)
   }
-  if (ctx.requirements.travelerType === 'solo' || ctx.requirements.travelerType === 'business') return 1
-  if (ctx.requirements.travelerType === 'couple') return 2
-  if (ctx.requirements.travelerType === 'family') return 2
-  return 1
+  // Never invent adults from couple/family heuristics.
+  return null
 }
 
 export function childrenFromContext(ctx: AgentToolContext): number {
@@ -108,12 +83,16 @@ export function buildLiveCriteriaFromContext(ctx: AgentToolContext): LiveFlightS
   const returnRaw = ctx.input?.endDate ?? req.endDate
   const returnDate = returnRaw ? normalizeCalendarDate(String(returnRaw)) : null
 
+  const adults = adultsFromContext(ctx)
+  if (adults == null) {
+    throw new Error('search_blocked_travelers_unconfirmed')
+  }
   return {
     origin: resolveAirportCode(originRaw),
     destination: resolveAirportCode(destinationRaw),
     departureDate,
     returnDate,
-    adults: adultsFromContext(ctx),
+    adults,
     children: childrenFromContext(ctx),
     cabin: cabinFromRequirements(req),
     currency: String(ctx.input?.currency ?? req.budgetCurrency ?? 'SAR').toUpperCase(),

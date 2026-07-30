@@ -49,6 +49,10 @@ export function buildBookingOptionsFromPlan(
   const out: BookingOptionCard[] = []
 
   const flights = providerFlightsFromPlan(plan)
+  // Prefer committed destination label (e.g. لبنان) over raw IATA for display.
+  const destinationLabel = plan.requirements?.destination
+    || plan.destinations?.[0]
+    || null
   for (const f of flights.slice(0, flightLimit)) {
     if (f.estimatedCost == null || !(f.estimatedCost > 0) || !f.airline) continue
     if (/^unknown$/i.test(f.airline)) continue
@@ -57,7 +61,7 @@ export function buildBookingOptionsFromPlan(
       kind: 'flight',
       airline: f.airline,
       from: f.from,
-      to: f.to,
+      to: destinationLabel || f.to,
       departureTime: f.departureTime ?? null,
       arrivalTime: f.arrivalTime ?? null,
       stops: f.stops,

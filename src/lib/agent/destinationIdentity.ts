@@ -41,6 +41,8 @@ const PLACES: PlaceRow[] = [
   { keys: ['agadir', 'اكادير', 'أكادير'], city: 'Agadir', country: 'Morocco', label: 'Agadir' },
   { keys: ['amman', 'عمّان', 'عمان'], city: 'Amman', country: 'Jordan', label: 'Amman' },
   { keys: ['jordan', 'الأردن', 'الاردن'], city: null, country: 'Jordan', label: 'Jordan' },
+  // Keep Arabic label لبنان — never truncate to لبن via IATA slicing.
+  { keys: ['lebanon', 'لبنان', 'beirut', 'بيروت'], city: 'بيروت', country: 'لبنان', label: 'لبنان' },
   { keys: ['maldives', 'المالديف'], city: null, country: 'Maldives', label: 'Maldives' },
   { keys: ['bali', 'بالي'], city: 'Bali', country: 'Indonesia', label: 'Bali' },
   { keys: ['rome', 'روما', 'italy', 'إيطاليا', 'ايطاليا'], city: 'Rome', country: 'Italy', label: 'Rome' },

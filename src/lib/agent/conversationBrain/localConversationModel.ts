@@ -52,7 +52,8 @@ export function nextHardSlot(facts: TravelFacts): string | null {
     }
     if (slot === 'durationDays') return known.durationDays != null
     if (slot === 'budgetAmount') return known.budgetAmount != null || Boolean(known.budgetFlexible)
-    if (slot === 'travelers') return known.travelers != null || Boolean(known.travelerType)
+    // travelerType alone must NEVER satisfy travelers — ask for an explicit count.
+    if (slot === 'travelers') return known.travelers != null
     if (slot === 'origin') return Boolean(known.origin)
     return false
   }
@@ -111,8 +112,8 @@ function askForSlot(slot: string, facts: TravelFacts, seed: number, ar: boolean)
       ],
     },
     travelers: {
-      ar: ['الرحلة فردية، لاثنين، أم أجواء عائلية؟'],
-      en: ['Is this solo, for two, or a family-style trip?'],
+      ar: ['كم عدد المسافرين؟'],
+      en: ['How many travelers?'],
     },
     origin: {
       ar: ['من أي مدينة تكون المغادرة؟'],
@@ -129,7 +130,9 @@ function askForSlot(slot: string, facts: TravelFacts, seed: number, ar: boolean)
 function softAck(facts: TravelFacts, seed: number, ar: boolean): string {
   const d = dest(facts)
   const days = facts.known.durationDays
-  const couple = facts.known.travelerType === 'couple' || facts.known.travelers === 2
+  // Only acknowledge party size when an explicit traveler count was stated.
+  const confirmedPax = typeof facts.known.travelers === 'number' && facts.known.travelers > 0
+  const couple = confirmedPax && facts.known.travelers === 2
   const budget = formatBudgetPhrase(facts.known.budgetAmount, facts.known.budgetCurrency, facts.locale)
 
   if (ar) {
@@ -137,7 +140,7 @@ function softAck(facts: TravelFacts, seed: number, ar: boolean): string {
       const durationPhrase = days === 7 ? 'أسبوع' : `${days} أيام`
       return pick(seed, [
         `ميزانيتكم ممتازة لرحلة ${durationPhrase} إلى ${d}.`,
-        `${d} لـ${durationPhrase} مع شريكتكم — إطار واضح وجميل نقدر نبني عليه.`,
+        `${d} لـ${durationPhrase} لشخصين — إطار واضح وجميل نقدر نبني عليه.`,
       ])
     }
     if (d !== 'وجهتكم' && days) {

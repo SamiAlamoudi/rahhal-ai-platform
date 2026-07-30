@@ -66,6 +66,14 @@ export function mergeRequirements(
     ? uniqueStrings([...base.interests, ...patch.interests])
     : base.interests
 
+  // New destination / trip → never reuse stale traveler count from a prior trip.
+  const clearStaleTravelers = Boolean(
+    replaceDestinations
+    && patch.destination
+    && patch.destination !== base.destination
+    && patch.travelers === undefined,
+  )
+
   const merged: TripRequirements = {
     destination,
     destinations: destination && !destinations.includes(destination)
@@ -82,8 +90,10 @@ export function mergeRequirements(
     startDate: patch.startDate ?? base.startDate,
     endDate: patch.endDate ?? base.endDate,
     durationDays: patch.durationDays ?? base.durationDays,
-    travelers: patch.travelers ?? base.travelers,
-    travelerType: patch.travelerType ?? base.travelerType,
+    travelers: clearStaleTravelers ? null : (patch.travelers ?? base.travelers),
+    travelerType: clearStaleTravelers
+      ? (patch.travelerType ?? null)
+      : (patch.travelerType ?? base.travelerType),
     budgetAmount: patch.budgetAmount ?? base.budgetAmount,
     budgetCurrency: patch.budgetCurrency ?? base.budgetCurrency,
     budgetFlexible: patch.budgetFlexible ?? base.budgetFlexible,
@@ -116,14 +126,15 @@ export function mergeRequirements(
     merged.destinationFlexible = false
   }
 
-  // Infer traveler type from count when still unset.
+  // Infer traveler type from count when still unset — never invent count from type
+  // (couple/family must not silently become 2/4).
   if (merged.travelerType == null && merged.travelers != null) {
     if (merged.travelers === 1) merged.travelerType = 'solo'
     else if (merged.travelers === 2) merged.travelerType = 'couple'
     else if (merged.travelers >= 3) merged.travelerType = 'family'
   }
+  // Solo is an explicit party-size word; couple/family are not.
   if (merged.travelers == null && merged.travelerType === 'solo') merged.travelers = 1
-  if (merged.travelers == null && merged.travelerType === 'couple') merged.travelers = 2
 
   return merged
 }
