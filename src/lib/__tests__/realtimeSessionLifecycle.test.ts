@@ -21,20 +21,28 @@ describe('realtime session lifecycle contract', () => {
       kind: 'audio',
       enabled: true,
       readyState: 'live',
+      muted: false,
       stop: vi.fn(),
+      getSettings: () => ({ sampleRate: 48000, channelCount: 1 }),
     }
     const stream = {
       getTracks: () => [track],
       getAudioTracks: () => [track],
+      clone: () => stream,
     }
 
     class FakeRTCPeerConnection {
       connectionState = 'new'
+      iceConnectionState = 'new'
       ontrack: ((e: unknown) => void) | null = null
+      oniceconnectionstatechange: (() => void) | null = null
+      onconnectionstatechange: (() => void) | null = null
       private channel = {
         readyState: 'connecting' as string,
         onmessage: null as ((ev: { data: string }) => void) | null,
         onopen: null as (() => void) | null,
+        onclose: null as (() => void) | null,
+        onerror: null as (() => void) | null,
         send: vi.fn(),
         close: vi.fn(() => {
           this.channel.readyState = 'closed'
@@ -50,8 +58,12 @@ describe('realtime session lifecycle contract', () => {
       addTrack = vi.fn()
       createOffer = vi.fn(async () => ({ type: 'offer', sdp: 'v=0\r\n' }))
       setLocalDescription = vi.fn(async () => undefined)
-      setRemoteDescription = vi.fn(async () => undefined)
+      setRemoteDescription = vi.fn(async () => {
+        this.connectionState = 'connected'
+        this.iceConnectionState = 'connected'
+      })
       getSenders = vi.fn(() => [{ track }])
+      getStats = vi.fn(async () => new Map())
       close = vi.fn()
     }
 
@@ -113,20 +125,28 @@ describe('realtime session lifecycle contract', () => {
       kind: 'audio',
       enabled: true,
       readyState: 'live',
+      muted: false,
       stop: vi.fn(),
+      getSettings: () => ({ sampleRate: 48000, channelCount: 1 }),
     }
     const stream = {
       getTracks: () => [track],
       getAudioTracks: () => [track],
+      clone: () => stream,
     }
 
     class FakeRTCPeerConnection {
       connectionState = 'new'
+      iceConnectionState = 'new'
       ontrack: ((e: unknown) => void) | null = null
+      oniceconnectionstatechange: (() => void) | null = null
+      onconnectionstatechange: (() => void) | null = null
       private channel = {
         readyState: 'connecting' as string,
         onmessage: null as ((ev: { data: string }) => void) | null,
         onopen: null as (() => void) | null,
+        onclose: null as (() => void) | null,
+        onerror: null as (() => void) | null,
         send: vi.fn(),
         close: vi.fn(() => {
           this.channel.readyState = 'closed'
@@ -142,8 +162,12 @@ describe('realtime session lifecycle contract', () => {
       addTrack = vi.fn()
       createOffer = vi.fn(async () => ({ type: 'offer', sdp: 'v=0\r\n' }))
       setLocalDescription = vi.fn(async () => undefined)
-      setRemoteDescription = vi.fn(async () => undefined)
+      setRemoteDescription = vi.fn(async () => {
+        this.connectionState = 'connected'
+        this.iceConnectionState = 'connected'
+      })
       getSenders = vi.fn(() => [{ track }])
+      getStats = vi.fn(async () => new Map())
       close = vi.fn()
     }
 

@@ -150,6 +150,8 @@ describe('realtime cancel-only-when-active lifecycle', () => {
     readyState: string
     onmessage: ((ev: { data: string }) => void) | null
     onopen: (() => void) | null
+    onclose: (() => void) | null
+    onerror: (() => void) | null
     send: ReturnType<typeof vi.fn>
     close: () => void
   }
@@ -159,21 +161,30 @@ describe('realtime cancel-only-when-active lifecycle', () => {
       kind: 'audio',
       enabled: true,
       readyState: 'live',
+      muted: false,
       stop: vi.fn(),
+      getSettings: () => ({ sampleRate: 48000, channelCount: 1 }),
     }
     const stream = {
       getTracks: () => [track],
       getAudioTracks: () => [track],
+      clone: () => stream,
     }
     const holder: { channel: FakeChannel | null } = { channel: null }
 
     class FakeRTCPeerConnection {
+      connectionState = 'new'
+      iceConnectionState = 'new'
       ontrack: ((e: unknown) => void) | null = null
+      oniceconnectionstatechange: (() => void) | null = null
+      onconnectionstatechange: (() => void) | null = null
       createDataChannel() {
         const ch: FakeChannel = {
           readyState: 'connecting',
           onmessage: null,
           onopen: null,
+          onclose: null,
+          onerror: null,
           send: vi.fn(),
           close: () => {
             ch.readyState = 'closed'
@@ -189,8 +200,12 @@ describe('realtime cancel-only-when-active lifecycle', () => {
       addTrack = vi.fn()
       createOffer = vi.fn(async () => ({ type: 'offer', sdp: 'v=0\r\n' }))
       setLocalDescription = vi.fn(async () => undefined)
-      setRemoteDescription = vi.fn(async () => undefined)
+      setRemoteDescription = vi.fn(async () => {
+        this.connectionState = 'connected'
+        this.iceConnectionState = 'connected'
+      })
       getSenders = vi.fn(() => [{ track }])
+      getStats = vi.fn(async () => new Map())
       close = vi.fn()
     }
 
