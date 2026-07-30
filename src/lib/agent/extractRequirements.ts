@@ -9,6 +9,7 @@ import type {
 } from './types'
 import { detectAgentLocale } from './locale'
 import { detectOpenEndedDestination } from './reasoning/openEndedDetector'
+import { resolveDestinationIdentity } from './destinationIdentity'
 
 const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
   { keys: ['tokyo', 'طوكيو'], value: 'Tokyo' },
@@ -79,11 +80,19 @@ export function extractFromUserText(
 
   const destinations = matchDestinations(lower, normalized, origin)
   if (destinations.length > 0) {
-    patch.destination = destinations[0]
-    patch.destinations = destinations
+    // Latest confirmed destination list always replaces stale / demo / prior-session places.
+    flags.replaceDestinations = true
+    const normalizedList = destinations.map((d) => resolveDestinationIdentity(d)?.label ?? d)
+    const unique = [...new Set(normalizedList)]
+    const primary = unique[0]!
+    const identity = resolveDestinationIdentity(primary)
+    patch.destination = identity?.label ?? primary
+    patch.destinations = unique
+    patch.destinationCity = identity?.city ?? (identity?.label === primary ? primary : null)
+    patch.destinationCountry = identity?.country ?? null
+    // Explicit "instead of X" cues collapse to the single new place.
     if (isDestinationReplaceCue(lower, normalized)) {
-      flags.replaceDestinations = true
-      patch.destinations = [destinations[0]!]
+      patch.destinations = [patch.destination]
     }
   }
 
@@ -780,6 +789,13 @@ function matchTravelers(lower: string, original: string): { count: number; type:
   if (/\bone person\b|\ba person\b|شخص واحد|فرد واحد/.test(lower) || /شخص\s*واحد|فرد\s*واحد/.test(original)) {
     return { count: 1, type: 'solo' }
   }
+  // Arabic dual / word forms: لشخصين، شخصين، اثنان، …
+  if (/ل?شخصين|شخصان|اثنين(?:\s*أشخاص)?|اثنان(?:\s*أشخاص)?|فردين/.test(original)) {
+    return { count: 2, type: 'couple' }
+  }
+  if (/ل?ثلاثة\s*(?:أشخاص|افراد|أفراد)|ثلاث\s*(?:أشخاص|افراد)/.test(original)) {
+    return { count: 3, type: 'family' }
+  }
   const raw = en?.[1] || ar?.[1] || ''
   const count = wordCounts[raw] ?? Number(raw || 0)
   if (!count) return null
@@ -925,33 +941,49 @@ function resolveCalendarYear(month: number, day: number, explicitYear: number | 
   return year
 }
 
-/** Parse "3 Aug to 13 Aug" / "August 3 – August 13, 2026". */
+/** Parse "3 Aug to 13 Aug" / "من 3 أغسطس إلى 13 أغسطس" / "August 3 – August 13, 2026". */
 function parseDayMonthDateRange(
   lower: string,
   now: Date,
 ): { start: string; end: string } | null {
-  const month = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?'
+  const monthEn = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?'
+  const monthAr = 'يناير|فبراير|مارس|أبريل|ابريل|مايو|يونيو|يوليو|أغسطس|اغسطس|سبتمبر|أكتوبر|اكتوبر|نوفمبر|ديسمبر'
   const dayFirst = new RegExp(
-    `\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${month})(?:\\s*,?\\s*(20\\d{2}))?`
+    `\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${monthEn})(?:\\s*,?\\s*(20\\d{2}))?`
     + `\\s*(?:to|through|until|till|–|-|—)\\s*`
-    + `(\\d{1,2})(?:st|nd|rd|th)?\\s+(${month})(?:\\s*,?\\s*(20\\d{2}))?\\b`,
+    + `(\\d{1,2})(?:st|nd|rd|th)?\\s+(${monthEn})(?:\\s*,?\\s*(20\\d{2}))?\\b`,
   )
   const monthFirst = new RegExp(
-    `\\b(${month})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:\\s*,?\\s*(20\\d{2}))?`
+    `\\b(${monthEn})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:\\s*,?\\s*(20\\d{2}))?`
     + `\\s*(?:to|through|until|till|–|-|—)\\s*`
-    + `(${month})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:\\s*,?\\s*(20\\d{2}))?\\b`,
+    + `(${monthEn})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:\\s*,?\\s*(20\\d{2}))?\\b`,
+  )
+  // "من 3 أغسطس إلى 13 أغسطس" / "3 أغسطس إلى 13 أغسطس"
+  const arabicRange = new RegExp(
+    `(?:من\\s*)?(\\d{1,2})\\s+(${monthAr})(?:\\s+(20\\d{2}))?`
+    + `\\s*(?:إلى|الى|لـ|/|-|–|—)\\s*`
+    + `(\\d{1,2})\\s+(${monthAr})(?:\\s+(20\\d{2}))?`,
   )
 
-  const a = lower.match(dayFirst)
-  if (a) {
-    const startMonth = monthNameToNumber(a[2]!)
-    const endMonth = monthNameToNumber(a[5]!)
+  const buildRange = (
+    startDay: number,
+    startMonthToken: string,
+    startYearToken: string | undefined,
+    endDay: number,
+    endMonthToken: string,
+    endYearToken: string | undefined,
+  ): { start: string; end: string } | null => {
+    const startMonth = monthNameToNumber(startMonthToken) ?? arabicMonthToNumber(startMonthToken)
+    const endMonth = monthNameToNumber(endMonthToken) ?? arabicMonthToNumber(endMonthToken)
     if (!startMonth || !endMonth) return null
-    const startDay = Number(a[1])
-    const endDay = Number(a[4])
-    const startYear = resolveCalendarYear(startMonth, startDay, a[3] ? Number(a[3]) : null, now)
-    let endYear = a[6] ? Number(a[6]) : startYear
-    if (!a[6]) {
+    const startYear = resolveCalendarYear(
+      startMonth,
+      startDay,
+      startYearToken ? Number(startYearToken) : null,
+      now,
+    )
+    let endYear = endYearToken ? Number(endYearToken) : startYear
+    if (!endYearToken) {
       endYear = startYear
       const startUtc = Date.UTC(startYear, startMonth - 1, startDay)
       const endUtc = Date.UTC(endYear, endMonth - 1, endDay)
@@ -960,29 +992,50 @@ function parseDayMonthDateRange(
     const start = toIsoDate(startYear, startMonth, startDay)
     const end = toIsoDate(endYear, endMonth, endDay)
     if (start && end) return { start, end }
+    return null
+  }
+
+  const a = lower.match(dayFirst)
+  if (a) {
+    const range = buildRange(Number(a[1]), a[2]!, a[3], Number(a[4]), a[5]!, a[6])
+    if (range) return range
   }
 
   const b = lower.match(monthFirst)
   if (b) {
-    const startMonth = monthNameToNumber(b[1]!)
-    const endMonth = monthNameToNumber(b[4]!)
-    if (!startMonth || !endMonth) return null
-    const startDay = Number(b[2])
-    const endDay = Number(b[5])
-    const startYear = resolveCalendarYear(startMonth, startDay, b[3] ? Number(b[3]) : null, now)
-    let endYear = b[6] ? Number(b[6]) : startYear
-    if (!b[6]) {
-      endYear = startYear
-      const startUtc = Date.UTC(startYear, startMonth - 1, startDay)
-      const endUtc = Date.UTC(endYear, endMonth - 1, endDay)
-      if (endUtc < startUtc) endYear = startYear + 1
-    }
-    const start = toIsoDate(startYear, startMonth, startDay)
-    const end = toIsoDate(endYear, endMonth, endDay)
-    if (start && end) return { start, end }
+    const range = buildRange(Number(b[2]), b[1]!, b[3], Number(b[5]), b[4]!, b[6])
+    if (range) return range
+  }
+
+  // Match against original casing text via lower (Arabic months unchanged by toLowerCase).
+  const ar = lower.match(arabicRange)
+  if (ar) {
+    const range = buildRange(Number(ar[1]), ar[2]!, ar[3], Number(ar[4]), ar[5]!, ar[6])
+    if (range) return range
   }
 
   return null
+}
+
+function arabicMonthToNumber(token: string): number | null {
+  const map: Record<string, number> = {
+    يناير: 1,
+    فبراير: 2,
+    مارس: 3,
+    أبريل: 4,
+    ابريل: 4,
+    مايو: 5,
+    يونيو: 6,
+    يوليو: 7,
+    أغسطس: 8,
+    اغسطس: 8,
+    سبتمبر: 9,
+    أكتوبر: 10,
+    اكتوبر: 10,
+    نوفمبر: 11,
+    ديسمبر: 12,
+  }
+  return map[token] ?? null
 }
 
 /** Upcoming Saturday–Sunday window used for "weekend" / "next weekend" inference. */
@@ -1178,7 +1231,11 @@ function matchHotelAmenities(lower: string, original: string): string[] {
   if (/\bfamily[- ]friendly\b|عائلي|مناسب للعائلات/.test(lower) || /مناسب\s*للعائلات|عائلي/.test(original)) {
     out.push('family')
   }
-  if (/\bbusiness hotel\b|فندق أعمال|لرجال الأعمال/.test(lower) || /فندق\s*أعمال|رجال\s*الأعمال/.test(original)) {
+  // Require explicit hotel cue — do not steal "درجة رجال الأعمال" (cabin).
+  if (
+    /\bbusiness hotel\b/.test(lower)
+    || /فندق\s*أعمال|فندق\s*اعمال|فندق\s*لرجال\s*الأعمال/.test(original)
+  ) {
     out.push('business')
   }
   if (/\bairport hotel\b|فندق المطار/.test(lower) || /فندق\s*المطار/.test(original)) out.push('airport')

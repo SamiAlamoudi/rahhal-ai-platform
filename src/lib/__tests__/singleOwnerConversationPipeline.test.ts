@@ -18,6 +18,8 @@ describe('single-owner conversation pipeline', () => {
     expect(r.patch.origin).toBe('Riyadh')
     expect(r.patch.destination).toBe('Tokyo')
     expect(r.patch.destinations).toEqual(['Tokyo'])
+    expect(r.patch.destinationCity).toBe('Tokyo')
+    expect(r.patch.destinationCountry).toBe('Japan')
     expect(r.patch.startDate).toMatch(/-08-03$/)
     expect(r.patch.endDate).toMatch(/-08-13$/)
     expect(r.patch.travelers).toBe(2)

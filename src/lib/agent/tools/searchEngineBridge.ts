@@ -16,8 +16,12 @@ export function resolveAirportCode(place: string): string {
   const key = place.trim().toLowerCase()
   if (!key) return 'XXX'
   if (/^[a-z]{3}$/i.test(place.trim())) return place.trim().toUpperCase()
-  if (key.includes('japan') || key.includes('tokyo')) return 'HND'
+  if (key.includes('tokyo') || key.includes('طوكيو')) return 'HND'
+  if (key.includes('japan') || key.includes('اليابان')) return 'HND'
   if (key.includes('osaka')) return 'KIX'
+  if (key.includes('amman') || key.includes('jordan') || key.includes('الأردن') || key.includes('الاردن')) {
+    return 'AMM'
+  }
   if (key.includes('london')) return 'LHR'
   if (key.includes('bali')) return 'DPS'
   if (key.includes('rome')) return 'FCO'
@@ -96,25 +100,38 @@ function cabinFrom(req: TripRequirements): FlightSearchRequest['cabin'] {
 export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchRequest {
   const req = ctx.requirements
   const originRaw = String(ctx.input?.origin ?? req.origin ?? 'Riyadh')
-  const destinationRaw = String(ctx.input?.destination ?? req.destination ?? req.destinations[0] ?? '')
-  const departureDate = String(ctx.input?.startDate ?? req.startDate ?? defaultDepartureDate())
-  const returnDate = (ctx.input?.endDate ?? req.endDate)
-    ? String(ctx.input?.endDate ?? req.endDate)
+  // Same normalized destination object as planTurn memory — never invent Dubai/DXB/Jordan.
+  const destinationRaw = String(
+    ctx.input?.destination
+    ?? req.destinationCity
+    ?? req.destination
+    ?? req.destinations[0]
+    ?? '',
+  )
+  // Lock search to the single confirmed destination (ignore stale multi-city unions).
+  const lockedReq: TripRequirements = {
+    ...req,
+    destination: destinationRaw || null,
+    destinations: destinationRaw ? [destinationRaw] : [],
+  }
+  const departureDate = String(ctx.input?.startDate ?? lockedReq.startDate ?? defaultDepartureDate())
+  const returnDate = (ctx.input?.endDate ?? lockedReq.endDate)
+    ? String(ctx.input?.endDate ?? lockedReq.endDate)
     : null
-  const tripType = inferTripType(req)
+  const tripType = inferTripType(lockedReq)
   const children =
-    typeof req.children === 'number' && req.children >= 0
-      ? Math.floor(req.children)
+    typeof lockedReq.children === 'number' && lockedReq.children >= 0
+      ? Math.floor(lockedReq.children)
       : Number.isFinite(Number(ctx.input?.children)) && Number(ctx.input?.children) >= 0
         ? Math.floor(Number(ctx.input?.children))
         : 0
-  const totalTravelers = travelersFrom(ctx)
+  const totalTravelers = travelersFrom({ ...ctx, requirements: lockedReq })
   const adults = Math.max(1, totalTravelers - children)
-  const currency = currencyFrom(ctx)
+  const currency = currencyFrom({ ...ctx, requirements: lockedReq })
   const preferredAirline =
     typeof ctx.input?.preferredAirline === 'string'
       ? ctx.input.preferredAirline
-      : req.preferredAirline
+      : lockedReq.preferredAirline
 
   const request: FlightSearchRequest = {
     tripType,
@@ -125,7 +142,7 @@ export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchReq
     adults,
     children,
     currency,
-    cabin: cabinFrom(req),
+    cabin: cabinFrom(lockedReq),
     preferredAirlines: preferredAirline ? [preferredAirline] : undefined,
     sort: 'recommendation',
     pageSize: 20,
@@ -133,8 +150,8 @@ export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchReq
     parallel: true,
   }
 
-  if (tripType === 'multi_city' && req.destinations.length > 1) {
-    const hubs = [originRaw, ...req.destinations]
+  if (tripType === 'multi_city' && lockedReq.destinations.length > 1) {
+    const hubs = [originRaw, ...lockedReq.destinations]
     const legs = []
     for (let i = 0; i < hubs.length - 1; i += 1) {
       legs.push({
@@ -169,7 +186,13 @@ export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchReq
 
 export function buildHotelSearchRequest(ctx: AgentToolContext): HotelSearchRequest {
   const req = ctx.requirements
-  const city = String(ctx.input?.destination ?? req.destination ?? req.destinations[0] ?? '')
+  const city = String(
+    ctx.input?.destination
+    ?? req.destinationCity
+    ?? req.destination
+    ?? req.destinations[0]
+    ?? '',
+  )
   const checkIn = String(ctx.input?.checkIn ?? req.startDate ?? defaultDepartureDate())
   const nights = nightsFrom(ctx)
   const checkOut = (ctx.input?.checkOut ?? req.endDate)

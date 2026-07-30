@@ -30,6 +30,13 @@ import {
   missingRequirementFields,
   rebuildMemoryFromMessages,
 } from './memory'
+import {
+  buildDestinationTelemetry,
+  destinationFromTranscript,
+  destinationsConflict,
+  resolveDestinationIdentity,
+} from './destinationIdentity'
+import { logPipeline } from '../chat/pipelineDiagnostics'
 import { saveGeneratedItinerary } from './itineraryPersistence'
 import { createToolExecutor } from './tools/executor'
 import { mergeToolResultsIntoPlan } from './tools/mergeToolResults'
@@ -1117,6 +1124,66 @@ export function createTravelAgentService(
     bookingExecution?: BookingExecutionResult
     payments?: PaymentsPlatformResult
   }> => {
+    // Destination integrity — never search Jordan (or any place) when ASR said Tokyo.
+    const transcriptDestination = destinationFromTranscript(input.userText || '')
+    const memoryDestination = input.memory.requirements.destination
+      || input.memory.requirements.destinationCity
+      || input.memory.requirements.destinations[0]
+      || null
+    const searchPayloadDestination = memoryDestination
+    const transcriptIdentity = resolveDestinationIdentity(transcriptDestination)
+    const searchIdentity = resolveDestinationIdentity(searchPayloadDestination)
+    const conflict = Boolean(
+      transcriptDestination
+      && searchPayloadDestination
+      && destinationsConflict(transcriptIdentity, searchIdentity),
+    )
+    logPipeline({
+      stage: 'conversation',
+      event: conflict ? 'destination_conflict_abort_search' : 'destination_search_payload',
+      meta: buildDestinationTelemetry({
+        transcriptDestination,
+        extractedDestination: memoryDestination,
+        memoryDestination,
+        searchPayloadDestination,
+        identity: searchIdentity,
+        conflict,
+      }) as unknown as Record<string, unknown>,
+    })
+    if (conflict) {
+      // Stop — do not return mismatched inventory. Caller still speaks from memory facts.
+      const safePlan = input.basePlan
+        ? {
+          ...input.basePlan,
+          destinations: memoryDestination ? [memoryDestination] : input.basePlan.destinations,
+          flights: [],
+        }
+        : buildTripPlan({
+          requirements: {
+            ...input.memory.requirements,
+            destination: memoryDestination,
+            destinations: memoryDestination ? [String(memoryDestination)] : [],
+          },
+          conversationId: input.conversationId,
+          locale: input.memory.locale,
+          seed: input.seed || input.conversationId,
+        })
+      return {
+        plan: {
+          ...safePlan,
+          destinations: memoryDestination ? [String(memoryDestination)] : safePlan.destinations,
+          flights: [],
+        },
+        batch: {
+          results: [],
+          selected: [],
+          okCount: 0,
+          failedCount: 0,
+          durationMs: 0,
+        },
+      }
+    }
+
     const travelPlanner = input.travelPlanner
       ?? (isTravelPlannerOn()
         ? (await loadTravelPlanner()).runTravelPlanner({
@@ -1589,6 +1656,7 @@ export function createTravelAgentService(
       const turnLocale = explicitLanguageSwitch
         || (hasPriorTripState ? prior.locale : (extracted.locale || prior.locale))
 
+      const priorDestination = prior.requirements.destination
       let memory: AgentMemory = greetingCleanStart
         ? {
           ...emptyMemory(extracted.locale || prior.locale),
@@ -1599,9 +1667,59 @@ export function createTravelAgentService(
           locale: turnLocale,
           lastIntent: extracted.intent,
           requirements: mergeRequirements(prior.requirements, extracted.patch, {
-            replaceDestinations: extracted.flags?.replaceDestinations,
+            replaceDestinations: extracted.flags?.replaceDestinations === true,
           }),
         }
+
+      // Fill canonical city/country from the locked destination label.
+      if (memory.requirements.destination) {
+        const identity = resolveDestinationIdentity(memory.requirements.destination)
+        if (identity) {
+          memory = {
+            ...memory,
+            requirements: {
+              ...memory.requirements,
+              destination: identity.label,
+              destinations: [identity.label],
+              destinationCity: memory.requirements.destinationCity ?? identity.city,
+              destinationCountry: memory.requirements.destinationCountry ?? identity.country,
+            },
+          }
+        }
+      }
+
+      // New confirmed destination → drop stale trip plan / demo itinerary (Jordan leak).
+      const destinationChanged = Boolean(
+        memory.requirements.destination
+        && priorDestination
+        && memory.requirements.destination !== priorDestination,
+      )
+      const destinationNewlySet = Boolean(
+        memory.requirements.destination
+        && !priorDestination
+        && prior.tripPlan
+        && (prior.tripPlan.destinations?.[0] || prior.tripPlan.title)
+        && !String(prior.tripPlan.destinations?.[0] || prior.tripPlan.title || '')
+          .toLowerCase()
+          .includes(String(memory.requirements.destination).toLowerCase()),
+      )
+      if (destinationChanged || destinationNewlySet || greetingCleanStart) {
+        memory = withTripPlan({ ...memory, phase: 'collecting' }, null)
+      }
+
+      const transcriptDestination = destinationFromTranscript(userText)
+      const extractedDestination = extracted.patch.destination ?? null
+      logPipeline({
+        stage: 'conversation',
+        event: 'destination_pipeline',
+        meta: buildDestinationTelemetry({
+          transcriptDestination,
+          extractedDestination,
+          memoryDestination: memory.requirements.destination,
+          identity: resolveDestinationIdentity(memory.requirements.destination),
+        }) as unknown as Record<string, unknown>,
+      })
+
       memory.missingFields = missingRequirementFields(memory.requirements)
 
       let conversationIntelligenceResult: ConversationIntelligenceResult | null = null
@@ -3840,6 +3958,23 @@ export function createTravelAgentService(
         signal: input.signal,
           onDelta: input.onDialogueDelta,
         })
+
+      logPipeline({
+        stage: 'conversation',
+        event: 'destination_rendered',
+        meta: buildDestinationTelemetry({
+          transcriptDestination: destinationFromTranscript(userText),
+          extractedDestination: extracted.patch.destination ?? null,
+          memoryDestination: memory.requirements.destination,
+          searchPayloadDestination: memory.requirements.destinationCity
+            || memory.requirements.destination,
+          renderedDestination: memory.requirements.destination,
+          identity: resolveDestinationIdentity(memory.requirements.destination),
+          conflict: /Jordan|الأردن|الاردن|Amman|عمّان/i.test(
+            `${spoken.displayText}\n${spoken.spokenText}`,
+          ) && /Tokyo|طوكيو|Japan|اليابان/i.test(userText),
+        }) as unknown as Record<string, unknown>,
+      })
 
       // Sprint 89 — validate traveler-facing reply; keep meta on every interaction.
       const constitutionFinal = constitutionMod.applyConstitutionToTurn({

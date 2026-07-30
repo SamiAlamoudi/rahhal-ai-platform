@@ -46,15 +46,22 @@ export function mergeRequirements(
   patch: Partial<TripRequirements>,
   options?: { replaceDestinations?: boolean },
 ): TripRequirements {
-  const replaceDestinations = options?.replaceDestinations === true
+  // Latest confirmed named destination always wins over stale/demo/prior-session places.
+  const patchNamesDestination = Boolean(
+    (patch.destination && patch.destination.trim())
+    || (patch.destinations && patch.destinations.length > 0),
+  )
+  const replaceDestinations = options?.replaceDestinations === true || patchNamesDestination
 
   const destinations = patch.destinations && patch.destinations.length > 0
     ? (replaceDestinations
       ? uniqueStrings(patch.destinations)
       : uniqueStrings([...base.destinations, ...patch.destinations]))
-    : base.destinations
+    : (replaceDestinations && patch.destination
+      ? uniqueStrings([patch.destination])
+      : base.destinations)
 
-  const destination = patch.destination ?? base.destination ?? destinations[0] ?? null
+  const destination = patch.destination ?? (replaceDestinations ? null : base.destination) ?? destinations[0] ?? null
   const interests = patch.interests && patch.interests.length > 0
     ? uniqueStrings([...base.interests, ...patch.interests])
     : base.interests
@@ -68,6 +75,8 @@ export function mergeRequirements(
         : destination
           ? [destination]
           : [],
+    destinationCity: patch.destinationCity ?? (replaceDestinations ? null : base.destinationCity) ?? null,
+    destinationCountry: patch.destinationCountry ?? (replaceDestinations ? null : base.destinationCountry) ?? null,
     destinationFlexible: patch.destinationFlexible ?? base.destinationFlexible,
     origin: patch.origin ?? base.origin,
     startDate: patch.startDate ?? base.startDate,
@@ -231,6 +240,8 @@ export function normalizeRequirements(raw: TripRequirements): TripRequirements {
     ...raw,
     destinations: Array.isArray(raw.destinations) ? raw.destinations : [],
     interests: Array.isArray(raw.interests) ? raw.interests : [],
+    destinationCity: raw.destinationCity ?? null,
+    destinationCountry: raw.destinationCountry ?? null,
     destinationFlexible: raw.destinationFlexible ?? null,
     budgetFlexible: raw.budgetFlexible ?? null,
     budgetStyle: raw.budgetStyle ?? null,

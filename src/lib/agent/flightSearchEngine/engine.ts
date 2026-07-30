@@ -75,7 +75,8 @@ function normalizeRequest(request: FlightSearchRequest): Required<
     parallel: request.parallel !== false,
     timeoutMs: request.timeoutMs ?? 8_000,
     origin: (request.origin ?? request.legs?.[0]?.origin ?? 'RUH').toUpperCase(),
-    destination: (request.destination ?? request.legs?.[0]?.destination ?? 'DXB').toUpperCase(),
+    // Never invent DXB/Dubai when destination is missing — empty aborts mismatched search.
+    destination: (request.destination ?? request.legs?.[0]?.destination ?? '').toUpperCase(),
     departureDate: request.departureDate ?? request.legs?.[0]?.departureDate ?? '2026-08-01',
   }
 }
@@ -319,18 +320,15 @@ export function createFlightSearchEngine(
     searchMultiCity(request) {
       const legs = request.legs?.length
         ? request.legs
-        : [
-            {
-              origin: request.origin ?? 'RUH',
-              destination: request.destination ?? 'DXB',
-              departureDate: request.departureDate ?? '2026-08-01',
-            },
-            {
-              origin: request.destination ?? 'DXB',
-              destination: 'IST',
-              departureDate: request.returnDate ?? '2026-08-05',
-            },
-          ]
+        : request.origin && request.destination
+          ? [
+              {
+                origin: request.origin,
+                destination: request.destination,
+                departureDate: request.departureDate ?? '2026-08-01',
+              },
+            ]
+          : []
       return run({
         ...request,
         tripType: 'multi_city',

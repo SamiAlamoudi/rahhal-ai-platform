@@ -262,7 +262,11 @@ function renderPlanDisplay(facts: TravelFacts, ar: boolean): string {
     const cont = continueAfterDestination(facts, 1, ar)
     return cont.displayText
   }
-  const d = destinationLabel(plan.destinations[0], facts.locale)
+  // Prefer confirmed known destination over a stale plan title/list (Jordan leak).
+  const d = destinationLabel(
+    facts.known.destination || facts.known.destinations?.[0] || plan.destinations[0],
+    facts.locale,
+  )
   const hotel = plan.hotels[0]?.name
   const total = plan.estimatedTotal
   const budget = total
@@ -289,7 +293,10 @@ function spokenPlan(facts: TravelFacts, seed: number, ar: boolean): string {
   if (!plan) {
     return continueAfterDestination(facts, seed, ar).spokenText
   }
-  const d = destinationLabel(plan.destinations[0], facts.locale)
+  const d = destinationLabel(
+    facts.known.destination || facts.known.destinations?.[0] || plan.destinations[0],
+    facts.locale,
+  )
   const hotel = plan.hotels[0]?.name
   if (ar) {
     return pick(seed, [

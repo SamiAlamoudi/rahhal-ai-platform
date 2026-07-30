@@ -53,6 +53,13 @@ export interface TripRequirements {
   destination: string | null
   destinations: string[]
   /**
+   * Canonical city (e.g. Tokyo) — separate from country so we never swap
+   * a named city for an unrelated country (Tokyo ≠ Jordan).
+   */
+  destinationCity: string | null
+  /** Canonical country (e.g. Japan). */
+  destinationCountry: string | null
+  /**
    * Sprint 45 — traveler asked for open-ended discovery ("somewhere cold…")
    * rather than naming a place. Destination is not a hard intake slot while true.
    */
@@ -978,6 +985,8 @@ export function emptyRequirements(): TripRequirements {
   return {
     destination: null,
     destinations: [],
+    destinationCity: null,
+    destinationCountry: null,
     destinationFlexible: null,
     origin: null,
     startDate: null,
