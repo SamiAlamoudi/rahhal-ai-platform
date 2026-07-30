@@ -69,34 +69,59 @@ export async function enrichWithAutonomousDecision(input: {
   ]
 
   let nextPlan = { ...input.tripPlan, notes }
+  // Preserve full provider inventory for selectable booking cards.
+  // Only annotate the top flight — never collapse or strip booking fields.
   if (best && nextPlan.flights.length > 0) {
-    const payload = best.flight.payload
-    nextPlan = {
-      ...nextPlan,
-      flights: [{
-        from: String(payload.from ?? payload.origin ?? nextPlan.flights[0]!.from),
-        to: String(payload.to ?? payload.destination ?? nextPlan.flights[0]!.to),
-        airline: best.flight.airline || nextPlan.flights[0]!.airline,
-        stops: best.flight.stops,
-        estimatedCost: best.flight.price,
-        currency: best.currency,
-        notes: `Decision ${best.score?.overall ?? 0}/100 · ${best.labels.join(', ')} · conf ${result.recommendations.confidence}%`,
-      }, ...nextPlan.flights.slice(1)],
+    const providerFlights = nextPlan.flights.filter((f) => f.fromProvider === true)
+    if (providerFlights.length > 0) {
+      const annotated = providerFlights.map((flight, index) => (
+        index === 0
+          ? {
+            ...flight,
+            notes: [
+              flight.notes,
+              `Decision ${best.score?.overall ?? 0}/100 · ${best.labels.join(', ')} · conf ${result.recommendations.confidence}%`,
+            ].filter(Boolean).join(' · '),
+          }
+          : flight
+      ))
+      nextPlan = { ...nextPlan, flights: annotated }
+    } else {
+      const payload = best.flight.payload
+      const head = nextPlan.flights[0]!
+      nextPlan = {
+        ...nextPlan,
+        flights: [{
+          ...head,
+          from: String(payload.from ?? payload.origin ?? head.from),
+          to: String(payload.to ?? payload.destination ?? head.to),
+          airline: best.flight.airline || head.airline,
+          stops: best.flight.stops ?? head.stops,
+          estimatedCost: best.flight.price ?? head.estimatedCost,
+          currency: best.currency || head.currency,
+          notes: `Decision ${best.score?.overall ?? 0}/100 · ${best.labels.join(', ')} · conf ${result.recommendations.confidence}%`,
+        }, ...nextPlan.flights.slice(1)],
+      }
     }
   }
   if (best && nextPlan.accommodations.length > 0) {
-    nextPlan = {
-      ...nextPlan,
-      accommodations: [{
-        name: best.hotel.name,
-        area: String(best.hotel.payload.area ?? nextPlan.accommodations[0]!.area),
-        category: nextPlan.accommodations[0]!.category,
-        fit: `Decision score ${best.score?.overall ?? 0}/100`,
-        estimatedNightly: typeof best.hotel.payload.nightly === 'number'
-          ? best.hotel.payload.nightly
-          : nextPlan.accommodations[0]!.estimatedNightly,
-        currency: best.currency,
-      }, ...nextPlan.accommodations.slice(1)],
+    const providerHotels = nextPlan.accommodations.filter((h) => h.fromProvider === true)
+    if (providerHotels.length > 0) {
+      nextPlan = { ...nextPlan, accommodations: providerHotels }
+    } else {
+      nextPlan = {
+        ...nextPlan,
+        accommodations: [{
+          ...nextPlan.accommodations[0]!,
+          name: best.hotel.name,
+          area: String(best.hotel.payload.area ?? nextPlan.accommodations[0]!.area),
+          fit: `Decision score ${best.score?.overall ?? 0}/100`,
+          estimatedNightly: typeof best.hotel.payload.nightly === 'number'
+            ? best.hotel.payload.nightly
+            : nextPlan.accommodations[0]!.estimatedNightly,
+          currency: best.currency,
+        }, ...nextPlan.accommodations.slice(1)],
+      }
     }
   }
 

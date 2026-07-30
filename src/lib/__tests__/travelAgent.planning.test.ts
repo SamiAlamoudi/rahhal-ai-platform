@@ -55,7 +55,7 @@ describe('Phase L intelligent trip planning', () => {
     const t2 = await service.planTurn({ conversationId: 'c1', messages: history })
     expect(t2.tripPlan).toBeNull()
     expect(t2.memory.requirements.durationDays).toBe(5)
-    expect(t2.memory.missingFields[0]).toBe('budgetAmount')
+    expect(t2.memory.missingFields[0]).toBe('travelers')
     history.push({
       ...user('a2'),
       id: 'a2',
@@ -65,7 +65,7 @@ describe('Phase L intelligent trip planning', () => {
     })
 
     history.push(user(
-      'Budget under $3000, 2 travelers couple, food and culture, mild weather, mid-range style, central hotel, full package',
+      '2 travelers couple, Budget under $3000, food and culture, mild weather, mid-range style, central hotel, full package',
     ))
     const t3 = await service.planTurn({ conversationId: 'c1', messages: history })
     expect(t3.memory.missingFields).toEqual([])

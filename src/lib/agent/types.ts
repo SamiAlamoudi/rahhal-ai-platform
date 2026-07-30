@@ -53,6 +53,13 @@ export interface TripRequirements {
   destination: string | null
   destinations: string[]
   /**
+   * Canonical city (e.g. Tokyo) — separate from country so we never swap
+   * a named city for an unrelated country (Tokyo ≠ Jordan).
+   */
+  destinationCity: string | null
+  /** Canonical country (e.g. Japan). */
+  destinationCountry: string | null
+  /**
    * Sprint 45 — traveler asked for open-ended discovery ("somewhere cold…")
    * rather than naming a place. Destination is not a hard intake slot while true.
    */
@@ -144,6 +151,9 @@ export interface AccommodationRecommendation {
   fit: string
   estimatedNightly: number | null
   currency: string
+  provider?: string | null
+  /** True when this row came from a hotel search provider (not itinerary seed). */
+  fromProvider?: boolean
 }
 
 export interface AttractionItem {
@@ -160,6 +170,16 @@ export interface FlightRecommendation {
   estimatedCost: number | null
   currency: string | null
   notes: string | null
+  /** Provider-backed booking option fields (required for selectable cards). */
+  id?: string | null
+  flightNumber?: string | null
+  departureTime?: string | null
+  arrivalTime?: string | null
+  durationMinutes?: number | null
+  cabin?: string | null
+  provider?: string | null
+  /** True when this row came from a search provider (not itinerary seed). */
+  fromProvider?: boolean
 }
 
 export interface BudgetBreakdownLine {
@@ -252,6 +272,43 @@ export interface AgentProviderMeta {
   voicePhase?: 'bridge' | 'final'
   /** Phase J: tool batch executed for this assistant turn */
   toolResults?: AgentToolRunSummary[]
+  /**
+   * Booking-agent search integrity — provider-backed options for the UI.
+   * Never invent totals here; only attach after search tools run.
+   */
+  bookingSearch?: {
+    intent: 'booking'
+    destination: string | null
+    origin: string | null
+    startDate: string | null
+    endDate: string | null
+    travelers: number | null
+    cabin: string | null
+    searchInvoked: boolean
+    providerFlightCount: number
+    providerHotelCount: number
+    normalizedFlightCount: number
+    cardsRenderedCount: number
+    providerError: string | null
+  }
+  bookingOptions?: Array<{
+    id: string
+    kind: 'flight' | 'hotel'
+    airline?: string | null
+    from?: string | null
+    to?: string | null
+    departureTime?: string | null
+    arrivalTime?: string | null
+    stops?: number | null
+    durationMinutes?: number | null
+    cabin?: string | null
+    price?: number | null
+    currency?: string | null
+    provider?: string | null
+    hotelName?: string | null
+    area?: string | null
+    selectable: true
+  }>
   /**
    * Sprint 9 — Concierge dialogue state (additive, optional).
    * Opaque to the provider layer; Concierge remains supplier-agnostic.
@@ -978,6 +1035,8 @@ export function emptyRequirements(): TripRequirements {
   return {
     destination: null,
     destinations: [],
+    destinationCity: null,
+    destinationCountry: null,
     destinationFlexible: null,
     origin: null,
     startDate: null,

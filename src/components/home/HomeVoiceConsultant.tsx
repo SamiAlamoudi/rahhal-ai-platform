@@ -5,17 +5,25 @@ import { chatEngine } from '../../lib/chat/chatEngine'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import type { VoiceSession } from '../../lib/chat/voice/voiceSession'
 import type { VoiceSessionStatus } from '../../lib/chat/voice/voiceTypes'
-import { unlockAudioPlayback } from '../../lib/chat/voice/audioElementTextToSpeechProvider'
+import { unlockAudioPlayback, preconnectOpenAiTtsRoute } from '../../lib/chat/voice/audioElementTextToSpeechProvider'
 import { isBenignChatError } from '../../lib/chat/chatLogger'
 import {
-  buildResultCardsFromTripPlan,
-  resultCardKindLabel,
-  resultCardMeta,
-  resultCardSubtitle,
-  resultCardTitle,
-  type DynamicResultCard,
-} from '../../lib/premiumExperience'
-import { tripPlanFromMeta } from '../../lib/agent/memory'
+  toUserFacingVoiceError,
+  VOICE_RECOVERABLE_ERROR_AR,
+} from '../../lib/chat/voice/voiceUserFacingError'
+import { isGreetingOnly } from '../../lib/agent/conversationBrain/greetingGuard'
+import {
+  createVoiceLatencyMarks,
+  summarizeVoiceLatency,
+  type VoiceLatencyMarks,
+} from '../../lib/chat/voice/voiceLatency'
+import { logPipeline } from '../../lib/chat/pipelineDiagnostics'
+import {
+  formatClock,
+  formatDuration,
+  type BookingOptionCard,
+} from '../../lib/agent/bookingOptionsFromSearch'
+import { logMicSessionState, mapToMicSessionState } from '../../lib/chat/voice/micSessionState'
 import { ConversationComposer } from './ConversationComposer'
 
 export interface HomeVoiceConsultantProps {
@@ -26,7 +34,8 @@ export interface HomeVoiceConsultantProps {
 
 /**
  * Voice-first consultant surface on Home.
- * Mic → STT → ChatGPT → on-screen streaming reply → TTS → listen again.
+ * Prefers OpenAI Realtime speech-to-speech (gpt-realtime-2.1) when available.
+ * Falls back to classic STT → Chat → TTS if Realtime is unavailable.
  * Never navigates to /chat.
  */
 export function HomeVoiceConsultant({
@@ -36,6 +45,8 @@ export function HomeVoiceConsultant({
 }: HomeVoiceConsultantProps) {
   const t = (ar: string, en: string) => (locale === 'ar' ? ar : en)
   const voiceRef = useRef<VoiceSession | null>(null)
+  const realtimeRef = useRef<import('../../lib/chat/voice/realtimeWebRtcSession').RealtimeWebRtcSession | null>(null)
+  const preferRealtimeRef = useRef(false)
   const conversationIdRef = useRef<string | null>(null)
   const [voiceStatus, setVoiceStatus] = useState<VoiceSessionStatus>('idle')
   const [partial, setPartial] = useState('')
@@ -44,10 +55,31 @@ export function HomeVoiceConsultant({
   const [assistantMessage, setAssistantMessage] = useState<ChatMessage | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [sessionReady, setSessionReady] = useState(false)
-  const [cards, setCards] = useState<DynamicResultCard[]>([])
+  const [bookingOptions, setBookingOptions] = useState<BookingOptionCard[]>([])
+  const [providerError, setProviderError] = useState<string | null>(null)
   const [audioPlaying, setAudioPlaying] = useState(false)
+  /** Soft ASR retry cue — calm status, never red technical diagnostics. */
+  const [asrHint, setAsrHint] = useState<string | null>(null)
   const speechStartedRef = useRef(false)
+  /** Parser-only enrichment for the last committed ASR (display stays exact). */
+  const asrExtractTextRef = useRef<string | null>(null)
   const pendingAssistantRef = useRef<ChatMessage | null>(null)
+  const latencyRef = useRef<VoiceLatencyMarks | null>(null)
+  const bookingSearchGenRef = useRef(0)
+  const bookingSearchRef = useRef<(text: string) => void>(() => undefined)
+  /** User pressed Stop — block every auto-listen / ensureListening / resume path. */
+  const userStoppedRef = useRef(false)
+
+  const ownedTurnAbortRef = useRef<AbortController | null>(null)
+
+  const setMicStatus = useCallback((status: VoiceSessionStatus, detail?: Record<string, unknown>) => {
+    setVoiceStatus(status)
+    logMicSessionState(mapToMicSessionState(status, { hardStopped: userStoppedRef.current }), {
+      source: 'home',
+      rawStatus: status,
+      ...detail,
+    })
+  }, [])
 
   const flushAssistant = useCallback((message: ChatMessage) => {
     if (message.role !== 'assistant') return
@@ -55,22 +87,32 @@ export function HomeVoiceConsultant({
     // OpenAI owns traveler-facing copy — render verbatim (no polish / rechunk).
     setAssistantText(message.content || '')
     if (message.status === 'complete') {
-      const memory = message.providerMeta?.memory as
-        | { requirements?: { destination?: string | null; destinations?: string[] } }
+      const options = Array.isArray(message.providerMeta?.bookingOptions)
+        ? (message.providerMeta.bookingOptions as BookingOptionCard[])
+        : []
+      setBookingOptions(options)
+      const searchMeta = message.providerMeta?.bookingSearch as
+        | { providerError?: string | null; providerFlightCount?: number }
         | undefined
-      const destinationHint =
-        memory?.requirements?.destination
-        || memory?.requirements?.destinations?.[0]
-        || null
-      const plan = tripPlanFromMeta(message.providerMeta)
-      setCards(
-        buildResultCardsFromTripPlan(plan, {
-          destinationHint: destinationHint || plan?.destinations?.[0] || null,
-          limit: 6,
-        }),
+      setProviderError(
+        options.some((o) => o.kind === 'flight')
+          ? null
+          : (searchMeta?.providerError || null),
       )
+      logPipeline({
+        stage: 'conversation',
+        event: 'booking_cards_rendered',
+        meta: {
+          cardsRenderedCount: options.length,
+          flightCards: options.filter((o) => o.kind === 'flight').length,
+          hotelCards: options.filter((o) => o.kind === 'hotel').length,
+          providerError: searchMeta?.providerError ?? null,
+          providerFlightCount: searchMeta?.providerFlightCount ?? null,
+        },
+      })
     } else {
-      setCards([])
+      setBookingOptions([])
+      setProviderError(null)
     }
   }, [])
 
@@ -88,16 +130,323 @@ export function HomeVoiceConsultant({
     if (message.content) setAssistantText(message.content)
   }, [flushAssistant])
 
+  /**
+   * Sole conversation turn owner on the Realtime mic path:
+   * Final ASR/text → chatEngine/planTurn (intent + search) → stream text →
+   * ONE speakWrittenDraft (Realtime playback only).
+   * Realtime must never invent a parallel reply.
+   */
+  const runOwnedTurn = useCallback(async (transcript: string) => {
+    const text = transcript.trim()
+    if (!text) return
+    if (userStoppedRef.current) {
+      logPipeline({
+        stage: 'voice',
+        event: 'owned_turn_blocked_user_stopped',
+        meta: { sample: text.slice(0, 40) },
+      })
+      return
+    }
+    const gen = ++bookingSearchGenRef.current
+    ownedTurnAbortRef.current?.abort()
+    const controller = new AbortController()
+    ownedTurnAbortRef.current = controller
+
+    setError(null)
+    setAsrHint(null)
+    setMicStatus('thinking', { phase: 'owned_turn_start' })
+    setAudioPlaying(false)
+    setAssistantText('')
+    setAssistantMessage(null)
+    speechStartedRef.current = false
+    pendingAssistantRef.current = null
+
+    try {
+      let id = conversationIdRef.current
+      if (!id) {
+        const created = await chatEngine.createConversation(
+          locale === 'ar' ? 'محادثة صوتية' : 'Voice conversation',
+        )
+        id = created.id
+        conversationIdRef.current = id
+      }
+
+      // Ensure Realtime is up for mic continuity + sole playback path.
+      if (
+        preferRealtimeRef.current
+        && realtimeRef.current
+        && !realtimeRef.current.isConnected()
+        && !userStoppedRef.current
+      ) {
+        await realtimeRef.current.connect()
+      }
+
+      // Committed message = exact ASR. Extraction enrichment is internal to extractRequirements.
+      const messageContent = text
+      logPipeline({
+        stage: 'voice',
+        event: 'asr_committed_to_planner',
+        meta: {
+          committedTranscript: messageContent.slice(0, 200),
+          extractHint: (asrExtractTextRef.current || messageContent).slice(0, 200),
+        },
+      })
+
+      await chatEngine.sendMessage(
+        { conversationId: id, content: messageContent, modality: 'audio' },
+        {
+          signal: controller.signal,
+            onAssistantCreate: (message) => {
+            if (gen !== bookingSearchGenRef.current || userStoppedRef.current) return
+            setBookingOptions([])
+            setProviderError(null)
+            setAssistantMessage(message)
+            setAssistantText(message.content || '')
+          },
+          onDelta: (message) => {
+            if (gen !== bookingSearchGenRef.current || userStoppedRef.current) return
+            setAssistantMessage(message)
+            if (message.content) setAssistantText(message.content)
+          },
+          onComplete: (message) => {
+            if (gen !== bookingSearchGenRef.current || userStoppedRef.current) return
+            flushAssistant(message)
+            const req = (message.providerMeta?.memory as {
+              requirements?: {
+                origin?: string | null
+                destination?: string | null
+                startDate?: string | null
+                endDate?: string | null
+                travelers?: number | null
+                cabinPreference?: string | null
+              }
+            } | undefined)?.requirements
+            logPipeline({
+              stage: 'voice',
+              event: 'asr_extraction_result',
+              meta: {
+                committedTranscript: text.slice(0, 200),
+                extractedOrigin: req?.origin ?? null,
+                extractedDestination: req?.destination ?? null,
+                extractedDates: {
+                  startDate: req?.startDate ?? null,
+                  endDate: req?.endDate ?? null,
+                },
+                extractedPassengers: req?.travelers ?? null,
+                extractedCabinClass: req?.cabinPreference ?? null,
+              },
+            })
+            // Spoken audio must match the full displayed text (one reply, one owner).
+            const displayed = (message.content || '').trim()
+            const spokenRaw = displayed
+              || (typeof message.providerMeta?.spokenText === 'string'
+                ? message.providerMeta.spokenText.trim()
+                : '')
+            if (!spokenRaw) {
+              if (!userStoppedRef.current) {
+                setMicStatus('listening', { phase: 'empty_spoken' })
+                realtimeRef.current?.ensureListening()
+              }
+              return
+            }
+            const memoryLocale = (message.providerMeta?.memory as { locale?: string } | undefined)?.locale
+            const speakLocale: 'ar' | 'en' =
+              memoryLocale === 'en' || memoryLocale === 'ar'
+                ? memoryLocale
+                : (/[\u0600-\u06FF]/.test(spokenRaw) ? 'ar' : (locale === 'en' ? 'en' : 'ar'))
+            // ONE streamed spoken reply — planTurn owns the words.
+            if (
+              preferRealtimeRef.current
+              && realtimeRef.current?.isConnected()
+              && !userStoppedRef.current
+            ) {
+              setMicStatus('speaking', { phase: 'realtime_playback' })
+              setAudioPlaying(true)
+              realtimeRef.current.speakWrittenDraft(spokenRaw, { locale: speakLocale })
+            } else if (voiceRef.current && !userStoppedRef.current) {
+              setMicStatus('speaking', { phase: 'classic_tts' })
+              setAudioPlaying(true)
+              void voiceRef.current.speakText(spokenRaw, {
+                resumeHandsFree: !userStoppedRef.current,
+                interrupt: true,
+              }).finally(() => {
+                if (gen !== bookingSearchGenRef.current || userStoppedRef.current) {
+                  setAudioPlaying(false)
+                  return
+                }
+                setAudioPlaying(false)
+                setMicStatus('listening', { phase: 'classic_tts_done' })
+              })
+            } else if (!userStoppedRef.current) {
+              setMicStatus('listening', { phase: 'no_playback_path' })
+            }
+          },
+          onError: (_message, err) => {
+            if (gen !== bookingSearchGenRef.current || userStoppedRef.current) return
+            if (!isBenignChatError(err)) {
+              const facing = toUserFacingVoiceError(err)
+              if (facing) setError(facing)
+            }
+            if (!userStoppedRef.current) {
+              setMicStatus('listening', { phase: 'stream_error' })
+              realtimeRef.current?.ensureListening()
+            }
+          },
+        },
+      )
+    } catch (e) {
+      if (controller.signal.aborted || userStoppedRef.current) return
+      if (!isBenignChatError(e)) {
+        const facing = toUserFacingVoiceError(e)
+        if (facing) setError(facing)
+      }
+      if (!userStoppedRef.current) {
+        setMicStatus('listening', { phase: 'owned_turn_catch' })
+        realtimeRef.current?.ensureListening()
+      }
+    }
+  }, [flushAssistant, locale, setMicStatus])
+
+  useEffect(() => {
+    bookingSearchRef.current = (text: string) => {
+      void runOwnedTurn(text)
+    }
+  }, [runOwnedTurn])
+
   useEffect(() => {
     let disposed = false
     let session: VoiceSession | null = null
     void (async () => {
-      const [{ createSpeechToTextProvider, createTextToSpeechProvider }, { createVoiceSession }] =
-        await Promise.all([
-          import('../../lib/chat/voice/voiceProviderFactory'),
-          import('../../lib/chat/voice/voiceSession'),
-        ])
+      const [
+        { createSpeechToTextProvider, createTextToSpeechProvider },
+        { createVoiceSession },
+        { probeRealtimeCapability, resolvePreferredVoiceArchitecture },
+        { createRealtimeWebRtcSession },
+      ] = await Promise.all([
+        import('../../lib/chat/voice/voiceProviderFactory'),
+        import('../../lib/chat/voice/voiceSession'),
+        import('../../lib/chat/voice/voiceArchitecture'),
+        import('../../lib/chat/voice/realtimeWebRtcSession'),
+      ])
       if (disposed) return
+
+      const preferred = resolvePreferredVoiceArchitecture(
+        (import.meta.env.VITE_VOICE_ARCHITECTURE as string | undefined) ?? 'realtime',
+      )
+      const capability = preferred === 'realtime_speech_to_speech'
+        ? await probeRealtimeCapability()
+        : null
+      preferRealtimeRef.current = Boolean(
+        preferred === 'realtime_speech_to_speech'
+        && capability?.configured,
+      )
+      logPipeline({
+        stage: 'voice',
+        event: 'architecture_selected',
+        meta: {
+          preferred,
+          realtimeConfigured: Boolean(capability?.configured),
+          model: capability?.model ?? null,
+          usingRealtime: preferRealtimeRef.current,
+        },
+      })
+
+      if (preferRealtimeRef.current) {
+        realtimeRef.current = createRealtimeWebRtcSession({
+          onStatus: (status) => {
+            if (disposed) return
+            if (userStoppedRef.current && status !== 'idle' && status !== 'error') {
+              logPipeline({
+                stage: 'voice',
+                event: 'home_status_ignored_after_stop',
+                meta: { attempted: status },
+              })
+              return
+            }
+            const mapped: VoiceSessionStatus =
+              status === 'connecting' ? 'requesting_permission'
+                : status === 'thinking' ? 'thinking'
+                  : status === 'speaking' ? 'speaking'
+                    : status === 'listening' ? 'listening'
+                      : status === 'error' ? 'error'
+                        : 'idle'
+            setMicStatus(mapped, { phase: 'realtime_on_status' })
+            setAudioPlaying(status === 'speaking' && !userStoppedRef.current)
+          },
+          onUserTranscript: (text, isFinal, meta) => {
+            if (disposed || userStoppedRef.current) return
+            if (isFinal) {
+              // Exactly one committed user message per turn — locked final only.
+              setAsrHint(null)
+              setPartial('')
+              setUserHeard(text)
+              onDraftChange(text)
+              asrExtractTextRef.current = meta?.normalizedForExtract || text
+              logPipeline({
+                stage: 'voice',
+                event: 'home_asr_commit',
+                meta: {
+                  committedTranscript: text.slice(0, 200),
+                  audioDurationMs: meta?.audioDurationMs ?? null,
+                  completionReason: meta?.completionReason ?? null,
+                  conversationLanguage: meta?.conversationLanguage ?? null,
+                },
+              })
+              bookingSearchRef.current(text)
+            } else {
+              // Interim / assembled preview — visual feedback only.
+              setPartial(text)
+            }
+          },
+          onAsrRetry: (message) => {
+            if (disposed || userStoppedRef.current) return
+            // Calm retry cue — never red technical diagnostics.
+            setAsrHint(message)
+            setPartial('')
+          },
+          onAssistantTranscript: (text, isFinal) => {
+            if (disposed) return
+            // Playback transcript from speakWrittenDraft only — do not invent a second reply.
+            setAssistantText(text)
+            setAssistantMessage((prev) => prev ? {
+              ...prev,
+              content: text,
+              status: isFinal ? 'complete' : 'streaming',
+              providerMeta: {
+                ...prev.providerMeta,
+                spokenText: text,
+                voiceArchitecture: 'realtime_speech_to_speech',
+              },
+              updatedAt: new Date().toISOString(),
+            } : {
+              id: 'realtime-playback',
+              conversationId: conversationIdRef.current || 'realtime',
+              role: 'assistant',
+              modality: 'audio',
+              content: text,
+              audioUrl: null,
+              imageUrl: null,
+              attachments: [],
+              status: isFinal ? 'complete' : 'streaming',
+              error: null,
+              providerMeta: {
+                spokenText: text,
+                voiceArchitecture: 'realtime_speech_to_speech',
+              },
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            })
+          },
+          onError: (err) => {
+            if (disposed || isBenignChatError(err)) return
+            const facing = toUserFacingVoiceError(err)
+            if (facing) setError(facing)
+          },
+        })
+        setSessionReady(true)
+        return
+      }
+
       session = createVoiceSession({
         stt: createSpeechToTextProvider(),
         tts: createTextToSpeechProvider(),
@@ -105,13 +454,13 @@ export function HomeVoiceConsultant({
         mode: 'hands_free',
         callbacks: {
           onStatus: (status) => {
-            if (!disposed) {
-              setVoiceStatus(status)
-              setAudioPlaying(status === 'speaking')
-              if (status === 'thinking' || status === 'listening') {
-                speechStartedRef.current = false
-                pendingAssistantRef.current = null
-              }
+            if (disposed) return
+            if (userStoppedRef.current && status !== 'idle' && status !== 'error') return
+            setMicStatus(status, { phase: 'classic_on_status' })
+            setAudioPlaying(status === 'speaking' && !userStoppedRef.current)
+            if (status === 'thinking' || status === 'listening') {
+              speechStartedRef.current = false
+              pendingAssistantRef.current = null
             }
           },
           onPartialTranscript: (text) => {
@@ -125,7 +474,9 @@ export function HomeVoiceConsultant({
             }
           },
           onError: (err) => {
-            if (!disposed && !isBenignChatError(err)) setError(err)
+            if (disposed || isBenignChatError(err)) return
+            const facing = toUserFacingVoiceError(err)
+            if (facing) setError(facing)
           },
           onSpeechStarted: () => {
             if (disposed) return
@@ -136,7 +487,7 @@ export function HomeVoiceConsultant({
           },
           onAssistantCreate: (message) => {
             if (!disposed) {
-              setCards([])
+              setBookingOptions([]); setProviderError(null)
               speechStartedRef.current = false
               pendingAssistantRef.current = null
               setAssistantMessage(message)
@@ -153,7 +504,9 @@ export function HomeVoiceConsultant({
             }
           },
           onStreamError: (_message, err) => {
-            if (!disposed && !isBenignChatError(err)) setError(err)
+            if (disposed || isBenignChatError(err)) return
+            const facing = toUserFacingVoiceError(err)
+            if (facing) setError(facing)
           },
         },
       })
@@ -163,6 +516,9 @@ export function HomeVoiceConsultant({
     return () => {
       disposed = true
       session?.dispose()
+      // Permanent teardown on unmount — disconnect alone must remain reconnectable.
+      realtimeRef.current?.dispose()
+      realtimeRef.current = null
       if (voiceRef.current === session) voiceRef.current = null
     }
   }, [flushAssistant, locale, onDraftChange, upsertAssistant])
@@ -182,58 +538,99 @@ export function HomeVoiceConsultant({
     setUserHeard('')
     setAssistantText('')
     setAssistantMessage(null)
-    setCards([])
+    setBookingOptions([]); setProviderError(null)
     setError(null)
   }, [])
 
+  // New page visit → completely clean conversation (no stale trip memory).
+  useEffect(() => {
+    beginFreshConversation()
+  }, [beginFreshConversation])
+
   const startListening = useCallback(async () => {
-    // Continue the active trip conversation. Only wipe when there is no session yet.
-    // (A full "new chat" is beginFreshConversation via looksLikeNewTrip on text, or reload.)
-    if (!conversationIdRef.current) {
+    // Explicit user mic press — only way to begin a new listening session after Stop.
+    userStoppedRef.current = false
+    setAsrHint(null)
+    asrExtractTextRef.current = null
+    logMicSessionState('LISTENING', { source: 'home', reason: 'user_mic_press' })
+    // New voice session from idle → blank trip memory (no Jordan/Dubai leftovers).
+    if (voiceStatus === 'idle' || voiceStatus === 'error' || !conversationIdRef.current) {
       beginFreshConversation()
+      ownedTurnAbortRef.current?.abort()
+      bookingSearchGenRef.current += 1
     }
     setError(null)
     unlockAudioPlayback().catch(() => undefined)
     try {
-      const id = await ensureConversation()
+      await ensureConversation()
+      if (preferRealtimeRef.current && realtimeRef.current) {
+        if (!realtimeRef.current.isConnected()) {
+          await realtimeRef.current.connect()
+        } else {
+          // Same live session — re-arm mic/VAD for the next turn (no refresh).
+          realtimeRef.current.ensureListening()
+        }
+        setMicStatus('listening', { phase: 'user_start' })
+        return
+      }
       const permission = await voiceRef.current?.ensureMicPermission()
       if (permission && permission.state !== 'granted') {
         setError(permission.error || t('يلزم إذن الميكروفون', 'Microphone permission required'))
         return
       }
+      const id = conversationIdRef.current
+      if (!id) return
       await voiceRef.current?.startHandsFree(id)
     } catch (e) {
       if (!isBenignChatError(e)) {
-        setError(e instanceof Error ? e.message : t('تعذر بدء الصوت', 'Could not start voice'))
+        setError(toUserFacingVoiceError(e) || VOICE_RECOVERABLE_ERROR_AR)
       }
     }
-  }, [beginFreshConversation, ensureConversation, t])
+  }, [beginFreshConversation, ensureConversation, setMicStatus, t, voiceStatus])
 
   const stopListening = useCallback(async () => {
+    // Hard session termination — cancel owned turns, timers, VAD, auto-listen.
+    userStoppedRef.current = true
+    ownedTurnAbortRef.current?.abort()
+    ownedTurnAbortRef.current = null
+    bookingSearchGenRef.current += 1
+    setPartial('')
+    setAsrHint(null)
+    setAudioPlaying(false)
+    asrExtractTextRef.current = null
+    logMicSessionState('STOPPED', { source: 'home', reason: 'user_stop' })
+    if (preferRealtimeRef.current && realtimeRef.current) {
+      realtimeRef.current.hardStop()
+      setMicStatus('idle', { phase: 'hard_stop' })
+      return
+    }
     await voiceRef.current?.stopListening()
-  }, [])
-
-  const interrupt = useCallback(() => {
-    voiceRef.current?.interrupt(undefined, { resumeHandsFree: true })
-  }, [])
+    setMicStatus('idle', { phase: 'hard_stop_classic' })
+  }, [setMicStatus])
 
   const onVoiceClick = useCallback(() => {
     unlockAudioPlayback().catch(() => undefined)
-    if (voiceStatus === 'listening') {
+    const active =
+      voiceStatus === 'listening'
+      || voiceStatus === 'speaking'
+      || voiceStatus === 'responding'
+      || voiceStatus === 'thinking'
+      || voiceStatus === 'processing'
+      || voiceStatus === 'reconnecting'
+    // Any active session + mic tap = hard Stop (never auto-reopen).
+    if (active) {
       void stopListening()
       return
     }
-    if (voiceStatus === 'speaking' || voiceStatus === 'responding' || voiceStatus === 'thinking') {
-      interrupt()
-      return
-    }
-    // idle / error / reconnecting — (re)enter hands-free on the same conversation.
+    // Idle / error — explicit user start only.
     void startListening()
-  }, [interrupt, startListening, stopListening, voiceStatus])
+  }, [startListening, stopListening, voiceStatus])
 
   const onSubmitText = useCallback(async (text: string) => {
     const trimmed = text.trim()
     if (!trimmed) return
+    // Text is an explicit user action — clear Stop latch for this turn's playback.
+    userStoppedRef.current = false
     // Never silently drop follow-ups (e.g. عطلة قصيرة) if a prior turn left
     // status stuck in thinking/responding/speaking (common when mic is unavailable).
     if (
@@ -241,18 +638,57 @@ export function HomeVoiceConsultant({
       || voiceStatus === 'responding'
       || voiceStatus === 'speaking'
     ) {
-      voiceRef.current?.interrupt(undefined, { resumeHandsFree: false })
-      setVoiceStatus('idle')
+      ownedTurnAbortRef.current?.abort()
+      bookingSearchGenRef.current += 1
+      if (preferRealtimeRef.current && realtimeRef.current) {
+        realtimeRef.current.interrupt()
+      } else {
+        voiceRef.current?.interrupt(undefined, { resumeHandsFree: false })
+      }
+      setMicStatus('idle', { phase: 'text_preempt' })
       setAudioPlaying(false)
     }
     setError(null)
-    setCards([])
+    setBookingOptions([]); setProviderError(null)
     setUserHeard(trimmed)
     setAssistantText('')
     setAssistantMessage(null)
     speechStartedRef.current = false
     pendingAssistantRef.current = null
+    // Greeting-only → wipe prior trip conversation so we never continue Istanbul/budget state.
+    if (isGreetingOnly(trimmed)) {
+      beginFreshConversation()
+      setUserHeard(trimmed)
+      if (preferRealtimeRef.current && realtimeRef.current?.isConnected()) {
+        realtimeRef.current.disconnect()
+      }
+    }
+    latencyRef.current = createVoiceLatencyMarks()
+    latencyRef.current.requestSentAt = performance.now()
     await unlockAudioPlayback().catch(() => undefined)
+
+    // Sole turn owner: planTurn → one streamed reply → Realtime playback only.
+    if (preferRealtimeRef.current && realtimeRef.current) {
+      try {
+        await ensureConversation()
+        if (!realtimeRef.current.isConnected()) {
+          await realtimeRef.current.connect()
+        }
+        bookingSearchRef.current(trimmed)
+        onDraftChange('')
+        return
+      } catch (e) {
+        if (!isBenignChatError(e)) {
+          logPipeline({
+            stage: 'voice',
+            event: 'realtime_text_fallback_classic',
+            meta: { message: e instanceof Error ? e.message : String(e) },
+          })
+        }
+        // Fall through to classic STT/Chat/TTS path.
+      }
+    }
+
     try {
       // Only start a fresh trip on explicit reset — never wipe mid-answer
       // phrases like "أبغى أسافر أسبوع" that continue the same trip.
@@ -263,120 +699,115 @@ export function HomeVoiceConsultant({
       }
       const id = await ensureConversation()
       const controller = new AbortController()
-      const { takeNewSpokenChunks, takeSpokenTail } = await import('../../lib/chat/voice/progressiveSpeech')
-      let spokenCursor = 0
       let speakChain: Promise<void> = Promise.resolve()
 
-      const enqueueChunk = (chunk: string, isFirst: boolean) => {
-        const piece = chunk.trim()
-        if (!piece || !voiceRef.current) return
+      /**
+       * Classic fallback: one assistant reply → one TTS call → one continuous playback.
+       * Start TTS immediately when the final turn is complete (no mid-stream clips).
+       */
+      const speakOnce = (fullSpoken: string) => {
+        const piece = (fullSpoken || '').replace(/\s+/g, ' ').trim()
+        if (!piece || !voiceRef.current || userStoppedRef.current) return
         speakChain = speakChain.then(async () => {
-          if (controller.signal.aborted) return
-          if (isFirst && !speechStartedRef.current) {
+          if (controller.signal.aborted || userStoppedRef.current) return
+          const marks = latencyRef.current
+          if (marks) marks.ttsStartedAt = performance.now()
+          if (!speechStartedRef.current) {
             speechStartedRef.current = true
-            setVoiceStatus('speaking')
+            setMicStatus('speaking', { phase: 'text_tts' })
             setAudioPlaying(true)
             const pending = pendingAssistantRef.current
             pendingAssistantRef.current = null
             if (pending) flushAssistant(pending)
           }
-          voiceRef.current?.armHandsFree?.(id)
-          await voiceRef.current?.speakText(piece, {
-            resumeHandsFree: false,
-            interrupt: isFirst,
+          preconnectOpenAiTtsRoute()
+          const { toSpokenDialogue } = await import('../../lib/chat/voice/spokenDialoguePostProcessor')
+          const spokenDialogue = toSpokenDialogue(piece, {
+            locale: locale === 'en' ? 'en' : 'ar',
+            maxChars: 220,
           })
+          await voiceRef.current?.speakText(spokenDialogue || piece, {
+            resumeHandsFree: false,
+            interrupt: true,
+          })
+          if (marks) {
+            marks.ttsDoneAt = performance.now()
+            if (marks.audioStartedAt == null) marks.audioStartedAt = marks.ttsDoneAt
+            logPipeline({
+              stage: 'tts',
+              event: 'latency_report',
+              meta: summarizeVoiceLatency(marks) as unknown as Record<string, unknown>,
+            })
+          }
         }).catch(() => undefined)
       }
 
-      const pump = (full: string, final = false) => {
-        const normalized = (full || '').replace(/\s+/g, ' ').trim()
-        if (!normalized) return
-        // Continue speaking every newly completed sentence while tokens arrive.
-        const { chunks, nextCursor } = takeNewSpokenChunks(normalized, spokenCursor)
-        for (let i = 0; i < chunks.length; i += 1) {
-          enqueueChunk(chunks[i]!, spokenCursor === 0 && i === 0)
-        }
-        if (chunks.length > 0) spokenCursor = nextCursor
-        if (!final) return
-        const tail = takeSpokenTail(normalized, spokenCursor)
-        if (tail) {
-          enqueueChunk(tail, spokenCursor === 0)
-          spokenCursor = normalized.length
-        } else if (spokenCursor === 0) {
-          enqueueChunk(normalized, true)
-          spokenCursor = normalized.length
-        }
-      }
-
-      setVoiceStatus('thinking')
+      setMicStatus('thinking', { phase: 'text_turn' })
       await chatEngine.sendMessage(
         { conversationId: id, content: trimmed, modality: 'text' },
         {
           signal: controller.signal,
           onAssistantCreate: (message) => {
-            setCards([])
+            if (userStoppedRef.current) return
+            setBookingOptions([]); setProviderError(null)
             setAssistantMessage(message)
             setAssistantText('')
-            setVoiceStatus('thinking')
+            setMicStatus('thinking', { phase: 'text_assistant_create' })
+            // Warm audio path while the model thinks — does not speak yet.
+            void unlockAudioPlayback().catch(() => undefined)
           },
           onDelta: (message) => {
+            if (userStoppedRef.current) return
+            // Stream text to the UI only — never invoke TTS on partial deltas.
+            if (latencyRef.current && latencyRef.current.firstTokenAt == null) {
+              latencyRef.current.firstTokenAt = performance.now()
+            }
             upsertAssistant(message)
-            setVoiceStatus((s) => (s === 'speaking' ? s : 'responding'))
-            const spoken =
-              (typeof message.providerMeta?.spokenText === 'string' && message.providerMeta.spokenText.trim())
-              || message.content
-            if (spoken) pump(spoken, false)
+            setMicStatus(
+              voiceStatus === 'speaking' ? 'speaking' : 'responding',
+              { phase: 'text_delta' },
+            )
           },
           onComplete: async (message) => {
+            if (userStoppedRef.current) {
+              flushAssistant(message)
+              return
+            }
+            if (latencyRef.current) latencyRef.current.modelCompleteAt = performance.now()
             const spoken =
               (typeof message.providerMeta?.spokenText === 'string' && message.providerMeta.spokenText.trim())
               || message.content.slice(0, 360)
-            if (spoken) pump(spoken, true)
+            if (spoken) speakOnce(spoken)
             try {
               await speakChain
             } catch (e) {
               if (!isBenignChatError(e)) {
-                setError(e instanceof Error ? e.message : t('تعذر تشغيل الصوت', 'Could not play audio'))
+                setError(toUserFacingVoiceError(e) || VOICE_RECOVERABLE_ERROR_AR)
               }
             }
             speechStartedRef.current = true
             flushAssistant(message)
             setAudioPlaying(false)
-            try {
-              await voiceRef.current?.startHandsFree(id)
-            } catch {
-              setVoiceStatus('idle')
-            }
-            // Guarantee the composer can accept the next answer even if mic fails.
-            setVoiceStatus((s) => (
-              s === 'listening' || s === 'reconnecting' ? s : 'idle'
-            ))
+            // Never auto-open the mic after text — only explicit mic press.
+            setMicStatus('idle', { phase: 'text_complete' })
           },
           onError: async (_message, err) => {
-            if (!isBenignChatError(err)) setError(err)
-            setVoiceStatus('idle')
-            try {
-              await voiceRef.current?.startHandsFree(id)
-            } catch {
-              setVoiceStatus('idle')
+            if (!isBenignChatError(err)) {
+              const facing = toUserFacingVoiceError(err)
+              if (facing) setError(facing)
             }
+            setMicStatus('idle', { phase: 'text_error' })
           },
         },
       )
       onDraftChange('')
     } catch (e) {
       if (!isBenignChatError(e)) {
-        setError(e instanceof Error ? e.message : t('تعذر إرسال الرسالة', 'Could not send message'))
+        setError(toUserFacingVoiceError(e) || VOICE_RECOVERABLE_ERROR_AR)
       }
-      setVoiceStatus('idle')
-      try {
-        const id = conversationIdRef.current
-        if (id) await voiceRef.current?.startHandsFree(id)
-      } catch {
-        // leave idle — composer still accepts text
-      }
+      setMicStatus('idle', { phase: 'text_catch' })
     }
-  }, [assistantMessage?.status, beginFreshConversation, ensureConversation, flushAssistant, onDraftChange, t, upsertAssistant, voiceStatus])
+  }, [assistantMessage?.status, beginFreshConversation, ensureConversation, flushAssistant, locale, onDraftChange, setMicStatus, upsertAssistant, voiceStatus])
 
   const statusLabel = (() => {
     switch (voiceStatus) {
@@ -392,7 +823,9 @@ export function HomeVoiceConsultant({
           : t('يتحدث…', 'Speaking…')
       default:
         return sessionReady
-          ? t('اضغط الميكروفون للتحدث مع رحّال', 'Tap the mic to talk with Rahhal')
+          ? (preferRealtimeRef.current
+            ? t('اضغط الميكروفون — صوت مباشر (Realtime)', 'Tap the mic — live Realtime voice')
+            : t('اضغط الميكروفون للتحدث مع رحّال', 'Tap the mic to talk with Rahhal'))
           : t('تجهيز الصوت…', 'Preparing voice…')
     }
   })()
@@ -415,7 +848,14 @@ export function HomeVoiceConsultant({
           void onSubmitText(value)
         }}
         onVoiceClick={onVoiceClick}
-        listening={voiceStatus === 'listening'}
+        listening={
+          voiceStatus === 'listening'
+          || voiceStatus === 'thinking'
+          || voiceStatus === 'responding'
+          || voiceStatus === 'speaking'
+          || voiceStatus === 'processing'
+          || voiceStatus === 'reconnecting'
+        }
         disabled={!sessionReady && voiceStatus === 'idle'}
       />
 
@@ -424,10 +864,24 @@ export function HomeVoiceConsultant({
         aria-live="polite"
       >
         <p className="text-xs font-medium tracking-wide text-slate-500">{statusLabel}</p>
-        {partial || userHeard ? (
+        {asrHint ? (
+          <p
+            className="mt-2 text-sm leading-7 text-slate-600"
+            data-testid="home-voice-asr-hint"
+            role="status"
+          >
+            {asrHint}
+          </p>
+        ) : null}
+        {userHeard ? (
           <p className="mt-3 text-sm leading-7 text-slate-600">
             <span className="font-medium text-slate-800">{t('أنت:', 'You:')}</span>{' '}
-            {partial || userHeard}
+            {userHeard}
+          </p>
+        ) : partial ? (
+          <p className="mt-3 text-sm leading-7 text-slate-500">
+            <span className="font-medium text-slate-700">{t('أنت:', 'You:')}</span>{' '}
+            {partial}
           </p>
         ) : null}
         <AnimatePresence mode="wait">
@@ -455,34 +909,95 @@ export function HomeVoiceConsultant({
           ) : null}
         </AnimatePresence>
 
-        {cards.length > 0 && replyComplete && voiceStatus !== 'responding' && voiceStatus !== 'thinking' ? (
-          <div className="mt-5 grid gap-2 sm:grid-cols-2" data-testid="home-voice-cards">
-            {cards.map((card) => (
-              <div
-                key={card.id}
-                className="rounded-2xl border border-slate-100 bg-slate-50/90 px-3 py-2.5"
-              >
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  {resultCardKindLabel(card.kind, locale)}
-                </p>
-                <p className="mt-0.5 text-sm font-semibold text-slate-900">
-                  {resultCardTitle(card, locale)}
-                </p>
-                <p className="text-xs text-slate-600">{resultCardSubtitle(card, locale)}</p>
-                {resultCardMeta(card, locale) ? (
-                  <p className="mt-1 text-xs font-medium text-primary-700">
-                    {resultCardMeta(card, locale)}
-                  </p>
-                ) : null}
-              </div>
-            ))}
+        {providerError && replyComplete && bookingOptions.length === 0 ? (
+          <div
+            className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900"
+            data-testid="home-voice-provider-error"
+            role="status"
+          >
+            {t(
+              'تعذّر جلب عروض الطيران من المزود. أعد المحاولة — بدون أسعار تقديرية.',
+              'Could not load flight offers from the provider. Retry — no estimated totals.',
+            )}
+            <span className="mt-1 block text-xs text-amber-700/80">{providerError}</span>
+          </div>
+        ) : null}
+
+        {bookingOptions.length > 0 && replyComplete && voiceStatus !== 'responding' && voiceStatus !== 'thinking' ? (
+          <div className="mt-5 space-y-2" data-testid="home-voice-booking-options">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t('خيارات قابلة للحجز', 'Selectable booking options')}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {bookingOptions.map((card) => {
+                const isFlight = card.kind === 'flight'
+                const price = card.price != null
+                  ? `${card.price.toLocaleString(locale === 'ar' ? 'ar-SA' : 'en-US')} ${card.currency || 'SAR'}`
+                  : '—'
+                return (
+                  <div
+                    key={card.id}
+                    className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm"
+                    data-testid={isFlight ? 'booking-flight-card' : 'booking-hotel-card'}
+                  >
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      {isFlight ? t('طيران', 'Flight') : t('فندق', 'Hotel')}
+                      {card.provider ? ` · ${card.provider}` : ''}
+                    </p>
+                    {isFlight ? (
+                      <>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {card.airline || t('رحلة', 'Flight')} · {card.from} → {card.to}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {formatClock(card.departureTime, locale)} → {formatClock(card.arrivalTime, locale)}
+                          {' · '}
+                          {card.stops == null ? '—' : (locale === 'ar' ? `${card.stops} توقف` : `${card.stops} stop(s)`)}
+                          {' · '}
+                          {formatDuration(card.durationMinutes, locale)}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {t('الدرجة', 'Cabin')}: {card.cabin || '—'}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{card.hotelName}</p>
+                        <p className="text-xs text-slate-600">{card.area || '—'}</p>
+                      </>
+                    )}
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-primary-700">{price}</p>
+                      <button
+                        type="button"
+                        className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700"
+                      >
+                        {t('اختيار', 'Select')}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         ) : null}
 
         {error ? (
-          <p className="mt-3 text-xs text-rose-600" role="alert">
-            {error}
-          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2" role="alert">
+            <p className="text-xs text-rose-600">
+              {toUserFacingVoiceError(error) || VOICE_RECOVERABLE_ERROR_AR}
+            </p>
+            <button
+              type="button"
+              className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
+              onClick={() => {
+                setError(null)
+                void startListening()
+              }}
+            >
+              {t('إعادة المحاولة', 'Retry')}
+            </button>
+          </div>
         ) : null}
       </div>
     </div>

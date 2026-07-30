@@ -147,8 +147,14 @@ export function createTravelAgentProvider(
         spokenText: spoken,
         voicePhase: 'final',
       }
+      // Canonical traveler-facing body — chatService replaces accumulated stream with this
+      // so sanitized booking replies (no "plan ready" / estimated totals) win.
+      const doneMeta = {
+        ...meta,
+        displayText: turnResult.reply,
+      }
 
-      // If OpenAI already streamed the full display, just finalize.
+      // If OpenAI already streamed the exact final display, only emit remainder.
       if (streamedDisplay && turnResult.reply.startsWith(streamedDisplay)) {
         const remainder = turnResult.reply.slice(streamedDisplay.length)
         if (remainder) {
@@ -165,7 +171,27 @@ export function createTravelAgentProvider(
           yield { type: 'error', error: 'cancelled' }
           return
         }
-        yield { type: 'done', meta: { ...meta } }
+        yield { type: 'done', meta: doneMeta }
+        return
+      }
+
+      // Stream diverged from the final sanitized reply (e.g. model said "plan ready"
+      // before tools finished). Do NOT append — chatService will replace via displayText.
+      if (streamedDisplay && streamedDisplay !== turnResult.reply) {
+        if (input.signal.aborted) {
+          yield { type: 'error', error: 'cancelled' }
+          return
+        }
+        yield {
+          type: 'delta',
+          text: '',
+          meta: {
+            spokenText: spoken,
+            voicePhase: 'final',
+            displayText: turnResult.reply,
+          },
+        }
+        yield { type: 'done', meta: doneMeta }
         return
       }
 
@@ -180,7 +206,7 @@ export function createTravelAgentProvider(
         },
       }
 
-      yield* streamText(turnResult.reply, input.signal, meta)
+      yield* streamText(turnResult.reply, input.signal, doneMeta)
     },
   }
 }

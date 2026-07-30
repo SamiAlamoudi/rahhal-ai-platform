@@ -262,25 +262,30 @@ function renderPlanDisplay(facts: TravelFacts, ar: boolean): string {
     const cont = continueAfterDestination(facts, 1, ar)
     return cont.displayText
   }
-  const d = destinationLabel(plan.destinations[0], facts.locale)
-  const hotel = plan.hotels[0]?.name
-  const total = plan.estimatedTotal
-  const budget = total
-    ? formatBudgetPhrase(total.amount, total.currency, facts.locale)
-    : ''
+  // Prefer confirmed known destination over a stale plan title/list (Jordan leak).
+  const d = destinationLabel(
+    facts.known.destination || facts.known.destinations?.[0] || plan.destinations[0],
+    facts.locale,
+  )
+  const flightCount = Array.isArray(plan.flights) ? plan.flights.length : 0
+  const hotel = plan.hotels?.[0]?.name || null
+  // Hard ban: never claim "plan ready" / estimated totals without provider flights.
+  if (flightCount === 0) {
+    return ar
+      ? `تعذّر جلب عروض الطيران لـ${d} الآن. نعيد المحاولة — بدون أسعار تقديرية.`
+      : `I could not load live flight offers for ${d} right now. Retrying — no estimated totals.`
+  }
   if (ar) {
     return formatConsultantParagraphs([
-      `جهّزت تصوّراً واضحاً لـ${d} خلال ${plan.durationDays} أيام.`,
-      hotel ? `للإقامة أميل إلى ${hotel} لأنه يناسب إيقاع الرحلة.` : '',
-      budget ? `التقدير الأولي حول ${budget}، وسنضبطه بعد تثبيت التواريخ.` : '',
-      'قولوا لي ماذا نثبّت أو نعدّل.',
+      `هذي ${flightCount} خيارات طيران لـ${d} على الشاشة.`,
+      hotel ? `وفي خيارات فنادق منها ${hotel}.` : '',
+      'اختر رحلة للمتابعة.',
     ].filter(Boolean).join('\n\n'))
   }
   return [
-    `I shaped a clear outline for ${d} over ${plan.durationDays} days.`,
-    hotel ? `For the stay I lean toward ${hotel}.` : '',
-    budget ? `Early estimate around ${budget}.` : '',
-    'Tell me what to lock or change.',
+    `Here are ${flightCount} flight options for ${d} on screen.`,
+    hotel ? `Hotel options include ${hotel}.` : '',
+    'Select a flight to continue.',
   ].filter(Boolean).join(' ')
 }
 
@@ -289,15 +294,23 @@ function spokenPlan(facts: TravelFacts, seed: number, ar: boolean): string {
   if (!plan) {
     return continueAfterDestination(facts, seed, ar).spokenText
   }
-  const d = destinationLabel(plan.destinations[0], facts.locale)
-  const hotel = plan.hotels[0]?.name
+  const d = destinationLabel(
+    facts.known.destination || facts.known.destinations?.[0] || plan.destinations[0],
+    facts.locale,
+  )
+  const flightCount = Array.isArray(plan.flights) ? plan.flights.length : 0
+  if (flightCount === 0) {
+    return ar
+      ? `ما قدرت أجيب عروض طيران لـ${d} الحين. نعيد المحاولة.`
+      : `I could not load flight offers for ${d} right now.`
+  }
   if (ar) {
     return pick(seed, [
-      `جهّزت تصوّراً لـ${d} لمدة ${plan.durationDays} أيام${hotel ? ` مع إقامة مناسبة في ${hotel}` : ''}. نراجعها معاً بهدوء.`,
-      `مسودة قوية لـ${d}. قل لي ماذا نثبّت أو نعدّل.`,
+      `هذي ${flightCount} خيارات طيران لـ${d} أمامك. اختر رحلة.`,
+      `لقيت ${flightCount} رحلات لـ${d}. شوف الشاشة واختر.`,
     ])
   }
-  return `I have a first cut for ${d} across ${plan.durationDays} days. Tell me what to tune.`
+  return `Here are ${flightCount} flights for ${d}. Select one on screen.`
 }
 
 function cityAdvice(facts: TravelFacts, seed: number, ar: boolean): LocalConversationResult {

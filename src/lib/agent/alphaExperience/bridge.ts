@@ -118,50 +118,11 @@ export async function runAlphaExperienceConversation(
     missingFields: missingRequirementFields(memory.requirements),
   }
 
-  // Soft defaults so Alpha demo conversations can complete without full intake.
-  if (!memory.requirements.destination && !memory.requirements.destinationFlexible) {
-    memory = {
-      ...memory,
-      requirements: {
-        ...memory.requirements,
-        destination: memory.requirements.destinations[0] ?? 'Dubai',
-        destinations: memory.requirements.destinations.length
-          ? memory.requirements.destinations
-          : ['Dubai'],
-      },
-    }
-  }
-  if (!memory.requirements.origin) {
+  // Never invent demo destinations, budgets, travelers, or dates.
+  if (!memory.requirements.origin && memory.requirements.destination) {
     memory = {
       ...memory,
       requirements: { ...memory.requirements, origin: 'Riyadh' },
-    }
-  }
-  if (!memory.requirements.startDate) {
-    memory = {
-      ...memory,
-      requirements: {
-        ...memory.requirements,
-        startDate: '2026-08-15',
-        endDate: memory.requirements.endDate ?? '2026-08-20',
-        durationDays: memory.requirements.durationDays ?? 5,
-      },
-    }
-  }
-  if (memory.requirements.budgetAmount == null) {
-    memory = {
-      ...memory,
-      requirements: {
-        ...memory.requirements,
-        budgetAmount: 8000,
-        budgetCurrency: memory.requirements.budgetCurrency ?? 'SAR',
-      },
-    }
-  }
-  if (memory.requirements.travelers == null) {
-    memory = {
-      ...memory,
-      requirements: { ...memory.requirements, travelers: 2 },
     }
   }
 

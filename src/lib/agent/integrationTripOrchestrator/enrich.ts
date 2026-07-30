@@ -4,6 +4,7 @@
  */
 
 import type { AgentMemory, TripPlan } from '../types'
+import { preserveProviderFlights, preserveProviderHotels } from '../preserveProviderInventory'
 import { runTripOrchestrator, type TripOrchestratorDeps } from './orchestrator'
 import { isIntegrationTripOrchestratorEnabled } from './feature'
 import type { TripOrchestratorResult } from './types'
@@ -50,33 +51,46 @@ export async function enrichWithIntegrationTripOrchestrator(input: {
   ]
 
   if (result.recommendation?.flight) {
-    const f = result.recommendation.flight
-    nextPlan = {
-      ...nextPlan,
-      flights: [{
-        from: String(f.from ?? nextPlan.flights[0]?.from ?? ''),
-        to: String(f.to ?? nextPlan.flights[0]?.to ?? ''),
-        airline: typeof f.airline === 'string' ? f.airline : null,
-        stops: typeof f.stops === 'number' ? f.stops : null,
-        estimatedCost: typeof f.price === 'number' ? f.price : null,
-        currency: typeof f.currency === 'string' ? f.currency : result.recommendation.currency,
-        notes: result.recommendation.whyFlightEn,
-      }, ...nextPlan.flights.slice(1)],
+    const provider = preserveProviderFlights(nextPlan, (flight) => ({
+      ...flight,
+      notes: [flight.notes, result.recommendation?.whyFlightEn].filter(Boolean).join(' · '),
+    }))
+    if (provider.some((f) => f.fromProvider)) {
+      nextPlan = { ...nextPlan, flights: provider }
+    } else {
+      const f = result.recommendation.flight
+      nextPlan = {
+        ...nextPlan,
+        flights: [{
+          from: String(f.from ?? nextPlan.flights[0]?.from ?? ''),
+          to: String(f.to ?? nextPlan.flights[0]?.to ?? ''),
+          airline: typeof f.airline === 'string' ? f.airline : null,
+          stops: typeof f.stops === 'number' ? f.stops : null,
+          estimatedCost: typeof f.price === 'number' ? f.price : null,
+          currency: typeof f.currency === 'string' ? f.currency : result.recommendation.currency,
+          notes: result.recommendation.whyFlightEn,
+        }, ...nextPlan.flights.slice(1)],
+      }
     }
   }
 
   if (result.recommendation?.hotel) {
-    const h = result.recommendation.hotel
-    nextPlan = {
-      ...nextPlan,
-      accommodations: [{
-        name: String(h.name ?? 'Hotel'),
-        area: String(h.area ?? 'Center'),
-        category: (typeof h.hotelStars === 'number' && h.hotelStars >= 4) ? 'boutique' : 'hotel',
-        fit: result.recommendation.whyHotelEn,
-        estimatedNightly: typeof h.nightly === 'number' ? h.nightly : null,
-        currency: typeof h.currency === 'string' ? h.currency : result.recommendation.currency,
-      }, ...nextPlan.accommodations.slice(1)],
+    const providerHotels = preserveProviderHotels(nextPlan)
+    if (providerHotels.some((h) => h.fromProvider)) {
+      nextPlan = { ...nextPlan, accommodations: providerHotels }
+    } else {
+      const h = result.recommendation.hotel
+      nextPlan = {
+        ...nextPlan,
+        accommodations: [{
+          name: String(h.name ?? 'Hotel'),
+          area: String(h.area ?? 'Center'),
+          category: (typeof h.hotelStars === 'number' && h.hotelStars >= 4) ? 'boutique' : 'hotel',
+          fit: result.recommendation.whyHotelEn,
+          estimatedNightly: typeof h.nightly === 'number' ? h.nightly : null,
+          currency: typeof h.currency === 'string' ? h.currency : result.recommendation.currency,
+        }, ...nextPlan.accommodations.slice(1)],
+      }
     }
   }
 

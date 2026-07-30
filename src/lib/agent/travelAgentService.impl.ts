@@ -30,6 +30,19 @@ import {
   missingRequirementFields,
   rebuildMemoryFromMessages,
 } from './memory'
+import {
+  buildDestinationTelemetry,
+  destinationFromTranscript,
+  destinationsConflict,
+  resolveDestinationIdentity,
+} from './destinationIdentity'
+import {
+  buildBookingOptionsFromPlan,
+  countProviderFlightOffers,
+  countProviderHotelStays,
+  providerFlightError,
+} from './bookingOptionsFromSearch'
+import { logPipeline } from '../chat/pipelineDiagnostics'
 import { saveGeneratedItinerary } from './itineraryPersistence'
 import { createToolExecutor } from './tools/executor'
 import { mergeToolResultsIntoPlan } from './tools/mergeToolResults'
@@ -90,7 +103,8 @@ import type {
   TripPlan,
   TripRequirements,
 } from './types'
-import { withTripPlan } from './types'
+import { emptyMemory, withTripPlan } from './types'
+import { isGreetingOnly } from './conversationBrain/greetingGuard'
 import { getBookingHistoryUserId } from '../booking/bookingHistoryContext'
 import type { BookingHistoryIntent, BookingRecord } from '../booking'
 import type { ConfirmationConciergeIntent } from '../bookingConfirmation'
@@ -857,9 +871,27 @@ async function speakTravelFacts(input: {
   if (input.userProfile) {
     Object.assign(injectedProfile, input.userProfile)
   }
+  let voiceStyleNote: string | undefined
+  try {
+    const {
+      dialectChatGuidance,
+      dialectLabel,
+      loadVoiceExperiencePrefs,
+    } = await import('../chat/voice/voiceExperiencePrefs')
+    const prefs = loadVoiceExperiencePrefs()
+    voiceStyleNote = [
+      `Arabic dialect preference: ${dialectLabel(prefs.dialect)} (${prefs.dialect}).`,
+      dialectChatGuidance(prefs.dialect),
+      'Do not claim native dialect quality. Fall back to clear natural Arabic rather than poor imitation.',
+      'Dialect must never invent travel facts.',
+    ].join(' ')
+  } catch {
+    voiceStyleNote = undefined
+  }
   return runConversationBrain({
     ...input,
     userProfile: injectedProfile,
+    voiceStyleNote,
     onDelta: input.onDelta
       ? (partial) => {
         input.onDelta?.({
@@ -1098,6 +1130,66 @@ export function createTravelAgentService(
     bookingExecution?: BookingExecutionResult
     payments?: PaymentsPlatformResult
   }> => {
+    // Destination integrity — never search Jordan (or any place) when ASR said Tokyo.
+    const transcriptDestination = destinationFromTranscript(input.userText || '')
+    const memoryDestination = input.memory.requirements.destination
+      || input.memory.requirements.destinationCity
+      || input.memory.requirements.destinations[0]
+      || null
+    const searchPayloadDestination = memoryDestination
+    const transcriptIdentity = resolveDestinationIdentity(transcriptDestination)
+    const searchIdentity = resolveDestinationIdentity(searchPayloadDestination)
+    const conflict = Boolean(
+      transcriptDestination
+      && searchPayloadDestination
+      && destinationsConflict(transcriptIdentity, searchIdentity),
+    )
+    logPipeline({
+      stage: 'conversation',
+      event: conflict ? 'destination_conflict_abort_search' : 'destination_search_payload',
+      meta: buildDestinationTelemetry({
+        transcriptDestination,
+        extractedDestination: memoryDestination,
+        memoryDestination,
+        searchPayloadDestination,
+        identity: searchIdentity,
+        conflict,
+      }) as unknown as Record<string, unknown>,
+    })
+    if (conflict) {
+      // Stop — do not return mismatched inventory. Caller still speaks from memory facts.
+      const safePlan = input.basePlan
+        ? {
+          ...input.basePlan,
+          destinations: memoryDestination ? [memoryDestination] : input.basePlan.destinations,
+          flights: [],
+        }
+        : buildTripPlan({
+          requirements: {
+            ...input.memory.requirements,
+            destination: memoryDestination,
+            destinations: memoryDestination ? [String(memoryDestination)] : [],
+          },
+          conversationId: input.conversationId,
+          locale: input.memory.locale,
+          seed: input.seed || input.conversationId,
+        })
+      return {
+        plan: {
+          ...safePlan,
+          destinations: memoryDestination ? [String(memoryDestination)] : safePlan.destinations,
+          flights: [],
+        },
+        batch: {
+          results: [],
+          selected: [],
+          okCount: 0,
+          failedCount: 0,
+          durationMs: 0,
+        },
+      }
+    }
+
     const travelPlanner = input.travelPlanner
       ?? (isTravelPlannerOn()
         ? (await loadTravelPlanner()).runTravelPlanner({
@@ -1534,14 +1626,106 @@ export function createTravelAgentService(
       let extracted = extractFromUserText(userText, prior.locale)
       const preferenceUserId = getBookingHistoryUserId() || input.conversationId
 
-      let memory: AgentMemory = {
-        ...prior,
-        locale: extracted.locale || prior.locale,
-        lastIntent: extracted.intent,
-        requirements: mergeRequirements(prior.requirements, extracted.patch, {
-          replaceDestinations: extracted.flags?.replaceDestinations,
-        }),
+      // Greeting-only with no new travel extract → completely clean session memory.
+      // Prevents stale assistant meta (prior trip) from inventing budget/travelers/etc.
+      const greetingCleanStart = isGreetingOnly(userText)
+        && !extracted.patch.destination
+        && !(extracted.patch.destinations && extracted.patch.destinations.length > 0)
+        && extracted.patch.budgetAmount == null
+        && extracted.patch.durationDays == null
+        && extracted.patch.travelers == null
+        && extracted.patch.origin == null
+        && extracted.patch.startDate == null
+        && extracted.patch.endDate == null
+        && extracted.patch.tripPurpose == null
+
+      const explicitLanguageSwitch = (() => {
+        const t = userText.trim()
+        if (/speak\s+english|talk\s+in\s+english|بالإنجليزي|بالانجليزي|english\s+please/i.test(t)) {
+          return 'en' as const
+        }
+        if (/speak\s+arabic|talk\s+in\s+arabic|بالعربي|عربي\s*من\s*فضلك|arabic\s+please/i.test(t)) {
+          return 'ar' as const
+        }
+        return null
+      })()
+      const hasPriorTripState = Boolean(
+        prior.requirements.destination
+        || prior.requirements.origin
+        || prior.requirements.travelers != null
+        || prior.requirements.startDate
+        || prior.requirements.durationDays != null
+        || prior.tripPlan
+        || (prior.requirements.destinations?.length ?? 0) > 0,
+      )
+      // One conversation language: do not flip ar↔en mid-trip unless the traveler asks.
+      const turnLocale = explicitLanguageSwitch
+        || (hasPriorTripState ? prior.locale : (extracted.locale || prior.locale))
+
+      const priorDestination = prior.requirements.destination
+      let memory: AgentMemory = greetingCleanStart
+        ? {
+          ...emptyMemory(extracted.locale || prior.locale),
+          lastIntent: extracted.intent,
+        }
+        : {
+          ...prior,
+          locale: turnLocale,
+          lastIntent: extracted.intent,
+          requirements: mergeRequirements(prior.requirements, extracted.patch, {
+            replaceDestinations: extracted.flags?.replaceDestinations === true,
+          }),
+        }
+
+      // Fill canonical city/country from the locked destination label.
+      if (memory.requirements.destination) {
+        const identity = resolveDestinationIdentity(memory.requirements.destination)
+        if (identity) {
+          memory = {
+            ...memory,
+            requirements: {
+              ...memory.requirements,
+              destination: identity.label,
+              destinations: [identity.label],
+              destinationCity: memory.requirements.destinationCity ?? identity.city,
+              destinationCountry: memory.requirements.destinationCountry ?? identity.country,
+            },
+          }
+        }
       }
+
+      // New confirmed destination → drop stale trip plan / demo itinerary (Jordan leak).
+      const destinationChanged = Boolean(
+        memory.requirements.destination
+        && priorDestination
+        && memory.requirements.destination !== priorDestination,
+      )
+      const destinationNewlySet = Boolean(
+        memory.requirements.destination
+        && !priorDestination
+        && prior.tripPlan
+        && (prior.tripPlan.destinations?.[0] || prior.tripPlan.title)
+        && !String(prior.tripPlan.destinations?.[0] || prior.tripPlan.title || '')
+          .toLowerCase()
+          .includes(String(memory.requirements.destination).toLowerCase()),
+      )
+      if (destinationChanged || destinationNewlySet || greetingCleanStart) {
+        memory = withTripPlan({ ...memory, phase: 'collecting' }, null)
+      }
+
+      const transcriptDestination = destinationFromTranscript(userText)
+      const extractedDestination = extracted.patch.destination ?? null
+      logPipeline({
+        stage: 'conversation',
+        event: 'destination_pipeline',
+        meta: buildDestinationTelemetry({
+          transcriptDestination,
+          extractedDestination,
+          memoryDestination: memory.requirements.destination,
+          identity: resolveDestinationIdentity(memory.requirements.destination),
+        }) as unknown as Record<string, unknown>,
+      })
+
       memory.missingFields = missingRequirementFields(memory.requirements)
 
       let conversationIntelligenceResult: ConversationIntelligenceResult | null = null
@@ -1855,20 +2039,33 @@ export function createTravelAgentService(
           smart: isClarificationEnabled(),
         })
 
-        // ChatGPT Voice UX — incomplete-trip turns speak before enrichment/tools.
-        // Only when hard intake slots are still open — never skip planning once ready.
-        const hardIntakeReady = Boolean(
-          (memory.requirements.destination || (memory.requirements.destinations?.length ?? 0) > 0)
-          && (
-            memory.requirements.durationDays != null
-            || (memory.requirements.startDate && memory.requirements.endDate)
-          )
-          && memory.requirements.travelers != null
-          && (
-            memory.requirements.budgetAmount != null
-            || memory.requirements.budgetFlexible === true
-          ),
+        // Booking-agent UX — incomplete-trip turns speak before enrichment/tools.
+        // Required for first search: destination + dates + travelers.
+        // Budget is optional refine-after-options (auto-flexible when omitted).
+        const hasDestination = Boolean(
+          memory.requirements.destination || (memory.requirements.destinations?.length ?? 0) > 0,
         )
+        const hasDates = Boolean(
+          memory.requirements.durationDays != null
+          || (memory.requirements.startDate && memory.requirements.endDate)
+          || memory.requirements.startDate,
+        )
+        const hasTravelers = memory.requirements.travelers != null
+        const bookingSearchReady = hasDestination && hasDates && hasTravelers
+        if (
+          bookingSearchReady
+          && memory.requirements.budgetAmount == null
+          && memory.requirements.budgetFlexible !== true
+        ) {
+          memory.requirements = {
+            ...memory.requirements,
+            budgetFlexible: true,
+          }
+          memory.missingFields = missingRequirementFields(memory.requirements, {
+            smart: isClarificationEnabled(),
+          })
+        }
+        const hardIntakeReady = bookingSearchReady
         const voiceIntakeFastPath =
           !alphaJourneyCue
           && !memory.tripPlan
@@ -3226,6 +3423,17 @@ export function createTravelAgentService(
 
       // Concierge sits above the agent: consultant dialogue or agent handoff.
       // It never selects providers — only whether the agent should execute.
+      // Booking-ready turns (destination + dates + travelers) MUST search —
+      // never consult / propose_options / planning-draft estimates first.
+      const bookingReadyForSearch = Boolean(
+        (memory.requirements.destination || (memory.requirements.destinations?.length ?? 0) > 0)
+        && memory.requirements.travelers != null
+        && (
+          memory.requirements.durationDays != null
+          || (memory.requirements.startDate && memory.requirements.endDate)
+          || memory.requirements.startDate
+        ),
+      )
       if (isConciergeEnabled() && conciergeService) {
         const conciergeResult = conciergeService.runTurn({
           locale: memory.locale,
@@ -3238,7 +3446,7 @@ export function createTravelAgentService(
         })
         conciergeState = conciergeResult.state
 
-        if (!conciergeResult.handoff.shouldExecuteAgent) {
+        if (!conciergeResult.handoff.shouldExecuteAgent && !bookingReadyForSearch) {
           // Experience Sprint 2 — Concierge decides policy/facts only; LLM writes the reply.
           memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
           let optionHints: string[] | undefined
@@ -3266,24 +3474,17 @@ export function createTravelAgentService(
             })
             : null
 
+          // Structured travel intelligence only — never inject canned Arabic
+          // framingNote / preferenceQuestion (those steered OpenAI into templates).
           const valueNotes: string[] = []
           if (planningDraft) {
             const insightLines = planningDraftToInsightLines(planningDraft, memory.locale)
-            // Prefer draft ranking + city why-lines as option hints when we have estimates.
             optionHints = [
               ...planningDraft.cities.slice(0, 3).map((city) => `${city.name} — ${city.why}`),
               ...insightLines.slice(1, 3),
             ]
-            valueNotes.push(planningDraft.rankingNote)
-            if (conciergeResult.decision.preferenceQuestion) {
-              valueNotes.push(conciergeResult.decision.preferenceQuestion)
-            }
-          } else {
-            for (const row of [
-              conciergeResult.decision.framingNote,
-              conciergeResult.decision.preferenceQuestion,
-            ]) {
-              if (row && row.trim()) valueNotes.push(row)
+            if (planningDraft.rankingNote?.trim()) {
+              valueNotes.push(planningDraft.rankingNote.trim())
             }
           }
 
@@ -3441,17 +3642,8 @@ export function createTravelAgentService(
         )
         && memory.missingFields.length === 0
       ) {
-        // Conversation-first: on the first complete intake turn, advise with a
-        // planning draft (city direction) instead of dumping a mock itinerary.
-        const firstCompleteConsult =
-          extracted.intent === 'answer'
-          && !memory.tripPlan
-          && !alphaJourneyCue
-
-        if (firstCompleteConsult) {
-          objective = 'propose_options'
-          memory = withTripPlan({ ...memory, phase: 'collecting', missingFields: [] }, null)
-        } else {
+        // Booking agent: when required fields are complete, SEARCH immediately.
+        // Never skip tools for a "first consult / propose_options" lecture.
         const scope = memory.requirements.regenerateScope
           ?? extracted.patch.regenerateScope
           ?? (extracted.intent === 'regenerate' ? 'whole' : null)
@@ -3510,7 +3702,6 @@ export function createTravelAgentService(
         }
         memory = withTripPlan({ ...memory, phase: 'planned', missingFields: [] }, plan)
         objective = 'present_plan'
-        }
       } else if (memory.missingFields.length > 0) {
         memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
         objective = 'collect_missing'
@@ -3719,14 +3910,17 @@ export function createTravelAgentService(
         packagesPresent: Boolean(dynamicPackagesResult?.selected || dynamicPackagesResult?.ranked.length),
       })
 
-      const consultDraft = (
-        objective === 'propose_options'
-      ) && canBuildPlanningDraft(memory.requirements)
-        ? buildPlanningDraft({
-          requirements: memory.requirements,
-          locale: memory.locale,
-        })
-        : null
+      // Booking agent: never inject city-ranking consult drafts once we are presenting
+      // searched options — that path previously drifted into advice / wrong destinations.
+      const consultDraft =
+        objective !== 'present_plan'
+        && objective !== 'collect_missing'
+        && canBuildPlanningDraft(memory.requirements)
+          ? buildPlanningDraft({
+            requirements: memory.requirements,
+            locale: memory.locale,
+          })
+          : null
 
       const facts = buildTravelFacts({
         memory,
@@ -3775,6 +3969,23 @@ export function createTravelAgentService(
           onDelta: input.onDialogueDelta,
         })
 
+      logPipeline({
+        stage: 'conversation',
+        event: 'destination_rendered',
+        meta: buildDestinationTelemetry({
+          transcriptDestination: destinationFromTranscript(userText),
+          extractedDestination: extracted.patch.destination ?? null,
+          memoryDestination: memory.requirements.destination,
+          searchPayloadDestination: memory.requirements.destinationCity
+            || memory.requirements.destination,
+          renderedDestination: memory.requirements.destination,
+          identity: resolveDestinationIdentity(memory.requirements.destination),
+          conflict: /Jordan|الأردن|الاردن|Amman|عمّان/i.test(
+            `${spoken.displayText}\n${spoken.spokenText}`,
+          ) && /Tokyo|طوكيو|Japan|اليابان/i.test(userText),
+        }) as unknown as Record<string, unknown>,
+      })
+
       // Sprint 89 — validate traveler-facing reply; keep meta on every interaction.
       const constitutionFinal = constitutionMod.applyConstitutionToTurn({
         userText,
@@ -3804,6 +4015,61 @@ export function createTravelAgentService(
       })
       constitutionMeta = constitutionFinal.meta
 
+      const toolResultsRaw = toolBatch?.results ?? []
+      const providerFlightCount = countProviderFlightOffers(toolResultsRaw)
+      const providerHotelCount = countProviderHotelStays(toolResultsRaw)
+      const bookingOptions = buildBookingOptionsFromPlan(memory.tripPlan, {
+        limitFlights: 6,
+        limitHotels: 3,
+      })
+      const flightError = providerFlightError(toolResultsRaw)
+      const searchInvoked = toolResultsRaw.some((r) => r.tool === 'flights' || r.tool === 'hotels')
+
+      logPipeline({
+        stage: 'conversation',
+        event: 'booking_search_pipeline',
+        meta: {
+          bookingIntent: extracted.intent === 'plan' || extracted.intent === 'answer',
+          extractedDestination: memory.requirements.destination,
+          destinationCity: memory.requirements.destinationCity,
+          destinationCountry: memory.requirements.destinationCountry,
+          origin: memory.requirements.origin,
+          startDate: memory.requirements.startDate,
+          endDate: memory.requirements.endDate,
+          travelers: memory.requirements.travelers,
+          cabin: memory.requirements.cabinPreference,
+          searchInvoked,
+          providerFlightCount,
+          providerHotelCount,
+          normalizedFlightCount: bookingOptions.filter((o) => o.kind === 'flight').length,
+          cardsRenderedCount: bookingOptions.length,
+          providerError: flightError,
+        },
+      })
+
+      // Never let the model claim "plan ready" / estimated totals without provider inventory.
+      let displayText = spoken.displayText
+      let spokenTextOut = spoken.spokenText
+      const forbiddenReady = /الخطة جاهزة|التكلفة الإجمالية المقدرة|هل ترغب في تأكيد الحجز|plan is ready|estimated total/i
+      if (bookingOptions.filter((o) => o.kind === 'flight').length === 0) {
+        const d = memory.requirements.destinationCity || memory.requirements.destination || 'وجهتك'
+        displayText = memory.locale === 'ar'
+          ? (flightError && flightError !== 'flights_tool_not_run'
+            ? `تعذّر جلب عروض الطيران الآن (${flightError}). نعيد المحاولة بدون أسعار تقديرية.`
+            : `ما زلنا نجهّز بحث الطيران لـ${d}. لا توجد خيارات قابلة للحجز بعد.`)
+          : (flightError && flightError !== 'flights_tool_not_run'
+            ? `Flight search failed (${flightError}). No estimated totals — please retry.`
+            : `Still preparing the flight search for ${d}. No bookable options yet.`)
+        spokenTextOut = displayText
+      } else if (forbiddenReady.test(`${displayText}\n${spokenTextOut}`)) {
+        const n = bookingOptions.filter((o) => o.kind === 'flight').length
+        const d = memory.requirements.destinationCity || memory.requirements.destination || ''
+        displayText = memory.locale === 'ar'
+          ? `هذي ${n} خيارات طيران لـ${d} على الشاشة. اختر رحلة للمتابعة.`
+          : `Here are ${n} flight options for ${d} on screen. Select a flight to continue.`
+        spokenTextOut = displayText
+      }
+
       // OpenAI owns display/spoken text — never rewrite reply post-hoc.
       const meta: AgentProviderMeta = {
         kind: 'travel_agent',
@@ -3811,17 +4077,33 @@ export function createTravelAgentService(
         memory,
         tripPlan: memory.tripPlan,
         itinerary: memory.tripPlan,
-        spokenText: spoken.spokenText,
+        spokenText: spokenTextOut,
         voicePhase: 'final',
         toolResults: toolBatch ? toToolSummaries(toolBatch.results) : [],
+        bookingSearch: {
+          intent: 'booking',
+          destination: memory.requirements.destination,
+          origin: memory.requirements.origin,
+          startDate: memory.requirements.startDate,
+          endDate: memory.requirements.endDate,
+          travelers: memory.requirements.travelers,
+          cabin: memory.requirements.cabinPreference,
+          searchInvoked,
+          providerFlightCount,
+          providerHotelCount,
+          normalizedFlightCount: bookingOptions.filter((o) => o.kind === 'flight').length,
+          cardsRenderedCount: bookingOptions.length,
+          providerError: flightError,
+        },
+        bookingOptions,
         ...(conciergeState ? { concierge: toMetaConcierge(conciergeState) } : {}),
       }
 
       return {
-        reply: spoken.displayText,
+        reply: displayText,
         memory,
         tripPlan: memory.tripPlan,
-        meta: attachTurnMeta(meta, spoken.spokenText),
+        meta: attachTurnMeta(meta, spokenTextOut),
         toolBatch,
       }
     },

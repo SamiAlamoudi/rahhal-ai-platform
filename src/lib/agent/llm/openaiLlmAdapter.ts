@@ -53,8 +53,9 @@ export function createOpenAiAgentLlmAdapter(): AgentLlmProvider {
       }
       try {
         const result = await openAiChatCompletion({
-          temperature: request.temperature ?? 0.85,
-          jsonObject: true,
+          temperature: request.temperature ?? 0.9,
+          // ChatGPT Voice parity: natural prose, not JSON wrappers.
+          jsonObject: false,
           stream: request.stream !== false,
           signal: request.signal,
           onDelta: request.onDelta
