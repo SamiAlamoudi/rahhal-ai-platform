@@ -136,6 +136,10 @@ export function buildKnownFromRequirements(req: TripRequirements): TravelFacts['
 }
 
 export function buildPlanFacts(plan: TripPlan): NonNullable<TravelFacts['plan']> {
+  const providerFlights = plan.flights.filter((f) => f.fromProvider === true)
+  const hasProviderInventory = providerFlights.length > 0
+  // Never expose trip-level estimated totals — prices live on selectable option cards only.
+  const estimatedTotal = null
   return {
     title: plan.title,
     summary: plan.summary,
@@ -148,22 +152,18 @@ export function buildPlanFacts(plan: TripPlan): NonNullable<TravelFacts['plan']>
       : plan.startDate
         ? `${plan.startDate}`
         : `${plan.durationDays} days (flexible)`,
-    estimatedTotal: plan.estimatedCosts
-      ? { amount: plan.estimatedCosts.amount, currency: plan.estimatedCosts.currency }
-      : null,
-    budgetBreakdown: (plan.estimatedBudget?.breakdown ?? []).map((row) => ({
-      label: row.label,
-      amount: row.amount,
-      currency: plan.estimatedBudget.currency,
-    })),
-    days: plan.dailyItinerary.map((day) => ({
-      day: day.day,
-      title: day.title,
-      location: day.location,
-      activities: day.activities.map((a) => [a.time, a.title, a.description].filter(Boolean).join(' — ')),
-      weatherSummary: day.weather?.summary ?? null,
-    })),
-    flights: plan.flights.map((f) => ({
+    estimatedTotal,
+    budgetBreakdown: [],
+    days: hasProviderInventory
+      ? plan.dailyItinerary.map((day) => ({
+        day: day.day,
+        title: day.title,
+        location: day.location,
+        activities: day.activities.map((a) => [a.time, a.title, a.description].filter(Boolean).join(' — ')),
+        weatherSummary: day.weather?.summary ?? null,
+      }))
+      : [],
+    flights: (hasProviderInventory ? providerFlights : []).map((f) => ({
       from: f.from,
       to: f.to,
       airline: f.airline,
@@ -171,29 +171,39 @@ export function buildPlanFacts(plan: TripPlan): NonNullable<TravelFacts['plan']>
       currency: f.currency,
       notes: f.notes,
     })),
-    hotels: plan.accommodations.map((h) => ({
-      name: h.name,
-      area: h.area,
-      category: h.category,
-      estimatedNightly: h.estimatedNightly,
-      currency: h.currency,
-      fit: h.fit,
-    })),
-    attractions: plan.attractions.map((a) => a.tag ? `${a.title} · ${a.tag}` : a.title),
+    hotels: hasProviderInventory
+      ? plan.accommodations
+        .filter((h) => h.fromProvider === true)
+        .map((h) => ({
+          name: h.name,
+          area: h.area,
+          category: h.category,
+          estimatedNightly: h.estimatedNightly,
+          currency: h.currency,
+          fit: h.fit,
+        }))
+      : [],
+    attractions: hasProviderInventory
+      ? plan.attractions.map((a) => a.tag ? `${a.title} · ${a.tag}` : a.title)
+      : [],
     weatherNotes: plan.weatherNotes,
     visaNotes: plan.visaNotes,
-    travelTips: plan.travelTips,
-    packingSuggestions: plan.packingSuggestions,
-    whyChoices: [
-      plan.decision?.flight?.whySelected,
-      plan.decision?.hotel?.whySelected,
-      plan.decision?.activities?.whySelected,
-      ...(plan.decision?.suggestions ?? []).slice(0, 3),
-    ].filter((x): x is string => Boolean(x)),
+    travelTips: hasProviderInventory ? plan.travelTips : [],
+    packingSuggestions: hasProviderInventory ? plan.packingSuggestions : [],
+    whyChoices: hasProviderInventory
+      ? [
+        plan.decision?.flight?.whySelected,
+        plan.decision?.hotel?.whySelected,
+        plan.decision?.activities?.whySelected,
+        ...(plan.decision?.suggestions ?? []).slice(0, 3),
+      ].filter((x): x is string => Boolean(x))
+      : [],
     tradeoffs: [],
     confidence: null,
     alternatives: [],
-    nextAction: null,
+    nextAction: hasProviderInventory
+      ? 'Show on-screen flight options and ask which to book.'
+      : 'Search failed or pending — do not invent prices or say the plan is ready.',
   }
 }
 

@@ -44,9 +44,9 @@ describe('Arabic booking → search first (fresh conversation)', () => {
     expect(r.patch.cabinPreference).toBe('business')
   })
 
-  it('planTurn on empty memory searches and presents options (no Jordan/Dubai/advice)', async () => {
+  it('planTurn searches and returns ≥3 selectable Tokyo flight cards (no estimated-total speech)', async () => {
     const service = createTravelAgentService({
-      conciergeEnabled: false,
+      conciergeEnabled: true,
       brainEnabled: false,
     })
     const conversationId = `fresh-tokyo-${Date.now()}`
@@ -66,22 +66,45 @@ describe('Arabic booking → search first (fresh conversation)', () => {
     expect(mem.endDate).toMatch(/-08-13$/)
     expect(mem.destinations).toEqual(['Tokyo'])
 
-    // Must have run search / built a plan — not stuck in consult.
     expect(result.memory.phase).toBe('planned')
     expect(result.tripPlan).toBeTruthy()
     expect(result.tripPlan?.destinations?.join(' ')).toMatch(/Tokyo/i)
     expect(result.tripPlan?.destinations?.join(' ')).not.toMatch(/Jordan|الأردن|Dubai|Morocco|المغرب/i)
 
-    const flights = result.tripPlan?.flights ?? []
-    const toolFlights = (result.meta.toolResults ?? []).some((t) =>
-      /flight/i.test(String(t.tool || '')) || /flight/i.test(String(t.summary || '')),
-    )
-    // Options on plan and/or tool results — booking search happened.
-    expect(flights.length > 0 || toolFlights || (result.meta.toolResults?.length ?? 0) > 0).toBe(true)
+    const search = result.meta.bookingSearch
+    expect(search).toBeTruthy()
+    expect(search?.searchInvoked).toBe(true)
+    expect(search?.destination).toMatch(/Tokyo/i)
+    expect(search?.origin).toMatch(/Riyadh/i)
+    expect(search?.travelers).toBe(2)
+    expect(search?.cabin).toMatch(/business/i)
+    expect(search?.providerFlightCount).toBeGreaterThanOrEqual(3)
+    expect(search?.normalizedFlightCount).toBeGreaterThanOrEqual(3)
+    expect(search?.cardsRenderedCount).toBeGreaterThanOrEqual(3)
+
+    const flights = (result.meta.bookingOptions ?? []).filter((o) => o.kind === 'flight')
+    expect(flights.length).toBeGreaterThanOrEqual(3)
+    for (const card of flights.slice(0, 3)) {
+      expect(card.airline).toBeTruthy()
+      expect(card.departureTime).toBeTruthy()
+      expect(card.arrivalTime).toBeTruthy()
+      expect(card.stops == null || typeof card.stops === 'number').toBe(true)
+      expect(card.durationMinutes == null || typeof card.durationMinutes === 'number').toBe(true)
+      expect(card.cabin).toMatch(/business/i)
+      expect(typeof card.price).toBe('number')
+      expect(card.currency).toBeTruthy()
+      expect(card.provider).toBeTruthy()
+      expect(card.selectable).toBe(true)
+      expect(`${card.from} ${card.to}`).toMatch(/HND|NRT|TYO|Tokyo|RUH/i)
+    }
+
+    const providerFlights = (result.tripPlan?.flights ?? []).filter((f) => f.fromProvider === true)
+    expect(providerFlights.length).toBeGreaterThanOrEqual(3)
 
     const reply = `${result.reply}\n${result.meta.spokenText || ''}`
+    expect(reply).not.toMatch(/الخطة جاهزة|التكلفة الإجمالية المقدرة|هل ترغب في تأكيد الحجز/i)
+    expect(reply).not.toMatch(/plan is ready|estimated total|confirm (the )?booking/i)
     expect(reply).not.toMatch(/Jordan|الأردن|Dubai|Morocco|المغرب|أنصح|أقترح|I suggest|I recommend|Perhaps|Let's first determine|خلنا نحدد أولاً/i)
-    // At most one question mark in the booking-agent reply.
     const questions = (reply.match(/[؟?]/g) || []).length
     expect(questions).toBeLessThanOrEqual(1)
   }, 60_000)

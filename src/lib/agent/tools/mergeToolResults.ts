@@ -93,44 +93,71 @@ export function mergeToolResultsIntoPlan(
 
 function mergeFlights(plan: TripPlan, result: AgentToolResult): TripPlan {
   const data = result.data as { offers?: Array<Record<string, unknown>> } | undefined
-  const offer = data?.offers?.[0]
-  if (!offer) return plan
-  const item: TransportationItem = {
-    mode: 'flight',
-    from: String(offer.from ?? 'Origin'),
-    to: String(offer.to ?? plan.destinations[0] ?? 'Destination'),
-    notes: `${String(offer.airline ?? 'Airline')} · ${offer.stops ?? 0} stops · search engine`,
-    estimatedCost: typeof offer.price === 'number' ? offer.price : null,
-    currency: typeof offer.currency === 'string' ? offer.currency : plan.estimatedBudget.currency,
-  }
-  const flight: FlightRecommendation = {
-    from: item.from,
-    to: item.to,
-    airline: typeof offer.airline === 'string' ? offer.airline : null,
-    stops: typeof offer.stops === 'number' ? offer.stops : null,
-    estimatedCost: item.estimatedCost,
-    currency: item.currency,
-    notes: item.notes,
-  }
-  const transportation = [
-    item,
+  const offers = Array.isArray(data?.offers) ? data!.offers! : []
+  if (!offers.length) return plan
+
+  // Replace itinerary-seed flights with provider offers (at least 3 when available).
+  const providerFlights: FlightRecommendation[] = offers.slice(0, 8).map((offer, index) => {
+    const from = String(offer.from ?? offer.origin ?? 'Origin')
+    const to = String(offer.to ?? offer.destination ?? plan.destinations[0] ?? 'Destination')
+    const price = typeof offer.price === 'number' ? offer.price : null
+    const currency = typeof offer.currency === 'string' ? offer.currency : plan.estimatedBudget.currency
+    const airline = typeof offer.airline === 'string' ? offer.airline : null
+    const stops = typeof offer.stops === 'number' ? offer.stops : null
+    const durationMinutes = typeof offer.durationMinutes === 'number'
+      ? offer.durationMinutes
+      : typeof offer.durationHours === 'number'
+        ? Math.round(offer.durationHours * 60)
+        : null
+    return {
+      id: typeof offer.id === 'string' ? offer.id : `provider-flight-${index}`,
+      from,
+      to,
+      airline,
+      flightNumber: typeof offer.flightNumber === 'string' ? offer.flightNumber : null,
+      stops,
+      estimatedCost: price,
+      currency,
+      notes: `${airline ?? 'Airline'} · ${stops ?? 0} stops · ${String(offer.provider ?? 'search')}`,
+      departureTime: typeof offer.departureTime === 'string' ? offer.departureTime : null,
+      arrivalTime: typeof offer.arrivalTime === 'string' ? offer.arrivalTime : null,
+      durationMinutes,
+      cabin: typeof offer.cabin === 'string' ? offer.cabin : null,
+      provider: typeof offer.provider === 'string' ? offer.provider : 'search',
+      fromProvider: true,
+    }
+  })
+
+  const transportation: TransportationItem[] = [
+    ...providerFlights.map((flight) => ({
+      mode: 'flight',
+      from: flight.from,
+      to: flight.to,
+      notes: flight.notes,
+      estimatedCost: flight.estimatedCost,
+      currency: flight.currency,
+    })),
     ...plan.transportation.filter((row) => row.mode !== 'flight'),
   ]
+
+  const topPrice = providerFlights[0]?.estimatedCost
   let estimatedBudget = plan.estimatedBudget
-  if (item.estimatedCost != null) {
+  if (topPrice != null) {
     estimatedBudget = {
       ...estimatedBudget,
-      amount: estimatedBudget.amount + item.estimatedCost,
+      amount: topPrice,
       breakdown: [
         ...estimatedBudget.breakdown.filter((b) => b.label !== 'flights'),
-        { label: 'flights', amount: item.estimatedCost },
+        { label: 'flights', amount: topPrice },
       ],
     }
   }
+
   return {
     ...plan,
     transportation,
-    flights: [flight, ...plan.flights.filter((f) => f.from !== flight.from || f.to !== flight.to)],
+    // Provider results only — drop synthetic itinerary flights.
+    flights: providerFlights,
     estimatedBudget,
     estimatedCosts: estimatedBudget,
   }
@@ -144,6 +171,7 @@ function mergeHotels(plan: TripPlan, result: AgentToolResult): TripPlan {
       category: AccommodationRecommendation['category']
       nightly: number
       currency: string
+      provider?: string
     }>
   } | undefined
   if (!data?.stays?.length) return plan
@@ -154,6 +182,8 @@ function mergeHotels(plan: TripPlan, result: AgentToolResult): TripPlan {
     fit: 'From hotel search engine',
     estimatedNightly: stay.nightly,
     currency: stay.currency,
+    provider: typeof stay.provider === 'string' ? stay.provider : 'search',
+    fromProvider: true,
   }))
   return { ...plan, accommodations }
 }

@@ -153,6 +153,39 @@ function collectAttractionAreas(plan: TripPlan): string[] {
 }
 
 function applySelectedFlight(plan: TripPlan, pick: ScoredCandidate): TripPlan {
+  const providerFlights = plan.flights.filter((f) => f.fromProvider === true)
+  // Booking inventory must stay selectable — never collapse provider offers to one thin row.
+  if (providerFlights.length > 0) {
+    const top = providerFlights[0]!
+    const transport = {
+      mode: 'flight',
+      from: top.from,
+      to: top.to,
+      notes: `${pick.reasons.join(' · ') || 'Selected by decision engine'} · score ${Math.round(pick.score)}`,
+      estimatedCost: top.estimatedCost,
+      currency: top.currency,
+    }
+    let estimatedBudget = plan.estimatedBudget
+    if (top.estimatedCost != null) {
+      const previousFlight = estimatedBudget.breakdown.find((b) => b.label === 'flights')?.amount ?? 0
+      estimatedBudget = {
+        ...estimatedBudget,
+        amount: estimatedBudget.amount - previousFlight + top.estimatedCost,
+        breakdown: [
+          ...estimatedBudget.breakdown.filter((b) => b.label !== 'flights'),
+          { label: 'flights', amount: top.estimatedCost },
+        ],
+      }
+    }
+    return {
+      ...plan,
+      flights: providerFlights,
+      transportation: [transport, ...plan.transportation.filter((t) => t.mode !== 'flight')],
+      estimatedBudget,
+      estimatedCosts: estimatedBudget,
+    }
+  }
+
   const offer = pick.payload
   const flight: FlightRecommendation = {
     from: String(offer.from ?? plan.flights[0]?.from ?? 'Origin'),
@@ -193,6 +226,10 @@ function applySelectedFlight(plan: TripPlan, pick: ScoredCandidate): TripPlan {
 }
 
 function applySelectedHotel(plan: TripPlan, pick: ScoredCandidate): TripPlan {
+  const providerHotels = plan.accommodations.filter((h) => h.fromProvider === true)
+  if (providerHotels.length > 0) {
+    return { ...plan, accommodations: providerHotels }
+  }
   const stay = pick.payload
   const hotel: AccommodationRecommendation = {
     name: String(stay.name ?? pick.title),

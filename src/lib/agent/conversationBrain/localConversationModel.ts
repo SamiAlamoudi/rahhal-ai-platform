@@ -269,27 +269,24 @@ function renderPlanDisplay(facts: TravelFacts, ar: boolean): string {
   )
   const flightCount = Array.isArray(plan.flights) ? plan.flights.length : 0
   const hotel = plan.hotels?.[0]?.name || null
+  // Hard ban: never claim "plan ready" / estimated totals without provider flights.
+  if (flightCount === 0) {
+    return ar
+      ? `تعذّر جلب عروض الطيران لـ${d} الآن. نعيد المحاولة — بدون أسعار تقديرية.`
+      : `I could not load live flight offers for ${d} right now. Retrying — no estimated totals.`
+  }
   if (ar) {
-    if (flightCount > 0) {
-      return formatConsultantParagraphs([
-        `هذي خيارات الطيران لـ${d} أمامك.`,
-        hotel ? `وفي فنادق مناسبة منها ${hotel}.` : '',
-        'أي خيار تبغى تحجز؟',
-      ].filter(Boolean).join('\n\n'))
-    }
     return formatConsultantParagraphs([
-      `دورنا رحلات لـ${d}. الخيارات على الشاشة.`,
-      'أي رحلة تبغى؟',
-    ].join('\n\n'))
+      `هذي ${flightCount} خيارات طيران لـ${d} على الشاشة.`,
+      hotel ? `وفي خيارات فنادق منها ${hotel}.` : '',
+      'اختر رحلة للمتابعة.',
+    ].filter(Boolean).join('\n\n'))
   }
-  if (flightCount > 0) {
-    return [
-      `Here are flight options for ${d}.`,
-      hotel ? `Hotels include ${hotel}.` : '',
-      'Which one should I book?',
-    ].filter(Boolean).join(' ')
-  }
-  return `I searched ${d}. Options are on screen — which flight do you want?`
+  return [
+    `Here are ${flightCount} flight options for ${d} on screen.`,
+    hotel ? `Hotel options include ${hotel}.` : '',
+    'Select a flight to continue.',
+  ].filter(Boolean).join(' ')
 }
 
 function spokenPlan(facts: TravelFacts, seed: number, ar: boolean): string {
@@ -302,20 +299,18 @@ function spokenPlan(facts: TravelFacts, seed: number, ar: boolean): string {
     facts.locale,
   )
   const flightCount = Array.isArray(plan.flights) ? plan.flights.length : 0
-  if (ar) {
-    return pick(seed, flightCount > 0
-      ? [
-        `هذي خيارات الطيران لـ${d} أمامك. أي رحلة تبغى؟`,
-        `لقيت خيارات لـ${d}. شوف الشاشة وقل لي أي واحدة تحجز.`,
-      ]
-      : [
-        `دورنا رحلات لـ${d}. الخيارات على الشاشة. أي رحلة تبغى؟`,
-        `بحثت لـ${d}. قل لي أي خيار يناسبك.`,
-      ])
+  if (flightCount === 0) {
+    return ar
+      ? `ما قدرت أجيب عروض طيران لـ${d} الحين. نعيد المحاولة.`
+      : `I could not load flight offers for ${d} right now.`
   }
-  return flightCount > 0
-    ? `Here are flights for ${d}. Which one should I book?`
-    : `I searched ${d}. Options are on screen — which flight do you want?`
+  if (ar) {
+    return pick(seed, [
+      `هذي ${flightCount} خيارات طيران لـ${d} أمامك. اختر رحلة.`,
+      `لقيت ${flightCount} رحلات لـ${d}. شوف الشاشة واختر.`,
+    ])
+  }
+  return `Here are ${flightCount} flights for ${d}. Select one on screen.`
 }
 
 function cityAdvice(facts: TravelFacts, seed: number, ar: boolean): LocalConversationResult {

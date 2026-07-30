@@ -36,6 +36,12 @@ import {
   destinationsConflict,
   resolveDestinationIdentity,
 } from './destinationIdentity'
+import {
+  buildBookingOptionsFromPlan,
+  countProviderFlightOffers,
+  countProviderHotelStays,
+  providerFlightError,
+} from './bookingOptionsFromSearch'
 import { logPipeline } from '../chat/pipelineDiagnostics'
 import { saveGeneratedItinerary } from './itineraryPersistence'
 import { createToolExecutor } from './tools/executor'
@@ -3417,6 +3423,17 @@ export function createTravelAgentService(
 
       // Concierge sits above the agent: consultant dialogue or agent handoff.
       // It never selects providers — only whether the agent should execute.
+      // Booking-ready turns (destination + dates + travelers) MUST search —
+      // never consult / propose_options / planning-draft estimates first.
+      const bookingReadyForSearch = Boolean(
+        (memory.requirements.destination || (memory.requirements.destinations?.length ?? 0) > 0)
+        && memory.requirements.travelers != null
+        && (
+          memory.requirements.durationDays != null
+          || (memory.requirements.startDate && memory.requirements.endDate)
+          || memory.requirements.startDate
+        ),
+      )
       if (isConciergeEnabled() && conciergeService) {
         const conciergeResult = conciergeService.runTurn({
           locale: memory.locale,
@@ -3429,7 +3446,7 @@ export function createTravelAgentService(
         })
         conciergeState = conciergeResult.state
 
-        if (!conciergeResult.handoff.shouldExecuteAgent) {
+        if (!conciergeResult.handoff.shouldExecuteAgent && !bookingReadyForSearch) {
           // Experience Sprint 2 — Concierge decides policy/facts only; LLM writes the reply.
           memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
           let optionHints: string[] | undefined
@@ -3998,6 +4015,61 @@ export function createTravelAgentService(
       })
       constitutionMeta = constitutionFinal.meta
 
+      const toolResultsRaw = toolBatch?.results ?? []
+      const providerFlightCount = countProviderFlightOffers(toolResultsRaw)
+      const providerHotelCount = countProviderHotelStays(toolResultsRaw)
+      const bookingOptions = buildBookingOptionsFromPlan(memory.tripPlan, {
+        limitFlights: 6,
+        limitHotels: 3,
+      })
+      const flightError = providerFlightError(toolResultsRaw)
+      const searchInvoked = toolResultsRaw.some((r) => r.tool === 'flights' || r.tool === 'hotels')
+
+      logPipeline({
+        stage: 'conversation',
+        event: 'booking_search_pipeline',
+        meta: {
+          bookingIntent: extracted.intent === 'plan' || extracted.intent === 'answer',
+          extractedDestination: memory.requirements.destination,
+          destinationCity: memory.requirements.destinationCity,
+          destinationCountry: memory.requirements.destinationCountry,
+          origin: memory.requirements.origin,
+          startDate: memory.requirements.startDate,
+          endDate: memory.requirements.endDate,
+          travelers: memory.requirements.travelers,
+          cabin: memory.requirements.cabinPreference,
+          searchInvoked,
+          providerFlightCount,
+          providerHotelCount,
+          normalizedFlightCount: bookingOptions.filter((o) => o.kind === 'flight').length,
+          cardsRenderedCount: bookingOptions.length,
+          providerError: flightError,
+        },
+      })
+
+      // Never let the model claim "plan ready" / estimated totals without provider inventory.
+      let displayText = spoken.displayText
+      let spokenTextOut = spoken.spokenText
+      const forbiddenReady = /الخطة جاهزة|التكلفة الإجمالية المقدرة|هل ترغب في تأكيد الحجز|plan is ready|estimated total/i
+      if (bookingOptions.filter((o) => o.kind === 'flight').length === 0) {
+        const d = memory.requirements.destinationCity || memory.requirements.destination || 'وجهتك'
+        displayText = memory.locale === 'ar'
+          ? (flightError && flightError !== 'flights_tool_not_run'
+            ? `تعذّر جلب عروض الطيران الآن (${flightError}). نعيد المحاولة بدون أسعار تقديرية.`
+            : `ما زلنا نجهّز بحث الطيران لـ${d}. لا توجد خيارات قابلة للحجز بعد.`)
+          : (flightError && flightError !== 'flights_tool_not_run'
+            ? `Flight search failed (${flightError}). No estimated totals — please retry.`
+            : `Still preparing the flight search for ${d}. No bookable options yet.`)
+        spokenTextOut = displayText
+      } else if (forbiddenReady.test(`${displayText}\n${spokenTextOut}`)) {
+        const n = bookingOptions.filter((o) => o.kind === 'flight').length
+        const d = memory.requirements.destinationCity || memory.requirements.destination || ''
+        displayText = memory.locale === 'ar'
+          ? `هذي ${n} خيارات طيران لـ${d} على الشاشة. اختر رحلة للمتابعة.`
+          : `Here are ${n} flight options for ${d} on screen. Select a flight to continue.`
+        spokenTextOut = displayText
+      }
+
       // OpenAI owns display/spoken text — never rewrite reply post-hoc.
       const meta: AgentProviderMeta = {
         kind: 'travel_agent',
@@ -4005,17 +4077,33 @@ export function createTravelAgentService(
         memory,
         tripPlan: memory.tripPlan,
         itinerary: memory.tripPlan,
-        spokenText: spoken.spokenText,
+        spokenText: spokenTextOut,
         voicePhase: 'final',
         toolResults: toolBatch ? toToolSummaries(toolBatch.results) : [],
+        bookingSearch: {
+          intent: 'booking',
+          destination: memory.requirements.destination,
+          origin: memory.requirements.origin,
+          startDate: memory.requirements.startDate,
+          endDate: memory.requirements.endDate,
+          travelers: memory.requirements.travelers,
+          cabin: memory.requirements.cabinPreference,
+          searchInvoked,
+          providerFlightCount,
+          providerHotelCount,
+          normalizedFlightCount: bookingOptions.filter((o) => o.kind === 'flight').length,
+          cardsRenderedCount: bookingOptions.length,
+          providerError: flightError,
+        },
+        bookingOptions,
         ...(conciergeState ? { concierge: toMetaConcierge(conciergeState) } : {}),
       }
 
       return {
-        reply: spoken.displayText,
+        reply: displayText,
         memory,
         tripPlan: memory.tripPlan,
-        meta: attachTurnMeta(meta, spoken.spokenText),
+        meta: attachTurnMeta(meta, spokenTextOut),
         toolBatch,
       }
     },

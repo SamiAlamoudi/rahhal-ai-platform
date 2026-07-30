@@ -19,14 +19,10 @@ import {
 } from '../../lib/chat/voice/voiceLatency'
 import { logPipeline } from '../../lib/chat/pipelineDiagnostics'
 import {
-  buildResultCardsFromTripPlan,
-  resultCardKindLabel,
-  resultCardMeta,
-  resultCardSubtitle,
-  resultCardTitle,
-  type DynamicResultCard,
-} from '../../lib/premiumExperience'
-import { tripPlanFromMeta } from '../../lib/agent/memory'
+  formatClock,
+  formatDuration,
+  type BookingOptionCard,
+} from '../../lib/agent/bookingOptionsFromSearch'
 import { ConversationComposer } from './ConversationComposer'
 
 export interface HomeVoiceConsultantProps {
@@ -58,7 +54,8 @@ export function HomeVoiceConsultant({
   const [assistantMessage, setAssistantMessage] = useState<ChatMessage | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [sessionReady, setSessionReady] = useState(false)
-  const [cards, setCards] = useState<DynamicResultCard[]>([])
+  const [bookingOptions, setBookingOptions] = useState<BookingOptionCard[]>([])
+  const [providerError, setProviderError] = useState<string | null>(null)
   const [audioPlaying, setAudioPlaying] = useState(false)
   const speechStartedRef = useRef(false)
   const pendingAssistantRef = useRef<ChatMessage | null>(null)
@@ -74,22 +71,32 @@ export function HomeVoiceConsultant({
     // OpenAI owns traveler-facing copy — render verbatim (no polish / rechunk).
     setAssistantText(message.content || '')
     if (message.status === 'complete') {
-      const memory = message.providerMeta?.memory as
-        | { requirements?: { destination?: string | null; destinations?: string[] } }
+      const options = Array.isArray(message.providerMeta?.bookingOptions)
+        ? (message.providerMeta.bookingOptions as BookingOptionCard[])
+        : []
+      setBookingOptions(options)
+      const searchMeta = message.providerMeta?.bookingSearch as
+        | { providerError?: string | null; providerFlightCount?: number }
         | undefined
-      const destinationHint =
-        memory?.requirements?.destination
-        || memory?.requirements?.destinations?.[0]
-        || null
-      const plan = tripPlanFromMeta(message.providerMeta)
-      setCards(
-        buildResultCardsFromTripPlan(plan, {
-          destinationHint: destinationHint || plan?.destinations?.[0] || null,
-          limit: 6,
-        }),
+      setProviderError(
+        options.some((o) => o.kind === 'flight')
+          ? null
+          : (searchMeta?.providerError || null),
       )
+      logPipeline({
+        stage: 'conversation',
+        event: 'booking_cards_rendered',
+        meta: {
+          cardsRenderedCount: options.length,
+          flightCards: options.filter((o) => o.kind === 'flight').length,
+          hotelCards: options.filter((o) => o.kind === 'hotel').length,
+          providerError: searchMeta?.providerError ?? null,
+          providerFlightCount: searchMeta?.providerFlightCount ?? null,
+        },
+      })
     } else {
-      setCards([])
+      setBookingOptions([])
+      setProviderError(null)
     }
   }, [])
 
@@ -148,9 +155,10 @@ export function HomeVoiceConsultant({
         { conversationId: id, content: text, modality: 'audio' },
         {
           signal: controller.signal,
-          onAssistantCreate: (message) => {
+            onAssistantCreate: (message) => {
             if (gen !== bookingSearchGenRef.current) return
-            setCards([])
+            setBookingOptions([])
+            setProviderError(null)
             setAssistantMessage(message)
             setAssistantText(message.content || '')
           },
@@ -374,7 +382,7 @@ export function HomeVoiceConsultant({
           },
           onAssistantCreate: (message) => {
             if (!disposed) {
-              setCards([])
+              setBookingOptions([]); setProviderError(null)
               speechStartedRef.current = false
               pendingAssistantRef.current = null
               setAssistantMessage(message)
@@ -425,7 +433,7 @@ export function HomeVoiceConsultant({
     setUserHeard('')
     setAssistantText('')
     setAssistantMessage(null)
-    setCards([])
+    setBookingOptions([]); setProviderError(null)
     setError(null)
   }, [])
 
@@ -539,7 +547,7 @@ export function HomeVoiceConsultant({
       setAudioPlaying(false)
     }
     setError(null)
-    setCards([])
+    setBookingOptions([]); setProviderError(null)
     setUserHeard(trimmed)
     setAssistantText('')
     setAssistantMessage(null)
@@ -639,7 +647,7 @@ export function HomeVoiceConsultant({
         {
           signal: controller.signal,
           onAssistantCreate: (message) => {
-            setCards([])
+            setBookingOptions([]); setProviderError(null)
             setAssistantMessage(message)
             setAssistantText('')
             setVoiceStatus('thinking')
@@ -793,27 +801,76 @@ export function HomeVoiceConsultant({
           ) : null}
         </AnimatePresence>
 
-        {cards.length > 0 && replyComplete && voiceStatus !== 'responding' && voiceStatus !== 'thinking' ? (
-          <div className="mt-5 grid gap-2 sm:grid-cols-2" data-testid="home-voice-cards">
-            {cards.map((card) => (
-              <div
-                key={card.id}
-                className="rounded-2xl border border-slate-100 bg-slate-50/90 px-3 py-2.5"
-              >
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  {resultCardKindLabel(card.kind, locale)}
-                </p>
-                <p className="mt-0.5 text-sm font-semibold text-slate-900">
-                  {resultCardTitle(card, locale)}
-                </p>
-                <p className="text-xs text-slate-600">{resultCardSubtitle(card, locale)}</p>
-                {resultCardMeta(card, locale) ? (
-                  <p className="mt-1 text-xs font-medium text-primary-700">
-                    {resultCardMeta(card, locale)}
-                  </p>
-                ) : null}
-              </div>
-            ))}
+        {providerError && replyComplete && bookingOptions.length === 0 ? (
+          <div
+            className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900"
+            data-testid="home-voice-provider-error"
+            role="status"
+          >
+            {t(
+              'تعذّر جلب عروض الطيران من المزود. أعد المحاولة — بدون أسعار تقديرية.',
+              'Could not load flight offers from the provider. Retry — no estimated totals.',
+            )}
+            <span className="mt-1 block text-xs text-amber-700/80">{providerError}</span>
+          </div>
+        ) : null}
+
+        {bookingOptions.length > 0 && replyComplete && voiceStatus !== 'responding' && voiceStatus !== 'thinking' ? (
+          <div className="mt-5 space-y-2" data-testid="home-voice-booking-options">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t('خيارات قابلة للحجز', 'Selectable booking options')}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {bookingOptions.map((card) => {
+                const isFlight = card.kind === 'flight'
+                const price = card.price != null
+                  ? `${card.price.toLocaleString(locale === 'ar' ? 'ar-SA' : 'en-US')} ${card.currency || 'SAR'}`
+                  : '—'
+                return (
+                  <div
+                    key={card.id}
+                    className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm"
+                    data-testid={isFlight ? 'booking-flight-card' : 'booking-hotel-card'}
+                  >
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      {isFlight ? t('طيران', 'Flight') : t('فندق', 'Hotel')}
+                      {card.provider ? ` · ${card.provider}` : ''}
+                    </p>
+                    {isFlight ? (
+                      <>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {card.airline || t('رحلة', 'Flight')} · {card.from} → {card.to}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {formatClock(card.departureTime, locale)} → {formatClock(card.arrivalTime, locale)}
+                          {' · '}
+                          {card.stops == null ? '—' : (locale === 'ar' ? `${card.stops} توقف` : `${card.stops} stop(s)`)}
+                          {' · '}
+                          {formatDuration(card.durationMinutes, locale)}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {t('الدرجة', 'Cabin')}: {card.cabin || '—'}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{card.hotelName}</p>
+                        <p className="text-xs text-slate-600">{card.area || '—'}</p>
+                      </>
+                    )}
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-primary-700">{price}</p>
+                      <button
+                        type="button"
+                        className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700"
+                      >
+                        {t('اختيار', 'Select')}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         ) : null}
 
