@@ -95,6 +95,9 @@ const UNSOLICITED_ADVICE_AR = [
   /احجز مبكر[اًا]?[^.؟!]*[.؟!…]?\s*/gi,
   /(?:مع\s+)?شركات موثوقة[^.؟!]*[.؟!…]?\s*/gi,
   /احجز مع شركات موثوقة[^.؟!]*[.؟!…]?\s*/gi,
+  /خلنا نحدد أولاً[^.؟!]*[.؟!…]?\s*/gi,
+  /قبل ما نحجز[^.؟!]*[.؟!…]?\s*/gi,
+  /ربما\s+/gi,
 ]
 
 const UNSOLICITED_ADVICE_EN = [
@@ -103,6 +106,10 @@ const UNSOLICITED_ADVICE_EN = [
   /\bYou should\s+/gi,
   /\bBook with trusted (?:companies|agencies)[^.?!]*[.?!]?\s*/gi,
   /\bBook early[^.?!]*[.?!]?\s*/gi,
+  /\bPerhaps(?: we(?: can| should)?)?\b[^.?!]*[.?!]?\s*/gi,
+  /\bMaybe we should\b[^.?!]*[.?!]?\s*/gi,
+  /\bLet's first determine\b[^.?!]*[.?!]?\s*/gi,
+  /\bBefore we book\b[^.?!]*[.?!]?\s*/gi,
 ]
 
 /** Never send the traveler to another booking website — Rahhal is the agent. */

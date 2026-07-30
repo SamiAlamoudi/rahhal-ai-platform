@@ -398,7 +398,8 @@ function detectIntent(lower: string, original: string, locale: AgentLocale): Age
   }
 
   if (
-    /\bplan\b|\btrip\b|\bvacation\b|\bitinerary\b|\bhoneymoon\b|\bbusiness\b|خط[ةه]|رحل|عطلة|إجازة|اجازة|نهاية|شهر عسل|رحلة عمل/.test(lower)
+    /\bplan\b|\btrip\b|\bvacation\b|\bitinerary\b|\bhoneymoon\b|\bbook\b|\bflight\b|\bflights\b/.test(lower)
+    || /خط[ةه]|رحل|سفر|أسافر|اسافر|أبغى|ابغى|أبي|ابي|حجز|طيران|عطلة|إجازة|اجازة|نهاية|شهر عسل|رحلة عمل/.test(lower + original)
   ) {
     return 'plan'
   }

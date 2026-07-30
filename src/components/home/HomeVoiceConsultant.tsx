@@ -162,9 +162,12 @@ export function HomeVoiceConsultant({
           onComplete: (message) => {
             if (gen !== bookingSearchGenRef.current) return
             flushAssistant(message)
-            const spokenRaw =
-              (typeof message.providerMeta?.spokenText === 'string' && message.providerMeta.spokenText.trim())
-              || (message.content || '').trim()
+            // Spoken audio must match the full displayed text (one reply, one owner).
+            const displayed = (message.content || '').trim()
+            const spokenRaw = displayed
+              || (typeof message.providerMeta?.spokenText === 'string'
+                ? message.providerMeta.spokenText.trim()
+                : '')
             if (!spokenRaw) {
               setVoiceStatus('listening')
               realtimeRef.current?.ensureListening()
@@ -432,8 +435,11 @@ export function HomeVoiceConsultant({
   }, [beginFreshConversation])
 
   const startListening = useCallback(async () => {
-    if (!conversationIdRef.current) {
+    // New voice session from idle → blank trip memory (no Jordan/Dubai leftovers).
+    if (voiceStatus === 'idle' || voiceStatus === 'error' || !conversationIdRef.current) {
       beginFreshConversation()
+      ownedTurnAbortRef.current?.abort()
+      bookingSearchGenRef.current += 1
     }
     setError(null)
     unlockAudioPlayback().catch(() => undefined)
@@ -461,7 +467,7 @@ export function HomeVoiceConsultant({
         setError(toUserFacingVoiceError(e) || VOICE_RECOVERABLE_ERROR_AR)
       }
     }
-  }, [beginFreshConversation, ensureConversation, t])
+  }, [beginFreshConversation, ensureConversation, t, voiceStatus])
 
   const stopListening = useCallback(async () => {
     if (preferRealtimeRef.current && realtimeRef.current) {

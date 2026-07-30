@@ -3625,17 +3625,8 @@ export function createTravelAgentService(
         )
         && memory.missingFields.length === 0
       ) {
-        // Conversation-first: on the first complete intake turn, advise with a
-        // planning draft (city direction) instead of dumping a mock itinerary.
-        const firstCompleteConsult =
-          extracted.intent === 'answer'
-          && !memory.tripPlan
-          && !alphaJourneyCue
-
-        if (firstCompleteConsult) {
-          objective = 'propose_options'
-          memory = withTripPlan({ ...memory, phase: 'collecting', missingFields: [] }, null)
-        } else {
+        // Booking agent: when required fields are complete, SEARCH immediately.
+        // Never skip tools for a "first consult / propose_options" lecture.
         const scope = memory.requirements.regenerateScope
           ?? extracted.patch.regenerateScope
           ?? (extracted.intent === 'regenerate' ? 'whole' : null)
@@ -3694,7 +3685,6 @@ export function createTravelAgentService(
         }
         memory = withTripPlan({ ...memory, phase: 'planned', missingFields: [] }, plan)
         objective = 'present_plan'
-        }
       } else if (memory.missingFields.length > 0) {
         memory = withTripPlan({ ...memory, phase: 'collecting' }, memory.tripPlan)
         objective = 'collect_missing'
@@ -3903,14 +3893,17 @@ export function createTravelAgentService(
         packagesPresent: Boolean(dynamicPackagesResult?.selected || dynamicPackagesResult?.ranked.length),
       })
 
-      const consultDraft = (
-        objective === 'propose_options'
-      ) && canBuildPlanningDraft(memory.requirements)
-        ? buildPlanningDraft({
-          requirements: memory.requirements,
-          locale: memory.locale,
-        })
-        : null
+      // Booking agent: never inject city-ranking consult drafts once we are presenting
+      // searched options — that path previously drifted into advice / wrong destinations.
+      const consultDraft =
+        objective !== 'present_plan'
+        && objective !== 'collect_missing'
+        && canBuildPlanningDraft(memory.requirements)
+          ? buildPlanningDraft({
+            requirements: memory.requirements,
+            locale: memory.locale,
+          })
+          : null
 
       const facts = buildTravelFacts({
         memory,

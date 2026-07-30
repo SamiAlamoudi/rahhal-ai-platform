@@ -875,12 +875,14 @@ export function createRealtimeWebRtcSession(
     },
     speakWrittenDraft(written, opts) {
       const locale = opts?.locale === 'en' ? 'en' : 'ar'
-      // Sole Realtime speech path — fed by planTurn's spokenText only.
-      const spoken = toSpokenDialogue(written, {
+      // Sole Realtime speech path — speak the same text the UI shows.
+      // Strip advice/website chrome only; do not invent a shorter second reply.
+      const cleaned = toSpokenDialogue(written, {
         locale,
-        maxChars: 220,
+        maxChars: Math.max(280, written.trim().length),
         context: inferSpokenContext(written),
       })
+      const spoken = (cleaned || written).replace(/\s+/g, ' ').trim()
       if (!spoken) return
       if (locale === 'ar') activeLanguage = 'ar'
       else if (locale === 'en') activeLanguage = 'en'
@@ -895,17 +897,19 @@ export function createRealtimeWebRtcSession(
           content: [{
             type: 'input_text',
             text: [
-              'Speak the following booking-agent dialogue aloud now, VERBATIM.',
+              'Speak the following booking-agent dialogue aloud now, VERBATIM — every sentence to the end.',
               `Language lock: speak only in ${locale === 'ar' ? 'Arabic' : 'English'}. Do not switch languages.`,
               spokenToneCue(context),
               'Do not expand, advise, lecture, or add website referrals.',
               'Do not add extra questions beyond what is written.',
+              'Do not stop mid-sentence. Do not continue after the dialogue ends.',
               `DIALOGUE: ${spoken}`,
             ].join('\n'),
           }],
         },
       })
       requestAssistantResponse('speak_written_draft')
+      // Do not rewrite the on-screen reply with a different shortened string.
       callbacks.onAssistantTranscript?.(spoken, false)
     },
   }
