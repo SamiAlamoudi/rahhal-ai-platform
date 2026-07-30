@@ -23,6 +23,7 @@ import {
   formatDuration,
   type BookingOptionCard,
 } from '../../lib/agent/bookingOptionsFromSearch'
+import { logMicSessionState, mapToMicSessionState } from '../../lib/chat/voice/micSessionState'
 import { ConversationComposer } from './ConversationComposer'
 
 export interface HomeVoiceConsultantProps {
@@ -62,8 +63,19 @@ export function HomeVoiceConsultant({
   const latencyRef = useRef<VoiceLatencyMarks | null>(null)
   const bookingSearchGenRef = useRef(0)
   const bookingSearchRef = useRef<(text: string) => void>(() => undefined)
+  /** User pressed Stop — block every auto-listen / ensureListening / resume path. */
+  const userStoppedRef = useRef(false)
 
   const ownedTurnAbortRef = useRef<AbortController | null>(null)
+
+  const setMicStatus = useCallback((status: VoiceSessionStatus, detail?: Record<string, unknown>) => {
+    setVoiceStatus(status)
+    logMicSessionState(mapToMicSessionState(status, { hardStopped: userStoppedRef.current }), {
+      source: 'home',
+      rawStatus: status,
+      ...detail,
+    })
+  }, [])
 
   const flushAssistant = useCallback((message: ChatMessage) => {
     if (message.role !== 'assistant') return
@@ -123,13 +135,21 @@ export function HomeVoiceConsultant({
   const runOwnedTurn = useCallback(async (transcript: string) => {
     const text = transcript.trim()
     if (!text) return
+    if (userStoppedRef.current) {
+      logPipeline({
+        stage: 'voice',
+        event: 'owned_turn_blocked_user_stopped',
+        meta: { sample: text.slice(0, 40) },
+      })
+      return
+    }
     const gen = ++bookingSearchGenRef.current
     ownedTurnAbortRef.current?.abort()
     const controller = new AbortController()
     ownedTurnAbortRef.current = controller
 
     setError(null)
-    setVoiceStatus('thinking')
+    setMicStatus('thinking', { phase: 'owned_turn_start' })
     setAudioPlaying(false)
     setAssistantText('')
     setAssistantMessage(null)
@@ -147,7 +167,12 @@ export function HomeVoiceConsultant({
       }
 
       // Ensure Realtime is up for mic continuity + sole playback path.
-      if (preferRealtimeRef.current && realtimeRef.current && !realtimeRef.current.isConnected()) {
+      if (
+        preferRealtimeRef.current
+        && realtimeRef.current
+        && !realtimeRef.current.isConnected()
+        && !userStoppedRef.current
+      ) {
         await realtimeRef.current.connect()
       }
 
@@ -156,19 +181,19 @@ export function HomeVoiceConsultant({
         {
           signal: controller.signal,
             onAssistantCreate: (message) => {
-            if (gen !== bookingSearchGenRef.current) return
+            if (gen !== bookingSearchGenRef.current || userStoppedRef.current) return
             setBookingOptions([])
             setProviderError(null)
             setAssistantMessage(message)
             setAssistantText(message.content || '')
           },
           onDelta: (message) => {
-            if (gen !== bookingSearchGenRef.current) return
+            if (gen !== bookingSearchGenRef.current || userStoppedRef.current) return
             setAssistantMessage(message)
             if (message.content) setAssistantText(message.content)
           },
           onComplete: (message) => {
-            if (gen !== bookingSearchGenRef.current) return
+            if (gen !== bookingSearchGenRef.current || userStoppedRef.current) return
             flushAssistant(message)
             // Spoken audio must match the full displayed text (one reply, one owner).
             const displayed = (message.content || '').trim()
@@ -177,8 +202,10 @@ export function HomeVoiceConsultant({
                 ? message.providerMeta.spokenText.trim()
                 : '')
             if (!spokenRaw) {
-              setVoiceStatus('listening')
-              realtimeRef.current?.ensureListening()
+              if (!userStoppedRef.current) {
+                setMicStatus('listening', { phase: 'empty_spoken' })
+                realtimeRef.current?.ensureListening()
+              }
               return
             }
             const memoryLocale = (message.providerMeta?.memory as { locale?: string } | undefined)?.locale
@@ -187,47 +214,57 @@ export function HomeVoiceConsultant({
                 ? memoryLocale
                 : (/[\u0600-\u06FF]/.test(spokenRaw) ? 'ar' : (locale === 'en' ? 'en' : 'ar'))
             // ONE streamed spoken reply — planTurn owns the words.
-            if (preferRealtimeRef.current && realtimeRef.current?.isConnected()) {
-              setVoiceStatus('speaking')
+            if (
+              preferRealtimeRef.current
+              && realtimeRef.current?.isConnected()
+              && !userStoppedRef.current
+            ) {
+              setMicStatus('speaking', { phase: 'realtime_playback' })
               setAudioPlaying(true)
               realtimeRef.current.speakWrittenDraft(spokenRaw, { locale: speakLocale })
-            } else if (voiceRef.current) {
-              setVoiceStatus('speaking')
+            } else if (voiceRef.current && !userStoppedRef.current) {
+              setMicStatus('speaking', { phase: 'classic_tts' })
               setAudioPlaying(true)
               void voiceRef.current.speakText(spokenRaw, {
-                resumeHandsFree: true,
+                resumeHandsFree: !userStoppedRef.current,
                 interrupt: true,
               }).finally(() => {
-                if (gen === bookingSearchGenRef.current) {
+                if (gen !== bookingSearchGenRef.current || userStoppedRef.current) {
                   setAudioPlaying(false)
-                  setVoiceStatus('listening')
+                  return
                 }
+                setAudioPlaying(false)
+                setMicStatus('listening', { phase: 'classic_tts_done' })
               })
-            } else {
-              setVoiceStatus('listening')
+            } else if (!userStoppedRef.current) {
+              setMicStatus('listening', { phase: 'no_playback_path' })
             }
           },
           onError: (_message, err) => {
-            if (gen !== bookingSearchGenRef.current) return
+            if (gen !== bookingSearchGenRef.current || userStoppedRef.current) return
             if (!isBenignChatError(err)) {
               const facing = toUserFacingVoiceError(err)
               if (facing) setError(facing)
             }
-            setVoiceStatus('listening')
-            realtimeRef.current?.ensureListening()
+            if (!userStoppedRef.current) {
+              setMicStatus('listening', { phase: 'stream_error' })
+              realtimeRef.current?.ensureListening()
+            }
           },
         },
       )
     } catch (e) {
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted || userStoppedRef.current) return
       if (!isBenignChatError(e)) {
         const facing = toUserFacingVoiceError(e)
         if (facing) setError(facing)
       }
-      setVoiceStatus('listening')
-      realtimeRef.current?.ensureListening()
+      if (!userStoppedRef.current) {
+        setMicStatus('listening', { phase: 'owned_turn_catch' })
+        realtimeRef.current?.ensureListening()
+      }
     }
-  }, [flushAssistant, locale])
+  }, [flushAssistant, locale, setMicStatus])
 
   useEffect(() => {
     bookingSearchRef.current = (text: string) => {
@@ -277,6 +314,14 @@ export function HomeVoiceConsultant({
         realtimeRef.current = createRealtimeWebRtcSession({
           onStatus: (status) => {
             if (disposed) return
+            if (userStoppedRef.current && status !== 'idle' && status !== 'error') {
+              logPipeline({
+                stage: 'voice',
+                event: 'home_status_ignored_after_stop',
+                meta: { attempted: status },
+              })
+              return
+            }
             const mapped: VoiceSessionStatus =
               status === 'connecting' ? 'requesting_permission'
                 : status === 'thinking' ? 'thinking'
@@ -284,11 +329,11 @@ export function HomeVoiceConsultant({
                     : status === 'listening' ? 'listening'
                       : status === 'error' ? 'error'
                         : 'idle'
-            setVoiceStatus(mapped)
-            setAudioPlaying(status === 'speaking')
+            setMicStatus(mapped, { phase: 'realtime_on_status' })
+            setAudioPlaying(status === 'speaking' && !userStoppedRef.current)
           },
           onUserTranscript: (text, isFinal) => {
-            if (disposed) return
+            if (disposed || userStoppedRef.current) return
             if (isFinal) {
               // Final ASR only → sole turn owner (planTurn). Realtime does not reply here.
               setPartial('')
@@ -349,13 +394,13 @@ export function HomeVoiceConsultant({
         mode: 'hands_free',
         callbacks: {
           onStatus: (status) => {
-            if (!disposed) {
-              setVoiceStatus(status)
-              setAudioPlaying(status === 'speaking')
-              if (status === 'thinking' || status === 'listening') {
-                speechStartedRef.current = false
-                pendingAssistantRef.current = null
-              }
+            if (disposed) return
+            if (userStoppedRef.current && status !== 'idle' && status !== 'error') return
+            setMicStatus(status, { phase: 'classic_on_status' })
+            setAudioPlaying(status === 'speaking' && !userStoppedRef.current)
+            if (status === 'thinking' || status === 'listening') {
+              speechStartedRef.current = false
+              pendingAssistantRef.current = null
             }
           },
           onPartialTranscript: (text) => {
@@ -443,6 +488,9 @@ export function HomeVoiceConsultant({
   }, [beginFreshConversation])
 
   const startListening = useCallback(async () => {
+    // Explicit user mic press — only way to begin a new listening session after Stop.
+    userStoppedRef.current = false
+    logMicSessionState('LISTENING', { source: 'home', reason: 'user_mic_press' })
     // New voice session from idle → blank trip memory (no Jordan/Dubai leftovers).
     if (voiceStatus === 'idle' || voiceStatus === 'error' || !conversationIdRef.current) {
       beginFreshConversation()
@@ -460,6 +508,7 @@ export function HomeVoiceConsultant({
           // Same live session — re-arm mic/VAD for the next turn (no refresh).
           realtimeRef.current.ensureListening()
         }
+        setMicStatus('listening', { phase: 'user_start' })
         return
       }
       const permission = await voiceRef.current?.ensureMicPermission()
@@ -475,62 +524,49 @@ export function HomeVoiceConsultant({
         setError(toUserFacingVoiceError(e) || VOICE_RECOVERABLE_ERROR_AR)
       }
     }
-  }, [beginFreshConversation, ensureConversation, t, voiceStatus])
+  }, [beginFreshConversation, ensureConversation, setMicStatus, t, voiceStatus])
 
   const stopListening = useCallback(async () => {
+    // Hard session termination — cancel owned turns, timers, VAD, auto-listen.
+    userStoppedRef.current = true
+    ownedTurnAbortRef.current?.abort()
+    ownedTurnAbortRef.current = null
+    bookingSearchGenRef.current += 1
+    setPartial('')
+    setAudioPlaying(false)
+    logMicSessionState('STOPPED', { source: 'home', reason: 'user_stop' })
     if (preferRealtimeRef.current && realtimeRef.current) {
-      realtimeRef.current.disconnect()
-      setVoiceStatus('idle')
-      setAudioPlaying(false)
+      realtimeRef.current.hardStop()
+      setMicStatus('idle', { phase: 'hard_stop' })
       return
     }
     await voiceRef.current?.stopListening()
-  }, [])
-
-  const interrupt = useCallback(() => {
-    ownedTurnAbortRef.current?.abort()
-    bookingSearchGenRef.current += 1
-    if (preferRealtimeRef.current && realtimeRef.current) {
-      realtimeRef.current.interrupt()
-      setAudioPlaying(false)
-      setVoiceStatus('listening')
-      return
-    }
-    voiceRef.current?.interrupt(undefined, { resumeHandsFree: true })
-  }, [])
+    setMicStatus('idle', { phase: 'hard_stop_classic' })
+  }, [setMicStatus])
 
   const onVoiceClick = useCallback(() => {
     unlockAudioPlayback().catch(() => undefined)
-    // Realtime is continuous: while listening, keep the session alive.
-    // A second tap must NOT permanently kill reconnect (iPhone multi-turn bug).
-    if (preferRealtimeRef.current && realtimeRef.current) {
-      if (voiceStatus === 'speaking' || voiceStatus === 'responding' || voiceStatus === 'thinking') {
-        interrupt()
-        return
-      }
-      if (voiceStatus === 'listening') {
-        // Soft hang-up — disconnect() is reconnectable; dispose() is only for unmount.
-        void stopListening()
-        return
-      }
-      void startListening()
-      return
-    }
-    if (voiceStatus === 'listening') {
+    const active =
+      voiceStatus === 'listening'
+      || voiceStatus === 'speaking'
+      || voiceStatus === 'responding'
+      || voiceStatus === 'thinking'
+      || voiceStatus === 'processing'
+      || voiceStatus === 'reconnecting'
+    // Any active session + mic tap = hard Stop (never auto-reopen).
+    if (active) {
       void stopListening()
       return
     }
-    if (voiceStatus === 'speaking' || voiceStatus === 'responding' || voiceStatus === 'thinking') {
-      interrupt()
-      return
-    }
-    // idle / error / reconnecting — (re)enter hands-free on the same conversation.
+    // Idle / error — explicit user start only.
     void startListening()
-  }, [interrupt, startListening, stopListening, voiceStatus])
+  }, [startListening, stopListening, voiceStatus])
 
   const onSubmitText = useCallback(async (text: string) => {
     const trimmed = text.trim()
     if (!trimmed) return
+    // Text is an explicit user action — clear Stop latch for this turn's playback.
+    userStoppedRef.current = false
     // Never silently drop follow-ups (e.g. عطلة قصيرة) if a prior turn left
     // status stuck in thinking/responding/speaking (common when mic is unavailable).
     if (
@@ -538,12 +574,14 @@ export function HomeVoiceConsultant({
       || voiceStatus === 'responding'
       || voiceStatus === 'speaking'
     ) {
+      ownedTurnAbortRef.current?.abort()
+      bookingSearchGenRef.current += 1
       if (preferRealtimeRef.current && realtimeRef.current) {
         realtimeRef.current.interrupt()
       } else {
         voiceRef.current?.interrupt(undefined, { resumeHandsFree: false })
       }
-      setVoiceStatus('idle')
+      setMicStatus('idle', { phase: 'text_preempt' })
       setAudioPlaying(false)
     }
     setError(null)
@@ -605,20 +643,19 @@ export function HomeVoiceConsultant({
        */
       const speakOnce = (fullSpoken: string) => {
         const piece = (fullSpoken || '').replace(/\s+/g, ' ').trim()
-        if (!piece || !voiceRef.current) return
+        if (!piece || !voiceRef.current || userStoppedRef.current) return
         speakChain = speakChain.then(async () => {
-          if (controller.signal.aborted) return
+          if (controller.signal.aborted || userStoppedRef.current) return
           const marks = latencyRef.current
           if (marks) marks.ttsStartedAt = performance.now()
           if (!speechStartedRef.current) {
             speechStartedRef.current = true
-            setVoiceStatus('speaking')
+            setMicStatus('speaking', { phase: 'text_tts' })
             setAudioPlaying(true)
             const pending = pendingAssistantRef.current
             pendingAssistantRef.current = null
             if (pending) flushAssistant(pending)
           }
-          voiceRef.current?.armHandsFree?.(id)
           preconnectOpenAiTtsRoute()
           const { toSpokenDialogue } = await import('../../lib/chat/voice/spokenDialoguePostProcessor')
           const spokenDialogue = toSpokenDialogue(piece, {
@@ -641,28 +678,37 @@ export function HomeVoiceConsultant({
         }).catch(() => undefined)
       }
 
-      setVoiceStatus('thinking')
+      setMicStatus('thinking', { phase: 'text_turn' })
       await chatEngine.sendMessage(
         { conversationId: id, content: trimmed, modality: 'text' },
         {
           signal: controller.signal,
           onAssistantCreate: (message) => {
+            if (userStoppedRef.current) return
             setBookingOptions([]); setProviderError(null)
             setAssistantMessage(message)
             setAssistantText('')
-            setVoiceStatus('thinking')
+            setMicStatus('thinking', { phase: 'text_assistant_create' })
             // Warm audio path while the model thinks — does not speak yet.
             void unlockAudioPlayback().catch(() => undefined)
           },
           onDelta: (message) => {
+            if (userStoppedRef.current) return
             // Stream text to the UI only — never invoke TTS on partial deltas.
             if (latencyRef.current && latencyRef.current.firstTokenAt == null) {
               latencyRef.current.firstTokenAt = performance.now()
             }
             upsertAssistant(message)
-            setVoiceStatus((s) => (s === 'speaking' ? s : 'responding'))
+            setMicStatus(
+              voiceStatus === 'speaking' ? 'speaking' : 'responding',
+              { phase: 'text_delta' },
+            )
           },
           onComplete: async (message) => {
+            if (userStoppedRef.current) {
+              flushAssistant(message)
+              return
+            }
             if (latencyRef.current) latencyRef.current.modelCompleteAt = performance.now()
             const spoken =
               (typeof message.providerMeta?.spokenText === 'string' && message.providerMeta.spokenText.trim())
@@ -678,27 +724,15 @@ export function HomeVoiceConsultant({
             speechStartedRef.current = true
             flushAssistant(message)
             setAudioPlaying(false)
-            try {
-              await voiceRef.current?.startHandsFree(id)
-            } catch {
-              setVoiceStatus('idle')
-            }
-            // Guarantee the composer can accept the next answer even if mic fails.
-            setVoiceStatus((s) => (
-              s === 'listening' || s === 'reconnecting' ? s : 'idle'
-            ))
+            // Never auto-open the mic after text — only explicit mic press.
+            setMicStatus('idle', { phase: 'text_complete' })
           },
           onError: async (_message, err) => {
             if (!isBenignChatError(err)) {
               const facing = toUserFacingVoiceError(err)
               if (facing) setError(facing)
             }
-            setVoiceStatus('idle')
-            try {
-              await voiceRef.current?.startHandsFree(id)
-            } catch {
-              setVoiceStatus('idle')
-            }
+            setMicStatus('idle', { phase: 'text_error' })
           },
         },
       )
@@ -707,15 +741,9 @@ export function HomeVoiceConsultant({
       if (!isBenignChatError(e)) {
         setError(toUserFacingVoiceError(e) || VOICE_RECOVERABLE_ERROR_AR)
       }
-      setVoiceStatus('idle')
-      try {
-        const id = conversationIdRef.current
-        if (id) await voiceRef.current?.startHandsFree(id)
-      } catch {
-        // leave idle — composer still accepts text
-      }
+      setMicStatus('idle', { phase: 'text_catch' })
     }
-  }, [assistantMessage?.status, beginFreshConversation, ensureConversation, flushAssistant, locale, onDraftChange, t, upsertAssistant, voiceStatus])
+  }, [assistantMessage?.status, beginFreshConversation, ensureConversation, flushAssistant, locale, onDraftChange, setMicStatus, upsertAssistant, voiceStatus])
 
   const statusLabel = (() => {
     switch (voiceStatus) {
@@ -756,7 +784,14 @@ export function HomeVoiceConsultant({
           void onSubmitText(value)
         }}
         onVoiceClick={onVoiceClick}
-        listening={voiceStatus === 'listening'}
+        listening={
+          voiceStatus === 'listening'
+          || voiceStatus === 'thinking'
+          || voiceStatus === 'responding'
+          || voiceStatus === 'speaking'
+          || voiceStatus === 'processing'
+          || voiceStatus === 'reconnecting'
+        }
         disabled={!sessionReady && voiceStatus === 'idle'}
       />
 

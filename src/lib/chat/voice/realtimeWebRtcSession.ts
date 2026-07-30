@@ -37,6 +37,7 @@ import {
   toUserFacingVoiceError,
   VOICE_RECOVERABLE_ERROR_AR,
 } from './voiceUserFacingError'
+import { logMicSessionState, mapToMicSessionState } from './micSessionState'
 
 export type RealtimeSessionStatus =
   | 'idle'
@@ -63,14 +64,21 @@ export type RealtimeWebRtcSession = {
   connect: () => Promise<void>
   /** End the WebRTC call but allow a later connect() on the same session object. */
   disconnect: () => void
+  /**
+   * Hard user Stop — cancel timers/VAD/playback callbacks and tear down.
+   * No auto-listen / reconnect until the user explicitly calls connect() again.
+   */
+  hardStop: () => void
   /** Permanent teardown (component unmount). Further connect() calls are no-ops. */
   dispose: () => void
   interrupt: () => void
   /**
    * Re-arm mic + turn detection after an assistant turn without recreating WebRTC.
-   * Safe no-op when not connected.
+   * Safe no-op when not connected or after hardStop.
    */
   ensureListening: () => void
+  /** True after hardStop until the next explicit connect(). */
+  isHardStopped: () => boolean
   /** Send a text user turn into the live session (no classic TTS). */
   sendText: (text: string) => void
   /**
@@ -146,6 +154,11 @@ export function createRealtimeWebRtcSession(
   let remoteTrack: MediaStreamTrack | null = null
   let assistantBuffer = ''
   let disposed = false
+  /**
+   * User pressed Stop — block ALL auto listen / VAD / playback-complete restarts
+   * until the next explicit connect().
+   */
+  let hardStopped = false
   /** Active spoken language for this Realtime call (language layer only). */
   let activeLanguage: LockedSpeechLanguage | null = null
   /** Language frozen for the current assistant response. */
@@ -162,16 +175,13 @@ export function createRealtimeWebRtcSession(
   let clientRequestedResponse = false
   /** Fallback timer when output_audio_buffer.stopped is missing. */
   let playbackFallbackTimer: ReturnType<typeof setTimeout> | null = null
+  /** Generation token — invalidate pending playback/microtask callbacks after Stop. */
+  let sessionGeneration = 0
   const quality = createRealtimeQualityTracker()
 
   const transcriptGate = createUserTranscriptGate(() => activeLanguage)
 
   const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
-
-  const setStatus = (next: RealtimeSessionStatus) => {
-    status = next
-    callbacks.onStatus?.(next)
-  }
 
   const emitQuality = () => {
     callbacks.onQualitySnapshot?.(quality.snapshot())
@@ -188,7 +198,56 @@ export function createRealtimeWebRtcSession(
       status,
       language: activeLanguage,
       assistantTurnLanguage,
+      hardStopped,
       ...detail,
+    })
+  }
+
+  const setStatus = (next: RealtimeSessionStatus) => {
+    if (hardStopped && next !== 'idle' && next !== 'error') {
+      telemetry('status_blocked_hard_stopped', { attempted: next })
+      return
+    }
+    status = next
+    logMicSessionState(mapToMicSessionState(next, { hardStopped }), {
+      source: 'realtime',
+      rawStatus: next,
+    })
+    callbacks.onStatus?.(next)
+  }
+
+  const clearPlaybackTimers = () => {
+    if (playbackFallbackTimer) {
+      clearTimeout(playbackFallbackTimer)
+      playbackFallbackTimer = null
+    }
+  }
+
+  const muteLocalMic = () => {
+    try {
+      localStream?.getAudioTracks().forEach((track) => {
+        track.enabled = false
+      })
+      pc?.getSenders().forEach((sender) => {
+        const track = sender.track
+        if (track && track.kind === 'audio') track.enabled = false
+      })
+    } catch {
+      // ignore
+    }
+  }
+
+  const disableTurnDetection = () => {
+    sendEvent({
+      type: 'session.update',
+      session: {
+        type: 'realtime',
+        audio: {
+          input: {
+            turn_detection: null,
+          },
+        },
+      },
     })
   }
 
@@ -209,6 +268,7 @@ export function createRealtimeWebRtcSession(
   }
 
   const ensureLocalMicLive = () => {
+    if (hardStopped || disposed) return
     try {
       localStream?.getAudioTracks().forEach((track) => {
         if (track.readyState === 'live') track.enabled = true
@@ -243,7 +303,7 @@ export function createRealtimeWebRtcSession(
    * Never call this on speech_stopped / silence / noise.
    */
   const requestAssistantResponse = (reason: string) => {
-    if (disposed) return
+    if (disposed || hardStopped) return
     if (hasCancellableResponse()) {
       telemetry('response_create_skipped_active', { reason })
       return
@@ -354,10 +414,29 @@ export function createRealtimeWebRtcSession(
     lastAssistantSpoken = ''
     responseDoneAt = 0
     clientRequestedResponse = false
-    if (playbackFallbackTimer) {
-      clearTimeout(playbackFallbackTimer)
-      playbackFallbackTimer = null
+    clearPlaybackTimers()
+  }
+
+  const hardStopInternal = (reason: string) => {
+    hardStopped = true
+    sessionGeneration += 1
+    clearPlaybackTimers()
+    clientRequestedResponse = false
+    logMicSessionState('STOPPED', { source: 'realtime', reason })
+    telemetry('hard_stop', { reason })
+    try {
+      disableTurnDetection()
+    } catch {
+      // ignore
     }
+    muteLocalMic()
+    muteRemote(true)
+    interruptInternal(false, { rearmMic: false })
+    tearDownPeer()
+    status = 'idle'
+    logMicSessionState('IDLE', { source: 'realtime', reason: 'after_hard_stop' })
+    callbacks.onStatus?.('idle')
+    callbacks.onDisconnected?.()
   }
 
   /**
@@ -365,10 +444,12 @@ export function createRealtimeWebRtcSession(
    * Root cause of "Cancellation failed: no active response found":
    * every speech_started / disconnect previously sent response.cancel blindly.
    */
-  const interruptInternal = (fromBargeIn = false) => {
+  const interruptInternal = (fromBargeIn = false, opts?: { rearmMic?: boolean }) => {
+    const rearmMic = opts?.rearmMic !== false && !hardStopped
     const partial = assistantBuffer.trim()
     const wasSpeaking = status === 'speaking' || Boolean(activeResponse)
     const canCancel = hasCancellableResponse()
+    const gen = sessionGeneration
 
     if (canCancel) {
       telemetry(fromBargeIn ? 'user_barge_in' : 'response_cancel_manual', {
@@ -381,14 +462,17 @@ export function createRealtimeWebRtcSession(
         telemetry('response_cancelled', { responseId: activeResponse.id, source: fromBargeIn ? 'barge_in' : 'manual' })
       }
       muteRemote(true)
-      queueMicrotask(() => {
-        muteRemote(false)
-        ensureLocalMicLive()
-      })
+      if (rearmMic) {
+        queueMicrotask(() => {
+          if (hardStopped || disposed || gen !== sessionGeneration) return
+          muteRemote(false)
+          ensureLocalMicLive()
+        })
+      }
     } else {
       // Skip network cancel entirely — harmless local no-op.
       telemetry('response_cancel_skipped_no_active', { fromBargeIn })
-      ensureLocalMicLive()
+      if (rearmMic) ensureLocalMicLive()
     }
 
     if (fromBargeIn) {
@@ -417,7 +501,13 @@ export function createRealtimeWebRtcSession(
      * Preferred signal: output_audio_buffer.stopped
      * Fallback: audio stream done + short drain (if stopped event missing)
      * Text-only: response.done with no audio
+     *
+     * After hardStop: never re-enter listening (Stay IDLE until explicit connect).
      */
+    if (hardStopped || disposed) {
+      telemetry('enter_listening_blocked_hard_stopped')
+      return
+    }
     if (!activeResponse) {
       setStatus('listening')
       return
@@ -426,6 +516,7 @@ export function createRealtimeWebRtcSession(
       responseDoneAt = nowMs()
       clientRequestedResponse = false
       clearActiveResponse()
+      if (hardStopped) return
       ensureLocalMicLive()
       reassertTurnDetection()
       setStatus('listening')
@@ -445,17 +536,21 @@ export function createRealtimeWebRtcSession(
     responseDoneAt = nowMs()
     clientRequestedResponse = false
     clearActiveResponse()
+    if (hardStopped || disposed) return
     ensureLocalMicLive()
     reassertTurnDetection()
     setStatus('listening')
     telemetry('entered_idle_listening', { responseDoneAt, via: 'playback_complete' })
   }
 
-  /** Fallback when output_audio_buffer.stopped is not delivered. */
+  /** Fallback when output_audio_buffer.stopped is not delivered (<300ms target). */
   const schedulePlaybackFallback = () => {
-    if (playbackFallbackTimer) clearTimeout(playbackFallbackTimer)
+    if (hardStopped) return
+    clearPlaybackTimers()
+    const gen = sessionGeneration
     playbackFallbackTimer = setTimeout(() => {
       playbackFallbackTimer = null
+      if (hardStopped || disposed || gen !== sessionGeneration) return
       if (!activeResponse || activeResponse.cancelled) return
       if (activeResponse.playbackStopped) return
       // Only after server finished streaming audio.
@@ -463,10 +558,11 @@ export function createRealtimeWebRtcSession(
       activeResponse.playbackStopped = true
       telemetry('playback_stopped_fallback', { responseId: activeResponse.id })
       maybeEnterListening()
-    }, 600)
+    }, 180)
   }
 
   const handleServerEvent = (raw: string) => {
+    if (hardStopped || disposed) return
     let event: {
       type?: string
       transcript?: string
@@ -724,6 +820,10 @@ export function createRealtimeWebRtcSession(
     getQualitySnapshot: () => quality.snapshot(),
     async connect() {
       if (disposed) return
+      // Explicit user start — clear hard Stop latch.
+      hardStopped = false
+      sessionGeneration += 1
+      clearPlaybackTimers()
       // Allow reconnect after a clean disconnect on the same session object.
       if (pc && dc && dc.readyState === 'open') {
         ensureLocalMicLive()
@@ -835,22 +935,30 @@ export function createRealtimeWebRtcSession(
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
     },
     disconnect() {
-      // Soft end: release peer/mic so connect() can start a new call later.
-      // Do NOT set disposed — that permanently kills the session object (iPhone bug).
-      interruptInternal(false)
-      tearDownPeer()
-      setStatus('idle')
-      callbacks.onDisconnected?.()
+      // Soft end used by non-Stop paths (e.g. greeting wipe). Still latch hardStopped
+      // so no pending playback callback can reopen listening until explicit connect().
+      hardStopInternal('disconnect')
+    },
+    hardStop() {
+      hardStopInternal('user_stop')
     },
     dispose() {
       disposed = true
-      interruptInternal(false)
+      hardStopped = true
+      sessionGeneration += 1
+      clearPlaybackTimers()
+      interruptInternal(false, { rearmMic: false })
       tearDownPeer()
-      setStatus('idle')
+      status = 'idle'
+      logMicSessionState('IDLE', { source: 'realtime', reason: 'dispose' })
+      callbacks.onStatus?.('idle')
       callbacks.onDisconnected?.()
     },
     ensureListening() {
-      if (disposed) return
+      if (disposed || hardStopped) {
+        telemetry('ensure_listening_blocked', { disposed, hardStopped })
+        return
+      }
       if (!pc || !dc || dc.readyState !== 'open') return
       // Never force listening while an assistant response is still speaking.
       if (hasCancellableResponse() && status === 'speaking') return
@@ -859,9 +967,13 @@ export function createRealtimeWebRtcSession(
       muteRemote(false)
       if (status !== 'listening') setStatus('listening')
     },
+    isHardStopped() {
+      return hardStopped
+    },
     interrupt() {
+      if (hardStopped || disposed) return
       // Explicit user barge-in (mic tap) — always allowed when a response is active.
-      interruptInternal(true)
+      interruptInternal(true, { rearmMic: true })
       ensureLocalMicLive()
       setStatus('listening')
     },
@@ -871,9 +983,13 @@ export function createRealtimeWebRtcSession(
       const cleaned = text.trim()
       if (!cleaned) return
       telemetry('send_text_ignored_turn_owner_is_plan_turn', { sample: cleaned.slice(0, 40) })
-      setStatus('listening')
+      if (!hardStopped) setStatus('listening')
     },
     speakWrittenDraft(written, opts) {
+      if (hardStopped || disposed) {
+        telemetry('speak_blocked_hard_stopped')
+        return
+      }
       const locale = opts?.locale === 'en' ? 'en' : 'ar'
       // Sole Realtime speech path — speak the same text the UI shows.
       // Strip advice/website chrome only; do not invent a shorter second reply.

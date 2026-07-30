@@ -37,6 +37,7 @@ import {
   speakingSpeedRate,
 } from './voiceExperiencePrefs'
 import { toSpokenDialogue } from './spokenDialoguePostProcessor'
+import { logMicSessionState, mapToMicSessionState } from './micSessionState'
 
 function performanceNow(): number {
   if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
@@ -124,6 +125,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   let sending = false
   let intentionalAbort = false
   let resumeHandsFreeAfterInterrupt = false
+  /** User pressed Stop — block auto-resume / VAD / silence timers until startHandsFree. */
+  let hardStopped = false
   let silenceTimeoutMs = clampSilenceMs(
     options.silenceTimeoutMs ?? DEFAULT_HANDS_FREE_SILENCE_MS,
   )
@@ -151,7 +154,19 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
 
   const setStatus = (next: VoiceSessionStatus) => {
     if (disposed) return
+    if (hardStopped && next !== 'idle' && next !== 'error') {
+      logPipeline({
+        stage: 'voice',
+        event: 'classic_status_blocked_hard_stopped',
+        meta: { attempted: next },
+      })
+      return
+    }
     status = next
+    logMicSessionState(mapToMicSessionState(next, { hardStopped }), {
+      source: 'classic',
+      rawStatus: next,
+    })
     callbacks.onStatus?.(next)
   }
 
@@ -275,10 +290,22 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   }
 
   const maybeResumeHandsFree = async () => {
-    if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
+    if (disposed || hardStopped || mode !== 'hands_free' || !handsFreeConversationId) {
+      logPipeline({
+        stage: 'voice',
+        event: 'auto_resume_blocked',
+        meta: {
+          disposed,
+          hardStopped,
+          mode,
+          hasConversation: Boolean(handsFreeConversationId),
+        },
+      })
+      return
+    }
     // Brief gap after TTS so the mic isn't captured while speakers are still draining.
     await new Promise((r) => setTimeout(r, 80))
-    if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
+    if (disposed || hardStopped || mode !== 'hands_free' || !handsFreeConversationId) return
     try {
       setStatus('reconnecting')
       await startListening(true, { preserveUtterance: true })
@@ -286,7 +313,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       // One retry — Chrome STT often fails if restarted immediately after TTS.
       try {
         await new Promise((r) => setTimeout(r, 180))
-        if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
+        if (disposed || hardStopped || mode !== 'hands_free' || !handsFreeConversationId) return
         setStatus('reconnecting')
         await startListening(true, { preserveUtterance: true })
         return
@@ -639,6 +666,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     },
     async startHandsFree(conversationId) {
       if (disposed) return
+      // Explicit user mic press — clear hard Stop latch.
+      hardStopped = false
       tts.stop()
       mode = 'hands_free'
       handsFreeConversationId = conversationId
@@ -655,18 +684,22 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       await startListening(true)
     },
     armHandsFree(conversationId) {
-      if (disposed) return
+      if (disposed || hardStopped) return
       mode = 'hands_free'
       handsFreeConversationId = conversationId
     },
     async stopListening() {
       intentionalAbort = true
+      hardStopped = true
       resumeHandsFreeAfterInterrupt = false
       handsFreeConversationId = null
       clearSilenceTimer()
       utteranceBuffer = ''
       utterancePrefix = ''
       stopVad()
+      tts.stop()
+      activeAbort?.abort()
+      activeAbort = null
       if (listening) {
         try {
           await stt.stop()
@@ -677,20 +710,19 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         stt.abort()
       }
       listening = false
-      if (
-        status === 'listening'
-        || status === 'reconnecting'
-        || status === 'thinking'
-        || status === 'responding'
-      ) {
-        setStatus('idle')
-      }
+      sending = false
+      logMicSessionState('STOPPED', { source: 'classic', reason: 'user_stop' })
+      status = 'idle'
+      logMicSessionState('IDLE', { source: 'classic', reason: 'after_hard_stop' })
+      callbacks.onStatus?.('idle')
     },
     interrupt(abortStream, opts) {
       intentionalAbort = true
       clearSilenceTimer()
       stopVad()
-      const keepHandsFree = opts?.resumeHandsFree ?? (mode === 'hands_free' && !!handsFreeConversationId)
+      // Hard-stop latch wins — never auto-resume after user Stop.
+      const keepHandsFree = !hardStopped
+        && (opts?.resumeHandsFree ?? (mode === 'hands_free' && !!handsFreeConversationId))
       const wasSending = sending
       tts.stop()
       stt.abort()
@@ -702,7 +734,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       activeAbort = null
       abortStream?.()
       setStatus('idle')
-      logPipeline({ stage: 'voice', event: 'interrupted', meta: { keepHandsFree, wasSending } })
+      logPipeline({ stage: 'voice', event: 'interrupted', meta: { keepHandsFree, wasSending, hardStopped } })
       if (keepHandsFree && wasSending) {
         resumeHandsFreeAfterInterrupt = true
       } else {
@@ -711,7 +743,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       }
     },
     async speakText(text, opts) {
-      if (disposed) return
+      if (disposed || hardStopped) return
       setStatus('speaking')
       const cleaned = stripMarkdownForSpeech(text)
       try {
@@ -735,16 +767,17 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       } catch (e) {
         if (!isBenignChatError(e)) throw e
       }
-      if (disposed) return
-      const resume = opts?.resumeHandsFree !== false
+      if (disposed || hardStopped) return
+      const resume = opts?.resumeHandsFree !== false && !hardStopped
       if (resume && mode === 'hands_free' && handsFreeConversationId) {
         await maybeResumeHandsFree()
-      } else if (resume && !disposed) {
+      } else if (!disposed) {
         setStatus('idle')
       }
     },
     dispose() {
       disposed = true
+      hardStopped = true
       intentionalAbort = true
       resumeHandsFreeAfterInterrupt = false
       handsFreeConversationId = null
