@@ -146,7 +146,6 @@ export function createRealtimeWebRtcSession(
   let remoteTrack: MediaStreamTrack | null = null
   let assistantBuffer = ''
   let disposed = false
-  let interruptedPartial = ''
   /** Active spoken language for this Realtime call (language layer only). */
   let activeLanguage: LockedSpeechLanguage | null = null
   /** Language frozen for the current assistant response. */
@@ -349,7 +348,6 @@ export function createRealtimeWebRtcSession(
     remoteAudio = null
     remoteTrack = null
     assistantBuffer = ''
-    interruptedPartial = ''
     activeLanguage = null
     clearActiveResponse()
     transcriptGate.resetTurn()
@@ -401,7 +399,6 @@ export function createRealtimeWebRtcSession(
     emitQuality()
 
     if (fromBargeIn && partial && canCancel) {
-      interruptedPartial = partial
       callbacks.onInterrupted?.(partial)
       callbacks.onAssistantTranscript?.(partial, true)
     }
@@ -547,8 +544,11 @@ export function createRealtimeWebRtcSession(
         if (gated.lockedLanguage) {
           activeLanguage = gated.lockedLanguage
         }
+        // Architecture: Realtime does NOT create a spoken reply here.
+        // Sole turn owner is planTurn (via HomeVoiceConsultant) → speakWrittenDraft.
+        // Keep transcription language aligned while idle (never mid-response).
         refreshLanguageInstructionsIfIdle(exact)
-        requestAssistantResponse('confirmed_asr')
+        telemetry('asr_final_handed_to_turn_owner', { sample: exact.slice(0, 40) })
       } else {
         telemetry('final_transcript_no_response', {
           accepted: gated.accepted,
@@ -689,7 +689,6 @@ export function createRealtimeWebRtcSession(
         lastAssistantSpoken = assistantBuffer.trim()
       }
       assistantBuffer = ''
-      interruptedPartial = ''
       if (activeResponse) {
         activeResponse.responseDone = true
         // WebRTC often omits audio.delta events (media track carries audio).
@@ -867,67 +866,27 @@ export function createRealtimeWebRtcSession(
       setStatus('listening')
     },
     sendText(text: string) {
+      // Architecture: text turns are owned by planTurn (HomeVoiceConsultant).
+      // Realtime must not create a parallel spoken reply from sendText.
       const cleaned = text.trim()
       if (!cleaned) return
-      assistantBuffer = ''
-      setStatus('thinking')
-      const prefs = loadVoiceExperiencePrefs()
-      const built = buildInstructions(cleaned, activeLanguage)
-      activeLanguage = built.language
-      // Refresh conversational + language cues for this utterance — engine unchanged.
-      // Only when no active response (sendText starts a new turn).
-      sendEvent({
-        type: 'session.update',
-        session: {
-          type: 'realtime',
-          instructions: built.instructions,
-          audio: {
-            input: {
-              turn_detection: buildRealtimeTurnDetection(),
-              transcription: transcriptionConfig(activeLanguage),
-            },
-            output: { voice: mapPrefsToRealtimeVoice(prefs) },
-          },
-        },
-      })
-      // If we were interrupted mid-reply, remind the model not to restart it.
-      if (interruptedPartial) {
-        sendEvent({
-          type: 'conversation.item.create',
-          item: {
-            type: 'message',
-            role: 'system',
-            content: [{
-              type: 'input_text',
-              text: 'Previous assistant reply was interrupted. Do not restart or repeat it. Respond only to the traveler\'s new message with a short spoken reply.',
-            }],
-          },
-        })
-        interruptedPartial = ''
-      }
-      quality.markSpeechStopped()
-      sendEvent({
-        type: 'conversation.item.create',
-        item: {
-          type: 'message',
-          role: 'user',
-          content: [{ type: 'input_text', text: cleaned }],
-        },
-      })
-      requestAssistantResponse('send_text')
+      telemetry('send_text_ignored_turn_owner_is_plan_turn', { sample: cleaned.slice(0, 40) })
+      setStatus('listening')
     },
     speakWrittenDraft(written, opts) {
       const locale = opts?.locale === 'en' ? 'en' : 'ar'
+      // Sole Realtime speech path — fed by planTurn's spokenText only.
       const spoken = toSpokenDialogue(written, {
         locale,
         maxChars: 220,
         context: inferSpokenContext(written),
       })
       if (!spoken) return
+      if (locale === 'ar') activeLanguage = 'ar'
+      else if (locale === 'en') activeLanguage = 'en'
       const context = inferSpokenContext(spoken)
       assistantBuffer = ''
       setStatus('thinking')
-      // Post-processed dialogue is fed as a speak-this instruction — engine unchanged.
       sendEvent({
         type: 'conversation.item.create',
         item: {
@@ -936,9 +895,10 @@ export function createRealtimeWebRtcSession(
           content: [{
             type: 'input_text',
             text: [
-              'Speak the following consultant dialogue aloud now, verbatim, as a live call.',
+              'Speak the following booking-agent dialogue aloud now, VERBATIM.',
+              `Language lock: speak only in ${locale === 'ar' ? 'Arabic' : 'English'}. Do not switch languages.`,
               spokenToneCue(context),
-              'Vary prosody naturally. Do not expand into an article. Do not add process narration.',
+              'Do not expand, advise, lecture, or add website referrals.',
               'Do not add extra questions beyond what is written.',
               `DIALOGUE: ${spoken}`,
             ].join('\n'),

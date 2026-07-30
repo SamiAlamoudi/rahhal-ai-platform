@@ -56,7 +56,9 @@ describe('realtime session — one response per confirmed ASR only', () => {
     close: () => void
   }
 
-  async function bootSession() {
+  async function bootSession(callbacks: {
+    onUserTranscript?: (text: string, isFinal: boolean) => void
+  } = {}) {
     const track = {
       kind: 'audio',
       enabled: true,
@@ -121,7 +123,7 @@ describe('realtime session — one response per confirmed ASR only', () => {
     })
 
     const { createRealtimeWebRtcSession } = await import('../chat/voice/realtimeWebRtcSession')
-    const session = createRealtimeWebRtcSession()
+    const session = createRealtimeWebRtcSession(callbacks)
     await session.connect()
     await new Promise<void>((r) => setTimeout(r, 0))
     if (!holder.channel) throw new Error('expected channel')
@@ -148,8 +150,9 @@ describe('realtime session — one response per confirmed ASR only', () => {
     session.dispose()
   })
 
-  it('noise transcript does not send response.create; confirmed ASR does', async () => {
-    const { session, channel } = await bootSession()
+  it('noise transcript does not send response.create; confirmed ASR also does not (planTurn owns the turn)', async () => {
+    const onUserTranscript = vi.fn()
+    const { session, channel } = await bootSession({ onUserTranscript })
     channel.send.mockClear()
 
     channel.onmessage!({
@@ -168,7 +171,9 @@ describe('realtime session — one response per confirmed ASR only', () => {
         transcript: 'أريد السفر إلى تايلند',
       }),
     })
-    expect(sentTypes(channel)).toContain('response.create')
+    // Architecture: Final ASR hands off to the turn owner — Realtime must not invent a reply.
+    expect(sentTypes(channel)).not.toContain('response.create')
+    expect(onUserTranscript).toHaveBeenCalledWith('أريد السفر إلى تايلند', true)
     session.dispose()
   })
 
@@ -188,13 +193,8 @@ describe('realtime session — one response per confirmed ASR only', () => {
   it('after playback stops stays listening and ignores echo of own reply', async () => {
     const { session, channel } = await bootSession()
 
-    // Authorized turn via confirmed ASR
-    channel.onmessage!({
-      data: JSON.stringify({
-        type: 'conversation.item.input_audio_transcription.completed',
-        transcript: 'أبغى تايلند',
-      }),
-    })
+    // Sole speech path: planTurn → speakWrittenDraft (not ASR → response.create).
+    session.speakWrittenDraft('تمام، من أي مدينة؟', { locale: 'ar' })
     channel.onmessage!({
       data: JSON.stringify({ type: 'response.created', response: { id: 'resp_ok' } }),
     })
@@ -221,6 +221,15 @@ describe('realtime session — one response per confirmed ASR only', () => {
     })
     expect(sentTypes(channel)).not.toContain('response.create')
     expect(session.getStatus()).toBe('listening')
+    session.dispose()
+  })
+
+  it('speakWrittenDraft is the only Realtime response.create path', async () => {
+    const { session, channel } = await bootSession()
+    channel.send.mockClear()
+    session.speakWrittenDraft('هذي الخيارات أمامك. أي رحلة تبغى؟', { locale: 'ar' })
+    expect(sentTypes(channel)).toContain('response.create')
+    expect(sentTypes(channel)).toContain('conversation.item.create')
     session.dispose()
   })
 })

@@ -105,6 +105,16 @@ const UNSOLICITED_ADVICE_EN = [
   /\bBook early[^.?!]*[.?!]?\s*/gi,
 ]
 
+/** Never send the traveler to another booking website — Rahhal is the agent. */
+const WEBSITE_REFERRAL = [
+  /\b(?:use|try|check|visit|go to|book (?:on|via|through))\s+(?:Booking\.com|Kayak|Google Flights|Expedia|Skyscanner|Momondo)\b[^.?!]*[.?!]?\s*/gi,
+  /\b(?:Booking\.com|Kayak|Google Flights|Expedia|Skyscanner|Momondo)\b[^.?!]*[.?!]?\s*/gi,
+  /(?:استخدم|جرّب|جرب|شيك على|احجز عبر|احجز من)\s*(?:بوكنج|كاياك|جوجل فلايتس|إكسبيديا|اكسبيديا)[^.؟!]*[.؟!…]?\s*/gi,
+  /(?:موقع|تطبيق)\s+(?:آخر|ثاني|خارجي)[^.؟!]*[.؟!…]?\s*/gi,
+  /\bsearch online\b[^.?!]*[.?!]?\s*/gi,
+  /\bbook elsewhere\b[^.?!]*[.?!]?\s*/gi,
+]
+
 /** Praise / echo fillers after short confirmations — booking agent never uses these. */
 const PRAISE_OPENERS_AR = [
   /^(?:ممتاز|رائع|عظيم|جميل جد[اًا]|wonderful|great|excellent)[!！.,،…]?\s*/gi,
@@ -118,6 +128,7 @@ function stripUnsolicitedAdvice(text: string, locale: 'ar' | 'en'): string {
   let out = text
   const patterns = locale === 'en' ? UNSOLICITED_ADVICE_EN : [...UNSOLICITED_ADVICE_AR, ...UNSOLICITED_ADVICE_EN]
   for (const re of patterns) out = out.replace(re, '')
+  for (const re of WEBSITE_REFERRAL) out = out.replace(re, '')
   return out.replace(/\s{2,}/g, ' ').trim()
 }
 

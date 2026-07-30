@@ -49,7 +49,8 @@ export function inferTripMood(text: string): ConsultantTripMood {
   if (/أكد|تأكيد|confirm|احجزها|موافق على|نعم|أيوه|ايوه|yes\b|ok\b|okay/i.test(t)) return 'confirmation'
   if (/أرخص|رخيص|ميزانية|وفر|cheap|budget|أقل سعر/i.test(t)) return 'budget'
   if (/عائلة|أطفال|family|kids|طفل/i.test(t)) return 'family'
-  if (/عمل|بيزنس|business|مؤتمر|اجتماع|شركة/i.test(t)) return 'business'
+  // Cabin-only "Business" / بزنس is not a business-trip mood.
+  if (/رحلة\s*عمل|سفر\s*عمل|business\s*trip|work\s*trip|مؤتمر|اجتماع\s*عمل/i.test(t)) return 'business'
   if (/إلغاء|ملغ|اتلغ|تأخير|تأخر|delayed|cancelled|canceled|فاتني|ضاعت|مشكلة رحلة/i.test(t)) return 'disruption'
   if (/زعلان|غضبان|angry|مستاء|سيء|terrible|unacceptable|حرام عليكم/i.test(t)) return 'angry'
   if (/ما أدري|مو متأكد|open|أي مكان|اقترح|surprise/i.test(t)) return 'open'
@@ -134,6 +135,8 @@ const ANTI_PATTERNS = [
   'Never narrate process ("I will now…", "Let me search…", خلني أبحث).',
   'Never use identical openings or identical praise every turn.',
   'Make أستطيع مساعدتك / يمكنني / يسعدني rare — almost never.',
+  'Never tell travelers to use Booking.com, Kayak, Google Flights, Expedia, Skyscanner, or any other website.',
+  'Never say search online / book elsewhere — you are the booking agent.',
 ]
 
 /** @deprecated Booking agent does not use praise fillers. Kept for import compatibility. */
@@ -197,6 +200,8 @@ export function buildConsultantConversationalInstructions(input: {
     '- Do NOT ask trip purpose, lifestyle, neighborhoods, vibes, or "what do you like" unless the traveler asks for advice.',
     '- Budget, cabin, hotel class: optional refine AFTER first options are shown — never block the first search.',
     '- As soon as origin + destination + dates + travelers are known: STOP interviewing and SEARCH / show bookable options.',
+    '- "Business" / بزنس / Business Class = cabin preference, not a generic advice question.',
+    '- Never send the traveler to Booking.com, Kayak, Google Flights, or any other site — present options here.',
     '- Good Arabic: "تمام، من أي مدينة؟" / "والتواريخ تقريبًا؟" / "كم عدد المسافرين؟"',
     '- Bad: long talk about Bangkok, Sukhumvit, Koh Samui, Chaweng, areas, vibes, "book early", "trusted companies".',
     '',

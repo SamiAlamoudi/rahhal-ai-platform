@@ -31,6 +31,7 @@ describe('booking-agent conversation design', () => {
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/20–40 spoken words/)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).not.toMatch(/Executive AI Travel Consultant/)
     expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Never praise-only|no Great\/Excellent/i)
+    expect(RAHHAL_CONVERSATION_SYSTEM_PROMPT).toMatch(/Booking\.com|Kayak|Google Flights/)
   })
 
   it('required booking fields block search; budget does not', () => {

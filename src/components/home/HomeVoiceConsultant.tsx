@@ -66,61 +66,7 @@ export function HomeVoiceConsultant({
   const bookingSearchGenRef = useRef(0)
   const bookingSearchRef = useRef<(text: string) => void>(() => undefined)
 
-  /**
-   * Realtime speaks via WebRTC; this runs the same chatEngine/planTurn path
-   * so bookable flight/hotel cards appear as soon as required fields exist.
-   * Does not replace Realtime spoken text (avoids double speech).
-   */
-  const runRealtimeBookingSearch = useCallback(async (transcript: string) => {
-    const text = transcript.trim()
-    if (!text || isGreetingOnly(text)) return
-    const gen = ++bookingSearchGenRef.current
-    const controller = new AbortController()
-    try {
-      let id = conversationIdRef.current
-      if (!id) {
-        const created = await chatEngine.createConversation(
-          locale === 'ar' ? 'محادثة صوتية' : 'Voice conversation',
-        )
-        id = created.id
-        conversationIdRef.current = id
-      }
-      await chatEngine.sendMessage(
-        { conversationId: id, content: text, modality: 'audio' },
-        {
-          signal: controller.signal,
-          onDelta: () => undefined,
-          onComplete: (message) => {
-            if (gen !== bookingSearchGenRef.current) return
-            const memory = message.providerMeta?.memory as
-              | { requirements?: { destination?: string | null; destinations?: string[] } }
-              | undefined
-            const destinationHint =
-              memory?.requirements?.destination
-              || memory?.requirements?.destinations?.[0]
-              || null
-            const plan = tripPlanFromMeta(message.providerMeta)
-            if (!plan) return
-            setCards(
-              buildResultCardsFromTripPlan(plan, {
-                destinationHint: destinationHint || plan.destinations?.[0] || null,
-                limit: 6,
-              }),
-            )
-          },
-          onError: () => undefined,
-        },
-      )
-    } catch {
-      // Realtime already owns the spoken turn — search bridge failures stay silent.
-    }
-  }, [locale])
-
-  useEffect(() => {
-    bookingSearchRef.current = (text: string) => {
-      void runRealtimeBookingSearch(text)
-    }
-  }, [runRealtimeBookingSearch])
+  const ownedTurnAbortRef = useRef<AbortController | null>(null)
 
   const flushAssistant = useCallback((message: ChatMessage) => {
     if (message.role !== 'assistant') return
@@ -160,6 +106,123 @@ export function HomeVoiceConsultant({
     setAssistantMessage(message)
     if (message.content) setAssistantText(message.content)
   }, [flushAssistant])
+
+  /**
+   * Sole conversation turn owner on the Realtime mic path:
+   * Final ASR/text → chatEngine/planTurn (intent + search) → stream text →
+   * ONE speakWrittenDraft (Realtime playback only).
+   * Realtime must never invent a parallel reply.
+   */
+  const runOwnedTurn = useCallback(async (transcript: string) => {
+    const text = transcript.trim()
+    if (!text) return
+    const gen = ++bookingSearchGenRef.current
+    ownedTurnAbortRef.current?.abort()
+    const controller = new AbortController()
+    ownedTurnAbortRef.current = controller
+
+    setError(null)
+    setVoiceStatus('thinking')
+    setAudioPlaying(false)
+    setAssistantText('')
+    setAssistantMessage(null)
+    speechStartedRef.current = false
+    pendingAssistantRef.current = null
+
+    try {
+      let id = conversationIdRef.current
+      if (!id) {
+        const created = await chatEngine.createConversation(
+          locale === 'ar' ? 'محادثة صوتية' : 'Voice conversation',
+        )
+        id = created.id
+        conversationIdRef.current = id
+      }
+
+      // Ensure Realtime is up for mic continuity + sole playback path.
+      if (preferRealtimeRef.current && realtimeRef.current && !realtimeRef.current.isConnected()) {
+        await realtimeRef.current.connect()
+      }
+
+      await chatEngine.sendMessage(
+        { conversationId: id, content: text, modality: 'audio' },
+        {
+          signal: controller.signal,
+          onAssistantCreate: (message) => {
+            if (gen !== bookingSearchGenRef.current) return
+            setCards([])
+            setAssistantMessage(message)
+            setAssistantText(message.content || '')
+          },
+          onDelta: (message) => {
+            if (gen !== bookingSearchGenRef.current) return
+            setAssistantMessage(message)
+            if (message.content) setAssistantText(message.content)
+          },
+          onComplete: (message) => {
+            if (gen !== bookingSearchGenRef.current) return
+            flushAssistant(message)
+            const spokenRaw =
+              (typeof message.providerMeta?.spokenText === 'string' && message.providerMeta.spokenText.trim())
+              || (message.content || '').trim()
+            if (!spokenRaw) {
+              setVoiceStatus('listening')
+              realtimeRef.current?.ensureListening()
+              return
+            }
+            const memoryLocale = (message.providerMeta?.memory as { locale?: string } | undefined)?.locale
+            const speakLocale: 'ar' | 'en' =
+              memoryLocale === 'en' || memoryLocale === 'ar'
+                ? memoryLocale
+                : (/[\u0600-\u06FF]/.test(spokenRaw) ? 'ar' : (locale === 'en' ? 'en' : 'ar'))
+            // ONE streamed spoken reply — planTurn owns the words.
+            if (preferRealtimeRef.current && realtimeRef.current?.isConnected()) {
+              setVoiceStatus('speaking')
+              setAudioPlaying(true)
+              realtimeRef.current.speakWrittenDraft(spokenRaw, { locale: speakLocale })
+            } else if (voiceRef.current) {
+              setVoiceStatus('speaking')
+              setAudioPlaying(true)
+              void voiceRef.current.speakText(spokenRaw, {
+                resumeHandsFree: true,
+                interrupt: true,
+              }).finally(() => {
+                if (gen === bookingSearchGenRef.current) {
+                  setAudioPlaying(false)
+                  setVoiceStatus('listening')
+                }
+              })
+            } else {
+              setVoiceStatus('listening')
+            }
+          },
+          onError: (_message, err) => {
+            if (gen !== bookingSearchGenRef.current) return
+            if (!isBenignChatError(err)) {
+              const facing = toUserFacingVoiceError(err)
+              if (facing) setError(facing)
+            }
+            setVoiceStatus('listening')
+            realtimeRef.current?.ensureListening()
+          },
+        },
+      )
+    } catch (e) {
+      if (controller.signal.aborted) return
+      if (!isBenignChatError(e)) {
+        const facing = toUserFacingVoiceError(e)
+        if (facing) setError(facing)
+      }
+      setVoiceStatus('listening')
+      realtimeRef.current?.ensureListening()
+    }
+  }, [flushAssistant, locale])
+
+  useEffect(() => {
+    bookingSearchRef.current = (text: string) => {
+      void runOwnedTurn(text)
+    }
+  }, [runOwnedTurn])
 
   useEffect(() => {
     let disposed = false
@@ -216,21 +279,31 @@ export function HomeVoiceConsultant({
           onUserTranscript: (text, isFinal) => {
             if (disposed) return
             if (isFinal) {
-              // Commit exact FINAL only — never overwrite with interim later.
+              // Final ASR only → sole turn owner (planTurn). Realtime does not reply here.
               setPartial('')
               setUserHeard(text)
               onDraftChange(text)
               bookingSearchRef.current(text)
             } else {
-              // Interim preview only — never treat as the user's final message.
               setPartial(text)
             }
           },
           onAssistantTranscript: (text, isFinal) => {
             if (disposed) return
+            // Playback transcript from speakWrittenDraft only — do not invent a second reply.
             setAssistantText(text)
-            setAssistantMessage({
-              id: 'realtime-assistant',
+            setAssistantMessage((prev) => prev ? {
+              ...prev,
+              content: text,
+              status: isFinal ? 'complete' : 'streaming',
+              providerMeta: {
+                ...prev.providerMeta,
+                spokenText: text,
+                voiceArchitecture: 'realtime_speech_to_speech',
+              },
+              updatedAt: new Date().toISOString(),
+            } : {
+              id: 'realtime-playback',
               conversationId: conversationIdRef.current || 'realtime',
               role: 'assistant',
               modality: 'audio',
@@ -247,7 +320,6 @@ export function HomeVoiceConsultant({
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             })
-            // Keep booking cards — do not clear on transcript final.
           },
           onError: (err) => {
             if (disposed || isBenignChatError(err)) return
@@ -402,9 +474,12 @@ export function HomeVoiceConsultant({
   }, [])
 
   const interrupt = useCallback(() => {
+    ownedTurnAbortRef.current?.abort()
+    bookingSearchGenRef.current += 1
     if (preferRealtimeRef.current && realtimeRef.current) {
       realtimeRef.current.interrupt()
       setAudioPlaying(false)
+      setVoiceStatus('listening')
       return
     }
     voiceRef.current?.interrupt(undefined, { resumeHandsFree: true })
@@ -476,14 +551,13 @@ export function HomeVoiceConsultant({
     latencyRef.current.requestSentAt = performance.now()
     await unlockAudioPlayback().catch(() => undefined)
 
-    // Prefer Realtime speech-to-speech (no classic TTS) when available.
+    // Sole turn owner: planTurn → one streamed reply → Realtime playback only.
     if (preferRealtimeRef.current && realtimeRef.current) {
       try {
         await ensureConversation()
         if (!realtimeRef.current.isConnected()) {
           await realtimeRef.current.connect()
         }
-        realtimeRef.current.sendText(trimmed)
         bookingSearchRef.current(trimmed)
         onDraftChange('')
         return

@@ -1566,6 +1566,29 @@ export function createTravelAgentService(
         && extracted.patch.endDate == null
         && extracted.patch.tripPurpose == null
 
+      const explicitLanguageSwitch = (() => {
+        const t = userText.trim()
+        if (/speak\s+english|talk\s+in\s+english|بالإنجليزي|بالانجليزي|english\s+please/i.test(t)) {
+          return 'en' as const
+        }
+        if (/speak\s+arabic|talk\s+in\s+arabic|بالعربي|عربي\s*من\s*فضلك|arabic\s+please/i.test(t)) {
+          return 'ar' as const
+        }
+        return null
+      })()
+      const hasPriorTripState = Boolean(
+        prior.requirements.destination
+        || prior.requirements.origin
+        || prior.requirements.travelers != null
+        || prior.requirements.startDate
+        || prior.requirements.durationDays != null
+        || prior.tripPlan
+        || (prior.requirements.destinations?.length ?? 0) > 0,
+      )
+      // One conversation language: do not flip ar↔en mid-trip unless the traveler asks.
+      const turnLocale = explicitLanguageSwitch
+        || (hasPriorTripState ? prior.locale : (extracted.locale || prior.locale))
+
       let memory: AgentMemory = greetingCleanStart
         ? {
           ...emptyMemory(extracted.locale || prior.locale),
@@ -1573,7 +1596,7 @@ export function createTravelAgentService(
         }
         : {
           ...prior,
-          locale: extracted.locale || prior.locale,
+          locale: turnLocale,
           lastIntent: extracted.intent,
           requirements: mergeRequirements(prior.requirements, extracted.patch, {
             replaceDestinations: extracted.flags?.replaceDestinations,

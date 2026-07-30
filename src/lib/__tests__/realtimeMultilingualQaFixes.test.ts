@@ -255,13 +255,8 @@ describe('realtime cancel-only-when-active lifecycle', () => {
     expect(channel.onmessage).toBeTypeOf('function')
 
     channel.send.mockClear()
-    // Authorize then create
-    channel.onmessage!({
-      data: JSON.stringify({
-        type: 'conversation.item.input_audio_transcription.completed',
-        transcript: 'أبغى حجز فندق',
-      }),
-    })
+    // Authorize speech via sole path (speakWrittenDraft), then create
+    session.speakWrittenDraft('ممتاز، خلنا نكمّل الحجز', { locale: 'ar' })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.created', response: { id: 'resp_1' } }) })
     channel.onmessage!({
       data: JSON.stringify({
@@ -288,12 +283,8 @@ describe('realtime cancel-only-when-active lifecycle', () => {
   it('waits for playback stopped — not response.done alone — before listening', async () => {
     const { session, channel } = await bootSession()
 
-    channel.onmessage!({
-      data: JSON.stringify({
-        type: 'conversation.item.input_audio_transcription.completed',
-        transcript: 'أبغى تايلند أسبوع',
-      }),
-    })
+    // Sole Realtime speech path is speakWrittenDraft (planTurn owns words).
+    session.speakWrittenDraft('خط كامل من الرد المنطوق', { locale: 'ar' })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.created', response: { id: 'resp_2' } }) })
     channel.onmessage!({ data: JSON.stringify({ type: 'output_audio_buffer.started' }) })
     channel.onmessage!({

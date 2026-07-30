@@ -115,7 +115,11 @@ export function extractFromUserText(
     patch.travelerType = 'couple'
     patch.travelers = patch.travelers ?? 2
     patch.interests = uniqueInterests([...(patch.interests ?? []), 'romance', 'beach'])
-  } else if (/\bbusiness\b|work trip|رحلة عمل|عمل\b/.test(lower) || /رحلة\s*عمل/.test(normalized)) {
+  } else if (
+    // Bare "Business" / بزنس is cabin class — only treat explicit work-trip cues as purpose.
+    /\bbusiness\s*(?:trip|travel)\b|\bwork\s*trip\b|رحلة\s*عمل|سفر\s*عمل/.test(lower)
+    || /رحلة\s*عمل|سفر\s*عمل/.test(normalized)
+  ) {
     patch.tripPurpose = 'business'
     patch.travelerType = 'business'
     patch.travelers = patch.travelers ?? 1
@@ -141,6 +145,17 @@ export function extractFromUserText(
   const dates = matchDates(normalized)
   if (dates.start) patch.startDate = dates.start
   if (dates.end) patch.endDate = dates.end
+  if (
+    dates.start
+    && dates.end
+    && patch.durationDays == null
+  ) {
+    const startMs = Date.parse(`${dates.start}T00:00:00Z`)
+    const endMs = Date.parse(`${dates.end}T00:00:00Z`)
+    if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs) {
+      patch.durationDays = clampDays(Math.round((endMs - startMs) / 86_400_000))
+    }
+  }
 
   const monthDate = matchMonthHint(lower, normalized)
   if (monthDate && !patch.startDate) patch.startDate = monthDate
@@ -444,7 +459,8 @@ function matchDestinations(
   const found: string[] = []
   const push = (value: string | null | undefined) => {
     if (!value) return
-    if (origin && value === origin && found.length === 0) return
+    // Origin city must never appear as a destination (e.g. "Riyadh to Tokyo").
+    if (origin && value === origin) return
     if (!found.includes(value)) found.push(value)
   }
 
@@ -512,6 +528,23 @@ function matchDestinations(
 }
 
 function matchOrigin(lower: string, original: string): string | null {
+  // Route form: "Riyadh to Tokyo" / "من الرياض إلى طوكيو" (both ends known places).
+  for (const m of lower.matchAll(
+    /\b([a-z][a-z]*(?:\s+[a-z]+){0,2}?)\s+to\s+([a-z][a-z]*(?:\s+[a-z]+){0,2}?)\b/g,
+  )) {
+    const fromAlias = aliasForToken(m[1]!)
+    const toAlias = aliasForToken(m[2]!)
+    if (fromAlias && toAlias && fromAlias !== toAlias) return fromAlias
+  }
+  const routeAr = original.match(
+    /(?:من\s+مطار|مغادرة\s+من|السفر\s+من|من)\s+([^\s،,]{2,40})\s+(?:إلى|الى)\s+([^\s،,]{2,40})/,
+  )
+  if (routeAr) {
+    const fromAlias = aliasForToken(routeAr[1]!)
+    const toAlias = aliasForToken(routeAr[2]!)
+    if (fromAlias && toAlias && fromAlias !== toAlias) return fromAlias
+  }
+
   const ar = original.match(
     /(?:من\s+مطار|مغادرة\s+من|السفر\s+من|من)\s+([^\s،,]{2,40})/,
   )
@@ -726,12 +759,19 @@ function matchArabicWordBudget(original: string): number | null {
 }
 
 function matchTravelers(lower: string, original: string): { count: number; type: TravelerType } | null {
-  const en = lower.match(/(\d+)\s*(?:people|persons|travelers|adults|guests)/)
+  const wordCounts: Record<string, number> = {
+    one: 1, two: 2, three: 3, four: 4, five: 5,
+    six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  }
+  const personUnit = 'people|persons|travelers|travellers|adults|guests|passengers|pax'
+  const en = lower.match(
+    new RegExp(`(\\d+|one|two|three|four|five|six|seven|eight|nine|ten)\\s*(?:${personUnit})`),
+  )
   const ar = original.match(/(\d+)\s*(?:أشخاص|اشخاص|أفراد|افراد|مسافر)/)
-  const kids = lower.match(/(\d+)\s*(?:kids?|children)/)
+  const kids = lower.match(/(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:kids?|children)/)
     || original.match(/(\d+)\s*(?:أطفال|اطفال|طفل)/)
   if (kids?.[1]) {
-    const childCount = Number(kids[1])
+    const childCount = wordCounts[kids[1]] ?? Number(kids[1])
     if (Number.isFinite(childCount) && childCount > 0) {
       // Assume two adults + stated children for family party size.
       return { count: childCount + 2, type: 'family' }
@@ -740,7 +780,8 @@ function matchTravelers(lower: string, original: string): { count: number; type:
   if (/\bone person\b|\ba person\b|شخص واحد|فرد واحد/.test(lower) || /شخص\s*واحد|فرد\s*واحد/.test(original)) {
     return { count: 1, type: 'solo' }
   }
-  const count = Number(en?.[1] || ar?.[1] || 0)
+  const raw = en?.[1] || ar?.[1] || ''
+  const count = wordCounts[raw] ?? Number(raw || 0)
   if (!count) return null
   let type: TravelerType = 'friends'
   if (count === 1) type = 'solo'
@@ -848,7 +889,100 @@ function matchDates(
     return { start: formatUtcIso(addUtcMonths(now, 1)), end: null }
   }
 
+  // "3 Aug to 13 Aug" / "3 August – 13 August 2026" / "Aug 3 to Aug 13"
+  const parsedDayMonth = parseDayMonthDateRange(lower, now)
+  if (parsedDayMonth) return parsedDayMonth
+
   return { start: null, end: null }
+}
+
+const MONTH_NAME_TO_NUM: Record<string, number> = {
+  jan: 1, january: 1,
+  feb: 2, february: 2,
+  mar: 3, march: 3,
+  apr: 4, april: 4,
+  may: 5,
+  jun: 6, june: 6,
+  jul: 7, july: 7,
+  aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9,
+  oct: 10, october: 10,
+  nov: 11, november: 11,
+  dec: 12, december: 12,
+}
+
+function monthNameToNumber(token: string): number | null {
+  const key = token.toLowerCase().replace(/\.$/, '')
+  return MONTH_NAME_TO_NUM[key] ?? null
+}
+
+function resolveCalendarYear(month: number, day: number, explicitYear: number | null, now: Date): number {
+  if (explicitYear && explicitYear >= 2000) return explicitYear
+  let year = now.getUTCFullYear()
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  const candidate = Date.UTC(year, month - 1, day)
+  if (candidate < todayUtc) year += 1
+  return year
+}
+
+/** Parse "3 Aug to 13 Aug" / "August 3 – August 13, 2026". */
+function parseDayMonthDateRange(
+  lower: string,
+  now: Date,
+): { start: string; end: string } | null {
+  const month = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?'
+  const dayFirst = new RegExp(
+    `\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${month})(?:\\s*,?\\s*(20\\d{2}))?`
+    + `\\s*(?:to|through|until|till|–|-|—)\\s*`
+    + `(\\d{1,2})(?:st|nd|rd|th)?\\s+(${month})(?:\\s*,?\\s*(20\\d{2}))?\\b`,
+  )
+  const monthFirst = new RegExp(
+    `\\b(${month})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:\\s*,?\\s*(20\\d{2}))?`
+    + `\\s*(?:to|through|until|till|–|-|—)\\s*`
+    + `(${month})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:\\s*,?\\s*(20\\d{2}))?\\b`,
+  )
+
+  const a = lower.match(dayFirst)
+  if (a) {
+    const startMonth = monthNameToNumber(a[2]!)
+    const endMonth = monthNameToNumber(a[5]!)
+    if (!startMonth || !endMonth) return null
+    const startDay = Number(a[1])
+    const endDay = Number(a[4])
+    const startYear = resolveCalendarYear(startMonth, startDay, a[3] ? Number(a[3]) : null, now)
+    let endYear = a[6] ? Number(a[6]) : startYear
+    if (!a[6]) {
+      endYear = startYear
+      const startUtc = Date.UTC(startYear, startMonth - 1, startDay)
+      const endUtc = Date.UTC(endYear, endMonth - 1, endDay)
+      if (endUtc < startUtc) endYear = startYear + 1
+    }
+    const start = toIsoDate(startYear, startMonth, startDay)
+    const end = toIsoDate(endYear, endMonth, endDay)
+    if (start && end) return { start, end }
+  }
+
+  const b = lower.match(monthFirst)
+  if (b) {
+    const startMonth = monthNameToNumber(b[1]!)
+    const endMonth = monthNameToNumber(b[4]!)
+    if (!startMonth || !endMonth) return null
+    const startDay = Number(b[2])
+    const endDay = Number(b[5])
+    const startYear = resolveCalendarYear(startMonth, startDay, b[3] ? Number(b[3]) : null, now)
+    let endYear = b[6] ? Number(b[6]) : startYear
+    if (!b[6]) {
+      endYear = startYear
+      const startUtc = Date.UTC(startYear, startMonth - 1, startDay)
+      const endUtc = Date.UTC(endYear, endMonth - 1, endDay)
+      if (endUtc < startUtc) endYear = startYear + 1
+    }
+    const start = toIsoDate(startYear, startMonth, startDay)
+    const end = toIsoDate(endYear, endMonth, endDay)
+    if (start && end) return { start, end }
+  }
+
+  return null
 }
 
 /** Upcoming Saturday–Sunday window used for "weekend" / "next weekend" inference. */
@@ -1067,16 +1201,26 @@ function isoHardDate(text: string): boolean {
 }
 
 function matchCabinPreference(lower: string, original: string): string | null {
-  if (/\bfirst\s*class\b|درجة أولى|الدرجة الاولى|الدرجة الأولى/.test(lower) || /درجة\s*أولى|درجة\s*اولى/.test(original)) {
+  if (
+    /\bfirst\s*class\b|درجة أولى|الدرجة الاولى|الدرجة الأولى/.test(lower)
+    || /درجة\s*أولى|درجة\s*اولى/.test(original)
+  ) {
     return 'first'
   }
-  if (/\bbusiness\s*class\b|درجة رجال الأعمال|رجال اعمال|بزنس/.test(lower) || /رجال\s*الأعمال|رجال\s*اعمال/.test(original)) {
+  // Bare "Business" / بزنس = Business Class cabin (not a lifestyle/advice question).
+  if (
+    /\bbusiness(?:\s*class)?\b|\bbiz\b/.test(lower)
+    || /درجة\s*رجال\s*الأعمال|رجال\s*اعمال|رجال\s*الأعمال|بزنس/.test(original)
+  ) {
     return 'business'
   }
   if (/\bpremium\s*economy\b|اقتصادية مميزة|بريميوم/.test(lower) || /اقتصادية\s*مميزة/.test(original)) {
     return 'premium_economy'
   }
-  if (/\beconomy\b|سياحية|درجة اقتصادية/.test(lower) || /درجة\s*اقتصادية|سياحية/.test(original)) {
+  if (
+    /\beconomy(?:\s*class)?\b|سياحية|درجة اقتصادية/.test(lower)
+    || /درجة\s*اقتصادية|سياحية/.test(original)
+  ) {
     return 'economy'
   }
   return null
