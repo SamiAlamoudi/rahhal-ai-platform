@@ -10,9 +10,12 @@ import type {
 import { detectAgentLocale } from './locale'
 import { detectOpenEndedDestination } from './reasoning/openEndedDetector'
 import { resolveDestinationIdentity } from './destinationIdentity'
+import { normalizeArabicAsrForExtraction } from '../chat/voice/arabicAsrNormalize'
 
 const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
   { keys: ['tokyo', 'طوكيو'], value: 'Tokyo' },
+  { keys: ['bangkok', 'بانكوك', 'بان كوك'], value: 'Bangkok' },
+  { keys: ['phuket', 'بوكيت', 'فوكت', 'بوكيت تايلند'], value: 'Phuket' },
   { keys: ['osaka', 'اوساكا', 'أوساكا'], value: 'Osaka' },
   { keys: ['kyoto', 'كيوتو'], value: 'Kyoto' },
   { keys: ['japan', 'اليابان'], value: 'Japan' },
@@ -60,7 +63,8 @@ export function extractFromUserText(
   fallbackLocale: AgentLocale = 'ar',
 ): ExtractionResult {
   const locale = detectAgentLocale(text, fallbackLocale)
-  const normalized = text.trim()
+  // Parser-only enrichment (digits / word-dates / cabin aliases). Display stays original.
+  const normalized = normalizeArabicAsrForExtraction(text.trim())
   const lower = normalized.toLowerCase()
   const intent = detectIntent(lower, normalized, locale)
   const patch: Partial<TripRequirements> = {}
@@ -790,8 +794,11 @@ function matchTravelers(lower: string, original: string): { count: number; type:
   if (/\bone person\b|\ba person\b|شخص واحد|فرد واحد/.test(lower) || /شخص\s*واحد|فرد\s*واحد/.test(original)) {
     return { count: 1, type: 'solo' }
   }
-  // Arabic dual / word forms: لشخصين، شخصين، اثنان، …
-  if (/ل?شخصين|شخصان|اثنين(?:\s*أشخاص)?|اثنان(?:\s*أشخاص)?|فردين/.test(original)) {
+  // Arabic dual / word forms: لشخصين، شخصين، اثنان، أنا وزوجتي…
+  if (
+    /ل?شخصين|شخصان|اثنين(?:\s*أشخاص)?|اثنان(?:\s*أشخاص)?|فردين/.test(original)
+    || /أنا\s*وزوجتي|انا\s*وزوجتي|أنا\s*و\s*زوجتي|مع\s*زوجتي/.test(original)
+  ) {
     return { count: 2, type: 'couple' }
   }
   if (/ل?ثلاثة\s*(?:أشخاص|افراد|أفراد)|ثلاث\s*(?:أشخاص|افراد)/.test(original)) {
@@ -1268,7 +1275,7 @@ function matchCabinPreference(lower: string, original: string): string | null {
   // Bare "Business" / بزنس = Business Class cabin (not a lifestyle/advice question).
   if (
     /\bbusiness(?:\s*class)?\b|\bbiz\b/.test(lower)
-    || /درجة\s*رجال\s*الأعمال|رجال\s*اعمال|رجال\s*الأعمال|بزنس/.test(original)
+    || /درجة\s*رجال\s*الأعمال|درجة\s*الأعمال|درجة\s*اعمال|رجال\s*اعمال|رجال\s*الأعمال|بزنس/.test(original)
   ) {
     return 'business'
   }
@@ -1276,8 +1283,8 @@ function matchCabinPreference(lower: string, original: string): string | null {
     return 'premium_economy'
   }
   if (
-    /\beconomy(?:\s*class)?\b|سياحية|درجة اقتصادية/.test(lower)
-    || /درجة\s*اقتصادية|سياحية/.test(original)
+    /\beconomy(?:\s*class)?\b|سياحية|درجة اقتصادية|الضيافة/.test(lower)
+    || /درجة\s*اقتصادية|سياحية|درجة\s*الضيافة|على\s*الضيافة|بالضيافة|\bالضيافة\b/.test(original)
   ) {
     return 'economy'
   }

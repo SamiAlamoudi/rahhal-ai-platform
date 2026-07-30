@@ -61,6 +61,11 @@ function buildSessionConfig(input: {
     instructions,
     audio: {
       input: {
+        // Explicit Arabic transcription — do not leave language auto-detect unconstrained.
+        transcription: {
+          model: 'gpt-4o-mini-transcribe',
+          language: 'ar',
+        },
         turn_detection: {
           type: 'semantic_vad',
           eagerness: 'low',

@@ -26,6 +26,9 @@ const REALTIME_VOICES = new Set<string>([
  * interrupt_response MUST stay false: on iPhone speakerphone, echo triggers
  * server-side cancel mid-playback (spoken shorter than displayed text).
  * Manual mic-tap barge-in still calls response.cancel from the client.
+ *
+ * eagerness=low: tolerate brief Arabic hesitations inside a booking sentence.
+ * Client utterance assembly still merges pause-split segment finals.
  */
 export function buildRealtimeTurnDetection(): Record<string, unknown> {
   return {
@@ -40,9 +43,10 @@ export function buildRealtimeTurnDetection(): Record<string, unknown> {
 export function buildServerVadFallback(): Record<string, unknown> {
   return {
     type: 'server_vad',
-    threshold: 0.65,
-    prefix_padding_ms: 280,
-    silence_duration_ms: 700,
+    threshold: 0.6,
+    prefix_padding_ms: 300,
+    // ~1.2s silence — allow short pauses in dates/numbers without finalizing.
+    silence_duration_ms: 1200,
     create_response: false,
     interrupt_response: false,
   }

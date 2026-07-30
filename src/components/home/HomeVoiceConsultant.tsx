@@ -58,7 +58,11 @@ export function HomeVoiceConsultant({
   const [bookingOptions, setBookingOptions] = useState<BookingOptionCard[]>([])
   const [providerError, setProviderError] = useState<string | null>(null)
   const [audioPlaying, setAudioPlaying] = useState(false)
+  /** Soft ASR retry cue — calm status, never red technical diagnostics. */
+  const [asrHint, setAsrHint] = useState<string | null>(null)
   const speechStartedRef = useRef(false)
+  /** Parser-only enrichment for the last committed ASR (display stays exact). */
+  const asrExtractTextRef = useRef<string | null>(null)
   const pendingAssistantRef = useRef<ChatMessage | null>(null)
   const latencyRef = useRef<VoiceLatencyMarks | null>(null)
   const bookingSearchGenRef = useRef(0)
@@ -149,6 +153,7 @@ export function HomeVoiceConsultant({
     ownedTurnAbortRef.current = controller
 
     setError(null)
+    setAsrHint(null)
     setMicStatus('thinking', { phase: 'owned_turn_start' })
     setAudioPlaying(false)
     setAssistantText('')
@@ -176,8 +181,19 @@ export function HomeVoiceConsultant({
         await realtimeRef.current.connect()
       }
 
+      // Committed message = exact ASR. Extraction enrichment is internal to extractRequirements.
+      const messageContent = text
+      logPipeline({
+        stage: 'voice',
+        event: 'asr_committed_to_planner',
+        meta: {
+          committedTranscript: messageContent.slice(0, 200),
+          extractHint: (asrExtractTextRef.current || messageContent).slice(0, 200),
+        },
+      })
+
       await chatEngine.sendMessage(
-        { conversationId: id, content: text, modality: 'audio' },
+        { conversationId: id, content: messageContent, modality: 'audio' },
         {
           signal: controller.signal,
             onAssistantCreate: (message) => {
@@ -195,6 +211,31 @@ export function HomeVoiceConsultant({
           onComplete: (message) => {
             if (gen !== bookingSearchGenRef.current || userStoppedRef.current) return
             flushAssistant(message)
+            const req = (message.providerMeta?.memory as {
+              requirements?: {
+                origin?: string | null
+                destination?: string | null
+                startDate?: string | null
+                endDate?: string | null
+                travelers?: number | null
+                cabinPreference?: string | null
+              }
+            } | undefined)?.requirements
+            logPipeline({
+              stage: 'voice',
+              event: 'asr_extraction_result',
+              meta: {
+                committedTranscript: text.slice(0, 200),
+                extractedOrigin: req?.origin ?? null,
+                extractedDestination: req?.destination ?? null,
+                extractedDates: {
+                  startDate: req?.startDate ?? null,
+                  endDate: req?.endDate ?? null,
+                },
+                extractedPassengers: req?.travelers ?? null,
+                extractedCabinClass: req?.cabinPreference ?? null,
+              },
+            })
             // Spoken audio must match the full displayed text (one reply, one owner).
             const displayed = (message.content || '').trim()
             const spokenRaw = displayed
@@ -332,17 +373,36 @@ export function HomeVoiceConsultant({
             setMicStatus(mapped, { phase: 'realtime_on_status' })
             setAudioPlaying(status === 'speaking' && !userStoppedRef.current)
           },
-          onUserTranscript: (text, isFinal) => {
+          onUserTranscript: (text, isFinal, meta) => {
             if (disposed || userStoppedRef.current) return
             if (isFinal) {
-              // Final ASR only → sole turn owner (planTurn). Realtime does not reply here.
+              // Exactly one committed user message per turn — locked final only.
+              setAsrHint(null)
               setPartial('')
               setUserHeard(text)
               onDraftChange(text)
+              asrExtractTextRef.current = meta?.normalizedForExtract || text
+              logPipeline({
+                stage: 'voice',
+                event: 'home_asr_commit',
+                meta: {
+                  committedTranscript: text.slice(0, 200),
+                  audioDurationMs: meta?.audioDurationMs ?? null,
+                  completionReason: meta?.completionReason ?? null,
+                  conversationLanguage: meta?.conversationLanguage ?? null,
+                },
+              })
               bookingSearchRef.current(text)
             } else {
+              // Interim / assembled preview — visual feedback only.
               setPartial(text)
             }
+          },
+          onAsrRetry: (message) => {
+            if (disposed || userStoppedRef.current) return
+            // Calm retry cue — never red technical diagnostics.
+            setAsrHint(message)
+            setPartial('')
           },
           onAssistantTranscript: (text, isFinal) => {
             if (disposed) return
@@ -490,6 +550,8 @@ export function HomeVoiceConsultant({
   const startListening = useCallback(async () => {
     // Explicit user mic press — only way to begin a new listening session after Stop.
     userStoppedRef.current = false
+    setAsrHint(null)
+    asrExtractTextRef.current = null
     logMicSessionState('LISTENING', { source: 'home', reason: 'user_mic_press' })
     // New voice session from idle → blank trip memory (no Jordan/Dubai leftovers).
     if (voiceStatus === 'idle' || voiceStatus === 'error' || !conversationIdRef.current) {
@@ -533,7 +595,9 @@ export function HomeVoiceConsultant({
     ownedTurnAbortRef.current = null
     bookingSearchGenRef.current += 1
     setPartial('')
+    setAsrHint(null)
     setAudioPlaying(false)
+    asrExtractTextRef.current = null
     logMicSessionState('STOPPED', { source: 'home', reason: 'user_stop' })
     if (preferRealtimeRef.current && realtimeRef.current) {
       realtimeRef.current.hardStop()
@@ -800,6 +864,15 @@ export function HomeVoiceConsultant({
         aria-live="polite"
       >
         <p className="text-xs font-medium tracking-wide text-slate-500">{statusLabel}</p>
+        {asrHint ? (
+          <p
+            className="mt-2 text-sm leading-7 text-slate-600"
+            data-testid="home-voice-asr-hint"
+            role="status"
+          >
+            {asrHint}
+          </p>
+        ) : null}
         {userHeard ? (
           <p className="mt-3 text-sm leading-7 text-slate-600">
             <span className="font-medium text-slate-800">{t('أنت:', 'You:')}</span>{' '}

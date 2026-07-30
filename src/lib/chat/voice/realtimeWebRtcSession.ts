@@ -38,6 +38,12 @@ import {
   VOICE_RECOVERABLE_ERROR_AR,
 } from './voiceUserFacingError'
 import { logMicSessionState, mapToMicSessionState } from './micSessionState'
+import {
+  ARABIC_UTTERANCE_COMMIT_MS,
+  createArabicUtteranceAssembler,
+  type AssembledUtteranceCommit,
+} from './arabicUtteranceAssembler'
+import { logPipeline } from '../pipelineDiagnostics'
 
 export type RealtimeSessionStatus =
   | 'idle'
@@ -47,9 +53,24 @@ export type RealtimeSessionStatus =
   | 'speaking'
   | 'error'
 
+export type RealtimeUserTranscriptMeta = {
+  /** Exact committed ASR — same as text when isFinal. */
+  committedTranscript?: string
+  /** Parser-only enrichment; never shown as the user message rewrite. */
+  normalizedForExtract?: string
+  audioDurationMs?: number
+  completionReason?: string
+  conversationLanguage?: string
+}
+
 export type RealtimeWebRtcCallbacks = {
   onStatus?: (status: RealtimeSessionStatus) => void
-  onUserTranscript?: (text: string, isFinal: boolean) => void
+  onUserTranscript?: (text: string, isFinal: boolean, meta?: RealtimeUserTranscriptMeta) => void
+  /**
+   * Soft ASR retry cue (incomplete / wrong-script). Not a technical error —
+   * UI should show calmly, never as red technical diagnostics.
+   */
+  onAsrRetry?: (message: string, detail?: Record<string, unknown>) => void
   onAssistantTranscript?: (text: string, isFinal: boolean) => void
   /** Fired when barge-in cancels a reply mid-stream (partial text kept). */
   onInterrupted?: (partialAssistantText: string) => void
@@ -137,10 +158,10 @@ function buildInstructions(
 }
 
 function transcriptionConfig(language: LockedSpeechLanguage | null) {
-  const hint = transcriptionLanguageHint(language)
-  return hint
-    ? { model: 'gpt-4o-mini-transcribe' as const, language: hint }
-    : { model: 'gpt-4o-mini-transcribe' as const }
+  // Always pass an explicit language — never leave auto-detect unconstrained.
+  // Arabic-first product: default `ar` until the traveler explicitly switches.
+  const hint = transcriptionLanguageHint(language) || 'ar'
+  return { model: 'gpt-4o-mini-transcribe' as const, language: hint }
 }
 
 export function createRealtimeWebRtcSession(
@@ -160,7 +181,7 @@ export function createRealtimeWebRtcSession(
    */
   let hardStopped = false
   /** Active spoken language for this Realtime call (language layer only). */
-  let activeLanguage: LockedSpeechLanguage | null = null
+  let activeLanguage: LockedSpeechLanguage | null = 'ar'
   /** Language frozen for the current assistant response. */
   let assistantTurnLanguage: LockedSpeechLanguage | null = null
   let activeResponse: ActiveResponseState | null = null
@@ -177,6 +198,8 @@ export function createRealtimeWebRtcSession(
   let playbackFallbackTimer: ReturnType<typeof setTimeout> | null = null
   /** Generation token — invalidate pending playback/microtask callbacks after Stop. */
   let sessionGeneration = 0
+  /** Locked committed user transcript for the current turn (immutable after commit). */
+  let lockedUserTranscript: string | null = null
   const quality = createRealtimeQualityTracker()
 
   const transcriptGate = createUserTranscriptGate(() => activeLanguage)
@@ -358,10 +381,33 @@ export function createRealtimeWebRtcSession(
       return
     }
     const built = buildInstructions(utterance, activeLanguage)
+    // Arabic session: never auto-switch to EN/CJK/etc from a short unclear fragment.
+    const explicitSwitch = utterance
+      ? /\b(?:speak|talk)\s+english\b|بالإنجليزي|بالانجليزي|English\s*please/i.test(utterance)
+      : false
+    if (
+      (activeLanguage === 'ar' || activeLanguage == null)
+      && built.language !== 'ar'
+      && !explicitSwitch
+    ) {
+      activeLanguage = 'ar'
+      sendEvent({
+        type: 'session.update',
+        session: {
+          type: 'realtime',
+          audio: {
+            input: {
+              transcription: transcriptionConfig('ar'),
+              turn_detection: buildRealtimeTurnDetection(),
+            },
+          },
+        },
+      })
+      return
+    }
     // If assistant turn language is locked, keep speaking that language.
     if (assistantTurnLanguage && built.language !== assistantTurnLanguage) {
       // Explicit switch only applies after the current assistant turn finishes.
-      activeLanguage = built.language
       return
     }
     activeLanguage = built.language
@@ -379,6 +425,76 @@ export function createRealtimeWebRtcSession(
       },
     })
   }
+
+  const logAsrDiagnostics = (event: string, meta: Record<string, unknown>) => {
+    logPipeline({
+      stage: 'voice',
+      event,
+      meta: {
+        conversationLanguage: activeLanguage,
+        lockedUserTranscript,
+        ...meta,
+      },
+    })
+    telemetry(event, meta)
+  }
+
+  const utteranceAssembler = createArabicUtteranceAssembler({
+    conversationLanguage: () => activeLanguage || 'ar',
+    nowMs,
+    commitDelayMs: ARABIC_UTTERANCE_COMMIT_MS,
+    onCommit: (result: AssembledUtteranceCommit) => {
+      if (hardStopped || disposed) return
+      if (lockedUserTranscript != null) {
+        logAsrDiagnostics('asr_commit_ignored_already_locked', {
+          locked: lockedUserTranscript.slice(0, 80),
+          attempted: result.committedTranscript.slice(0, 80),
+        })
+        return
+      }
+      if (!shouldAcceptTranscriptForResponse(result.committedTranscript)) {
+        logAsrDiagnostics('asr_commit_rejected_echo_or_noise', {
+          sample: result.committedTranscript.slice(0, 80),
+          audioDurationMs: result.audioDurationMs,
+        })
+        utteranceAssembler.reset()
+        return
+      }
+      lockedUserTranscript = result.committedTranscript
+      transcriptGate.lockLanguage(activeLanguage === 'en' ? 'en' : 'ar')
+      logAsrDiagnostics('asr_final_committed', {
+        audioDurationMs: result.audioDurationMs,
+        interimTranscript: result.interimTranscript.slice(0, 160),
+        finalTranscript: result.committedTranscript.slice(0, 160),
+        committedTranscript: result.committedTranscript.slice(0, 160),
+        transcriptionCompletionReason: result.completionReason,
+        normalizedForExtract: result.normalizedForExtract.slice(0, 160),
+      })
+      callbacks.onUserTranscript?.(result.committedTranscript, true, {
+        committedTranscript: result.committedTranscript,
+        normalizedForExtract: result.normalizedForExtract,
+        audioDurationMs: result.audioDurationMs,
+        completionReason: result.completionReason,
+        conversationLanguage: result.conversationLanguage,
+      })
+      refreshLanguageInstructionsIfIdle(result.committedTranscript)
+    },
+    onReject: (result) => {
+      if (hardStopped || disposed) return
+      logAsrDiagnostics('asr_commit_rejected', {
+        reason: result.reason,
+        audioDurationMs: result.audioDurationMs,
+        finalTranscript: result.transcript.slice(0, 120),
+        transcriptionCompletionReason: result.completionReason,
+      })
+      const msg = activeLanguage === 'en' ? result.retryMessageEn : result.retryMessageAr
+      callbacks.onAsrRetry?.(msg, {
+        reason: result.reason,
+        audioDurationMs: result.audioDurationMs,
+      })
+      if (!hasCancellableResponse()) setStatus('listening')
+    },
+  })
 
   const tearDownPeer = () => {
     try {
@@ -408,9 +524,13 @@ export function createRealtimeWebRtcSession(
     remoteAudio = null
     remoteTrack = null
     assistantBuffer = ''
-    activeLanguage = null
+    // Keep Arabic-first default across soft reconnects.
+    activeLanguage = activeLanguage || 'ar'
     clearActiveResponse()
     transcriptGate.resetTurn()
+    utteranceAssembler.cancelPendingCommit()
+    utteranceAssembler.reset()
+    lockedUserTranscript = null
     lastAssistantSpoken = ''
     responseDoneAt = 0
     clientRequestedResponse = false
@@ -422,6 +542,9 @@ export function createRealtimeWebRtcSession(
     sessionGeneration += 1
     clearPlaybackTimers()
     clientRequestedResponse = false
+    utteranceAssembler.cancelPendingCommit()
+    utteranceAssembler.reset()
+    lockedUserTranscript = null
     logMicSessionState('STOPPED', { source: 'realtime', reason })
     telemetry('hard_stop', { reason })
     try {
@@ -593,10 +716,18 @@ export function createRealtimeWebRtcSession(
     }
 
     if (type === 'input_audio_buffer.speech_started') {
-      // Only reset transcript gate when idle (new user utterance). Never while speaking —
+      // Only arm ASR assembly when idle/listening. Never while speaking —
       // echo must not clear state mid-playback.
       if (status === 'listening' || status === 'idle') {
-        transcriptGate.resetTurn()
+        // New utterance after a prior commit — clear lock. Mid-pause continuation
+        // keeps assembling (assembler cancels the commit timer).
+        if (lockedUserTranscript != null && !utteranceAssembler.hasPending()) {
+          lockedUserTranscript = null
+          transcriptGate.resetTurn()
+        } else if (!utteranceAssembler.hasPending()) {
+          transcriptGate.resetTurn()
+        }
+        utteranceAssembler.onSpeechStarted(nowMs())
       }
       // NEVER auto-cancel on VAD while the assistant is speaking.
       // Root cause of cut-off audio: speaker echo → speech_started → cancel mid-reply
@@ -606,6 +737,7 @@ export function createRealtimeWebRtcSession(
       telemetry('speech_started_no_auto_barge_in', {
         hadActive: Boolean(activeResponse),
         status,
+        assembling: utteranceAssembler.hasPending(),
       })
       return
     }
@@ -613,40 +745,72 @@ export function createRealtimeWebRtcSession(
     if (type === 'input_audio_buffer.speech_stopped') {
       quality.markSpeechStopped()
       emitQuality()
+      if (status === 'listening' || status === 'idle') {
+        utteranceAssembler.onSpeechStopped(nowMs())
+        // Debounced commit — brief Arabic pauses must not finalize mid-sentence.
+        utteranceAssembler.scheduleCommit(ARABIC_UTTERANCE_COMMIT_MS)
+      }
       // Stay listening — do NOT enter thinking or create a response on VAD alone.
-      // Silence / breathing / noise stop events must leave the assistant idle.
       if (!hasCancellableResponse() && status !== 'speaking') {
         setStatus('listening')
       }
-      telemetry('speech_stopped_no_auto_response', { status })
+      telemetry('speech_stopped_no_auto_response', {
+        status,
+        assembling: utteranceAssembler.hasPending(),
+      })
       return
     }
 
     if (type === 'conversation.item.input_audio_transcription.delta' && typeof event.delta === 'string') {
+      // Already committed — ignore later deltas (lock integrity).
+      if (lockedUserTranscript != null) {
+        logAsrDiagnostics('asr_delta_ignored_after_lock', { sample: event.delta.slice(0, 40) })
+        return
+      }
       const gated = transcriptGate.ingestDelta(event.delta)
       if (gated.displayText != null) {
-        callbacks.onUserTranscript?.(gated.displayText, false)
+        const display = utteranceAssembler.onInterim(gated.displayText)
+        // Visual feedback only — never planner / memory.
+        callbacks.onUserTranscript?.(display || gated.displayText, false)
+        logAsrDiagnostics('asr_interim', {
+          interimTranscript: (display || gated.displayText).slice(0, 160),
+          audioDurationMs: utteranceAssembler.getAudioDurationMs(nowMs()),
+        })
       }
-      // suppressed → UI keeps prior stable text / listening indicator (no foreign flash)
       return
     }
 
     if (type === 'conversation.item.input_audio_transcription.completed' && typeof event.transcript === 'string') {
+      // Locked turn — ignore late segment rewrites / translations.
+      if (lockedUserTranscript != null) {
+        logAsrDiagnostics('asr_segment_ignored_after_lock', {
+          sample: event.transcript.slice(0, 40),
+          locked: lockedUserTranscript.slice(0, 40),
+        })
+        return
+      }
+      // Validate segment (script / noise) without treating it as the planner commit.
       const gated = transcriptGate.ingestFinal(event.transcript)
-      // Commit exact FINAL only — never interim, never mutated substitute.
       const exact = gated.exactText
-      if (gated.accepted && exact && shouldAcceptTranscriptForResponse(exact)) {
-        callbacks.onUserTranscript?.(exact, true)
-        if (gated.lockedLanguage) {
-          activeLanguage = gated.lockedLanguage
+      if (gated.accepted && exact) {
+        // Unlock gate segment lock so pause-split segments can append.
+        // Turn-level lock is `lockedUserTranscript` after silence commit.
+        transcriptGate.resetTurn()
+        // Keep Arabic transcription locked — do not adopt EN/CJK from a fragment.
+        if (activeLanguage !== 'en') {
+          activeLanguage = 'ar'
         }
-        // Architecture: Realtime does NOT create a spoken reply here.
-        // Sole turn owner is planTurn (via HomeVoiceConsultant) → speakWrittenDraft.
-        // Keep transcription language aligned while idle (never mid-response).
-        refreshLanguageInstructionsIfIdle(exact)
-        telemetry('asr_final_handed_to_turn_owner', { sample: exact.slice(0, 40) })
+        const display = utteranceAssembler.onSegmentFinal(exact)
+        callbacks.onUserTranscript?.(display, false)
+        logAsrDiagnostics('asr_segment_final', {
+          segment: exact.slice(0, 120),
+          assembled: display.slice(0, 160),
+          audioDurationMs: utteranceAssembler.getAudioDurationMs(nowMs()),
+        })
+        // Schedule silence commit — do NOT hand off to planTurn yet.
+        utteranceAssembler.scheduleCommit(ARABIC_UTTERANCE_COMMIT_MS)
       } else {
-        telemetry('final_transcript_no_response', {
+        logAsrDiagnostics('asr_segment_rejected', {
           accepted: gated.accepted,
           suppressed: gated.suppressed,
           sample: event.transcript.slice(0, 40),
@@ -820,9 +984,13 @@ export function createRealtimeWebRtcSession(
     getQualitySnapshot: () => quality.snapshot(),
     async connect() {
       if (disposed) return
-      // Explicit user start — clear hard Stop latch.
+      // Explicit user start — clear hard Stop latch; lock Arabic transcription.
       hardStopped = false
       sessionGeneration += 1
+      activeLanguage = 'ar'
+      lockedUserTranscript = null
+      utteranceAssembler.reset()
+      transcriptGate.resetTurn()
       clearPlaybackTimers()
       // Allow reconnect after a clean disconnect on the same session object.
       if (pc && dc && dc.readyState === 'open') {

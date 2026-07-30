@@ -150,7 +150,7 @@ describe('realtime session — one response per confirmed ASR only', () => {
     session.dispose()
   })
 
-  it('noise transcript does not send response.create; confirmed ASR also does not (planTurn owns the turn)', async () => {
+  it('noise transcript does not send response.create; confirmed ASR commits after silence debounce', async () => {
     const onUserTranscript = vi.fn()
     const { session, channel } = await bootSession({ onUserTranscript })
     channel.send.mockClear()
@@ -165,17 +165,26 @@ describe('realtime session — one response per confirmed ASR only', () => {
     expect(session.getStatus()).toBe('listening')
 
     channel.send.mockClear()
+    channel.onmessage!({ data: JSON.stringify({ type: 'input_audio_buffer.speech_started' }) })
     channel.onmessage!({
       data: JSON.stringify({
         type: 'conversation.item.input_audio_transcription.completed',
         transcript: 'أريد السفر إلى تايلند',
       }),
     })
+    channel.onmessage!({ data: JSON.stringify({ type: 'input_audio_buffer.speech_stopped' }) })
+    // Not committed until pause debounce completes (interim/segment may be visual-only).
+    expect(onUserTranscript.mock.calls.some((c) => c[1] === true)).toBe(false)
+    await new Promise((r) => setTimeout(r, 1600))
     // Architecture: Final ASR hands off to the turn owner — Realtime must not invent a reply.
     expect(sentTypes(channel)).not.toContain('response.create')
-    expect(onUserTranscript).toHaveBeenCalledWith('أريد السفر إلى تايلند', true)
+    expect(onUserTranscript).toHaveBeenCalledWith(
+      'أريد السفر إلى تايلند',
+      true,
+      expect.objectContaining({ committedTranscript: 'أريد السفر إلى تايلند' }),
+    )
     session.dispose()
-  })
+  }, 10_000)
 
   it('cancels unsolicited response.created when client did not request it', async () => {
     const { session, channel } = await bootSession()
