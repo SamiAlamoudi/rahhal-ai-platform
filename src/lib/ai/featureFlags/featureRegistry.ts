@@ -382,6 +382,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: live_hotel_search. Additive under src/lib/agent/liveHotelSearch + AmadeusHotelSearchProvider. Does not modify flight search, engines, or UI. Availability only — no booking.',
   },
   {
+    id: 'ai.conversational_provider_unify',
+    name: 'Conversational Provider Unification',
+    description:
+      'Sprint 80 P1-3 — single provider abstraction for conversational travel search (flights, hotels, future domains). Registry, resolver, request mapper, response normalizer, and error handling. Default OFF — legacy integration toolBridge paths unchanged.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: conversational_provider_unify. Additive under src/lib/agent/conversationalProvider. Does not modify voice, STT/TTS, chatEngine, memory, or UI. When OFF, runConversationAware* keeps prior mock/live bridges.',
+  },
+  {
     id: 'ai.integration_trip_orchestrator',
     name: 'Integration Trip Orchestrator',
     description:
