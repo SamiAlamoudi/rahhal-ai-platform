@@ -164,10 +164,19 @@ export function preconnectOpenAiTtsRoute(): void {
   // instead poke the route with an abortable empty body so the edge function stays warm.
   const controller = new AbortController()
   window.setTimeout(() => controller.abort(), 2500)
-  void fetch('/api/openai/tts', {
-    method: 'OPTIONS',
-    signal: controller.signal,
-  }).catch(() => undefined)
+  void (async () => {
+    try {
+      const { requireProxyAuthHeaders } = await import('../../security/proxyAuth')
+      const headers = await requireProxyAuthHeaders()
+      await fetch('/api/openai/tts', {
+        method: 'OPTIONS',
+        headers,
+        signal: controller.signal,
+      })
+    } catch {
+      // Preconnect is best-effort; unsigned-in callers skip.
+    }
+  })()
 }
 
 /**
@@ -188,33 +197,37 @@ export async function unlockAudioPlayback(): Promise<void> {
   }
 
   // Warm OpenAI TTS path with the user's preferred voice (still not Edge).
+  // Sprint 79 P0: authenticated proxy only — skip warmup when unsigned-in.
   const prefs = loadVoiceExperiencePrefs()
-  void fetch('/api/openai/tts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      text: 'مرحبا',
-      locale: 'ar',
-      voice: prefs.voiceId,
-      speed: speakingSpeedRate(prefs.speed),
-      dialect: prefs.dialect,
-      instructions: buildTtsSpeechInstructions({ locale: 'ar', dialect: prefs.dialect }),
-      format: 'wav',
-    }),
-  })
-    .then(async (res) => {
+  void (async () => {
+    try {
+      const { requireProxyAuthHeaders } = await import('../../security/proxyAuth')
+      const headers = await requireProxyAuthHeaders({ 'Content-Type': 'application/json' })
+      const res = await fetch('/api/openai/tts', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          text: 'مرحبا',
+          locale: 'ar',
+          voice: prefs.voiceId,
+          speed: speakingSpeedRate(prefs.speed),
+          dialect: prefs.dialect,
+          instructions: buildTtsSpeechInstructions({ locale: 'ar', dialect: prefs.dialect }),
+          format: 'wav',
+        }),
+      })
       if (!res.ok) {
         logChat('warn', 'tts', 'openai_tts_warmup_failed', { status: res.status })
         return
       }
       await res.arrayBuffer().catch(() => undefined)
       logChat('debug', 'tts', 'openai_tts_warmup_ok')
-    })
-    .catch((error) => {
+    } catch (error) {
       logChat('warn', 'tts', 'openai_tts_warmup_network_error', {
         message: error instanceof Error ? error.message : String(error),
       })
-    })
+    }
+  })()
 
   try {
     if (!unlockWarmAudio) {
@@ -294,9 +307,11 @@ async function fetchSpeechAudio(
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       hooks?.onTtsRequestStart?.()
+      const { requireProxyAuthHeaders } = await import('../../security/proxyAuth')
+      const authHeaders = await requireProxyAuthHeaders({ 'Content-Type': 'application/json' })
       const openaiRes = await fetch('/api/openai/tts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify(request),
       })
       if (openaiRes.ok) {

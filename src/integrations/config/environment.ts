@@ -166,11 +166,10 @@ function readProviderConfig(prefix: string, defaultAdapter: ProviderAdapterType)
       : readEnv(`VITE_${prefix}_BASE_URL`)
 
   const tokenUrl = prefix === 'FLIGHT' ? resolveAmadeusTokenUrl() : null
-  // Supabase Edge requires anon key; same-origin Vercel proxy does not.
+  // Anon key: apikey header for Supabase Edge; Authorization fallback in Node/tests.
+  // Browser production uses the user JWT via getProxyAccessToken (Sprint 79 P0).
   const invokeApiKey = prefix === 'FLIGHT'
-    ? (tokenUrl && isRelativeTokenUrl(tokenUrl)
-        ? ''
-        : readEnv('VITE_SUPABASE_ANON_KEY'))
+    ? readEnv('VITE_SUPABASE_ANON_KEY')
     : null
 
   return {

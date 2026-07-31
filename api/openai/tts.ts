@@ -2,26 +2,14 @@
  * POST /api/openai/tts — OpenAI gpt-4o-mini-tts (ChatGPT-like speech).
  * Falls back to 503 when OPENAI_API_KEY is missing so the client can try Edge.
  *
- * Body: {
- *   text: string,
- *   locale?: 'ar' | 'en',
- *   voice?: string,
- *   speed?: number,
- *   dialect?: string,
- *   instructions?: string,
- *   format?: 'mp3' | 'wav' | 'opus' | 'aac' | 'flac' | 'pcm'
- * }
+ * Sprint 79 P0: authenticated callers only + rate limit + CORS allow-list.
  */
+
+import { guardEdgeRequest, readServerOpenAiApiKey } from '../_lib/edgeGuard.js'
 
 export const config = {
   runtime: 'edge',
   maxDuration: 30,
-}
-
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
 const ALLOWED_VOICES = new Set([
@@ -30,15 +18,6 @@ const ALLOWED_VOICES = new Set([
 ])
 
 const ALLOWED_FORMATS = new Set(['mp3', 'wav', 'opus', 'aac', 'flac', 'pcm'])
-
-function readApiKey(): string | null {
-  const raw = (
-    process.env.OPENAI_API_KEY
-    || process.env.VITE_AGENT_OPENAI_API_KEY
-    || process.env.VITE_OPENAI_API_KEY
-  )?.trim()
-  return raw || null
-}
 
 function defaultArabicInstructions(dialect?: string): string {
   const dialectHint = (() => {
@@ -79,9 +58,9 @@ function defaultEnglishInstructions(): string {
 }
 
 export default async function handler(req: Request): Promise<Response> {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  const gate = await guardEdgeRequest(req, { bucket: 'openai.tts', limit: 40 })
+  if (!gate.ok) return gate.response
+  const corsHeaders = gate.corsHeaders
 
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
@@ -90,7 +69,7 @@ export default async function handler(req: Request): Promise<Response> {
     })
   }
 
-  const apiKey = readApiKey()
+  const apiKey = readServerOpenAiApiKey()
   if (!apiKey) {
     return new Response(JSON.stringify({ error: 'missing_api_key' }), {
       status: 503,
@@ -126,7 +105,7 @@ export default async function handler(req: Request): Promise<Response> {
 
   const locale = body.locale === 'en' ? 'en' : 'ar'
   const requestedVoice = typeof body.voice === 'string' ? body.voice.trim().toLowerCase() : ''
-  const envVoice = process.env.VITE_OPENAI_TTS_VOICE?.trim().toLowerCase() || ''
+  const envVoice = process.env.OPENAI_TTS_VOICE?.trim().toLowerCase() || ''
   const voice = ALLOWED_VOICES.has(requestedVoice)
     ? requestedVoice
     : (ALLOWED_VOICES.has(envVoice)
@@ -144,10 +123,9 @@ export default async function handler(req: Request): Promise<Response> {
     : 1.0
 
   const requestedFormat = typeof body.format === 'string' ? body.format.trim().toLowerCase() : ''
-  // wav starts sooner on many browsers; still one continuous synthesis.
   const responseFormat = ALLOWED_FORMATS.has(requestedFormat) ? requestedFormat : 'wav'
 
-  const model = process.env.VITE_OPENAI_TTS_MODEL?.trim() || 'gpt-4o-mini-tts'
+  const model = process.env.OPENAI_TTS_MODEL?.trim() || 'gpt-4o-mini-tts'
 
   const upstream = await fetch('https://api.openai.com/v1/audio/speech', {
     method: 'POST',

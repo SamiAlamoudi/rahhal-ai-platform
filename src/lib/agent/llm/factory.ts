@@ -15,7 +15,7 @@ import { readManagedConfig } from '../../security/secrets/managedAccess'
  * - Explicit `VITE_AGENT_LLM_PROVIDER=local` always wins (CI / vitest isolation).
  * - If an OpenAI API key is present → OpenAI (unless another remote provider id is forced).
  * - Otherwise → local fallback (or explicit remote stub id).
- * Adding VITE_OPENAI_API_KEY / VITE_AGENT_OPENAI_API_KEY is enough to go live.
+ * Production: set server-only OPENAI_API_KEY; browser uses /api/openai/* (no VITE_ key).
  */
 export function getDefaultAgentLlmProviderId(): AgentLlmProviderId {
   const raw = readManagedConfig('VITE_AGENT_LLM_PROVIDER')?.trim().toLowerCase()

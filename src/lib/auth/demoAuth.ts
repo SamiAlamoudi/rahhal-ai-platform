@@ -1,8 +1,7 @@
 /**
  * Local-only demo auth for development / RC verification without Supabase.
- * Enabled only when VITE_DEMO_AUTH=true. Never active in production builds
- * unless an operator explicitly sets the flag (and even then it only creates
- * an in-memory session — no persistence, no admin).
+ * Enabled only when VITE_DEMO_AUTH=true in non-production builds.
+ * Sprint 79 P0: hard-disabled in production bundles (import.meta.env.PROD).
  */
 import type { Session, User } from '@supabase/supabase-js'
 
@@ -20,6 +19,8 @@ export function __setDemoAuthEnabledForTests(value: boolean | null): void {
 
 export function isDemoAuthEnabled(): boolean {
   if (demoAuthOverride !== null) return demoAuthOverride
+  // Production builds never honor demo auth — even if VITE_DEMO_AUTH leaked into env.
+  if (import.meta.env.PROD) return false
   return import.meta.env.VITE_DEMO_AUTH === 'true'
 }
 

@@ -137,11 +137,19 @@ describe('consultant trip-fact gathering policy', () => {
 })
 
 describe('realtime cancel-only-when-active lifecycle', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules()
+    const { __setProxyAccessTokenForTests } = await import('../security/proxyAuth')
+    __setProxyAccessTokenForTests('test-user-jwt')
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    try {
+      const { __setProxyAccessTokenForTests } = await import('../security/proxyAuth')
+      __setProxyAccessTokenForTests(undefined)
+    } catch {
+      // ignore
+    }
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })

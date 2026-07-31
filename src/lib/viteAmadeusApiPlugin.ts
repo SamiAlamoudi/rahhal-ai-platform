@@ -4,9 +4,11 @@
  *   POST /api/amadeus-token
  *
  * Sprint 14 — Node middleware uses viteNodeEnv (not SPA provider SecretManager).
+ * Sprint 79 P0 — Amadeus token requires Authorization Bearer (Supabase user JWT).
  */
 
 import type { Plugin } from 'vite'
+import type { IncomingMessage } from 'node:http'
 import {
   missingCredentialsResponse,
   normalizeAmadeusHost,
@@ -20,6 +22,50 @@ function sendJson(res: { statusCode?: number; setHeader: (k: string, v: string) 
   res.setHeader('Content-Type', 'application/json')
   res.setHeader('Cache-Control', 'no-store')
   res.end(JSON.stringify(body))
+}
+
+function readHeader(req: IncomingMessage, name: string): string | null {
+  const raw = req.headers[name.toLowerCase()]
+  if (Array.isArray(raw)) return raw[0] ?? null
+  return raw ?? null
+}
+
+async function requireUserJwt(req: IncomingMessage): Promise<{ ok: true; userId: string } | { ok: false; status: number; body: unknown }> {
+  const auth = readHeader(req, 'authorization') ?? ''
+  const match = /^Bearer\s+(.+)$/i.exec(auth)
+  if (!match) {
+    return { ok: false, status: 401, body: { error: 'Authentication required', code: 'AUTH_REQUIRED' } }
+  }
+  const token = match[1].trim()
+  if (!token || token === 'demo-access-token' || token.startsWith('demo-')) {
+    return { ok: false, status: 401, body: { error: 'Authentication required', code: 'AUTH_INVALID' } }
+  }
+
+  const env = buildAmadeusEnvBag() as Record<string, string | undefined>
+  const supabaseUrl = (env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').replace(/\/+$/, '')
+  const anonKey = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || ''
+  if (!supabaseUrl || !anonKey) {
+    return { ok: false, status: 401, body: { error: 'Authentication required', code: 'AUTH_BACKEND_NOT_CONFIGURED' } }
+  }
+
+  try {
+    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: anonKey,
+      },
+    })
+    if (!res.ok) {
+      return { ok: false, status: 401, body: { error: 'Authentication required', code: 'AUTH_INVALID' } }
+    }
+    const user = await res.json() as { id?: string }
+    if (!user?.id) {
+      return { ok: false, status: 401, body: { error: 'Authentication required', code: 'AUTH_INVALID' } }
+    }
+    return { ok: true, userId: user.id }
+  } catch {
+    return { ok: false, status: 401, body: { error: 'Authentication required', code: 'AUTH_INVALID' } }
+  }
 }
 
 export function amadeusApiPlugin(): Plugin {
@@ -46,12 +92,21 @@ export function amadeusApiPlugin(): Plugin {
 
         if (url === '/api/amadeus-token') {
           if (req.method === 'OPTIONS') {
-            res.statusCode = 200
+            res.statusCode = 204
+            res.setHeader('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:5173')
+            res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type, x-client-info, apikey')
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
             res.end('ok')
             return
           }
           if (req.method !== 'POST' && req.method !== 'GET') {
             sendJson(res, 405, { error: 'Method not allowed', code: 'METHOD_NOT_ALLOWED' })
+            return
+          }
+
+          const auth = await requireUserJwt(req)
+          if (!auth.ok) {
+            sendJson(res, auth.status, auth.body)
             return
           }
 
