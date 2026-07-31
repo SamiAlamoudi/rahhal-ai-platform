@@ -21,6 +21,13 @@ export {
   type ChatAttachment,
 } from './chatAttachments'
 export {
+  detectContextualAttachmentRequest,
+  buildAttachmentRequest,
+  labelForAttachmentKind,
+  type ContextualAttachmentKind,
+  type ContextualAttachmentRequest,
+} from './contextualAttachments'
+export {
   filterConversations,
   validateConversationTitle,
   validateUserMessage,

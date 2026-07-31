@@ -121,6 +121,9 @@ describe('Sprint 119 — UI Experience Phase 1', () => {
     for (const part of parts) {
       expect(typeof part).toBe('function')
     }
+    // Recovery Phase 2.2 — attachment chrome hidden unless explicitly requested.
+    expect(AttachmentButton({})).toBeNull()
+    expect(AttachmentButton({ visible: true, label: 'إرفاق جواز السفر' })).not.toBeNull()
   })
 
   it('declares reusable card models', () => {

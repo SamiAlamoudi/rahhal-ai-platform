@@ -170,23 +170,35 @@ export function VoiceButton({
   )
 }
 
-/** Attachment control placeholder — no upload wiring in Phase 1. */
+/**
+ * Attachment control — hidden by default (Recovery Phase 2.2).
+ * Only render when Conversation Brain explicitly requests a document/image.
+ */
 export function AttachmentButton({
   disabled,
   className,
+  visible = false,
+  label = 'إرفاق',
+  onClick,
 }: {
   disabled?: boolean
   className?: string
+  /** Permanent attach chrome is removed; must be opted in per request. */
+  visible?: boolean
+  label?: string
+  onClick?: () => void
 }) {
+  if (!visible) return null
   return (
     <UiButton
       className={className}
       disabled={disabled}
-      aria-label="Attach file (placeholder)"
-      style={{ width: componentSize.controlHeight.md, paddingInline: spacing.sm }}
+      aria-label={label}
+      onClick={onClick}
+      style={{ width: 'auto', minWidth: componentSize.controlHeight.md, paddingInline: spacing.sm }}
     >
-      <span style={{ fontSize: iconSize.md }} aria-hidden>
-        ＋
+      <span style={{ fontSize: typography.size.sm, fontWeight: typography.weight.medium }}>
+        {label}
       </span>
     </UiButton>
   )

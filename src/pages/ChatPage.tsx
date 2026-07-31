@@ -21,6 +21,8 @@ import { detectAgentLocale } from '../lib/agent/locale'
 import type { TripPlan } from '../lib/agent/types'
 import { chatEngine } from '../lib/chat/chatEngine'
 import { CHAT_ATTACHMENTS_ENABLED, uploadChatAttachment } from '../lib/chat/chatAttachments'
+import { detectContextualAttachmentRequest } from '../lib/chat/contextualAttachments'
+import ContextualAttachAction from '../components/chat/ContextualAttachAction'
 import { validateConversationTitle, validateUserMessage } from '../lib/chat/chatHelpers'
 import { isBenignChatError, logChatError } from '../lib/chat/chatLogger'
 import { userFacingErrorMessage } from '../lib/chat/pipelineDiagnostics'
@@ -98,6 +100,8 @@ function LegacyChatPage() {
   const [listError, setListError] = useState<string | null>(null)
   const [detailError, setDetailError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  /** Message id whose contextual attach action was completed / dismissed. */
+  const [attachmentFulfilledForId, setAttachmentFulfilledForId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
@@ -264,6 +268,10 @@ function LegacyChatPage() {
 
   useEffect(() => {
     activeIdRef.current = activeId
+  }, [activeId])
+
+  useEffect(() => {
+    setAttachmentFulfilledForId(null)
   }, [activeId])
 
   useEffect(() => {
@@ -645,19 +653,46 @@ function LegacyChatPage() {
     })
   }
 
-  const handleAttachImage = async () => {
-    if (!activeId) return
-    if (!CHAT_ATTACHMENTS_ENABLED) {
-      setActionError('مرفقات الصور جاهزة معمارياً وستُفعَّل بعد تجهيز التخزين')
-      return
+  const latestAssistantMessage = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const row = messages[i]
+      if (row?.role === 'assistant') return row
     }
-    const result = await uploadChatAttachment({
-      conversationId: activeId,
-      fileName: 'image.png',
-      mimeType: 'image/png',
-      sizeBytes: 1024,
-    })
-    if (!result.ready) setActionError(result.reason ?? 'تعذر رفع الصورة')
+    return null
+  }, [messages])
+
+  const contextualAttachment = useMemo(() => {
+    if (!latestAssistantMessage || isStreaming) return null
+    if (latestAssistantMessage.status === 'streaming' || latestAssistantMessage.status === 'pending') {
+      return null
+    }
+    if (attachmentFulfilledForId === latestAssistantMessage.id) return null
+    return detectContextualAttachmentRequest(
+      latestAssistantMessage.content,
+      latestAssistantMessage.providerMeta,
+    )
+  }, [latestAssistantMessage, isStreaming, attachmentFulfilledForId])
+
+  const handleContextualAttach = async (file: File) => {
+    if (!activeId || !latestAssistantMessage) return
+    const requestMessageId = latestAssistantMessage.id
+    try {
+      if (!CHAT_ATTACHMENTS_ENABLED) {
+        setActionError('المرفق جاهز معمارياً وسيُفعَّل بعد تجهيز التخزين')
+        return
+      }
+      const result = await uploadChatAttachment({
+        conversationId: activeId,
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        data: file,
+      })
+      if (!result.ready) setActionError(result.reason ?? 'تعذر رفع المرفق')
+    } finally {
+      // Hide the contextual action once the upload task finishes (success or deferred).
+      setAttachmentFulfilledForId(requestMessageId)
+    }
   }
 
   const sendAgentCommand = async (content: string) => {
@@ -1319,15 +1354,13 @@ function LegacyChatPage() {
                         disabled={!activeId || voiceBusy || !online}
                       />
                       <div className="mt-2 flex flex-wrap items-center justify-end gap-2 px-1">
-                        <button
-                          type="button"
-                          onClick={() => void handleAttachImage()}
-                          disabled={!activeId || isStreaming || voiceBusy}
-                          title="مرفقات الصور (بنية جاهزة — التخزين لاحقاً)"
-                          className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-40"
-                        >
-                          صورة
-                        </button>
+                        {contextualAttachment && (
+                          <ContextualAttachAction
+                            request={contextualAttachment}
+                            disabled={!activeId || isStreaming || voiceBusy || !online}
+                            onFileSelected={(file) => void handleContextualAttach(file)}
+                          />
+                        )}
                         {(isStreaming || voiceBusy) && (
                           <button
                             type="button"
