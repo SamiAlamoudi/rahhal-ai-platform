@@ -634,14 +634,19 @@ export {
   type RankedConversationHotel,
 } from './integrationHotelSearch'
 
-/** Sprint 80 P1-3 — unified conversational provider layer (flag OFF by default) */
+/** Sprint 80 P1-3 / P1-4 — unified conversational provider layer + flight pilot (flags OFF by default) */
 export {
   CONVERSATIONAL_PROVIDER_UNIFY_VERSION,
   CONVERSATIONAL_PROVIDER_UNIFY_FEATURE_ID,
   isConversationalProviderUnifyEnabled,
+  LIVE_FLIGHT_PROVIDER_PILOT_FEATURE_ID,
+  LIVE_FLIGHT_PROVIDER_PILOT_VERSION,
+  isLiveFlightProviderPilotEnabled,
+  runLiveFlightProviderPilot,
   runConversationalProviderSearch,
   runConversationalProviderToolSearch,
   createConversationalProviderRegistry,
+  createAmadeusLiveFlightProvider,
   resolveConversationalProviders,
   mapConversationalProviderRequest,
   type ConversationalTravelProvider,
