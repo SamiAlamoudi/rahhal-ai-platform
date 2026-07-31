@@ -48,10 +48,8 @@ describe('demo auth helpers', () => {
     expect(isDemoAuthEnabled()).toBe(true)
   })
 
-  it('stays disabled in production builds even when override would otherwise apply via env', () => {
+  it('stays disabled by default in vitest (VITE_DEMO_AUTH=false)', () => {
     __setDemoAuthEnabledForTests(null)
-    // Production hard-disable is covered by import.meta.env.PROD in the module;
-    // with override null and vitest env VITE_DEMO_AUTH=false, expect false.
     expect(isDemoAuthEnabled()).toBe(false)
   })
 
