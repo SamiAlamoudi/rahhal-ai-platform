@@ -31,7 +31,8 @@ describe('extractFromUserText', () => {
     expect(result.patch.destination).toBe('Bali')
     expect(result.patch.tripPurpose).toBe('honeymoon')
     expect(result.patch.travelerType).toBe('couple')
-    expect(result.patch.travelers).toBe(2)
+    // Honeymoon must not invent travelers=2 — ask for count.
+    expect(result.patch.travelers).toBeUndefined()
     expect(result.patch.interests).toEqual(expect.arrayContaining(['romance', 'beach']))
   })
 
@@ -40,7 +41,8 @@ describe('extractFromUserText', () => {
     expect(result.patch.destination).toBe('London')
     expect(result.patch.tripPurpose).toBe('business')
     expect(result.patch.travelerType).toBe('business')
-    expect(result.patch.travelers).toBe(1)
+    // Business purpose must not invent travelers=1.
+    expect(result.patch.travelers).toBeUndefined()
   })
 
   it('parses Arabic duration answers as answer intent', () => {
@@ -133,7 +135,9 @@ describe('extractFromUserText', () => {
     )
     expect(barcelona.patch.destination).toBe('Barcelona')
     expect(barcelona.patch.durationDays).toBe(2)
-    expect(barcelona.patch.travelers).toBe(2)
+    // Bare "couple" must not invent travelers=2.
+    expect(barcelona.patch.travelerType).toBe('couple')
+    expect(barcelona.patch.travelers).toBeUndefined()
 
     const family = extractFromUserText(
       'Family trip to Dubai with 2 kids, 6 days, budget 15000 SAR',

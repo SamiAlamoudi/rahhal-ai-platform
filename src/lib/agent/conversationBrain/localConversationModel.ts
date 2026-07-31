@@ -52,24 +52,32 @@ export function nextHardSlot(facts: TravelFacts): string | null {
     }
     if (slot === 'durationDays') return known.durationDays != null
     if (slot === 'budgetAmount') return known.budgetAmount != null || Boolean(known.budgetFlexible)
-    if (slot === 'travelers') return known.travelers != null || Boolean(known.travelerType)
+    // travelerType alone must NEVER satisfy travelers — ask for an explicit count.
+    if (slot === 'travelers') return known.travelers != null
+    // Calendar dates are required before search — duration alone is not enough.
+    if (slot === 'startDate') return Boolean(known.startDate)
+    if (slot === 'endDate') return Boolean(known.endDate)
     if (slot === 'origin') return Boolean(known.origin)
     return false
   }
 
+  // Booking order: destination → travelers → calendar dates → origin.
+  // Duration/budget are soft after the booking spine.
   const ordered = [
     ...facts.missingSlots,
     'destination',
+    'travelers',
+    'startDate',
+    'endDate',
+    'origin',
     'durationDays',
     'budgetAmount',
-    'travelers',
-    'origin',
   ]
   const seen = new Set<string>()
   for (const slot of ordered) {
     if (!slot || seen.has(slot)) continue
     seen.add(slot)
-    if (!['destination', 'durationDays', 'budgetAmount', 'travelers', 'origin'].includes(slot)) {
+    if (!['destination', 'durationDays', 'budgetAmount', 'travelers', 'startDate', 'endDate', 'origin'].includes(slot)) {
       continue
     }
     if (!isFilled(slot)) return slot
@@ -111,8 +119,16 @@ function askForSlot(slot: string, facts: TravelFacts, seed: number, ar: boolean)
       ],
     },
     travelers: {
-      ar: ['الرحلة فردية، لاثنين، أم أجواء عائلية؟'],
-      en: ['Is this solo, for two, or a family-style trip?'],
+      ar: ['كم عدد المسافرين؟'],
+      en: ['How many travelers?'],
+    },
+    startDate: {
+      ar: ['ما تاريخ المغادرة والعودة؟'],
+      en: ['What are your departure and return dates?'],
+    },
+    endDate: {
+      ar: ['وما تاريخ العودة؟'],
+      en: ['And what is the return date?'],
     },
     origin: {
       ar: ['من أي مدينة تكون المغادرة؟'],
@@ -129,7 +145,9 @@ function askForSlot(slot: string, facts: TravelFacts, seed: number, ar: boolean)
 function softAck(facts: TravelFacts, seed: number, ar: boolean): string {
   const d = dest(facts)
   const days = facts.known.durationDays
-  const couple = facts.known.travelerType === 'couple' || facts.known.travelers === 2
+  // Only acknowledge party size when an explicit traveler count was stated.
+  const confirmedPax = typeof facts.known.travelers === 'number' && facts.known.travelers > 0
+  const couple = confirmedPax && facts.known.travelers === 2
   const budget = formatBudgetPhrase(facts.known.budgetAmount, facts.known.budgetCurrency, facts.locale)
 
   if (ar) {
@@ -137,7 +155,7 @@ function softAck(facts: TravelFacts, seed: number, ar: boolean): string {
       const durationPhrase = days === 7 ? 'أسبوع' : `${days} أيام`
       return pick(seed, [
         `ميزانيتكم ممتازة لرحلة ${durationPhrase} إلى ${d}.`,
-        `${d} لـ${durationPhrase} مع شريكتكم — إطار واضح وجميل نقدر نبني عليه.`,
+        `${d} لـ${durationPhrase} لشخصين — إطار واضح وجميل نقدر نبني عليه.`,
       ])
     }
     if (d !== 'وجهتكم' && days) {
@@ -176,6 +194,24 @@ function softAck(facts: TravelFacts, seed: number, ar: boolean): string {
 function continueAfterDestination(facts: TravelFacts, seed: number, ar: boolean): LocalConversationResult {
   const d = dest(facts)
   const slot = nextHardSlot(facts)
+  const days = facts.known.durationDays
+
+  // Exact booking spine: destination + duration, missing travelers — no advice/cards.
+  if (
+    ar
+    && slot === 'travelers'
+    && d !== 'وجهتكم'
+    && days != null
+    && facts.known.travelers == null
+  ) {
+    const durationPhrase = days === 7 ? 'أسبوع' : `${days} أيام`
+    const line = `فهمت أنك تريد السفر إلى ${d} لمدة ${durationPhrase}. كم عدد المسافرين؟`
+    return {
+      displayText: line,
+      spokenText: optimizeLocalSpoken(line, facts.locale),
+    }
+  }
+
   const ack = softAck(facts, seed, ar)
 
   if (slot && slot !== 'destination') {

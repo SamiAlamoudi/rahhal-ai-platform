@@ -36,6 +36,12 @@ import {
   destinationsConflict,
   resolveDestinationIdentity,
 } from './destinationIdentity'
+import { resolveAirportCode } from './airportCodes'
+import {
+  bookingFieldsSearchReady,
+  buildRequirementsProvenance,
+  nextBookingMissingField,
+} from './fieldProvenance'
 import {
   buildBookingOptionsFromPlan,
   countProviderFlightOffers,
@@ -1711,6 +1717,30 @@ export function createTravelAgentService(
       )
       if (destinationChanged || destinationNewlySet || greetingCleanStart) {
         memory = withTripPlan({ ...memory, phase: 'collecting' }, null)
+        // Destination change / new trip: never keep fabricated traveler counts.
+        if (
+          (destinationChanged || greetingCleanStart)
+          && extracted.patch.travelers == null
+        ) {
+          memory = {
+            ...memory,
+            requirements: {
+              ...memory.requirements,
+              travelers: null,
+              travelerType: extracted.patch.travelerType ?? null,
+            },
+          }
+        }
+      }
+
+      memory = {
+        ...memory,
+        fieldProvenance: buildRequirementsProvenance({
+          patch: extracted.patch,
+          merged: memory.requirements,
+          prior: greetingCleanStart ? null : prior.fieldProvenance,
+          destinationChanged: destinationChanged || destinationNewlySet || greetingCleanStart,
+        }),
       }
 
       const transcriptDestination = destinationFromTranscript(userText)
@@ -1718,12 +1748,19 @@ export function createTravelAgentService(
       logPipeline({
         stage: 'conversation',
         event: 'destination_pipeline',
-        meta: buildDestinationTelemetry({
-          transcriptDestination,
-          extractedDestination,
-          memoryDestination: memory.requirements.destination,
-          identity: resolveDestinationIdentity(memory.requirements.destination),
-        }) as unknown as Record<string, unknown>,
+        meta: {
+          ...buildDestinationTelemetry({
+            transcriptDestination,
+            extractedDestination,
+            memoryDestination: memory.requirements.destination,
+            identity: resolveDestinationIdentity(memory.requirements.destination),
+          }) as unknown as Record<string, unknown>,
+          fieldProvenance: memory.fieldProvenance,
+          travelers: memory.requirements.travelers,
+          airportCode: memory.requirements.destination
+            ? resolveAirportCode(memory.requirements.destination)
+            : null,
+        },
       })
 
       memory.missingFields = missingRequirementFields(memory.requirements)
@@ -2045,13 +2082,55 @@ export function createTravelAgentService(
         const hasDestination = Boolean(
           memory.requirements.destination || (memory.requirements.destinations?.length ?? 0) > 0,
         )
-        const hasDates = Boolean(
-          memory.requirements.durationDays != null
-          || (memory.requirements.startDate && memory.requirements.endDate)
-          || memory.requirements.startDate,
+        // Calendar dates required — duration alone must not unlock cards.
+        const hasCalendarDates = Boolean(
+          memory.requirements.startDate && memory.requirements.endDate,
         )
-        const hasTravelers = memory.requirements.travelers != null
-        const bookingSearchReady = hasDestination && hasDates && hasTravelers
+        const hasOrigin = Boolean(memory.requirements.origin)
+        const provenanceGate = bookingFieldsSearchReady(memory.fieldProvenance)
+        const hasTravelers = Boolean(
+          memory.requirements.travelers != null
+          && memory.fieldProvenance?.travelers?.confirmed
+          && (memory.fieldProvenance.travelers.source === 'current_turn'
+            || memory.fieldProvenance.travelers.source === 'confirmed_memory'
+            || memory.fieldProvenance.travelers.source === 'user_selection'),
+        )
+        const bookingSearchReady = hasDestination
+          && hasCalendarDates
+          && hasOrigin
+          && hasTravelers
+          && provenanceGate.ready
+        const nextBookingAsk = nextBookingMissingField(
+          memory.fieldProvenance,
+          memory.requirements,
+        )
+        // Keep voice intake asking booking spine fields even when soft missingFields is empty.
+        if (nextBookingAsk && !memory.missingFields.includes(nextBookingAsk as keyof typeof memory.requirements)) {
+          memory.missingFields = [
+            nextBookingAsk as keyof typeof memory.requirements,
+            ...memory.missingFields,
+          ]
+        }
+        if (!bookingSearchReady) {
+          logPipeline({
+            stage: 'conversation',
+            event: 'booking_search_blocked_provenance',
+            meta: {
+              hasDestination,
+              hasCalendarDates,
+              hasOrigin,
+              hasTravelers,
+              travelers: memory.requirements.travelers,
+              destination: memory.requirements.destination,
+              startDate: memory.requirements.startDate,
+              endDate: memory.requirements.endDate,
+              origin: memory.requirements.origin,
+              provenance: memory.fieldProvenance,
+              missingProvenance: provenanceGate.missing,
+              nextBookingAsk,
+            },
+          })
+        }
         if (
           bookingSearchReady
           && memory.requirements.budgetAmount == null

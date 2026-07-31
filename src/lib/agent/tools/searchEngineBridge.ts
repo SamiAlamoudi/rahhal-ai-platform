@@ -10,33 +10,11 @@ import type { HotelSearchEngine, HotelSearchPage, HotelSearchRequest, UnifiedHot
 import { allocateBudget, hotelNightlyCap } from '../budgetIntelligence'
 import type { TripRequirements } from '../types'
 import type { AgentToolContext } from './types'
+import { resolveAirportCode as resolveAirportCodeShared } from '../airportCodes'
 
 /** Shared city → IATA helper (same mapping used by aggregation mocks). */
 export function resolveAirportCode(place: string): string {
-  const key = place.trim().toLowerCase()
-  if (!key) return 'XXX'
-  if (/^[a-z]{3}$/i.test(place.trim())) return place.trim().toUpperCase()
-  if (key.includes('tokyo') || key.includes('طوكيو')) return 'HND'
-  if (key.includes('japan') || key.includes('اليابان')) return 'HND'
-  if (key.includes('osaka')) return 'KIX'
-  if (key.includes('amman') || key.includes('jordan') || key.includes('الأردن') || key.includes('الاردن')) {
-    return 'AMM'
-  }
-  if (key.includes('london')) return 'LHR'
-  if (key.includes('bali')) return 'DPS'
-  if (key.includes('rome')) return 'FCO'
-  if (key.includes('paris')) return 'CDG'
-  if (key.includes('dubai')) return 'DXB'
-  if (key.includes('riyadh')) return 'RUH'
-  if (key.includes('morocco') || key.includes('marrakech')) return 'RAK'
-  if (key.includes('casablanca')) return 'CMN'
-  if (key.includes('istanbul') || key.includes('turkey')) return 'IST'
-  if (key.includes('cairo') || key.includes('egypt')) return 'CAI'
-  if (key.includes('maldives')) return 'MLE'
-  if (key.includes('jeddah')) return 'JED'
-  if (key.includes('new york') || key.includes('nyc')) return 'JFK'
-  if (key.includes('singapore')) return 'SIN'
-  return place.trim().slice(0, 3).toUpperCase() || 'XXX'
+  return resolveAirportCodeShared(place)
 }
 
 function defaultDepartureDate(): string {
@@ -52,15 +30,16 @@ function addDays(isoDate: string, days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-function travelersFrom(ctx: AgentToolContext): number {
+/**
+ * Confirmed traveler count only — never invent 2 / couple / family defaults.
+ * Callers must not search when this returns null.
+ */
+export function travelersFrom(ctx: AgentToolContext): number | null {
   const fromInput = Number(ctx.input?.travelers)
   if (Number.isFinite(fromInput) && fromInput > 0) return Math.floor(fromInput)
   const req = ctx.requirements.travelers
   if (typeof req === 'number' && req > 0) return req
-  if (ctx.requirements.travelerType === 'solo' || ctx.requirements.travelerType === 'business') return 1
-  if (ctx.requirements.travelerType === 'couple') return 2
-  if (ctx.requirements.travelerType === 'family') return 4
-  return 2
+  return null
 }
 
 function currencyFrom(ctx: AgentToolContext): string {
@@ -99,15 +78,21 @@ function cabinFrom(req: TripRequirements): FlightSearchRequest['cabin'] {
 
 export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchRequest {
   const req = ctx.requirements
-  const originRaw = String(ctx.input?.origin ?? req.origin ?? 'Riyadh')
+  const originRaw = String(ctx.input?.origin ?? req.origin ?? '').trim()
+  if (!originRaw) {
+    throw new Error('search_blocked_origin_unconfirmed')
+  }
   // Same normalized destination object as planTurn memory — never invent Dubai/DXB/Jordan.
   const destinationRaw = String(
     ctx.input?.destination
-    ?? req.destinationCity
     ?? req.destination
+    ?? req.destinationCity
     ?? req.destinations[0]
     ?? '',
-  )
+  ).trim()
+  if (!destinationRaw) {
+    throw new Error('search_blocked_destination_unconfirmed')
+  }
   // Lock search to the single confirmed destination (ignore stale multi-city unions).
   const lockedReq: TripRequirements = {
     ...req,
@@ -126,6 +111,9 @@ export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchReq
         ? Math.floor(Number(ctx.input?.children))
         : 0
   const totalTravelers = travelersFrom({ ...ctx, requirements: lockedReq })
+  if (totalTravelers == null) {
+    throw new Error('search_blocked_travelers_unconfirmed')
+  }
   const adults = Math.max(1, totalTravelers - children)
   const currency = currencyFrom({ ...ctx, requirements: lockedReq })
   const preferredAirline =
@@ -205,6 +193,9 @@ export function buildHotelSearchRequest(ctx: AgentToolContext): HotelSearchReque
         ? Math.floor(Number(ctx.input?.children))
         : 0
   const totalTravelers = travelersFrom(ctx)
+  if (totalTravelers == null) {
+    throw new Error('search_blocked_travelers_unconfirmed')
+  }
   const adults = Math.max(1, totalTravelers - children)
   const rooms =
     typeof req.rooms === 'number' && req.rooms > 0
@@ -398,6 +389,9 @@ export async function runFlightSearchTool(
         ? await engine.searchMultiCity(request)
         : await engine.searchRoundTrip(request)
   const travelers = travelersFrom(ctx)
+  if (travelers == null) {
+    throw new Error('search_blocked_travelers_unconfirmed')
+  }
   return {
     data: flightPageToToolData(page, travelers),
     empty: page.flights.length === 0,

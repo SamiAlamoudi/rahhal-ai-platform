@@ -71,11 +71,7 @@ export function inferSoftRequirements(
     inferred.push('travelers')
     rationale.push(locale === 'ar' ? 'فردي → مسافر واحد' : 'Solo → 1 traveler')
   }
-  if (next.travelers == null && next.travelerType === 'couple') {
-    next.travelers = 2
-    inferred.push('travelers')
-    rationale.push(locale === 'ar' ? 'زوجان → مسافران' : 'Couple → 2 travelers')
-  }
+  // Never bridge couple/family → invented passenger counts.
 
   // High confidence: closed date window → duration in days.
   if (

@@ -246,6 +246,11 @@ export interface AgentMemory {
   itinerary: TripPlan | null
   missingFields: Array<keyof TripRequirements>
   lastIntent: AgentIntent
+  /**
+   * Strict provenance for booking-critical fields.
+   * Search/cards require confirmed destination + dates + travelers.
+   */
+  fieldProvenance?: import('./fieldProvenance').RequirementsProvenance
 }
 
 export interface AgentToolRunSummary {

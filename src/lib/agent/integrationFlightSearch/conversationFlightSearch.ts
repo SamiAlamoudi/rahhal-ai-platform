@@ -176,8 +176,11 @@ export async function tryConversationLiveFlightSearch(
     return null
   }
 
-  const criteria = buildLiveCriteriaFromContext(ctx)
   const adults = adultsFromContext(ctx)
+  if (adults == null) {
+    return null
+  }
+  const criteria = buildLiveCriteriaFromContext(ctx)
   const children = childrenFromContext(ctx)
   const timezone = timezoneFromContext(ctx)
   const prefs = {
