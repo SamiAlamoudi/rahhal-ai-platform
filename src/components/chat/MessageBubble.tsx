@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { lazy, Suspense, memo, useMemo, useState } from 'react'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import { copyTextToClipboard } from '../../lib/chat/chatHelpers'
 import { tripPlanFromMeta } from '../../lib/agent/memory'
@@ -43,7 +43,7 @@ interface MessageBubbleProps {
   onOpenTimelineEvent?: (event: ConversationTimelineEvent) => void
 }
 
-export default function MessageBubble({
+export default memo(function MessageBubble({
   message,
   isStreaming = false,
   busy = false,
@@ -270,7 +270,7 @@ export default function MessageBubble({
       </div>
     </div>
   )
-}
+})
 
 function formatMessageTime(iso: string): string | null {
   try {

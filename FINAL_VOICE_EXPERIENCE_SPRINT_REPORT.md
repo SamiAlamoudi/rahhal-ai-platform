@@ -4,6 +4,8 @@
 **Branch:** `cursor/final-voice-experience-71ec`  
 **Constraint:** WebRTC + OpenAI Realtime (`gpt-realtime-2.1`) unchanged — conversational + turn config only.
 
+> **Production freeze (Sprint 80 / post-#311):** Current `main` keeps mic **IDLE** after reply (explicit mic press for next turn) and disables soft duplex barge-in (`interrupt_response: false`). Sections below that describe `interrupt_response: true` / continuous auto-listen are **sprint-branch history**, superseded by the #311 production contracts.
+
 ## Objective
 
 Experience parity with ChatGPT Voice (not feature parity / not GPT-Live API access).

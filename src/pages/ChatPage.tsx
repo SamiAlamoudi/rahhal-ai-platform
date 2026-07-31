@@ -1,4 +1,14 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type FormEvent,
+} from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
@@ -9,12 +19,25 @@ import { ProductAppBar } from '../components/productUx'
 import { VoiceStateBadge } from '../components/productUx/chat/VoiceStateBadge'
 import { SuggestedReplies } from '../components/productUx/chat/SuggestedReplies'
 import { isUiNewExperienceEnabled, productCopy } from '../lib/productUx'
+import { setVoiceMeterLevel } from '../lib/chat/voice/voiceMeterStore'
+import { useVoiceMeterLevel } from '../lib/chat/voice/useVoiceMeterLevel'
 
 /** RC-2 — voice UI loads only when the user switches to voice mode. */
-const VoicePanel = lazy(() =>
+const VoicePanelLazy = lazy(() =>
   import('../components/premium/VoicePanel').then((m) => ({ default: m.VoicePanel })),
 )
-const VoiceComposer = lazy(() => import('../components/chat/VoiceComposer'))
+const VoiceComposerLazy = lazy(() => import('../components/chat/VoiceComposer'))
+
+/** Sprint 80 P1-5 — level ticks stay inside these leaves, not LegacyChatPage. */
+function VoicePanel(props: Omit<ComponentProps<typeof VoicePanelLazy>, 'level'>) {
+  const level = useVoiceMeterLevel()
+  return <VoicePanelLazy {...props} level={level} />
+}
+
+function VoiceComposer(props: Omit<ComponentProps<typeof VoiceComposerLazy>, 'level'>) {
+  const level = useVoiceMeterLevel()
+  return <VoiceComposerLazy {...props} level={level} />
+}
 
 import { travelAgentService } from '../lib/agent/travelAgentService'
 import { detectAgentLocale } from '../lib/agent/locale'
@@ -107,7 +130,6 @@ function LegacyChatPage() {
   const [voiceMode, setVoiceMode] = useState<VoiceInputMode>('hands_free')
   const [voiceLocale, setVoiceLocale] = useState<VoiceLocale>('ar')
   const [partialTranscript, setPartialTranscript] = useState('')
-  const [voiceLevel, setVoiceLevel] = useState(0)
   const [voiceMuted, setVoiceMuted] = useState(false)
   const [micError, setMicError] = useState<string | null>(null)
   const [permissionState, setPermissionState] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null)
@@ -423,7 +445,7 @@ function LegacyChatPage() {
       onStatus: setVoiceStatus,
       onPartialTranscript: setPartialTranscript,
       onFinalTranscript: setPartialTranscript,
-      onLevel: setVoiceLevel,
+      onLevel: setVoiceMeterLevel,
       onPermission: (state) => {
         setPermissionState(state.state)
         if (state.state !== 'granted') setMicError(state.error || 'يلزم إذن الميكروفون')
@@ -1239,7 +1261,6 @@ function LegacyChatPage() {
                 <Suspense fallback={null}>
                   <VoicePanel
                     status={voiceStatus}
-                    level={voiceLevel}
                     partialTranscript={partialTranscript}
                     locale={voiceLocale === 'en' ? 'en' : 'ar'}
                     muted={voiceMuted}
@@ -1295,7 +1316,6 @@ function LegacyChatPage() {
                       permissionState={permissionState}
                       busy={isStreaming || voiceBusy}
                       online={online}
-                      level={voiceLevel}
                       onModeChange={setVoiceMode}
                       onLocaleChange={setVoiceLocale}
                       onPushStart={() => void handlePushStart()}
