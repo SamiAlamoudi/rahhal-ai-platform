@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
@@ -7,8 +7,14 @@ import {
   setVoiceMeterLevel,
   subscribeVoiceMeter,
 } from '../chat/voice/voiceMeterStore'
+import { MESSAGE_LIST_VIRTUALIZE_AFTER } from '../../components/chat/experience/VirtualizedMessageList'
+import {
+  RECOVERY_VOICE_INTERRUPT_RESPONSE,
+  RECOVERY_VOICE_MIC_AFTER_REPLY,
+} from '../recovery/freeze'
+import { buildRealtimeTurnDetection, buildServerVadFallback } from '../chat/voice/realtimeTurnConfig'
 
-describe('Sprint 80 P1 — voice meter store', () => {
+describe('Sprint 80 P1-5 — voice meter store', () => {
   beforeEach(() => {
     resetVoiceMeterLevel()
   })
@@ -25,10 +31,19 @@ describe('Sprint 80 P1 — voice meter store', () => {
     unsub()
     expect(seen).toEqual([0.5, 1, 0])
   })
+
+  it('keeps an honest virtualization threshold (short chats fully mounted)', () => {
+    expect(MESSAGE_LIST_VIRTUALIZE_AFTER).toBe(40)
+  })
 })
 
-describe('Sprint 80 P1 — TTS unlock does not synthesize warm speech', () => {
-  it('unlockAudioPlayback no longer POSTs مرحبا warmup', () => {
+describe('Sprint 80 P1-6 — TTS unlock does not synthesize warm speech', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('source no longer POSTs مرحبا warmup', () => {
     const file = readFileSync(
       resolve(__dirname, '../chat/voice/audioElementTextToSpeechProvider.ts'),
       'utf8',
@@ -36,5 +51,66 @@ describe('Sprint 80 P1 — TTS unlock does not synthesize warm speech', () => {
     expect(file).toContain('preconnectOpenAiTtsRoute')
     expect(file).not.toContain("text: 'مرحبا'")
     expect(file).not.toContain('openai_tts_warmup_ok')
+  })
+
+  it('unlockAudioPlayback never POSTs /api/openai/tts', async () => {
+    class FakeAudio {
+      src = ''
+      volume = 1
+      preload = ''
+      currentTime = 0
+      setAttribute() {}
+      async play() {
+        return undefined
+      }
+      pause() {}
+    }
+    vi.stubGlobal('Audio', FakeAudio)
+    vi.stubGlobal('speechSynthesis', {
+      resume() {},
+      cancel() {},
+      speak() {},
+    })
+    vi.stubGlobal('SpeechSynthesisUtterance', class {
+      volume = 1
+      constructor(_text?: string) {}
+    })
+
+    const calls: Array<{ url: string; method: string }> = []
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({
+        url: String(input),
+        method: String(init?.method ?? 'GET').toUpperCase(),
+      })
+      return new Response(null, { status: 204 })
+    })
+
+    const { unlockAudioPlayback } = await import('../chat/voice/audioElementTextToSpeechProvider')
+    await unlockAudioPlayback()
+    await new Promise((r) => setTimeout(r, 40))
+
+    const ttsPosts = calls.filter(
+      (c) => c.url.includes('/api/openai/tts') && c.method === 'POST',
+    )
+    expect(ttsPosts).toEqual([])
+  })
+})
+
+describe('Sprint 80 P1-7 — doc/code voice freeze alignment', () => {
+  it('matches Realtime turn config to recovery freeze constants', () => {
+    expect(RECOVERY_VOICE_MIC_AFTER_REPLY).toBe('idle')
+    expect(RECOVERY_VOICE_INTERRUPT_RESPONSE).toBe(false)
+    expect(buildRealtimeTurnDetection().interrupt_response).toBe(false)
+    expect(buildServerVadFallback().interrupt_response).toBe(false)
+  })
+
+  it('ARCHITECTURE doc states IDLE after reply (no auto-relisten)', () => {
+    const file = readFileSync(
+      resolve(__dirname, '../../../docs/ARCHITECTURE_CONVERSATION_FIRST.md'),
+      'utf8',
+    )
+    expect(file).toMatch(/mic stays IDLE/i)
+    expect(file).toMatch(/interrupt_response:\s*false/)
+    expect(file).toMatch(/no auto-relisten/i)
   })
 })

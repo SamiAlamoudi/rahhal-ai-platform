@@ -35,4 +35,4 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
 - Primary chat UX: `/chat` (LegacyChatPage → chatEngine → `travelAgentService.planTurn`). Recovery Phase 1 froze this as the sole conversation spine.
 - `/travel-conversation` redirects to `/chat` (legacy page quarantined).
 - Legacy mock search form: `/search` (SearchWorkspace) — fill destination, departure city, flexible dates (or a date), duration, adults, budget amount + currency, then click "أكد خطتي وابدأ البحث".
-- Voice on `/chat` is browser voice *input* into the same turn (not realtime duplex).
+- Voice on `/chat` is browser voice *input* into the same turn (not realtime duplex). After an assistant reply, mic stays **IDLE** — tap mic again for the next turn (no auto-relisten; `interrupt_response: false`).
