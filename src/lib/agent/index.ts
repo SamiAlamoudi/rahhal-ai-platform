@@ -536,44 +536,6 @@ export type {
   TripRankKind,
 } from './tripBuilder'
 
-/** Sprint 112 — AI Memory & Personalization Engine (import path: ./memory/index) */
-export {
-  isMemoryEngineEnabled,
-  MEMORY_ENGINE_FEATURE_ID,
-  runMemoryEngine,
-  createMemoryRunner,
-  resetMemoryEngineStores,
-  extractPreferencesFromText,
-  toConciergeMemoryHints,
-  toResponseComposerMemoryNotes,
-  SPRINT112_MEMORY_ENGINE_VERSION,
-} from './memory/index'
-export type {
-  MemoryEngineInput,
-  MemoryEngineResult,
-  MemoryTravelerProfile,
-  MemoryMetadata,
-  TravelHistorySummary,
-  PreferenceScoreBreakdown,
-} from './memory/index'
-
-/** Sprint 113 — AI Orchestrator (production coordination layer) */
-export {
-  isPipelineOrchestratorEnabled,
-  PIPELINE_ORCHESTRATOR_FEATURE_ID,
-  runAIOrchestrator,
-  createAIOrchestrator,
-  buildOrchestratorPlan,
-  SPRINT113_AI_ORCHESTRATOR_VERSION,
-} from './orchestrator'
-export type {
-  OrchestratorInput,
-  OrchestratorResult,
-  ExecutionPlan,
-  ExecutionMetrics,
-  OrchestratorFinalResponse,
-} from './orchestrator'
-
 /** Sprint 114 — Intelligent Itinerary Engine */
 export {
   isItineraryEngineEnabled,
@@ -591,53 +553,6 @@ export type {
   ItineraryMetadata,
   TripStyleKind,
 } from './itinerary'
-
-/** Sprint 115 — Unified AI Execution Pipeline */
-export {
-  isExecutionPipelineEnabled,
-  EXECUTION_PIPELINE_FEATURE_ID,
-  runUnifiedExecutionPipeline,
-  createPipelineRunner,
-  SPRINT115_EXECUTION_PIPELINE_VERSION,
-} from './pipeline'
-export type {
-  PipelineInput,
-  PipelineResult,
-  PipelineMetrics,
-  PipelineStageId,
-  PipelineStageResult,
-} from './pipeline'
-
-/** Sprint 116 — AI Streaming Conversation Experience */
-export {
-  isStreamingConversationEnabled,
-  STREAMING_CONVERSATION_FEATURE_ID,
-  runStreamingConversation,
-  createStreamingConversation,
-  SPRINT116_STREAMING_CONVERSATION_VERSION,
-} from './streaming'
-export type {
-  StreamingConversationInput,
-  StreamingConversationResult,
-  StreamingEvent,
-  StreamingMetrics,
-} from './streaming'
-
-/** Sprint 118 — Editable AI Conversation */
-export {
-  isEditableConversationEnabled,
-  EDITABLE_CONVERSATION_FEATURE_ID,
-  runConversationEditor,
-  createConversationEditor,
-  SPRINT118_EDITABLE_CONVERSATION_VERSION,
-} from './editing'
-export type {
-  ConversationEditInput,
-  ConversationEditorResult,
-  EditPlan,
-  EditDiff,
-  EditKind,
-} from './editing'
 
 /** Sprint 92 — Amadeus Sandbox TravelProvider */
 export {

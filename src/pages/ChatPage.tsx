@@ -83,8 +83,8 @@ function VoiceComposer(props: Omit<ComponentProps<typeof VoiceComposerLazy>, 'le
 
 /**
  * Recovery Phase 1 — ONE Chat UI.
- * ProductionConversationScreen remains in `src/ui/integration` (quarantined) but is
- * disconnected from routing. Default path is always LegacyChatPage → chatEngine → planTurn.
+ * Sprint 80 P1-1 deleted the quarantined ProductionConversationScreen museum.
+ * Default path is always LegacyChatPage → chatEngine → planTurn.
  */
 
 type ComposerMode = 'text' | 'voice'
