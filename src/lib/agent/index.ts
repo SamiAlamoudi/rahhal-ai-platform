@@ -634,6 +634,21 @@ export {
   type RankedConversationHotel,
 } from './integrationHotelSearch'
 
+/** Sprint 80 P1-3 — unified conversational provider layer (flag OFF by default) */
+export {
+  CONVERSATIONAL_PROVIDER_UNIFY_VERSION,
+  CONVERSATIONAL_PROVIDER_UNIFY_FEATURE_ID,
+  isConversationalProviderUnifyEnabled,
+  runConversationalProviderSearch,
+  runConversationalProviderToolSearch,
+  createConversationalProviderRegistry,
+  resolveConversationalProviders,
+  mapConversationalProviderRequest,
+  type ConversationalTravelProvider,
+  type UnifiedProviderRequest,
+  type UnifiedProviderSearchResult,
+} from './conversationalProvider'
+
 /** Integration Sprint 4 — AI Trip Orchestrator */
 export {
   INTEGRATION_TRIP_ORCHESTRATOR_VERSION,

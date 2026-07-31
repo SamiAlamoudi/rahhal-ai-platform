@@ -40,6 +40,7 @@ export type FeatureId =
   | 'ai.live_flight_search'
   | 'ai.response_composer'
   | 'ai.live_hotel_search'
+  | 'ai.conversational_provider_unify'
   | 'ai.integration_trip_orchestrator'
   | 'ai.integration_destination_intelligence'
   | 'ai.integration_trip_companion'
