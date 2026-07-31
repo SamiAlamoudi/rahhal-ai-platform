@@ -15,7 +15,7 @@ const NewHomeExperience = lazy(() =>
 
 /**
  * Recovery Phase 1 — ONE home composition for product traffic.
- * ProductionHomeScreen remains quarantined under `src/ui/integration` (tests only).
+ * Sprint 80 P1-1 deleted quarantined ProductionHomeScreen (museum UI).
  * Intake always seeds `/chat` (not `/travel-conversation`).
  */
 

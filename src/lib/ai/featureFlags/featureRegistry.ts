@@ -549,7 +549,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'deprecated',
     enabled: false,
     notes:
-      'Product alias: memory_engine. Additive under src/lib/agent/memory/ (import via memory/index — distinct from legacy memory.ts intake helpers). Does not modify Decision Engine, providers, or Trip Builder. Recovery Phase 1 FREEZE: quarantined; sole turn owner = planTurn.',
+      'Product alias: memory_engine. Sprint 80 P1-1 deleted src/lib/agent/memory/ (MemoryRunner). Legacy intake helpers remain in agent/memory.ts. Flag remains OFF; sole turn owner = planTurn.',
   },
   {
     id: 'ai.orchestrator',
@@ -559,7 +559,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'deprecated',
     enabled: false,
     notes:
-      'Product alias: orchestrator. Additive under src/lib/agent/orchestrator. Distinct from brain.ai_orchestrator (Sprint 43) and booking.orchestrator. When OFF, legacy conversation paths are unchanged. Recovery Phase 1 FREEZE: quarantined; sole turn owner = planTurn.',
+      'Product alias: orchestrator. Sprint 80 P1-1 deleted src/lib/agent/orchestrator. Distinct from brain.ai_orchestrator (Sprint 43) and booking.orchestrator. Flag remains OFF; sole turn owner = planTurn.',
   },
   {
     id: 'ai.itinerary_engine',
@@ -579,7 +579,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'deprecated',
     enabled: false,
     notes:
-      'Product alias: execution_pipeline. Additive under src/lib/agent/pipeline. Reuses public engine APIs only; does not rewrite engines. Distinct from ai.orchestrator (Sprint 113). When OFF, legacy behavior is unchanged. Recovery Phase 1 FREEZE: quarantined; sole turn owner = planTurn.',
+      'Product alias: execution_pipeline. Sprint 80 P1-1 deleted src/lib/agent/pipeline. Distinct from ai.orchestrator (also deleted). Flag remains OFF; sole turn owner = planTurn.',
   },
   {
     id: 'ai.streaming_conversation',
@@ -589,7 +589,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'deprecated',
     enabled: false,
     notes:
-      'Product alias: streaming_conversation. Additive under src/lib/agent/streaming. Wraps pipeline via public adapters only — does not modify pipeline, orchestrator, engines, or providers. When OFF, legacy behavior is unchanged. Recovery Phase 1 FREEZE: quarantined; sole turn owner = planTurn.',
+      'Product alias: streaming_conversation. Sprint 80 P1-1 deleted src/lib/agent/streaming. Flag remains OFF; sole turn owner = planTurn.',
   },
   {
     id: 'ai.editable_conversation',
@@ -599,7 +599,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'deprecated',
     enabled: false,
     notes:
-      'Product alias: editable_conversation. Additive under src/lib/agent/editing. Reuses Execution Pipeline / Streaming public APIs; does not modify engines. When OFF, legacy behavior is unchanged. Recovery Phase 1 FREEZE: quarantined; sole turn owner = planTurn.',
+      'Product alias: editable_conversation. Sprint 80 P1-1 deleted src/lib/agent/editing. Flag remains OFF; sole turn owner = planTurn.',
   },
   {
     id: 'ai.live_conversation',
@@ -1307,7 +1307,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'deprecated',
     enabled: false,
     notes:
-      'Recovery Phase 1 FREEZE: disconnected from Home/Chat routing. Sole chat UI = LegacyChatPage. Quarantined under src/ui/integration.',
+      'Sprint 80 P1-1 deleted src/ui/integration + src/lib/uiIntegration. Sole chat UI = LegacyChatPage. Flag remains OFF.',
   },
   {
     id: 'ui.premium_home',
@@ -1318,7 +1318,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     enabled: false,
     dependsOn: ['ui.production_integration'],
     notes:
-      'Product alias: premium_home. Presentation only — composes existing production home data. Does not change navigation, engines, or APIs. When OFF, ProductionHomeScreen still renders the premium sections while gated by ui.production_integration. Recovery Phase 1 FREEZE: quarantined parallel stack.',
+      'Product alias: premium_home. Sprint 80 P1-1 deleted ProductionHomeScreen museum. Flag remains OFF; Home uses AI home experience.',
   },
   {
     id: 'ui.new_experience',
