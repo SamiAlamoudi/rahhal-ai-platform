@@ -131,11 +131,32 @@ export class AmadeusOAuthClient {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       }
-      // Supabase Edge Functions require anon/JWT; Vercel same-origin proxy does not.
+
+      // Sprint 79 P0: in the browser prefer a real Supabase user JWT.
+      // Node/unit tests keep invokeApiKey as Bearer so fetch mocks stay stable.
+      let bearer: string | null = null
+      if (typeof window !== 'undefined') {
+        try {
+          const { getProxyAccessToken } = await import('../../../lib/security/proxyAuth')
+          bearer = await getProxyAccessToken()
+        } catch {
+          bearer = null
+        }
+      }
+      if (!bearer && this.config.invokeApiKey) {
+        bearer = this.config.invokeApiKey
+      }
+      if (!bearer) {
+        clearTimeout(timeoutId)
+        const error = mapOAuthError(new Error('Authentication required'), 401, 'AUTH_REQUIRED')
+        return { token: null, error, latency: Date.now() - start, fromCache: false }
+      }
+      headers.Authorization = `Bearer ${bearer}`
+      // Supabase Edge Functions also expect the project anon key as apikey.
       if (this.config.invokeApiKey) {
-        headers.Authorization = `Bearer ${this.config.invokeApiKey}`
         headers.apikey = this.config.invokeApiKey
       }
+
       const response = await fetch(this.config.tokenUrl, {
         method: 'POST',
         headers,

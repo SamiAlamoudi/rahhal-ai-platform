@@ -1,37 +1,26 @@
 /**
  * POST /api/openai/realtime-session — mint ephemeral Realtime client secret (probe + optional client use).
  * GET — capability probe without minting.
+ *
+ * Sprint 79 P0: authenticated callers only + rate limit + CORS allow-list.
  */
+
+import { guardEdgeRequest, readServerOpenAiApiKey } from '../_lib/edgeGuard.js'
 
 export const config = {
   runtime: 'edge',
   maxDuration: 30,
 }
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type, openai-safety-identifier',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
-}
-
 const REALTIME_VOICE_MODEL = 'gpt-realtime-2.1'
 
-function readApiKey(): string | null {
-  const raw = (
-    process.env.OPENAI_API_KEY
-    || process.env.VITE_AGENT_OPENAI_API_KEY
-    || process.env.VITE_OPENAI_API_KEY
-  )?.trim()
-  return raw || null
-}
-
 export default async function handler(req: Request): Promise<Response> {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  const gate = await guardEdgeRequest(req, { bucket: 'openai.realtime_session', limit: 20 })
+  if (!gate.ok) return gate.response
+  const corsHeaders = gate.corsHeaders
 
-  const apiKey = readApiKey()
-  const model = process.env.VITE_OPENAI_REALTIME_MODEL?.trim() || REALTIME_VOICE_MODEL
+  const apiKey = readServerOpenAiApiKey()
+  const model = process.env.OPENAI_REALTIME_MODEL?.trim() || REALTIME_VOICE_MODEL
 
   if (req.method === 'GET') {
     return new Response(JSON.stringify({

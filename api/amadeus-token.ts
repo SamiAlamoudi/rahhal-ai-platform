@@ -5,38 +5,32 @@
  * from Vercel project env (never VITE_*). SPA calls this same-origin endpoint
  * for short-lived tokens.
  *
- * Deploy:
- *   vercel env add AMADEUS_API_KEY
- *   vercel env add AMADEUS_API_SECRET
- *   vercel env add AMADEUS_BASE_URL
+ * Sprint 79 P0: authenticated callers only + rate limit + CORS allow-list
+ * to prevent anonymous token farming.
  */
 
 import { normalizeAmadeusHost, readAmadeusCredentials } from './_lib/amadeusEnv.js'
+import { guardEdgeRequest } from './_lib/edgeGuard.js'
 
 export const config = {
   runtime: 'edge',
 }
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-}
-
-function json(body: unknown, status = 200): Response {
+function json(body: unknown, status: number, corsHeaders: Record<string, string>): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   })
 }
 
 export default async function handler(req: Request): Promise<Response> {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  // Strict limit — token minting is expensive and abusable.
+  const gate = await guardEdgeRequest(req, { bucket: 'amadeus.token', limit: 10 })
+  if (!gate.ok) return gate.response
+  const corsHeaders = gate.corsHeaders
 
   if (req.method !== 'POST' && req.method !== 'GET') {
-    return json({ error: 'Method not allowed', code: 'METHOD_NOT_ALLOWED' }, 405)
+    return json({ error: 'Method not allowed', code: 'METHOD_NOT_ALLOWED' }, 405, corsHeaders)
   }
 
   const { clientId, clientSecret, host, hasCredentials } = readAmadeusCredentials(process.env)
@@ -44,7 +38,7 @@ export default async function handler(req: Request): Promise<Response> {
     return json({
       error: 'Amadeus credentials are not configured on the server',
       code: 'AMADEUS_SERVER_NOT_CONFIGURED',
-    }, 503)
+    }, 503, corsHeaders)
   }
 
   const tokenUrl = `${normalizeAmadeusHost(host)}/v1/security/oauth2/token`
@@ -72,7 +66,7 @@ export default async function handler(req: Request): Promise<Response> {
             ? 'AMADEUS_QUOTA_EXCEEDED'
             : 'AMADEUS_AUTH_ERROR',
         status: response.status,
-      }, response.status === 401 || response.status === 429 ? response.status : 502)
+      }, response.status === 401 || response.status === 429 ? response.status : 502, corsHeaders)
     }
 
     const data = JSON.parse(text) as Record<string, unknown>
@@ -81,11 +75,11 @@ export default async function handler(req: Request): Promise<Response> {
       token_type: data.token_type ?? 'Bearer',
       expires_in: data.expires_in,
       scope: data.scope ?? null,
-    })
+    }, 200, corsHeaders)
   } catch (err) {
     return json({
       error: err instanceof Error ? err.message : 'Token exchange failed',
       code: 'AMADEUS_AUTH_NETWORK',
-    }, 502)
+    }, 502, corsHeaders)
   }
 }

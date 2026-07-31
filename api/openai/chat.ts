@@ -2,42 +2,23 @@
  * POST /api/openai/chat — server-side OpenAI Chat Completions proxy.
  * Keeps OPENAI_API_KEY off the client so Conversation Brain always hits OpenAI in production.
  *
- * Body: {
- *   messages: Array<{ role, content }>,
- *   temperature?: number,
- *   jsonObject?: boolean,
- *   stream?: boolean,
- *   model?: string
- * }
+ * Sprint 79 P0: authenticated callers only + rate limit + CORS allow-list.
  */
+
+import { guardEdgeRequest, readServerOpenAiApiKey } from '../_lib/edgeGuard.js'
 
 export const config = {
   runtime: 'edge',
   maxDuration: 60,
 }
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
-}
-
-function readApiKey(): string | null {
-  const raw = (
-    process.env.OPENAI_API_KEY
-    || process.env.VITE_AGENT_OPENAI_API_KEY
-    || process.env.VITE_OPENAI_API_KEY
-  )?.trim()
-  return raw || null
-}
-
 export default async function handler(req: Request): Promise<Response> {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  const gate = await guardEdgeRequest(req, { bucket: 'openai.chat', limit: 30 })
+  if (!gate.ok) return gate.response
+  const corsHeaders = gate.corsHeaders
 
   if (req.method === 'GET') {
-    return new Response(JSON.stringify({ configured: Boolean(readApiKey()) }), {
+    return new Response(JSON.stringify({ configured: Boolean(readServerOpenAiApiKey()) }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     })
@@ -50,7 +31,7 @@ export default async function handler(req: Request): Promise<Response> {
     })
   }
 
-  const apiKey = readApiKey()
+  const apiKey = readServerOpenAiApiKey()
   if (!apiKey) {
     return new Response(JSON.stringify({ error: 'missing_api_key' }), {
       status: 503,
@@ -85,7 +66,7 @@ export default async function handler(req: Request): Promise<Response> {
 
   const stream = body.stream !== false
   const model = (typeof body.model === 'string' && body.model.trim())
-    || process.env.VITE_AGENT_OPENAI_MODEL?.trim()
+    || process.env.OPENAI_CHAT_MODEL?.trim()
     || 'gpt-4o'
   const upstreamBody: Record<string, unknown> = {
     model,
@@ -96,7 +77,6 @@ export default async function handler(req: Request): Promise<Response> {
     })),
     stream,
   }
-  // Default: natural prose (ChatGPT Voice). Opt-in JSON via jsonObject: true.
   if (body.jsonObject === true) {
     upstreamBody.response_format = { type: 'json_object' }
   }

@@ -48,6 +48,11 @@ describe('demo auth helpers', () => {
     expect(isDemoAuthEnabled()).toBe(true)
   })
 
+  it('stays disabled by default in vitest (VITE_DEMO_AUTH=false)', () => {
+    __setDemoAuthEnabledForTests(null)
+    expect(isDemoAuthEnabled()).toBe(false)
+  })
+
   it('creates a stable demo user/session shape', () => {
     const user = createDemoUser()
     expect(user.email).toBe(DEMO_USER_EMAIL)

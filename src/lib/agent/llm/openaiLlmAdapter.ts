@@ -1,6 +1,7 @@
 /**
  * OpenAI chat completions adapter for Conversation Brain.
- * Enabled when VITE_OPENAI_API_KEY, VITE_AGENT_OPENAI_API_KEY, or OPENAI_API_KEY is set.
+ * Enabled when server OPENAI_API_KEY is configured (browser uses /api/openai/*).
+ * Client VITE_OPENAI_* keys are forbidden in production (Sprint 79 P0).
  * Never hardcodes secrets — all config is environment-driven via openaiClient.
  */
 

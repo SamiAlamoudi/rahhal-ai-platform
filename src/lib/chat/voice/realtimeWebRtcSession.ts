@@ -1440,9 +1440,11 @@ export function createRealtimeWebRtcSession(
 
       const initial = buildInstructions(undefined, activeLanguage)
       activeLanguage = initial.language
+      const { requireProxyAuthHeaders } = await import('../../security/proxyAuth')
+      const authHeaders = await requireProxyAuthHeaders({ 'Content-Type': 'application/json' })
       const res = await fetch('/api/openai/realtime-call', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           sdp: offer.sdp,
           voice,

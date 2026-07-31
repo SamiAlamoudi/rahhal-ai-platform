@@ -57,7 +57,12 @@ export async function probeRealtimeCapability(
   fetchImpl: typeof fetch = fetch,
 ): Promise<RealtimeCapability | null> {
   try {
-    const res = await fetchImpl('/api/openai/realtime-session', { method: 'GET' })
+    const { requireProxyAuthHeaders } = await import('../../security/proxyAuth')
+    const headers = await requireProxyAuthHeaders()
+    const res = await fetchImpl('/api/openai/realtime-session', {
+      method: 'GET',
+      headers,
+    })
     if (!res.ok) return null
     return await res.json() as RealtimeCapability
   } catch {

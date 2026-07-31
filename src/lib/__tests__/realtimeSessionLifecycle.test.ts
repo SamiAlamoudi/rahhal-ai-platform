@@ -7,11 +7,19 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
  */
 
 describe('realtime session lifecycle contract', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules()
+    const { __setProxyAccessTokenForTests } = await import('../security/proxyAuth')
+    __setProxyAccessTokenForTests('test-user-jwt')
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    try {
+      const { __setProxyAccessTokenForTests } = await import('../security/proxyAuth')
+      __setProxyAccessTokenForTests(undefined)
+    } catch {
+      // ignore
+    }
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })

@@ -75,11 +75,10 @@ export type OpenAiChatRequest = {
 }
 
 function readOpenAiApiKey(): string | null {
-  const raw = (
-    readManagedEnv('OPENAI_API_KEY', { providerId: 'openai' })
-    ?? readManagedConfig('VITE_AGENT_OPENAI_API_KEY')
-    ?? readManagedConfig('VITE_OPENAI_API_KEY')
-  )?.trim()
+  // Browser live path uses same-origin /api/openai/* (server OPENAI_API_KEY only).
+  // Never prefer VITE_* OpenAI keys — they must not ship in production bundles.
+  if (typeof window !== 'undefined') return null
+  const raw = readManagedEnv('OPENAI_API_KEY', { providerId: 'openai' })?.trim()
   return raw || null
 }
 
@@ -235,10 +234,13 @@ async function fetchOnce(
     }
     const body = buildRequestBody(config, request, stream)
     if (config.useProxy) {
-      // Same-origin Vercel Edge proxy — Authorization stays on the server.
+      // Same-origin Vercel Edge proxy — OpenAI secret stays on the server;
+      // caller must present a real Supabase user JWT (Sprint 79 P0).
+      const { requireProxyAuthHeaders } = await import('../../security/proxyAuth')
+      const headers = await requireProxyAuthHeaders({ 'Content-Type': 'application/json' })
       return await fetch('/api/openai/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           messages: request.messages,
           temperature: request.temperature ?? 0.9,

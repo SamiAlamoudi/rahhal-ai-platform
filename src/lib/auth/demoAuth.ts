@@ -1,8 +1,9 @@
 /**
- * Local-only demo auth for development / RC verification without Supabase.
- * Enabled only when VITE_DEMO_AUTH=true. Never active in production builds
- * unless an operator explicitly sets the flag (and even then it only creates
- * an in-memory session — no persistence, no admin).
+ * Local-only demo auth for development / RC / Playwright E2E without Supabase.
+ * Enabled only when VITE_DEMO_AUTH=true.
+ * Sprint 79 P0: hard-disabled when VITE_DEPLOY_TARGET is production/prod
+ * (so a leaked VITE_DEMO_AUTH cannot unlock demo login on production).
+ * E2E builds intentionally set VITE_DEMO_AUTH=true with VITE_DEPLOY_TARGET=e2e.
  */
 import type { Session, User } from '@supabase/supabase-js'
 
@@ -18,9 +19,17 @@ export function __setDemoAuthEnabledForTests(value: boolean | null): void {
   demoAuthOverride = value
 }
 
+function isProductionDeployTarget(): boolean {
+  const deployTarget = String(import.meta.env.VITE_DEPLOY_TARGET || '').trim().toLowerCase()
+  return deployTarget === 'production' || deployTarget === 'prod'
+}
+
 export function isDemoAuthEnabled(): boolean {
   if (demoAuthOverride !== null) return demoAuthOverride
-  return import.meta.env.VITE_DEMO_AUTH === 'true'
+  if (import.meta.env.VITE_DEMO_AUTH !== 'true') return false
+  // Production deploy target never honors demo auth — even if VITE_DEMO_AUTH leaked.
+  if (isProductionDeployTarget()) return false
+  return true
 }
 
 export function createDemoUser(email = DEMO_USER_EMAIL): User {

@@ -62,9 +62,9 @@ function createAdapter(domain: ProviderDomain | 'currency', adapterType: Provide
       if (adapterType === 'mock') return new MockFlightAdapter()
       if (adapterType === 'amadeus') {
         const cfg = config.flight
+        // Same-origin Vercel/Vite proxy still needs a Bearer token (user JWT in
+        // browser; tests/Node may use the anon key via invokeApiKey).
         if (!cfg.tokenUrl) return null
-        // Same-origin Vercel/Vite proxy (`/api/amadeus-token`) needs no invoke key.
-        // Supabase Edge token proxy still requires the anon key.
         const relativeProxy = cfg.tokenUrl.startsWith('/')
         if (!relativeProxy && !cfg.invokeApiKey) return null
         return new AmadeusFlightAdapter({

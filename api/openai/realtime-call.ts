@@ -2,34 +2,18 @@
  * POST /api/openai/realtime-call — Unified WebRTC Realtime session (GA).
  * Browser posts SDP offer; server authenticates with OPENAI_API_KEY and returns SDP answer.
  *
- * This is speech-to-speech (gpt-realtime-*), NOT gpt-4o-mini-tts.
- *
- * GET  → capability probe (configured + preferred model)
- * POST → multipart/raw SDP → OpenAI /v1/realtime/calls
+ * Sprint 79 P0: authenticated callers only + rate limit + CORS allow-list.
  */
+
+import { guardEdgeRequest, readServerOpenAiApiKey } from '../_lib/edgeGuard.js'
 
 export const config = {
   runtime: 'edge',
   maxDuration: 30,
 }
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type, openai-safety-identifier',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
-}
-
 /** Highest-quality public Realtime voice-agent model per OpenAI docs (2026). */
 export const REALTIME_VOICE_MODEL = 'gpt-realtime-2.1'
-
-function readApiKey(): string | null {
-  const raw = (
-    process.env.OPENAI_API_KEY
-    || process.env.VITE_AGENT_OPENAI_API_KEY
-    || process.env.VITE_OPENAI_API_KEY
-  )?.trim()
-  return raw || null
-}
 
 function defaultInstructions(dialectHint?: string): string {
   return [
@@ -57,11 +41,10 @@ function buildSessionConfig(input: {
   const instructions = (input.instructions || defaultInstructions(input.dialectHint)).trim()
   return JSON.stringify({
     type: 'realtime',
-    model: process.env.VITE_OPENAI_REALTIME_MODEL?.trim() || REALTIME_VOICE_MODEL,
+    model: process.env.OPENAI_REALTIME_MODEL?.trim() || REALTIME_VOICE_MODEL,
     instructions,
     audio: {
       input: {
-        // Explicit Arabic transcription — do not leave language auto-detect unconstrained.
         transcription: {
           model: 'gpt-4o-mini-transcribe',
           language: 'ar',
@@ -81,17 +64,18 @@ function buildSessionConfig(input: {
 }
 
 export default async function handler(req: Request): Promise<Response> {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  const gate = await guardEdgeRequest(req, { bucket: 'openai.realtime_call', limit: 20 })
+  if (!gate.ok) return gate.response
+  const corsHeaders = gate.corsHeaders
 
-  const apiKey = readApiKey()
+  const apiKey = readServerOpenAiApiKey()
+  const model = process.env.OPENAI_REALTIME_MODEL?.trim() || REALTIME_VOICE_MODEL
 
   if (req.method === 'GET') {
     return new Response(JSON.stringify({
       configured: Boolean(apiKey),
       architecture: 'realtime_speech_to_speech',
-      model: process.env.VITE_OPENAI_REALTIME_MODEL?.trim() || REALTIME_VOICE_MODEL,
+      model,
       note: 'ChatGPT GPT-Live models are not on the public API; gpt-realtime-2.1 is the highest-quality public voice-agent stack.',
     }), {
       status: 200,
@@ -138,7 +122,6 @@ export default async function handler(req: Request): Promise<Response> {
       })
     }
   } else {
-    // Unified interface: raw SDP body
     sdpOffer = await req.text()
   }
 
@@ -150,8 +133,6 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   const sessionConfig = buildSessionConfig({ voice, instructions, dialectHint })
-  // OpenAI unified interface expects multipart *string* fields (not file Blobs).
-  // Blob+filename uploads are rejected: "field \"sdp\" is required but not found".
   const fd = new FormData()
   fd.set('sdp', sdpOffer)
   fd.set('session', sessionConfig)
@@ -172,9 +153,8 @@ export default async function handler(req: Request): Promise<Response> {
       error: 'upstream_realtime_error',
       status: upstream.status,
       detail: answer.slice(0, 800),
-      model: process.env.VITE_OPENAI_REALTIME_MODEL?.trim() || REALTIME_VOICE_MODEL,
+      model,
     }), {
-      // Preserve upstream 4xx as 502 for client contract, but surface detail for logs.
       status: 502,
       headers: {
         ...corsHeaders,
@@ -185,7 +165,6 @@ export default async function handler(req: Request): Promise<Response> {
     })
   }
 
-  // Successful unified-interface calls return SDP answer text.
   const okStatus = upstream.status === 200 || upstream.status === 201 ? upstream.status : 201
   return new Response(answer, {
     status: okStatus,
@@ -194,7 +173,7 @@ export default async function handler(req: Request): Promise<Response> {
       'Content-Type': 'application/sdp',
       'Cache-Control': 'no-store',
       'X-Rahhal-Voice-Architecture': 'realtime_speech_to_speech',
-      'X-Rahhal-Realtime-Model': process.env.VITE_OPENAI_REALTIME_MODEL?.trim() || REALTIME_VOICE_MODEL,
+      'X-Rahhal-Realtime-Model': model,
     },
   })
 }
