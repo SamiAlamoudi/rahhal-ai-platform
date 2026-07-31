@@ -1,4 +1,14 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type FormEvent,
+} from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageBubble from '../components/chat/MessageBubble'
@@ -9,13 +19,6 @@ import { ProductAppBar } from '../components/productUx'
 import { VoiceStateBadge } from '../components/productUx/chat/VoiceStateBadge'
 import { SuggestedReplies } from '../components/productUx/chat/SuggestedReplies'
 import { isUiNewExperienceEnabled, productCopy } from '../lib/productUx'
-
-/** RC-2 — voice UI loads only when the user switches to voice mode. */
-const VoicePanel = lazy(() =>
-  import('../components/premium/VoicePanel').then((m) => ({ default: m.VoicePanel })),
-)
-const VoiceComposer = lazy(() => import('../components/chat/VoiceComposer'))
-
 import { travelAgentService } from '../lib/agent/travelAgentService'
 import { detectAgentLocale } from '../lib/agent/locale'
 import type { TripPlan } from '../lib/agent/types'
@@ -50,6 +53,8 @@ import {
 } from '../lib/chat/conversationExperienceUi'
 import type { CreateVoiceSessionOptions, VoiceSession } from '../lib/chat/voice/voiceSession'
 import type { VoiceInputMode, VoiceLocale, VoiceSessionStatus } from '../lib/chat/voice/voiceTypes'
+import { resetVoiceMeterLevel, setVoiceMeterLevel } from '../lib/chat/voice/voiceMeterStore'
+import { useVoiceMeterLevel } from '../lib/chat/voice/useVoiceMeterLevel'
 import {
   EXPERIENCE_STATE_LABELS,
   isChatGptExperienceEnabled,
@@ -58,6 +63,23 @@ import {
   writeSessionUiRecovery,
   type ChatGptExperienceState,
 } from '../lib/chat/chatgptExperience'
+
+/** RC-2 — voice UI loads only when the user switches to voice mode. */
+const VoicePanelLazy = lazy(() =>
+  import('../components/premium/VoicePanel').then((m) => ({ default: m.VoicePanel })),
+)
+const VoiceComposerLazy = lazy(() => import('../components/chat/VoiceComposer'))
+
+/** Sprint 80 P1-5 — level ticks stay inside these leaves, not LegacyChatPage. */
+function VoicePanel(props: Omit<ComponentProps<typeof VoicePanelLazy>, 'level'>) {
+  const level = useVoiceMeterLevel()
+  return <VoicePanelLazy {...props} level={level} />
+}
+
+function VoiceComposer(props: Omit<ComponentProps<typeof VoiceComposerLazy>, 'level'>) {
+  const level = useVoiceMeterLevel()
+  return <VoiceComposerLazy {...props} level={level} />
+}
 
 /**
  * Recovery Phase 1 — ONE Chat UI.
@@ -107,7 +129,6 @@ function LegacyChatPage() {
   const [voiceMode, setVoiceMode] = useState<VoiceInputMode>('hands_free')
   const [voiceLocale, setVoiceLocale] = useState<VoiceLocale>('ar')
   const [partialTranscript, setPartialTranscript] = useState('')
-  const [voiceLevel, setVoiceLevel] = useState(0)
   const [voiceMuted, setVoiceMuted] = useState(false)
   const [micError, setMicError] = useState<string | null>(null)
   const [permissionState, setPermissionState] = useState<'granted' | 'denied' | 'prompt' | 'unsupported' | null>(null)
@@ -415,6 +436,7 @@ function LegacyChatPage() {
         voiceRef.current.dispose()
         voiceRef.current = null
       }
+      resetVoiceMeterLevel()
       return
     }
     let disposed = false
@@ -423,7 +445,7 @@ function LegacyChatPage() {
       onStatus: setVoiceStatus,
       onPartialTranscript: setPartialTranscript,
       onFinalTranscript: setPartialTranscript,
-      onLevel: setVoiceLevel,
+      onLevel: setVoiceMeterLevel,
       onPermission: (state) => {
         setPermissionState(state.state)
         if (state.state !== 'granted') setMicError(state.error || 'يلزم إذن الميكروفون')
@@ -938,6 +960,72 @@ function LegacyChatPage() {
     }
   }
 
+  // Sprint 80 P1-5 — keep MessageBubble memo effective: handlers via ref so
+  // draft/query/meter-unrelated parent updates do not rebuild renderMessage.
+  const bubbleActionsRef = useRef({
+    handleRetry,
+    handleRegenerate,
+    handleEditUserMessage,
+    handleSaveItinerary,
+    handleRegenerateItinerary,
+    handleRegenerateDay,
+    sendAgentCommand,
+    handleBookingAction,
+    navigateToTrips: () => navigate('/my-trips'),
+  })
+  bubbleActionsRef.current = {
+    handleRetry,
+    handleRegenerate,
+    handleEditUserMessage,
+    handleSaveItinerary,
+    handleRegenerateItinerary,
+    handleRegenerateDay,
+    sendAgentCommand,
+    handleBookingAction,
+    navigateToTrips: () => navigate('/my-trips'),
+  }
+
+  const listBusy = isStreaming || voiceBusy || bookingBusy
+  const structuredId = latestStructuredMessage?.id ?? null
+  const renderMessage = useCallback(
+    (message: ChatMessage) => {
+      const actions = bubbleActionsRef.current
+      return (
+        <MessageBubble
+          message={message}
+          isStreaming={message.status === 'streaming'}
+          busy={listBusy}
+          locale={chatLocale}
+          bookingState={
+            experienceEnabled && message.id === structuredId ? bookingState : null
+          }
+          timelineEvents={
+            experienceEnabled && message.id === structuredId ? timelineEvents : []
+          }
+          onRetry={(id) => void actions.handleRetry(id)}
+          onRegenerate={chatgptOn ? (id) => void actions.handleRegenerate(id) : undefined}
+          onEditUserMessage={chatgptOn ? actions.handleEditUserMessage : undefined}
+          onSaveItinerary={(itinerary) => void actions.handleSaveItinerary(itinerary)}
+          onRegenerateItinerary={(id) => void actions.handleRegenerateItinerary(id)}
+          onRegenerateDay={(id, day) => void actions.handleRegenerateDay(id, day)}
+          onEditItinerary={(patchText) => void actions.sendAgentCommand(patchText)}
+          onSmartAction={(hint) => void actions.sendAgentCommand(hint)}
+          onBookingAction={(action) => void actions.handleBookingAction(action)}
+          onOpenTimelineEvent={actions.navigateToTrips}
+        />
+      )
+    },
+    [
+      listBusy,
+      chatLocale,
+      experienceEnabled,
+      structuredId,
+      bookingState,
+      timelineEvents,
+      chatgptOn,
+    ],
+  )
+
   const newExperienceOn = isUiNewExperienceEnabled()
   const voiceUiState =
     voiceStatus === 'listening'
@@ -1201,37 +1289,7 @@ function LegacyChatPage() {
                     onPrompt={(text) => void sendAgentCommand(text)}
                   />
                 )}
-                <VirtualizedMessageList
-                  messages={messages}
-                  renderMessage={(message) => (
-                    <MessageBubble
-                      message={message}
-                      isStreaming={message.status === 'streaming'}
-                      busy={isStreaming || voiceBusy || bookingBusy}
-                      locale={chatLocale}
-                      bookingState={
-                        experienceEnabled && message.id === latestStructuredMessage?.id
-                          ? bookingState
-                          : null
-                      }
-                      timelineEvents={
-                        experienceEnabled && message.id === latestStructuredMessage?.id
-                          ? timelineEvents
-                          : []
-                      }
-                      onRetry={(id) => void handleRetry(id)}
-                      onRegenerate={chatgptOn ? (id) => void handleRegenerate(id) : undefined}
-                      onEditUserMessage={chatgptOn ? handleEditUserMessage : undefined}
-                      onSaveItinerary={(itinerary) => void handleSaveItinerary(itinerary)}
-                      onRegenerateItinerary={(id) => void handleRegenerateItinerary(id)}
-                      onRegenerateDay={(id, day) => void handleRegenerateDay(id, day)}
-                      onEditItinerary={(patchText) => void sendAgentCommand(patchText)}
-                      onSmartAction={(hint) => void sendAgentCommand(hint)}
-                      onBookingAction={(action) => void handleBookingAction(action)}
-                      onOpenTimelineEvent={() => navigate('/my-trips')}
-                    />
-                  )}
-                />
+                <VirtualizedMessageList messages={messages} renderMessage={renderMessage} />
                 <div ref={bottomRef} />
               </div>
 
@@ -1239,7 +1297,6 @@ function LegacyChatPage() {
                 <Suspense fallback={null}>
                   <VoicePanel
                     status={voiceStatus}
-                    level={voiceLevel}
                     partialTranscript={partialTranscript}
                     locale={voiceLocale === 'en' ? 'en' : 'ar'}
                     muted={voiceMuted}
@@ -1295,7 +1352,6 @@ function LegacyChatPage() {
                       permissionState={permissionState}
                       busy={isStreaming || voiceBusy}
                       online={online}
-                      level={voiceLevel}
                       onModeChange={setVoiceMode}
                       onLocaleChange={setVoiceLocale}
                       onPushStart={() => void handlePushStart()}

@@ -5,7 +5,9 @@
  *
  *   /chat → LegacyChatPage → chatEngine → travel-agent → travelAgentService.planTurn
  *
- * Voice = browser STT → chatEngine → OpenAI Conversation Brain → TTS (same spine).
+ * Voice = STT → chatEngine → OpenAI Conversation Brain → TTS (same spine).
+ * Post-#311: after assistant reply/playback, mic is IDLE (no auto-relisten);
+ * Realtime `interrupt_response` stays false (no soft duplex barge-in).
  *
  * @see docs/ARCHITECTURE_CONVERSATION_FIRST.md
  * @see docs/MIGRATION_CONVERSATION_FIRST.md
@@ -62,3 +64,15 @@ export const RECOVERY_FROZEN_OFF_FLAGS = [
 ] as const
 
 export type RecoveryFrozenOffFlag = (typeof RECOVERY_FROZEN_OFF_FLAGS)[number]
+
+/**
+ * Sprint 80 / post-#311 — microphone state after a completed assistant turn.
+ * Next listen requires an explicit user mic press.
+ */
+export const RECOVERY_VOICE_MIC_AFTER_REPLY = 'idle' as const
+
+/**
+ * Sprint 80 / post-#311 — Realtime turn-detection barge-in flag.
+ * Must stay false (speakerphone echo would otherwise cancel responses).
+ */
+export const RECOVERY_VOICE_INTERRUPT_RESPONSE = false as const

@@ -9,7 +9,10 @@ import {
   RECOVERY_MEMORY,
   RECOVERY_PAYMENT,
   RECOVERY_TURN_OWNER,
+  RECOVERY_VOICE_INTERRUPT_RESPONSE,
+  RECOVERY_VOICE_MIC_AFTER_REPLY,
 } from '../recovery/freeze'
+import { buildRealtimeTurnDetection } from '../chat/voice/realtimeTurnConfig'
 
 describe('Recovery Phase 1 freeze', () => {
   beforeEach(() => {
@@ -58,5 +61,11 @@ describe('Recovery Phase 1 freeze', () => {
     ] as const) {
       expect(registry.get(id)?.lifecycle).toBe('deprecated')
     }
+  })
+
+  it('freezes post-#311 voice mic / barge-in contracts (Sprint 80 P1-7)', () => {
+    expect(RECOVERY_VOICE_MIC_AFTER_REPLY).toBe('idle')
+    expect(RECOVERY_VOICE_INTERRUPT_RESPONSE).toBe(false)
+    expect(buildRealtimeTurnDetection().interrupt_response).toBe(RECOVERY_VOICE_INTERRUPT_RESPONSE)
   })
 })

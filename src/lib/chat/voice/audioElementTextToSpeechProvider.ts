@@ -196,38 +196,8 @@ export async function unlockAudioPlayback(): Promise<void> {
     // ignore
   }
 
-  // Warm OpenAI TTS path with the user's preferred voice (still not Edge).
-  // Sprint 79 P0: authenticated proxy only — skip warmup when unsigned-in.
-  const prefs = loadVoiceExperiencePrefs()
-  void (async () => {
-    try {
-      const { requireProxyAuthHeaders } = await import('../../security/proxyAuth')
-      const headers = await requireProxyAuthHeaders({ 'Content-Type': 'application/json' })
-      const res = await fetch('/api/openai/tts', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          text: 'مرحبا',
-          locale: 'ar',
-          voice: prefs.voiceId,
-          speed: speakingSpeedRate(prefs.speed),
-          dialect: prefs.dialect,
-          instructions: buildTtsSpeechInstructions({ locale: 'ar', dialect: prefs.dialect }),
-          format: 'wav',
-        }),
-      })
-      if (!res.ok) {
-        logChat('warn', 'tts', 'openai_tts_warmup_failed', { status: res.status })
-        return
-      }
-      await res.arrayBuffer().catch(() => undefined)
-      logChat('debug', 'tts', 'openai_tts_warmup_ok')
-    } catch (error) {
-      logChat('warn', 'tts', 'openai_tts_warmup_network_error', {
-        message: error instanceof Error ? error.message : String(error),
-      })
-    }
-  })()
+  // Sprint 80 P1-6: unlock uses silent local audio + route preconnect/OPTIONS only.
+  // Do not POST a synthetic "مرحبا" TTS — that burns latency and proxy quota on every gesture.
 
   try {
     if (!unlockWarmAudio) {

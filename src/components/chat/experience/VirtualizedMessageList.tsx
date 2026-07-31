@@ -6,7 +6,16 @@ interface Props {
   renderMessage: (message: ChatMessage, index: number) => ReactNode
   estimateHeight?: number
   overscan?: number
+  /**
+   * Sprint 80 P1-5 — honest threshold: virtualize only when the list is large
+   * enough that windowing saves work. Below this, render all rows (no fake
+   * windowing overhead / scroll jump for short chats).
+   */
+  virtualizeAfter?: number
 }
+
+/** Default: keep short chats fully mounted; window only above this count. */
+export const MESSAGE_LIST_VIRTUALIZE_AFTER = 40
 
 /**
  * Lightweight virtualized list (no extra dependency).
@@ -17,6 +26,7 @@ function VirtualizedMessageListImpl({
   renderMessage,
   estimateHeight = 140,
   overscan = 4,
+  virtualizeAfter = MESSAGE_LIST_VIRTUALIZE_AFTER,
 }: Props) {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -33,7 +43,7 @@ function VirtualizedMessageListImpl({
   }, [])
 
   const total = messages.length
-  const useVirtual = total > 40
+  const useVirtual = total > virtualizeAfter
 
   const { start, end, offsetTop, totalHeight } = useMemo(() => {
     if (!useVirtual) {

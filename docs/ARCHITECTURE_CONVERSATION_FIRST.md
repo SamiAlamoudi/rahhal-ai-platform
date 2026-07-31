@@ -31,9 +31,9 @@ OpenAI ChatGPT API      (conversationBrain → openaiLlmAdapter.converse)
     ↓
 Assistant Response      (displayText + spokenText JSON)
     ↓
-Text-to-Speech          (src/lib/chat/voice/webTextToSpeechProvider)
+Text-to-Speech          (OpenAI `/api/openai/tts` via audio element; Edge backup after failures)
     ↓
-Listening               (hands-free resume / barge-in interrupt)
+IDLE                    (mic stays IDLE — no auto-relisten; user taps mic for the next turn)
 ```
 
 Text turns skip Mic/STT/TTS and enter at Conversation Context.
@@ -113,13 +113,16 @@ flowchart TB
 
 - Natural conversation via short `spokenText`
 - Streaming assistant UI via chatEngine deltas
-- Interruptions / barge-in via `voiceSession.interrupt`
-- Automatic microphone recovery via permission + hands-free restart
-- Continuous conversation (hands-free listen → think → speak → listen)
+- Explicit interrupt via mic tap / stop (server `interrupt_response: false` — no soft duplex barge-in)
+- After assistant reply or playback completes, microphone state is **IDLE** (not LISTENING)
+- Next listening turn starts only after an explicit user mic press
+- Home Realtime path: WebRTC STT + `speakWrittenDraft`; classic `/chat` path: browser STT → same `planTurn` → audio-element TTS
 
 ## Explicitly out of product spine
 
-- OpenAI Realtime duplex sockets
+- Soft duplex barge-in / listen-while-speaking (optional future, flag-OFF)
+- Automatic hands-free relisten after every reply (removed post-#311)
+- OpenAI Realtime inventing assistant replies (Realtime is transport + STT/TTS only)
 - Sprint 18 `voiceConversation` orb runtime
 - Phase 5 `llmBrain` / Phase 6 `agentRuntime` soft-enrich
 - Voice Preview / Trace / Debug Overlay / JSON evidence panels

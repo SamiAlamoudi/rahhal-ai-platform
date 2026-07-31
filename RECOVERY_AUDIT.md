@@ -129,6 +129,8 @@ Mic permission → getUserMedia (retained for VAD)
 | Realtime | **None** — no WebRTC, no MediaRecorder upload |
 | Parallel stack | `lib/voiceConversation` + unused hooks/components — **dead to routes** |
 
+> **Production freeze (Sprint 80 / post-#311):** Mic returns **IDLE** after assistant reply/playback (no auto-relisten). Realtime `interrupt_response` is **false**. Home Realtime is STT + speak-written-draft over the same `planTurn` spine — see `docs/ARCHITECTURE_CONVERSATION_FIRST.md` and `src/lib/recovery/freeze.ts` (`RECOVERY_VOICE_*`). Historical rows above that predate Home Realtime should be read through that freeze.
+
 **Home mic** (`useSpeechRecognition`) only fills the composer draft. It does not open a voice session.
 
 **Limitation statement:** Voice today is **dictation into a rule engine**, not a realtime concierge call.

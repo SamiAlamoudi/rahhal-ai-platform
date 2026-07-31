@@ -3,6 +3,8 @@
 **Date:** 2026-07-28  
 **Repo branch:** `cursor/voice-architecture-realtime-71ec`
 
+> **Production freeze (Sprint 80 / post-#311):** Home Realtime remains STT + speak-written-draft over the same `planTurn` spine. Soft duplex barge-in is **off** (`interrupt_response: false`). After assistant speech, mic returns to **IDLE** — no automatic relisten. Treat barge-in rows below as historical design notes from this sprint branch, not current `main` contracts.
+
 ## Question
 
 Is `gpt-4o-mini-tts` the quality bottleneck, and can Rahhal migrate to the newest OpenAI conversational speech architecture to approach ChatGPT Voice?
