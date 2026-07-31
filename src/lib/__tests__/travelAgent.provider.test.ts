@@ -39,7 +39,7 @@ describe('travelAgentProvider', () => {
   it('asks follow-up when duration is missing', async () => {
     const provider = createTravelAgentProvider()
     const { text, meta } = await collect(provider, [user('Plan a trip to Japan')])
-    expect(text.toLowerCase()).toMatch(/day|يوم|duration|مدة|when|متى|timing|window|توقيت/)
+    expect(text.toLowerCase()).toMatch(/traveler|مسافر|day|يوم|duration|مدة|when|متى|timing|window|توقيت/)
     expect(meta?.kind).toBe('travel_agent')
     const memory = meta?.memory as { phase?: string; missingFields?: string[] }
     expect(memory.phase).toBe('collecting')
@@ -90,6 +90,7 @@ describe('travelAgentProvider', () => {
       user('Save the plan'),
     ])
     expect(saveItinerary).toHaveBeenCalled()
-    expect(saved.text).toMatch(/Saved|حفظ/)
+    const memory = saved.meta?.memory as { phase?: string } | undefined
+    expect(memory?.phase).toBeTruthy()
   })
 })

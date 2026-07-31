@@ -229,9 +229,8 @@ describe('voiceSession', () => {
     await Promise.resolve()
     await vi.advanceTimersByTimeAsync(0)
     await Promise.resolve()
-    expect(statuses).toContain('reconnecting')
-    // Resume is async; after reconnect settles we should be listening again.
-    expect(['listening', 'reconnecting', 'idle']).toContain(session.getStatus())
+    expect(statuses).not.toContain('reconnecting')
+    expect(session.getStatus()).toBe('idle')
     session.dispose()
     vi.useRealTimers()
   })
@@ -318,6 +317,66 @@ describe('voiceSession', () => {
     await session.stopPushToTalkAndSend('c1')
     expect(tts.spoken.some((t) => t.includes('first cut for Japan'))).toBe(true)
     expect(tts.spoken.every((t) => !t.includes('Daily itinerary'))).toBe(true)
+    session.dispose()
+  })
+
+  it('invokes TTS exactly once per assistant turn despite streamed deltas', async () => {
+    const { provider: stt } = createMockSpeechToTextProvider('إسطنبول')
+    const tts = createMockTextToSpeechProvider()
+    const speakSpy = vi.spyOn(tts, 'speak')
+    const finalSpoken =
+      'إسطنبول خيار قوي لعطلة قصيرة. نبدأ بالمعالم ثم نضبط الفندق بهدوء.'
+
+    const sendTurn = vi.fn(async (_input, handlers) => {
+      const base = assistantMessage('')
+      // Simulate progressive spokenText growth that used to enqueue many clips.
+      const parts = [
+        'إسطنبول خيار قوي لعطلة',
+        'إسطنبول خيار قوي لعطلة قصيرة.',
+        'إسطنبول خيار قوي لعطلة قصيرة. نبدأ بالمعالم',
+        finalSpoken,
+      ]
+      for (const spokenText of parts) {
+        handlers.onDelta?.({
+          ...base,
+          content: spokenText,
+          providerMeta: { spokenText, voicePhase: 'partial' },
+          status: 'streaming',
+        })
+      }
+      const assistant = {
+        ...base,
+        content: finalSpoken,
+        providerMeta: { spokenText: finalSpoken, voicePhase: 'final' },
+        status: 'complete' as const,
+      }
+      await handlers.onComplete?.(assistant)
+      return {
+        user: {
+          ...assistant,
+          id: 'u1',
+          role: 'user' as const,
+          modality: 'audio' as const,
+          content: 'إسطنبول',
+        },
+        assistant,
+      }
+    })
+
+    const session = createVoiceSession({
+      stt,
+      tts,
+      sendTurn: sendTurn as never,
+      requestPermission: async () => ({ state: 'granted', error: null }),
+      locale: 'ar',
+    })
+
+    await session.startPushToTalk()
+    await session.stopPushToTalkAndSend('c1')
+
+    expect(speakSpy).toHaveBeenCalledTimes(1)
+    expect(tts.spoken).toHaveLength(1)
+    expect(tts.spoken[0]).toBe(finalSpoken)
     session.dispose()
   })
 })

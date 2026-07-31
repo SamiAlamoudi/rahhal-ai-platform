@@ -16,6 +16,14 @@
     "api/openai/tts.ts": {
       "maxDuration": 30,
       "memory": 512
+    },
+    "api/openai/realtime-call.ts": {
+      "maxDuration": 30,
+      "memory": 512
+    },
+    "api/openai/realtime-session.ts": {
+      "maxDuration": 30,
+      "memory": 512
     }
   },
   "rewrites": [

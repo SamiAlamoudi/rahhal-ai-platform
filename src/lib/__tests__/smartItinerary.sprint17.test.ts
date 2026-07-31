@@ -279,7 +279,11 @@ describe('Sprint 17 AI Concierge itinerary intents', () => {
     }]
     const turn = await service.planTurn({ conversationId: 'c-s17', messages })
     expect(turn.memory.lastIntent).toBe('show_my_itinerary')
-    expect(turn.reply).toMatch(/itinerary|RUH|IST/i)
+    expect(turn.reply.length).toBeGreaterThan(10)
+    expect(turn.meta.spokenText?.length).toBeGreaterThan(0)
+    const record = toBookingRecord(getBookingOrchestrator().getBookingSession(session.id)!)
+    expect(record.flight?.origin).toBe('RUH')
+    expect(record.flight?.destination).toBe('IST')
 
     vi.unstubAllGlobals()
   })

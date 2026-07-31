@@ -46,18 +46,32 @@ export function mergeRequirements(
   patch: Partial<TripRequirements>,
   options?: { replaceDestinations?: boolean },
 ): TripRequirements {
-  const replaceDestinations = options?.replaceDestinations === true
+  // Latest confirmed named destination always wins over stale/demo/prior-session places.
+  const patchNamesDestination = Boolean(
+    (patch.destination && patch.destination.trim())
+    || (patch.destinations && patch.destinations.length > 0),
+  )
+  const replaceDestinations = options?.replaceDestinations === true || patchNamesDestination
 
   const destinations = patch.destinations && patch.destinations.length > 0
     ? (replaceDestinations
       ? uniqueStrings(patch.destinations)
       : uniqueStrings([...base.destinations, ...patch.destinations]))
-    : base.destinations
+    : (replaceDestinations && patch.destination
+      ? uniqueStrings([patch.destination])
+      : base.destinations)
 
-  const destination = patch.destination ?? base.destination ?? destinations[0] ?? null
+  const destination = patch.destination ?? (replaceDestinations ? null : base.destination) ?? destinations[0] ?? null
   const interests = patch.interests && patch.interests.length > 0
     ? uniqueStrings([...base.interests, ...patch.interests])
     : base.interests
+
+  // New destination / trip → never reuse stale party size, dates, cabin, or origin.
+  const clearStaleTrip = Boolean(
+    replaceDestinations
+    && patch.destination
+    && patch.destination !== base.destination,
+  )
 
   const merged: TripRequirements = {
     destination,
@@ -68,13 +82,27 @@ export function mergeRequirements(
         : destination
           ? [destination]
           : [],
+    destinationCity: patch.destinationCity ?? (replaceDestinations ? null : base.destinationCity) ?? null,
+    destinationCountry: patch.destinationCountry ?? (replaceDestinations ? null : base.destinationCountry) ?? null,
     destinationFlexible: patch.destinationFlexible ?? base.destinationFlexible,
-    origin: patch.origin ?? base.origin,
-    startDate: patch.startDate ?? base.startDate,
-    endDate: patch.endDate ?? base.endDate,
-    durationDays: patch.durationDays ?? base.durationDays,
-    travelers: patch.travelers ?? base.travelers,
-    travelerType: patch.travelerType ?? base.travelerType,
+    origin: clearStaleTrip
+      ? (patch.origin ?? null)
+      : (patch.origin ?? base.origin),
+    startDate: clearStaleTrip
+      ? (patch.startDate ?? null)
+      : (patch.startDate ?? base.startDate),
+    endDate: clearStaleTrip
+      ? (patch.endDate ?? null)
+      : (patch.endDate ?? base.endDate),
+    durationDays: clearStaleTrip
+      ? (patch.durationDays ?? null)
+      : (patch.durationDays ?? base.durationDays),
+    travelers: clearStaleTrip && patch.travelers === undefined
+      ? null
+      : (patch.travelers ?? (clearStaleTrip ? null : base.travelers)),
+    travelerType: clearStaleTrip
+      ? (patch.travelerType ?? null)
+      : (patch.travelerType ?? base.travelerType),
     budgetAmount: patch.budgetAmount ?? base.budgetAmount,
     budgetCurrency: patch.budgetCurrency ?? base.budgetCurrency,
     budgetFlexible: patch.budgetFlexible ?? base.budgetFlexible,
@@ -87,7 +115,9 @@ export function mergeRequirements(
     tripPurpose: patch.tripPurpose ?? base.tripPurpose,
     regenerateDay: patch.regenerateDay ?? null,
     regenerateScope: patch.regenerateScope ?? base.regenerateScope ?? null,
-    cabinPreference: patch.cabinPreference ?? base.cabinPreference ?? null,
+    cabinPreference: clearStaleTrip
+      ? (patch.cabinPreference ?? null)
+      : (patch.cabinPreference ?? base.cabinPreference ?? null),
     children: patch.children ?? base.children ?? null,
     preferredAirline: patch.preferredAirline ?? base.preferredAirline ?? null,
     preferredDepartureTime: patch.preferredDepartureTime ?? base.preferredDepartureTime ?? null,
@@ -107,14 +137,15 @@ export function mergeRequirements(
     merged.destinationFlexible = false
   }
 
-  // Infer traveler type from count when still unset.
+  // Infer traveler type from count when still unset — never invent count from type
+  // (couple/family must not silently become 2/4).
   if (merged.travelerType == null && merged.travelers != null) {
     if (merged.travelers === 1) merged.travelerType = 'solo'
     else if (merged.travelers === 2) merged.travelerType = 'couple'
     else if (merged.travelers >= 3) merged.travelerType = 'family'
   }
+  // Solo is an explicit party-size word; couple/family are not.
   if (merged.travelers == null && merged.travelerType === 'solo') merged.travelers = 1
-  if (merged.travelers == null && merged.travelerType === 'couple') merged.travelers = 2
 
   return merged
 }
@@ -231,6 +262,8 @@ export function normalizeRequirements(raw: TripRequirements): TripRequirements {
     ...raw,
     destinations: Array.isArray(raw.destinations) ? raw.destinations : [],
     interests: Array.isArray(raw.interests) ? raw.interests : [],
+    destinationCity: raw.destinationCity ?? null,
+    destinationCountry: raw.destinationCountry ?? null,
     destinationFlexible: raw.destinationFlexible ?? null,
     budgetFlexible: raw.budgetFlexible ?? null,
     budgetStyle: raw.budgetStyle ?? null,

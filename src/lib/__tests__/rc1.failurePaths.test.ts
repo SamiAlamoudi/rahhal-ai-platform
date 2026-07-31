@@ -557,7 +557,7 @@ describe('Phase Y RC1 failure paths', () => {
     expect(await authService.getCurrentUser()).toBeNull()
   })
 
-  it('offline and reconnect behavior surfaces reconnecting status', async () => {
+  it('offline interrupt returns mic to idle (not reconnecting/listening)', async () => {
     const { provider: stt } = createMockSpeechToTextProvider('')
     const tts = createMockTextToSpeechProvider()
     const statuses: string[] = []
@@ -572,8 +572,8 @@ describe('Phase Y RC1 failure paths', () => {
     expect(session.getStatus()).toBe('listening')
     session.interrupt(undefined, { resumeHandsFree: true })
     await new Promise((r) => setTimeout(r, 0))
-    expect(statuses).toContain('reconnecting')
-    expect(session.getStatus()).toBe('listening')
+    expect(statuses).not.toContain('reconnecting')
+    expect(session.getStatus()).toBe('idle')
     session.dispose()
   })
 

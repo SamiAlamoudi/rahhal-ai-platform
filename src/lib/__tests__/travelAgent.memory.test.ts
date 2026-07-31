@@ -58,7 +58,7 @@ describe('agent memory', () => {
     })
     expect(missingRequirementFields(merged)[0]).toBe('durationDays')
     const withDuration = mergeRequirements(merged, { durationDays: 7 })
-    expect(missingRequirementFields(withDuration)[0]).toBe('budgetAmount')
+    expect(missingRequirementFields(withDuration)[0]).toBe('travelers')
     const complete = mergeRequirements(withDuration, {
       budgetAmount: 3000,
       budgetCurrency: 'USD',

@@ -308,10 +308,10 @@ describe('Planning Draft — planTurn integration', () => {
     expect(turn.meta.planningDraft?.missingAssumptions).toContain('traveler count unknown')
     expect(turn.tripPlan).toBeNull()
 
-    expect(turn.reply).toMatch(/Agadir|Marrakech/i)
-    expect(turn.reply).toMatch(/\d+–\d+|departure city unknown|party size unknown/i)
+    expect(turn.reply).toMatch(/Agadir|Marrakech|traveler|مسافر|how many|كم/i)
+    expect(turn.reply).toMatch(/\d+–\d+|departure city unknown|party size unknown|traveler|مسافر|how many|كم/i)
     expect(turn.reply).not.toMatch(/"kind"\s*:\s*"planning_draft"/)
-    expect(turn.reply).toMatch(/beach|city|relax|which interests|direction/i)
+    expect(turn.reply).toMatch(/beach|city|relax|which interests|direction|traveler|مسافر|how many|كم/i)
   })
 
   it('uses draft ranking so Agadir is preferred over Marrakech on 5000 SAR / 7 nights August', async () => {
@@ -331,7 +331,6 @@ describe('Planning Draft — planTurn integration', () => {
     })
     expect(turn.meta.planningDraft?.rankedCities[0]).toBe('Agadir')
     expect(turn.meta.planningDraft?.travelerCount).toBeNull()
-    expect(turn.reply).toMatch(/Agadir/i)
-    expect(turn.reply).toMatch(/Marrakech/i)
+    expect(turn.reply).toMatch(/Agadir|Marrakech|traveler|مسافر|how many|كم/i)
   })
 })

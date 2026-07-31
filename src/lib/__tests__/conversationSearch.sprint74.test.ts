@@ -199,6 +199,7 @@ describe('Sprint 74 — Conversation search integration', () => {
       budgetAmount: 3000,
       startDate: '2026-09-01',
       endDate: '2026-09-05',
+      travelers: 1,
     }))
     expect(budget.filters?.maxPrice).toBeGreaterThan(0)
     expect(budget.filters?.maxPrice).toBeLessThanOrEqual(3000)
@@ -209,6 +210,7 @@ describe('Sprint 74 — Conversation search integration', () => {
       budgetAmount: 40000,
       startDate: '2026-09-01',
       durationDays: 7,
+      travelers: 2,
     }))
     expect(luxury.filters?.minStars).toBe(4)
   })

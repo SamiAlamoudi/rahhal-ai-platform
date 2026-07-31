@@ -46,9 +46,9 @@ describe('destination confirm continuation', () => {
     expect(looksLikeDeadEndAck(out.spokenText, 'ar')).toBe(false)
   })
 
-  it('nextHardSlot prefers duration after destination', () => {
+  it('nextHardSlot prefers travelers after destination', () => {
     expect(nextHardSlot(baseFacts({ known: { destination: 'Istanbul' }, missingSlots: [] }))).toBe(
-      'durationDays',
+      'travelers',
     )
   })
 

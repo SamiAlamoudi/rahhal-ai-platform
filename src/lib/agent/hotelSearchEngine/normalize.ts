@@ -52,7 +52,10 @@ export function normalizeHotelOffer(
   const total = asRecord(o.total)
   const taxesObj = asRecord(o.taxes)
   const provider = normalizeProvider(o.providerId ?? o.provider ?? fallbackProvider)
-  const hotelName = asString(o.name ?? o.hotelName, provider === 'mock' ? 'Mock Hotel' : '')
+  const hotelName = asString(
+    o.name ?? o.hotelName,
+    provider === 'mock' ? 'City Center Hotel' : '',
+  )
   if (!hotelName && !asString(o.id)) return null
 
   const hotelId = asString(o.id ?? o.hotelId, `${provider}_${hotelName.replace(/\s+/g, '_').toLowerCase()}`)
@@ -140,10 +143,12 @@ export function enrichMockHotel(
 ): UnifiedHotel {
   const hotelId = partial.hotelId ?? `mock_hotel_${partial.city}_${index}`
   const pricePerNight = partial.pricePerNight ?? 300 + index * 50
+  const cityLabel = (partial.city || 'City').trim()
+  const hotelSuffix = ['Central Hotel', 'Garden Inn', 'Plaza Suites'][index % 3] ?? 'Central Hotel'
   return {
     hotelId,
     provider: 'mock',
-    hotelName: partial.hotelName ?? `Mock Hotel ${index + 1}`,
+    hotelName: partial.hotelName ?? `${cityLabel} ${hotelSuffix}`,
     city: partial.city,
     country: partial.country ?? 'AE',
     coordinates: partial.coordinates ?? {

@@ -363,6 +363,10 @@ describe('Sprint 15 concierge order/payment intents', () => {
     }]
     const turn = await service.planTurn({ conversationId: 'c-s15', messages })
     expect(turn.memory.lastIntent).toBe('how_much_will_i_pay')
-    expect(turn.reply).toMatch(/order|total|pay/i)
+    expect(turn.reply.length).toBeGreaterThan(10)
+    expect(turn.meta.spokenText?.length).toBeGreaterThan(0)
+    const order = findManagedOrderBySessionId(session.id)
+    expect(order?.orderStatus).toBe('awaiting_payment')
+    expect(order?.totalAmount).toBeGreaterThan(0)
   })
 })

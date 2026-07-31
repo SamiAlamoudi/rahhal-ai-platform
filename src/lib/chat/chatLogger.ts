@@ -42,6 +42,9 @@ export function isBenignChatError(error: unknown): boolean {
     || normalized === 'aborted'
     || normalized.includes('interrupted')
     || normalized.includes('تم إيقاف')
+    // Realtime cancel noise when no response is active — never user-facing.
+    || normalized.includes('cancellation failed')
+    || normalized.includes('no active response')
     // Headless / no-mic environments — never show raw browser chrome to travelers.
     || normalized.includes('requested device not found')
     || normalized.includes('device not found')

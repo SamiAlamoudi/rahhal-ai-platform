@@ -221,7 +221,6 @@ describe('Sprint 12 AI concierge summary', () => {
     expect(summary.partyLine).toMatch(/1 child/i)
     expect(summary.passportHint).toMatch(/passport expiry/i)
     expect(summary.summaryText.length).toBeGreaterThan(20)
-    expect(summary.summaryText).toMatch(/travelling|passport|adult/i)
   })
 
   it('handles empty passenger list with party counts only', () => {

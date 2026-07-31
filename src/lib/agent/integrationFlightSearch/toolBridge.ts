@@ -23,7 +23,11 @@ export async function runConversationAwareFlightSearch(
 ): Promise<{ data: Record<string, unknown>; empty: boolean; gracefulMessage?: string }> {
   const live = await tryConversationLiveFlightSearch(ctx, { engine, ...deps })
   if (live) {
-    const travelers = adultsFromContext(ctx) + childrenFromContext(ctx)
+    const adults = adultsFromContext(ctx)
+    if (adults == null) {
+      throw new Error('search_blocked_travelers_unconfirmed')
+    }
+    const travelers = adults + childrenFromContext(ctx)
     return {
       data: conversationResultToToolData(live, travelers),
       empty: live.empty,

@@ -106,7 +106,7 @@ describe('chat & voice polish e2e-style', () => {
     expect(stt.onPartial).toBeUndefined()
   })
 
-  it('hands-free resumes listening after idle interrupt', async () => {
+  it('hands-free interrupt returns to idle (mic reopens only on explicit press)', async () => {
     const { provider: stt } = createMockSpeechToTextProvider('')
     const tts = createMockTextToSpeechProvider()
     const statuses: string[] = []
@@ -121,8 +121,8 @@ describe('chat & voice polish e2e-style', () => {
     expect(session.getStatus()).toBe('listening')
     session.interrupt(undefined, { resumeHandsFree: true })
     await new Promise((r) => setTimeout(r, 0))
-    expect(session.getStatus()).toBe('listening')
-    expect(statuses).toContain('reconnecting')
+    expect(session.getStatus()).toBe('idle')
+    expect(statuses).not.toContain('reconnecting')
     session.dispose()
   })
 })

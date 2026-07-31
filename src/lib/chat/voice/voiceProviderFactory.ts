@@ -4,6 +4,7 @@ import { createWebSpeechToTextProvider } from './webSpeechToTextProvider'
 import { createWebTextToSpeechProvider } from './webTextToSpeechProvider'
 import { createAudioElementTextToSpeechProvider } from './audioElementTextToSpeechProvider'
 import type { SpeechToTextProvider, TextToSpeechProvider } from './voiceTypes'
+import { logChat } from '../chatLogger'
 
 export type VoiceProviderKind = 'auto' | 'web' | 'mock' | 'audio'
 
@@ -24,9 +25,9 @@ export function createSpeechToTextProvider(
 
 /**
  * TTS selection:
- * - audio → HTMLAudioElement via /api/tts (reliable; preferred)
- * - web → speechSynthesis (fallback)
- * - auto → audio when Audio exists, else web, else mock
+ * - audio → HTMLAudioElement via OpenAI /api/openai/tts (only happy path)
+ * - web → speechSynthesis (explicit opt-in / last resort)
+ * - auto → OpenAI audio path only (no silent Web Speech failover)
  */
 export function createTextToSpeechProvider(
   kind: VoiceProviderKind = readKind('VITE_VOICE_TTS_PROVIDER'),
@@ -37,47 +38,41 @@ export function createTextToSpeechProvider(
 
   const audio = createAudioElementTextToSpeechProvider()
   if (audio.isSupported()) {
-    const web = createWebTextToSpeechProvider()
-    return createFailoverTextToSpeechProvider(audio, web.isSupported() ? web : null)
+    // Do not wrap with silent Web Speech failover — OpenAI owns speech while healthy.
+    return createLoggingTextToSpeechProvider(audio)
   }
   const web = createWebTextToSpeechProvider()
-  return web.isSupported() ? web : createMockTextToSpeechProvider()
+  if (web.isSupported()) {
+    logChat('warn', 'tts', 'openai_audio_unsupported_using_web_speech')
+    return web
+  }
+  return createMockTextToSpeechProvider()
 }
 
-/** Try primary (MP3/Edge) first; on failure fall back to Web Speech. */
-function createFailoverTextToSpeechProvider(
-  primary: TextToSpeechProvider,
-  fallback: TextToSpeechProvider | null,
-): TextToSpeechProvider {
-  let speaking = false
+/** Log TTS failures instead of silently swapping engines. */
+export function createLoggingTextToSpeechProvider(primary: TextToSpeechProvider): TextToSpeechProvider {
   return {
-    providerId: `failover:${primary.providerId}${fallback ? `+${fallback.providerId}` : ''}`,
-    isSupported: () => primary.isSupported() || !!fallback?.isSupported(),
+    providerId: primary.providerId,
+    isSupported: () => primary.isSupported(),
     prefetch(options) {
       primary.prefetch?.(options)
     },
     async speak(options) {
-      speaking = true
       try {
         await primary.speak(options)
       } catch (primaryError) {
-        if (!fallback) {
-          speaking = false
-          throw primaryError
-        }
-        await fallback.speak(options)
-      } finally {
-        speaking = primary.isSpeaking() || !!fallback?.isSpeaking()
-        if (!primary.isSpeaking() && !fallback?.isSpeaking()) speaking = false
+        logChat('error', 'tts', 'primary_tts_failed_no_silent_fallback', {
+          providerId: primary.providerId,
+          message: primaryError instanceof Error ? primaryError.message : String(primaryError),
+        })
+        throw primaryError
       }
     },
     stop() {
       primary.stop()
-      fallback?.stop()
-      speaking = false
     },
     isSpeaking() {
-      return speaking || primary.isSpeaking() || !!fallback?.isSpeaking()
+      return primary.isSpeaking()
     },
   }
 }

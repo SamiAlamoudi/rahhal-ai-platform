@@ -168,7 +168,7 @@ describe('Concierge Decision Engine — turn policy', () => {
 describe('Concierge Decision Engine — live planTurn feel', () => {
   beforeEach(() => resetFeatureRegistry())
 
-  it('Morocco alone → recommends cities, does not only ask When/Budget/Days', async () => {
+  it('Morocco alone → acknowledges destination and asks travelers (booking spine)', async () => {
     const service = createTravelAgentService({
       tools: createMockAgentToolRegistry(),
       smartClarificationEnabled: true,
@@ -179,38 +179,49 @@ describe('Concierge Decision Engine — live planTurn feel', () => {
       messages: [user('I want to travel to Morocco.', 'intel-morocco')],
     })
     expect(turn.memory.requirements.destination).toBe('Morocco')
-    expect(turn.reply).toMatch(/Agadir|Marrakech|Casablanca/i)
-    expect(turn.reply.toLowerCase()).not.toMatch(/^(understood:[^.]*\.\s*)?(when\?|budget\?|how many)/i)
-    expect(turn.reply).not.toMatch(/\bHow many (days|travelers|people)\b/i)
-    expect(turn.reply).toMatch(/which|beach|city|interests you|direction/i)
+    expect(turn.reply).toMatch(/Morocco/i)
+    expect(turn.reply).toMatch(/How many travelers|كم عدد المسافرين|مسافر/i)
   })
 
-  it('Morocco + August + 5000 → value with cities, not duration census', async () => {
+  it('Morocco + August + 5000 → asks travelers first; cities after travelers supplied', async () => {
     const service = createTravelAgentService({
       tools: createMockAgentToolRegistry(),
       smartClarificationEnabled: true,
       travelReasoningEnabled: false,
     })
+    const conv = 'intel-combo'
     const t1 = await service.planTurn({
-      conversationId: 'intel-combo',
-      messages: [user('I want to travel to Morocco.', 'intel-combo')],
+      conversationId: conv,
+      messages: [user('I want to travel to Morocco.', conv)],
     })
+    expect(t1.memory.requirements.destination).toBe('Morocco')
+    expect(t1.reply).toMatch(/How many travelers|كم عدد المسافرين|مسافر/i)
+
     const t2 = await service.planTurn({
-      conversationId: 'intel-combo',
+      conversationId: conv,
       messages: [
-        user('I want to travel to Morocco.', 'intel-combo'),
-        assistant(t1.reply, t1.memory, 'intel-combo'),
-        user('Beginning of August. Budget 5000', 'intel-combo'),
+        user('I want to travel to Morocco.', conv),
+        assistant(t1.reply, t1.memory, conv),
+        user('2 travelers', conv),
       ],
     })
-    expect(t2.memory.requirements.destination).toBe('Morocco')
-    expect(t2.memory.requirements.budgetAmount).toBe(5000)
-    expect(t2.reply).toMatch(/Agadir|Marrakech|Casablanca/i)
-    expect(t2.reply).toMatch(/5000|August|2026-08/i)
-    expect(t2.reply).not.toMatch(/\bHow many days\b|\bHow many travelers\b|\bBudget\?\b/i)
+    const t3 = await service.planTurn({
+      conversationId: conv,
+      messages: [
+        user('I want to travel to Morocco.', conv),
+        assistant(t1.reply, t1.memory, conv),
+        user('2 travelers', conv),
+        assistant(t2.reply, t2.memory, conv),
+        user('Beginning of August. Budget 5000', conv),
+      ],
+    })
+    expect(t3.memory.requirements.destination).toBe('Morocco')
+    expect(t3.memory.requirements.budgetAmount).toBe(5000)
+    expect(t3.reply).toMatch(/Morocco/i)
+    expect(t3.reply).toMatch(/5000|August|2026-08|flight|options/i)
   })
 
-  it('Japan next year → season guidance with context', async () => {
+  it('Japan next year → Japan destination with traveler ask or season guidance', async () => {
     const service = createTravelAgentService({
       tools: createMockAgentToolRegistry(),
       smartClarificationEnabled: true,
@@ -221,8 +232,9 @@ describe('Concierge Decision Engine — live planTurn feel', () => {
       messages: [user('I want Japan next year.', 'intel-japan')],
     })
     expect(turn.memory.requirements.destination).toBe('Japan')
-    expect(turn.reply).toMatch(/season|cherry blossom|autumn|spring|winter/i)
-    expect(turn.reply).not.toMatch(/\bBudget\?\b|\bHow many days\b/i)
+    expect(turn.reply).toMatch(
+      /How many travelers|كم عدد المسافرين|مسافر|season|cherry blossom|autumn|spring|winter/i,
+    )
   })
 })
 

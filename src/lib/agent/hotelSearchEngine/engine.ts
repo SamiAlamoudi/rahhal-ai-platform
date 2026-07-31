@@ -82,8 +82,9 @@ function normalizeRequest(request: HotelSearchRequest): Required<
     parallel: request.parallel !== false,
     timeoutMs: request.timeoutMs ?? 8_000,
     radiusKm: request.radiusKm ?? 10,
-    city: request.city ?? request.destination ?? 'Dubai',
-    destination: request.destination ?? request.city ?? 'Dubai',
+    // Never invent Dubai (or any demo city) when destination is missing.
+    city: request.city ?? request.destination ?? '',
+    destination: request.destination ?? request.city ?? '',
     checkIn: request.checkIn ?? '2026-08-01',
     checkOut: request.checkOut ?? '2026-08-04',
   }
@@ -177,23 +178,26 @@ async function queryProviders(
     gracefulMessage = GRACEFUL_PROVIDER_MESSAGE
     await runOne(mock)
     if (collected.length === 0) {
-      const city = request.city ?? 'Dubai'
-      collected.push(
-        enrichMockHotel({ city, currency: request.currency }, 0),
-        enrichMockHotel({ city, currency: request.currency, pricePerNight: 420, stars: 5 }, 1),
-        enrichMockHotel({
-          city,
-          currency: request.currency,
-          pricePerNight: 280,
-          stars: 3,
-          refundable: false,
-          freeCancellation: false,
-          breakfastIncluded: false,
-        }, 2),
-      )
-      providersUsed.push('mock')
-      modes.mock = 'mock'
-      providerLatencyMs.mock = providerLatencyMs.mock ?? 0
+      const city = (request.city || request.destination || '').trim()
+      // No city → no invented Dubai/Jordan demo hotels.
+      if (city) {
+        collected.push(
+          enrichMockHotel({ city, currency: request.currency }, 0),
+          enrichMockHotel({ city, currency: request.currency, pricePerNight: 420, stars: 5 }, 1),
+          enrichMockHotel({
+            city,
+            currency: request.currency,
+            pricePerNight: 280,
+            stars: 3,
+            refundable: false,
+            freeCancellation: false,
+            breakfastIncluded: false,
+          }, 2),
+        )
+        providersUsed.push('mock')
+        modes.mock = 'mock'
+        providerLatencyMs.mock = providerLatencyMs.mock ?? 0
+      }
     }
   }
 
@@ -356,8 +360,8 @@ export function createHotelSearchEngine(
     searchCityHotels(request) {
       return run({
         ...request,
-        city: request.city ?? request.destination ?? 'Dubai',
-        destination: request.destination ?? request.city ?? 'Dubai',
+        city: request.city ?? request.destination ?? '',
+        destination: request.destination ?? request.city ?? '',
       })
     },
     searchHotelById(request) {

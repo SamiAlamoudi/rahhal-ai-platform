@@ -134,13 +134,20 @@ export function createMockFlightSearchTool(
         } | undefined
 
         if (empty) {
+          // Empty inventory after mock/search is "no_results". Reserve
+          // provider_unavailable for true upstream outages (no mock inventory).
+          const diagnostics = (data as { diagnostics?: { fallbackUsed?: boolean; providersUsed?: string[] } }).diagnostics
+          const mockAttempted = Boolean(
+            diagnostics?.fallbackUsed
+            || diagnostics?.providersUsed?.includes('mock'),
+          )
           return {
             tool: 'flights',
             status: 'error',
             summary: gracefulMessage
               ?? (ctx.locale === 'ar' ? 'لا عروض طيران متاحة حالياً' : 'No flight offers available right now'),
             data: { ...data, searchEngine: 'flightSearchEngine' },
-            error: gracefulMessage ? 'provider_unavailable' : 'no_results',
+            error: mockAttempted || !gracefulMessage ? 'no_results' : 'provider_unavailable',
             meta: baseMeta(tool, started),
           }
         }
