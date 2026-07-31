@@ -68,17 +68,19 @@ export function buildTripPlan(input: {
   locale: AgentLocale
   seed?: string
 }): TripPlan {
-  const destination = input.requirements.destination
+  const destination = input.requirements.destinationCity
+    || input.requirements.destination
     || input.requirements.destinations[0]
-    || (input.locale === 'ar' ? 'وجهة مقترحة' : 'Suggested destination')
+    || ''
+  // Never invent Jordan/Tokyo/Dubai/demo labels when destination is missing.
   const durationDays = resolveDuration(input.requirements)
   const travelers = input.requirements.travelers
   const costingTravelers = travelers ?? assumedTravelersForCosting(input.requirements.travelerType)
   const destinations = unique([
     destination,
     ...input.requirements.destinations,
-    ...splitMultiCity(destination, durationDays),
-  ])
+    ...(destination ? splitMultiCity(destination, durationDays) : []),
+  ].filter(Boolean))
 
   const dailyItinerary = buildDays({
     destination,

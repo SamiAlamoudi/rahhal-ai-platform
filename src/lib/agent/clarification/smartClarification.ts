@@ -3,21 +3,22 @@
  *
  * Soft preferences are NOT form-filled with invented defaults.
  * Only high-confidence bridges from values the traveler already stated.
- * Hard requirements that block planning: destination, approx dates/duration, budget.
+ * Required booking fields that block first search: destination, approx dates, travelers.
+ * Budget is optional refine-after-options (does not block first search).
  */
 
 import type { TripRequirements } from '../types'
 
-/** Hard slots the consultant may still ask about (one at a time). */
+/** Hard slots the booking agent may still ask about (one at a time). */
 export const HARD_CLARIFICATION_FIELDS: Array<keyof TripRequirements> = [
   'destination',
   'durationDays',
-  'budgetAmount',
+  'travelers',
 ]
 
 /** Soft slots — never form-asked when smart clarification is on; left null until stated. */
 export const SOFT_CLARIFICATION_FIELDS: Array<keyof TripRequirements> = [
-  'travelers',
+  'budgetAmount',
   'travelerType',
   'interests',
   'weatherPreference',
@@ -70,11 +71,7 @@ export function inferSoftRequirements(
     inferred.push('travelers')
     rationale.push(locale === 'ar' ? 'فردي → مسافر واحد' : 'Solo → 1 traveler')
   }
-  if (next.travelers == null && next.travelerType === 'couple') {
-    next.travelers = 2
-    inferred.push('travelers')
-    rationale.push(locale === 'ar' ? 'زوجان → مسافران' : 'Couple → 2 travelers')
-  }
+  // Never bridge couple/family → invented passenger counts.
 
   // High confidence: closed date window → duration in days.
   if (
@@ -123,8 +120,8 @@ export function missingClarificationFields(
       }
       continue
     }
-    if (field === 'budgetAmount') {
-      if (req.budgetAmount == null && req.budgetFlexible !== true) missing.push('budgetAmount')
+    if (field === 'travelers') {
+      if (req.travelers == null) missing.push('travelers')
       continue
     }
   }
@@ -132,6 +129,9 @@ export function missingClarificationFields(
   if (!smart) {
     // Legacy full intake — keep soft slots blocking (tests / flag off).
     for (const field of SOFT_CLARIFICATION_FIELDS) {
+      if (field === 'budgetAmount' && req.budgetAmount == null && req.budgetFlexible !== true) {
+        missing.push('budgetAmount')
+      }
       if (field === 'travelers' && req.travelers == null) missing.push('travelers')
       if (field === 'travelerType' && req.travelerType == null) missing.push('travelerType')
       if (field === 'interests' && req.interests.length === 0) missing.push('interests')

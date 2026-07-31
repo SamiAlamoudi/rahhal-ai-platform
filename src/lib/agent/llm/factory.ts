@@ -66,9 +66,14 @@ export function createAgentLlmRegistry(
       return map.get(id)
     },
     getActive() {
-      // Conversation-First: OpenAI wins whenever a key is configured.
+      // Conversation-First: OpenAI wins whenever a key/proxy is configured.
       const openai = map.get('openai')
       if (openai?.isAvailable()) return openai
+      // Browser traveler path: never fall back to local canned Arabic templates.
+      // Prefer the OpenAI adapter so converse() can surface a reconnect line.
+      if (typeof window !== 'undefined') {
+        return openai ?? createOpenAiAgentLlmAdapter()
+      }
       const preferred = map.get(activeId)
       if (preferred?.isAvailable()) return preferred
       return map.get('local') ?? createLocalAgentLlmAdapter()

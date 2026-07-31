@@ -170,6 +170,12 @@ async function streamIntoAssistant(
         return latest
       } else if (chunk.type === 'done') {
         if (chunk.meta) streamMeta = chunk.meta
+        // Prefer canonical displayText from planTurn (sanitized booking reply) over
+        // any earlier streamed consultant / "plan ready" deltas.
+        const canonical = typeof chunk.meta?.displayText === 'string'
+          ? chunk.meta.displayText.trim()
+          : ''
+        if (canonical) content = canonical
         const saved = await persistAssistantDelta(conversationId, assistantId, content, 'complete', null, streamMeta)
         latest = saved ?? {
           ...latest,

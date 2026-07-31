@@ -247,21 +247,17 @@ function conversationalAsk(
 }
 
 function partyPhrase(requirements: TripRequirements, locale: AgentLocale): string {
-  if (requirements.travelerType === 'couple') {
-    return locale === 'ar' ? 'لكم كزوجين' : ' for the two of you'
-  }
-  if (requirements.travelerType === 'family') {
-    return locale === 'ar' ? 'للعائلة' : ' for the family'
-  }
-  if (requirements.travelerType === 'solo') {
+  // Never invent party-size wording from travelerType alone.
+  if (requirements.travelers == null || !(requirements.travelers > 0)) return ''
+  if (requirements.travelers === 1) {
     return locale === 'ar' ? 'لك' : ' for you'
   }
-  if (requirements.travelers != null && requirements.travelers > 0) {
-    return locale === 'ar'
-      ? ` لـ${requirements.travelers} مسافرين`
-      : ` for ${requirements.travelers}`
+  if (requirements.travelers === 2) {
+    return locale === 'ar' ? ' لشخصين' : ' for two travelers'
   }
-  return ''
+  return locale === 'ar'
+    ? ` لـ${requirements.travelers} مسافرين`
+    : ` for ${requirements.travelers}`
 }
 
 function formatTripPlanDetails(plan: TripPlan, locale: AgentLocale): string {

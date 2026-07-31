@@ -43,17 +43,26 @@ export function selectToolsForTurn(input: {
   if (scope === 'hotel') return ['hotels']
   if (scope === 'activities') return ['weather', 'attractions', 'maps']
 
+  // Booking-agent default: search inventory first (flights + hotels), not lectures.
+  const bookingReady = Boolean(
+    destination
+    && requirements.travelers != null
+    && (requirements.startDate || requirements.durationDays != null),
+  )
   const flightsOnly = requirements.packageScope === 'flights_only'
-  let selected: AgentToolName[] = flightsOnly
-    ? ['weather', 'flights', 'maps']
-    : ['weather', 'attractions', 'maps', 'flights', 'hotels', 'transportation']
+  let selected: AgentToolName[] = bookingReady
+    ? (flightsOnly ? ['flights'] : ['flights', 'hotels'])
+    : flightsOnly
+      ? ['weather', 'flights', 'maps']
+      : ['weather', 'attractions', 'maps', 'flights', 'hotels', 'transportation']
 
-  if (requirements.budgetAmount != null || requirements.budgetCurrency || requirements.budgetFlexible) {
-    selected.push('currency')
-  }
-
-  if (isLikelyInternational(destination)) {
-    selected.push('visa')
+  if (!bookingReady) {
+    if (requirements.budgetAmount != null || requirements.budgetCurrency || requirements.budgetFlexible) {
+      selected.push('currency')
+    }
+    if (isLikelyInternational(destination)) {
+      selected.push('visa')
+    }
   }
 
   selected = unique(selected)

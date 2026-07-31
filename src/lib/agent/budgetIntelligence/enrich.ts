@@ -3,6 +3,7 @@
  */
 
 import type { AgentMemory, TripPlan } from '../types'
+import { preserveProviderFlights, preserveProviderHotels } from '../preserveProviderInventory'
 import { isBudgetIntelligenceEnabled } from './feature'
 import { runBudgetIntelligence } from './orchestrator'
 import type { BudgetIntelligenceResult } from './types'
@@ -41,35 +42,51 @@ export async function enrichWithBudgetIntelligence(input: {
   const topHotel = result.rankedHotels[0]
 
   if (topFlight && nextPlan.flights.length > 0) {
-    const payload = topFlight.payload
-    nextPlan = {
-      ...nextPlan,
-      flights: [{
-        from: String(payload.from ?? nextPlan.flights[0]!.from),
-        to: String(payload.to ?? nextPlan.flights[0]!.to),
-        airline: typeof payload.airline === 'string' ? payload.airline : nextPlan.flights[0]!.airline,
-        stops: typeof payload.stops === 'number' ? payload.stops : nextPlan.flights[0]!.stops,
-        estimatedCost: topFlight.price,
-        currency: topFlight.currency,
-        notes: `Budget score ${topFlight.score.budgetScore}/100 · ${topFlight.reasons.join(' · ')}`,
-      }, ...nextPlan.flights.slice(1)],
+    const provider = preserveProviderFlights(nextPlan, (flight) => ({
+      ...flight,
+      notes: [
+        flight.notes,
+        `Budget score ${topFlight.score.budgetScore}/100 · ${topFlight.reasons.join(' · ')}`,
+      ].filter(Boolean).join(' · '),
+    }))
+    if (provider.some((f) => f.fromProvider)) {
+      nextPlan = { ...nextPlan, flights: provider }
+    } else {
+      const payload = topFlight.payload
+      nextPlan = {
+        ...nextPlan,
+        flights: [{
+          from: String(payload.from ?? nextPlan.flights[0]!.from),
+          to: String(payload.to ?? nextPlan.flights[0]!.to),
+          airline: typeof payload.airline === 'string' ? payload.airline : nextPlan.flights[0]!.airline,
+          stops: typeof payload.stops === 'number' ? payload.stops : nextPlan.flights[0]!.stops,
+          estimatedCost: topFlight.price,
+          currency: topFlight.currency,
+          notes: `Budget score ${topFlight.score.budgetScore}/100 · ${topFlight.reasons.join(' · ')}`,
+        }, ...nextPlan.flights.slice(1)],
+      }
     }
   }
 
   if (topHotel && nextPlan.accommodations.length > 0) {
-    const payload = topHotel.payload
-    nextPlan = {
-      ...nextPlan,
-      accommodations: [{
-        name: topHotel.title,
-        area: String(payload.area ?? nextPlan.accommodations[0]!.area),
-        category: nextPlan.accommodations[0]!.category,
-        fit: `Budget score ${topHotel.score.budgetScore}/100`,
-        estimatedNightly: typeof payload.nightly === 'number'
-          ? payload.nightly
-          : nextPlan.accommodations[0]!.estimatedNightly,
-        currency: topHotel.currency,
-      }, ...nextPlan.accommodations.slice(1)],
+    const providerHotels = preserveProviderHotels(nextPlan)
+    if (providerHotels.some((h) => h.fromProvider)) {
+      nextPlan = { ...nextPlan, accommodations: providerHotels }
+    } else {
+      const payload = topHotel.payload
+      nextPlan = {
+        ...nextPlan,
+        accommodations: [{
+          name: topHotel.title,
+          area: String(payload.area ?? nextPlan.accommodations[0]!.area),
+          category: nextPlan.accommodations[0]!.category,
+          fit: `Budget score ${topHotel.score.budgetScore}/100`,
+          estimatedNightly: typeof payload.nightly === 'number'
+            ? payload.nightly
+            : nextPlan.accommodations[0]!.estimatedNightly,
+          currency: topHotel.currency,
+        }, ...nextPlan.accommodations.slice(1)],
+      }
     }
   }
 

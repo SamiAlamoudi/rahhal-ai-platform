@@ -63,6 +63,21 @@ export interface TextToSpeechSpeakOptions {
   locale: VoiceLocale
   text: string
   interrupt?: boolean
+  /** Official OpenAI voice id (coral, marin, …). */
+  voice?: string
+  /** OpenAI speech speed 0.25–4.0. */
+  speed?: number
+  /** Arabic dialect preference id (saudi, gulf, …). */
+  dialect?: string
+  /** Optional TTS style instructions override. */
+  instructions?: string
+  /** Preferred audio container (wav recommended for lower start latency). */
+  format?: 'mp3' | 'wav' | 'opus' | 'aac' | 'flac' | 'pcm'
+  /** Optional latency callbacks for one-shot synthesis. */
+  onTtsRequestStart?: () => void
+  onTtsResponseComplete?: () => void
+  onAudioDecodeComplete?: () => void
+  onAudioPlaybackStart?: () => void
 }
 
 export interface TextToSpeechProvider {
@@ -72,7 +87,7 @@ export interface TextToSpeechProvider {
   stop(): void
   isSpeaking(): boolean
   /** Optional: start synthesizing ahead of play for ChatGPT-like overlap. */
-  prefetch?(options: Pick<TextToSpeechSpeakOptions, 'locale' | 'text'>): void
+  prefetch?(options: Pick<TextToSpeechSpeakOptions, 'locale' | 'text' | 'voice' | 'speed' | 'dialect' | 'instructions' | 'format'>): void
 }
 
 export interface MicrophonePermissionState {

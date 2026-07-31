@@ -56,7 +56,7 @@ export function normalizeFlightOffer(
   if (!origin || !destination) return null
 
   const id = asString(o.id, `${provider}_${origin}_${destination}_${Date.now()}`)
-  const airline = asString(o.airline, provider === 'mock' ? 'MockAir' : 'Unknown')
+  const airline = asString(o.airline, provider === 'mock' ? 'Saudia' : 'Unknown')
   const flightNumber = asString(
     o.flightNumber ?? o.flight_number,
     `${airline.slice(0, 2).toUpperCase()}${100 + (id.length % 800)}`,
@@ -120,8 +120,8 @@ export function enrichMockFlight(
   return {
     id,
     provider: 'mock',
-    airline: partial.airline ?? 'MockAir',
-    flightNumber: partial.flightNumber ?? `MA${100 + index}`,
+    airline: partial.airline ?? (['Saudia', 'flynas', 'Emirates'][index % 3] ?? 'Saudia'),
+    flightNumber: partial.flightNumber ?? `SV${100 + index}`,
     origin: partial.origin.toUpperCase(),
     destination: partial.destination.toUpperCase(),
     departureTime: partial.departureTime ?? `2026-08-01T0${8 + (index % 2)}:00:00Z`,

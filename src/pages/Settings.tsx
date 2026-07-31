@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { authService, useAuth } from '../lib/auth'
 import { settingsService } from '../lib/settings/settingsService'
 import { ProductPageShell, TravelPreferencesPanel } from '../components/productUx'
+import { VoiceExperienceSettingsPanel } from '../components/settings/VoiceExperienceSettingsPanel'
 import { isUiNewExperienceEnabled, productCopy } from '../lib/productUx'
 import {
   SETTINGS_CURRENCIES,
@@ -297,6 +298,8 @@ export default function Settings() {
                 </button>
               </form>
             </section>
+
+            <VoiceExperienceSettingsPanel />
 
             <section className={sectionClass}>
               <h2 className="text-sm font-bold text-slate-900">اللغة والعملة والمظهر</h2>

@@ -26,8 +26,25 @@ import {
   MIN_HANDS_FREE_SILENCE_MS,
   normalizeVoiceLocale,
 } from './voiceTypes'
-import { unlockAudioPlayback } from './audioElementTextToSpeechProvider'
-import { takeNewSpokenChunks, takeSpokenTail } from './progressiveSpeech'
+import { unlockAudioPlayback, preconnectOpenAiTtsRoute } from './audioElementTextToSpeechProvider'
+import {
+  createVoiceLatencyMarks,
+  summarizeVoiceLatency,
+} from './voiceLatency'
+import {
+  buildTtsSpeechInstructions,
+  loadVoiceExperiencePrefs,
+  speakingSpeedRate,
+} from './voiceExperiencePrefs'
+import { toSpokenDialogue } from './spokenDialoguePostProcessor'
+import { logMicSessionState, mapToMicSessionState } from './micSessionState'
+
+function performanceNow(): number {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now()
+  }
+  return Date.now()
+}
 
 export interface VoiceSessionCallbacks {
   onStatus?: (status: VoiceSessionStatus) => void
@@ -108,6 +125,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   let sending = false
   let intentionalAbort = false
   let resumeHandsFreeAfterInterrupt = false
+  /** User pressed Stop — block auto-resume / VAD / silence timers until startHandsFree. */
+  let hardStopped = false
   let silenceTimeoutMs = clampSilenceMs(
     options.silenceTimeoutMs ?? DEFAULT_HANDS_FREE_SILENCE_MS,
   )
@@ -135,7 +154,19 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
 
   const setStatus = (next: VoiceSessionStatus) => {
     if (disposed) return
+    if (hardStopped && next !== 'idle' && next !== 'error') {
+      logPipeline({
+        stage: 'voice',
+        event: 'classic_status_blocked_hard_stopped',
+        meta: { attempted: next },
+      })
+      return
+    }
     status = next
+    logMicSessionState(mapToMicSessionState(next, { hardStopped }), {
+      source: 'classic',
+      rawStatus: next,
+    })
     callbacks.onStatus?.(next)
   }
 
@@ -259,10 +290,22 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   }
 
   const maybeResumeHandsFree = async () => {
-    if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
+    if (disposed || hardStopped || mode !== 'hands_free' || !handsFreeConversationId) {
+      logPipeline({
+        stage: 'voice',
+        event: 'auto_resume_blocked',
+        meta: {
+          disposed,
+          hardStopped,
+          mode,
+          hasConversation: Boolean(handsFreeConversationId),
+        },
+      })
+      return
+    }
     // Brief gap after TTS so the mic isn't captured while speakers are still draining.
     await new Promise((r) => setTimeout(r, 80))
-    if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
+    if (disposed || hardStopped || mode !== 'hands_free' || !handsFreeConversationId) return
     try {
       setStatus('reconnecting')
       await startListening(true, { preserveUtterance: true })
@@ -270,7 +313,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       // One retry — Chrome STT often fails if restarted immediately after TTS.
       try {
         await new Promise((r) => setTimeout(r, 180))
-        if (disposed || mode !== 'hands_free' || !handsFreeConversationId) return
+        if (disposed || hardStopped || mode !== 'hands_free' || !handsFreeConversationId) return
         setStatus('reconnecting')
         await startListening(true, { preserveUtterance: true })
         return
@@ -290,9 +333,12 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   const readSpokenText = (message: ChatMessage): string => {
     const meta = message.providerMeta ?? {}
     const spoken = typeof meta.spokenText === 'string' ? meta.spokenText.trim() : ''
-    if (spoken) return spoken
-    // Never read a long itinerary dump aloud.
-    return stripMarkdownForSpeech(message.content).slice(0, 320)
+    const raw = spoken || stripMarkdownForSpeech(message.content)
+    // Transform long written replies into short spoken consultant dialogue.
+    return toSpokenDialogue(raw, {
+      locale: locale === 'en' ? 'en' : 'ar',
+      maxChars: 220,
+    })
   }
 
   const sendTranscript = async (conversationId: string, transcript: string): Promise<ChatMessage | null> => {
@@ -316,29 +362,70 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     const controller = new AbortController()
     activeAbort = controller
     let sawDelta = false
-    let spokenCursor = 0
     let speechStarted = false
     let speakChain: Promise<void> = Promise.resolve()
+    const latency = createVoiceLatencyMarks()
+    latency.sttFinalAt = latency.turnStartedAt
+    latency.requestSentAt = performanceNow()
 
-    const enqueueSpeak = (chunk: string, phase: string) => {
-      const text = chunk.trim()
+    /**
+     * One assistant reply → one TTS synthesis → one continuous playback.
+     * Progressive mid-stream chunk TTS caused overlapping text to be spoken
+     * twice with different OpenAI intonation and stitched A/B volume changes.
+     */
+    const speakOnce = (fullSpoken: string) => {
+      const text = (fullSpoken || '').replace(/\s+/g, ' ').trim()
       if (!text) return
-      // Overlap synth of this chunk with playback of the previous one.
-      tts.prefetch?.({ locale, text })
       speakChain = speakChain.then(async () => {
         if (disposed || controller.signal.aborted) return
-        const isFirst = !speechStarted
-        if (isFirst) {
+        if (!speechStarted) {
           speechStarted = true
           setStatus('speaking')
           callbacks.onSpeechStarted?.()
-          logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase } })
+          logPipeline({ stage: 'tts', event: 'speak_start', meta: { phase: 'final', once: true } })
+          preconnectOpenAiTtsRoute()
           await unlockAudioPlayback()
         } else {
           setStatus('speaking')
         }
         try {
-          await tts.speak({ locale, text, interrupt: isFirst })
+          const prefs = loadVoiceExperiencePrefs()
+          await tts.speak({
+            locale,
+            text,
+            interrupt: true,
+            voice: locale === 'ar' ? prefs.voiceId : 'nova',
+            speed: speakingSpeedRate(prefs.speed),
+            dialect: locale === 'ar' ? prefs.dialect : undefined,
+            instructions: buildTtsSpeechInstructions({
+              locale,
+              dialect: prefs.dialect,
+            }),
+            format: 'wav',
+            onTtsRequestStart: () => {
+              latency.ttsStartedAt = performanceNow()
+            },
+            onTtsResponseComplete: () => {
+              latency.ttsResponseAt = performanceNow()
+            },
+            onAudioDecodeComplete: () => {
+              latency.audioDecodedAt = performanceNow()
+            },
+            onAudioPlaybackStart: () => {
+              latency.audioStartedAt = performanceNow()
+            },
+          })
+          latency.ttsDoneAt = performanceNow()
+          logPipeline({
+            stage: 'tts',
+            event: 'latency_report',
+            meta: {
+              ...summarizeVoiceLatency(latency),
+              voice: prefs.voiceId,
+              dialect: prefs.dialect,
+              speed: prefs.speed,
+            } as unknown as Record<string, unknown>,
+          })
         } catch (e) {
           if (!isBenignChatError(e) && !disposed) {
             diagnosePipelineError('tts', 'speak', e)
@@ -346,33 +433,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           }
         }
       }).catch(() => {
-        // Keep the chain alive so later chunks / resume still run.
+        // Keep the chain alive so resume still runs.
       })
-    }
-
-    const pumpSpoken = (fullSpoken: string, final = false) => {
-      const normalized = (fullSpoken || '').replace(/\s+/g, ' ').trim()
-      if (!normalized) return
-
-      // ChatGPT-Voice: enqueue every newly completed sentence while tokens arrive.
-      const { chunks, nextCursor } = takeNewSpokenChunks(normalized, spokenCursor)
-      for (let i = 0; i < chunks.length; i += 1) {
-        const phase = spokenCursor === 0 && i === 0 ? 'first' : 'mid'
-        enqueueSpeak(chunks[i]!, phase)
-      }
-      if (chunks.length > 0) spokenCursor = nextCursor
-
-      if (!final) return
-
-      const tail = takeSpokenTail(normalized, spokenCursor)
-      if (tail) {
-        enqueueSpeak(tail, 'final')
-        spokenCursor = normalized.length
-      } else if (spokenCursor === 0 && normalized) {
-        // No sentence punctuation — speak the whole reply once.
-        enqueueSpeak(normalized, 'final')
-        spokenCursor = normalized.length
-      }
     }
 
     logPipeline({
@@ -391,29 +453,31 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         if (!sawDelta) {
           sawDelta = true
           setStatus('responding')
+          latency.firstTokenAt = performanceNow()
           logPipeline({ stage: 'streaming', event: 'first_delta' })
         }
+        // Stream text to the UI only — never invoke TTS on partial deltas.
         callbacks.onDelta?.(message)
-        // ChatGPT-Voice: start speaking the first complete sentence ASAP.
-        const spoken = readSpokenText(message)
-        if (spoken) pumpSpoken(spoken, false)
       },
       onComplete: async (message) => {
         callbacks.onComplete?.(message)
+        latency.modelCompleteAt = performanceNow()
         logPipeline({
           stage: 'ai',
           event: 'turn_complete',
           meta: { length: message.content.length },
         })
+        // Warm audio path while we finalize spoken text — still one TTS call.
+        void unlockAudioPlayback().catch(() => undefined)
         if (!controller.signal.aborted && !disposed) {
           const spoken = readSpokenText(message)
           if (spoken) {
-            pumpSpoken(spoken, true)
+            speakOnce(spoken)
             try {
               await speakChain
-              logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase: 'final' } })
+              logPipeline({ stage: 'tts', event: 'speak_done', meta: { phase: 'final', once: true } })
             } catch {
-              // errors already surfaced per-chunk
+              // errors already surfaced
             }
           }
           // Always release UI text even if TTS produced no audio.
@@ -602,6 +666,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     },
     async startHandsFree(conversationId) {
       if (disposed) return
+      // Explicit user mic press — clear hard Stop latch.
+      hardStopped = false
       tts.stop()
       mode = 'hands_free'
       handsFreeConversationId = conversationId
@@ -618,18 +684,22 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       await startListening(true)
     },
     armHandsFree(conversationId) {
-      if (disposed) return
+      if (disposed || hardStopped) return
       mode = 'hands_free'
       handsFreeConversationId = conversationId
     },
     async stopListening() {
       intentionalAbort = true
+      hardStopped = true
       resumeHandsFreeAfterInterrupt = false
       handsFreeConversationId = null
       clearSilenceTimer()
       utteranceBuffer = ''
       utterancePrefix = ''
       stopVad()
+      tts.stop()
+      activeAbort?.abort()
+      activeAbort = null
       if (listening) {
         try {
           await stt.stop()
@@ -640,20 +710,19 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         stt.abort()
       }
       listening = false
-      if (
-        status === 'listening'
-        || status === 'reconnecting'
-        || status === 'thinking'
-        || status === 'responding'
-      ) {
-        setStatus('idle')
-      }
+      sending = false
+      logMicSessionState('STOPPED', { source: 'classic', reason: 'user_stop' })
+      status = 'idle'
+      logMicSessionState('IDLE', { source: 'classic', reason: 'after_hard_stop' })
+      callbacks.onStatus?.('idle')
     },
     interrupt(abortStream, opts) {
       intentionalAbort = true
       clearSilenceTimer()
       stopVad()
-      const keepHandsFree = opts?.resumeHandsFree ?? (mode === 'hands_free' && !!handsFreeConversationId)
+      // Hard-stop latch wins — never auto-resume after user Stop.
+      const keepHandsFree = !hardStopped
+        && (opts?.resumeHandsFree ?? (mode === 'hands_free' && !!handsFreeConversationId))
       const wasSending = sending
       tts.stop()
       stt.abort()
@@ -665,7 +734,7 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       activeAbort = null
       abortStream?.()
       setStatus('idle')
-      logPipeline({ stage: 'voice', event: 'interrupted', meta: { keepHandsFree, wasSending } })
+      logPipeline({ stage: 'voice', event: 'interrupted', meta: { keepHandsFree, wasSending, hardStopped } })
       if (keepHandsFree && wasSending) {
         resumeHandsFreeAfterInterrupt = true
       } else {
@@ -674,32 +743,41 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       }
     },
     async speakText(text, opts) {
-      if (disposed) return
+      if (disposed || hardStopped) return
       setStatus('speaking')
       const cleaned = stripMarkdownForSpeech(text)
-      tts.prefetch?.({ locale, text: cleaned })
       try {
+        preconnectOpenAiTtsRoute()
         await unlockAudioPlayback()
-        // Progressive mid-stream chunks must not interrupt the prior sentence.
+        const prefs = loadVoiceExperiencePrefs()
+        // One continuous utterance per call (interrupt replaces any prior clip).
         await tts.speak({
           locale,
           text: cleaned,
           interrupt: opts?.interrupt !== false,
+          voice: locale === 'ar' ? prefs.voiceId : 'nova',
+          speed: speakingSpeedRate(prefs.speed),
+          dialect: locale === 'ar' ? prefs.dialect : undefined,
+          instructions: buildTtsSpeechInstructions({
+            locale,
+            dialect: prefs.dialect,
+          }),
+          format: 'wav',
         })
       } catch (e) {
         if (!isBenignChatError(e)) throw e
       }
-      if (disposed) return
-      const resume = opts?.resumeHandsFree !== false
+      if (disposed || hardStopped) return
+      const resume = opts?.resumeHandsFree !== false && !hardStopped
       if (resume && mode === 'hands_free' && handsFreeConversationId) {
         await maybeResumeHandsFree()
-      } else if (resume && !disposed) {
+      } else if (!disposed) {
         setStatus('idle')
       }
-      // When resumeHandsFree === false, stay in speaking for progressive chunks.
     },
     dispose() {
       disposed = true
+      hardStopped = true
       intentionalAbort = true
       resumeHandsFreeAfterInterrupt = false
       handsFreeConversationId = null
