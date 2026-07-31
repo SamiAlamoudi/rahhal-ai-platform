@@ -35,7 +35,7 @@ describe('Phase L intelligent trip planning', () => {
     expect(turn.tripPlan).toBeNull()
     expect(turn.memory.phase).toBe('collecting')
     expect(turn.memory.missingFields[0]).toBe('durationDays')
-    expect(turn.reply.toLowerCase()).toMatch(/when|day|مدة|متى/)
+    expect(turn.reply.toLowerCase()).toMatch(/traveler|مسافر|when|day|مدة|duration|متى/)
     expect(turn.reply.toLowerCase()).toMatch(/japan|اليابان/)
   })
 

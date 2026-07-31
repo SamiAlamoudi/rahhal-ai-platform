@@ -124,7 +124,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
   let listening = false
   let sending = false
   let intentionalAbort = false
-  let resumeHandsFreeAfterInterrupt = false
   /** User pressed Stop — block auto-resume / VAD / silence timers until startHandsFree. */
   let hardStopped = false
   let silenceTimeoutMs = clampSilenceMs(
@@ -488,18 +487,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         }
         sending = false
         activeAbort = null
-        if (controller.signal.aborted || disposed) {
-          setStatus('idle')
-          if (resumeHandsFreeAfterInterrupt) {
-            resumeHandsFreeAfterInterrupt = false
-            await maybeResumeHandsFree()
-          }
-          return
-        }
+        // After assistant reply / playback → IDLE. Next listen = explicit mic press.
         setStatus('idle')
-        if (mode === 'hands_free' && handsFreeConversationId) {
-          await maybeResumeHandsFree()
-        }
       },
       onError: (message, error) => {
         sending = false
@@ -511,14 +500,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
           callbacks.onError?.(error)
         }
         setStatus('idle')
-        // ChatGPT-Voice: never strand the session — resume listening after recoverable errors.
-        if (mode === 'hands_free' && handsFreeConversationId) {
-          resumeHandsFreeAfterInterrupt = false
-          void maybeResumeHandsFree()
-        } else if (resumeHandsFreeAfterInterrupt) {
-          resumeHandsFreeAfterInterrupt = false
-          void maybeResumeHandsFree()
-        }
       },
     }
 
@@ -538,13 +519,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         callbacks.onError?.(app.userMessage)
       }
       setStatus('idle')
-      if (mode === 'hands_free' && handsFreeConversationId) {
-        resumeHandsFreeAfterInterrupt = false
-        void maybeResumeHandsFree()
-      } else if (resumeHandsFreeAfterInterrupt) {
-        resumeHandsFreeAfterInterrupt = false
-        void maybeResumeHandsFree()
-      }
       return null
     }
   }
@@ -623,7 +597,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       mode = next
       if (next !== 'hands_free') {
         handsFreeConversationId = null
-        resumeHandsFreeAfterInterrupt = false
         clearSilenceTimer()
         utteranceBuffer = ''
         utterancePrefix = ''
@@ -646,7 +619,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       tts.stop()
       mode = 'push_to_talk'
       handsFreeConversationId = null
-      resumeHandsFreeAfterInterrupt = false
       clearSilenceTimer()
       utteranceBuffer = ''
       utterancePrefix = ''
@@ -671,7 +643,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       tts.stop()
       mode = 'hands_free'
       handsFreeConversationId = conversationId
-      resumeHandsFreeAfterInterrupt = false
       clearSilenceTimer()
       utteranceBuffer = ''
       utterancePrefix = ''
@@ -691,7 +662,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
     async stopListening() {
       intentionalAbort = true
       hardStopped = true
-      resumeHandsFreeAfterInterrupt = false
       handsFreeConversationId = null
       clearSilenceTimer()
       utteranceBuffer = ''
@@ -720,9 +690,9 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       intentionalAbort = true
       clearSilenceTimer()
       stopVad()
-      // Hard-stop latch wins — never auto-resume after user Stop.
-      const keepHandsFree = !hardStopped
-        && (opts?.resumeHandsFree ?? (mode === 'hands_free' && !!handsFreeConversationId))
+      // Accepted mic contract: after interrupt → IDLE. Reopen only when the
+      // caller explicitly opts into resumeHandsFree:true (never by default).
+      const keepHandsFree = !hardStopped && opts?.resumeHandsFree === true
       const wasSending = sending
       tts.stop()
       stt.abort()
@@ -735,12 +705,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       abortStream?.()
       setStatus('idle')
       logPipeline({ stage: 'voice', event: 'interrupted', meta: { keepHandsFree, wasSending, hardStopped } })
-      if (keepHandsFree && wasSending) {
-        resumeHandsFreeAfterInterrupt = true
-      } else {
-        resumeHandsFreeAfterInterrupt = false
-        if (keepHandsFree) void maybeResumeHandsFree()
-      }
+      // Explicit opt-in only — never latch auto-relisten across an in-flight send.
+      if (keepHandsFree) void maybeResumeHandsFree()
     },
     async speakText(text, opts) {
       if (disposed || hardStopped) return
@@ -768,7 +734,8 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
         if (!isBenignChatError(e)) throw e
       }
       if (disposed || hardStopped) return
-      const resume = opts?.resumeHandsFree !== false && !hardStopped
+      // Default: release to IDLE. Continuous conversation must opt in explicitly.
+      const resume = opts?.resumeHandsFree === true && !hardStopped
       if (resume && mode === 'hands_free' && handsFreeConversationId) {
         await maybeResumeHandsFree()
       } else if (!disposed) {
@@ -779,7 +746,6 @@ export function createVoiceSession(options: CreateVoiceSessionOptions = {}): Voi
       disposed = true
       hardStopped = true
       intentionalAbort = true
-      resumeHandsFreeAfterInterrupt = false
       handsFreeConversationId = null
       clearSilenceTimer()
       utteranceBuffer = ''

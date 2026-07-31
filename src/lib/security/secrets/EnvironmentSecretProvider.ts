@@ -26,6 +26,16 @@ function readFromProcess(key: string): string | null {
   return null
 }
 
+/** True when process.env explicitly defines the key (including empty = cleared for CI). */
+function processEnvDefines(key: string): boolean {
+  try {
+    const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    return Boolean(proc?.env && Object.prototype.hasOwnProperty.call(proc.env, key))
+  } catch {
+    return false
+  }
+}
+
 /**
  * Reads secrets from environment injection (.env, Vercel, GitHub Actions, etc.).
  * This is the ONLY SecretProvider that touches env directly.
@@ -38,7 +48,11 @@ export class EnvironmentSecretProvider implements SecretProvider {
   get(key: string): string | null {
     if (this.cache.has(key)) return this.cache.get(key) ?? null
     let value: string | null
-    if (key.startsWith('VITE_')) {
+    // Explicit process.env (including empty string from vitest test.env) wins over
+    // import.meta.env so CI can clear leaked developer keys.
+    if (processEnvDefines(key)) {
+      value = readFromProcess(key)
+    } else if (key.startsWith('VITE_')) {
       value = readFromVite(key) ?? readFromProcess(key)
     } else {
       value = readFromProcess(key) ?? readFromVite(key)

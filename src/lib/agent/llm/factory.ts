@@ -12,17 +12,20 @@ import { readManagedConfig } from '../../security/secrets/managedAccess'
 
 /**
  * Conversation-First selection:
+ * - Explicit `VITE_AGENT_LLM_PROVIDER=local` always wins (CI / vitest isolation).
  * - If an OpenAI API key is present → OpenAI (unless another remote provider id is forced).
  * - Otherwise → local fallback (or explicit remote stub id).
  * Adding VITE_OPENAI_API_KEY / VITE_AGENT_OPENAI_API_KEY is enough to go live.
  */
 export function getDefaultAgentLlmProviderId(): AgentLlmProviderId {
   const raw = readManagedConfig('VITE_AGENT_LLM_PROVIDER')?.trim().toLowerCase()
+  // Explicit local must isolate unit/integration suites from shell/cloud keys.
+  if (raw === 'local') return 'local'
   if (isOpenAiConfigured()) {
     if (raw === 'anthropic' || raw === 'gemini' || raw === 'deepseek') return raw
     return 'openai'
   }
-  if (raw === 'openai' || raw === 'anthropic' || raw === 'gemini' || raw === 'deepseek' || raw === 'local') {
+  if (raw === 'openai' || raw === 'anthropic' || raw === 'gemini' || raw === 'deepseek') {
     return raw
   }
   return 'local'
@@ -66,6 +69,10 @@ export function createAgentLlmRegistry(
       return map.get(id)
     },
     getActive() {
+      // Explicit local registry (vitest / forced) — never hijack to OpenAI.
+      if (activeId === 'local') {
+        return map.get('local') ?? createLocalAgentLlmAdapter()
+      }
       // Conversation-First: OpenAI wins whenever a key/proxy is configured.
       const openai = map.get('openai')
       if (openai?.isAvailable()) return openai

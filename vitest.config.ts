@@ -7,6 +7,12 @@ import { defineConfig } from 'vitest/config'
  */
 export default defineConfig({
   envDir: false,
+  // Prevent Vite-injected import.meta.env from leaking developer OpenAI keys into CI.
+  define: {
+    'import.meta.env.VITE_OPENAI_API_KEY': JSON.stringify(''),
+    'import.meta.env.VITE_AGENT_OPENAI_API_KEY': JSON.stringify(''),
+    'import.meta.env.VITE_AGENT_LLM_PROVIDER': JSON.stringify('local'),
+  },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
@@ -15,7 +21,11 @@ export default defineConfig({
       VITE_SUPABASE_ANON_KEY: 'test-anon-key',
       VITE_PAYMENT_PROVIDER: 'mock',
       VITE_CHAT_PROVIDER: 'mock',
+      // Force local LLM — must win over shell/cloud OpenAI keys (CI isolation).
       VITE_AGENT_LLM_PROVIDER: 'local',
+      VITE_OPENAI_API_KEY: '',
+      VITE_AGENT_OPENAI_API_KEY: '',
+      OPENAI_API_KEY: '',
       VITE_VOICE_STT_PROVIDER: 'mock',
       VITE_VOICE_TTS_PROVIDER: 'mock',
       VITE_LIVE_PROVIDERS_ENABLED: 'false',

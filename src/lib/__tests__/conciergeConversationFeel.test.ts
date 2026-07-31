@@ -101,13 +101,15 @@ describe('Concierge feel — never ask twice', () => {
       startDate: '2026-08-01',
       budgetAmount: 8000,
       budgetCurrency: 'SAR',
+      travelers: 2,
     })
     expect(missingClarificationFields(req, { smart: true })).toEqual([])
+    expect(missingClarificationFields(req, { smart: true })).not.toContain('durationDays')
   })
 
-  it('hard clarification fields exclude travelers (inferred, not interrogated)', () => {
-    expect(HARD_CLARIFICATION_FIELDS).toEqual(['destination', 'durationDays', 'budgetAmount'])
-    expect(HARD_CLARIFICATION_FIELDS).not.toContain('travelers')
+  it('hard clarification fields include travelers (budget is soft, not blocking)', () => {
+    expect(HARD_CLARIFICATION_FIELDS).toEqual(['destination', 'durationDays', 'travelers'])
+    expect(HARD_CLARIFICATION_FIELDS).not.toContain('budgetAmount')
   })
 })
 
@@ -116,7 +118,7 @@ describe('Concierge feel — one question + act when ready', () => {
 
   it('asks only one field at a time from concierge policy', () => {
     const memory = emptyMemory('en')
-    memory.missingFields = ['destination', 'durationDays', 'budgetAmount']
+    memory.missingFields = ['destination', 'durationDays', 'travelers']
     const decision = decideConciergeTurn({
       locale: 'en',
       memory,
@@ -129,7 +131,7 @@ describe('Concierge feel — one question + act when ready', () => {
     expect(decision.askFields).toHaveLength(1)
   })
 
-  it('does not invent travelers; hard slots clear when dest + budget + dates exist', () => {
+  it('does not invent travelers; travelers stays required when null', () => {
     const base = mergeRequirements(emptyRequirements(), {
       destination: 'Morocco',
       destinations: ['Morocco'],
@@ -142,10 +144,10 @@ describe('Concierge feel — one question + act when ready', () => {
     const inferred = inferSoftRequirements(base, { locale: 'en' })
     expect(inferred.requirements.travelers).toBeNull()
     expect(inferred.requirements.travelerType).toBeNull()
-    expect(missingRequirementFields(inferred.requirements, { smart: true })).toEqual([])
+    expect(missingRequirementFields(inferred.requirements, { smart: true })).toContain('travelers')
   })
 
-  it('planTurn acts when dest + budget + weekend timing exist — no traveler census', async () => {
+  it('planTurn asks travelers when dest + budget + weekend timing exist but party size unknown', async () => {
     const service = createTravelAgentService({
       tools: createMockAgentToolRegistry(),
       smartClarificationEnabled: true,
@@ -157,13 +159,14 @@ describe('Concierge feel — one question + act when ready', () => {
         user('Plan Morocco next weekend under 8000 SAR', 'conv-feel-act'),
       ],
     })
-    expect(turn.memory.missingFields).toEqual([])
+    expect(turn.memory.missingFields).toContain('travelers')
     expect(turn.memory.requirements.destination).toBe('Morocco')
     expect(turn.memory.requirements.budgetAmount).toBe(8000)
     expect(turn.memory.requirements.durationDays).toBe(2)
     expect(turn.memory.requirements.startDate).toBeTruthy()
-    expect(turn.tripPlan || turn.reply).toBeTruthy()
-    expect(turn.reply.toLowerCase()).not.toMatch(/how many people|traveling solo|كم شخص|بتسافر لوحدك/)
+    expect(turn.memory.requirements.travelers).toBeNull()
+    expect(turn.reply).toBeTruthy()
+    expect(turn.reply.toLowerCase()).toMatch(/traveler|مسافر|how many|كم/)
   })
 
   it('never re-asks destination on a follow-up turn', async () => {
@@ -200,7 +203,7 @@ describe('Concierge feel — consultant voice', () => {
       destinations: ['Morocco'],
       durationDays: 2,
     })
-    memory.missingFields = ['budgetAmount']
+    memory.missingFields = ['travelers']
     const facts = buildTravelFacts({
       memory,
       objective: 'collect_missing',

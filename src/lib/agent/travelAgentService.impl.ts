@@ -2258,6 +2258,8 @@ export function createTravelAgentService(
             signal: input.signal,
             onDelta: input.onDialogueDelta,
           })
+          // Keep already-computed personalization / planner / learning meta on the
+          // intake fast-path — dropping them made preference-only turns look broken.
           const meta: AgentProviderMeta = {
             kind: 'travel_agent',
             version: 2,
@@ -2269,6 +2271,15 @@ export function createTravelAgentService(
             toolResults: [],
             reasoning: reasoningMeta,
             clarification: clarificationMeta,
+            ...(travelPlannerResult
+              ? { travelPlanner: toMetaTravelPlanner(travelPlannerResult) }
+              : {}),
+            ...(travelerPersonalizationResult
+              ? { travelerPersonalization: toMetaTravelerPersonalization(travelerPersonalizationResult) }
+              : {}),
+            ...(adaptiveLearningResult
+              ? { adaptiveLearning: toMetaAdaptiveLearning(adaptiveLearningResult) }
+              : {}),
           }
           return {
             reply: spoken.displayText,

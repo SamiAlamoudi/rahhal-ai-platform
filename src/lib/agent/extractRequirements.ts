@@ -786,9 +786,10 @@ function matchTravelers(lower: string, original: string): { count: number; type:
     one: 1, two: 2, three: 3, four: 4, five: 5,
     six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
   }
-  const personUnit = 'people|persons|travelers|travellers|adults|guests|passengers|pax'
+  // Include singular "traveler" — fixtures say "1 traveler" / "2 travelers".
+  const personUnit = 'people|persons|travelers?|travellers?|adults|guests|passengers|pax'
   const en = lower.match(
-    new RegExp(`(\\d+|one|two|three|four|five|six|seven|eight|nine|ten)\\s*(?:${personUnit})`),
+    new RegExp(`(\\d+|one|two|three|four|five|six|seven|eight|nine|ten)\\s*(?:${personUnit})\\b`),
   )
   const ar = original.match(/(\d+)\s*(?:أشخاص|اشخاص|أفراد|افراد|مسافر)/)
   const kids = lower.match(/(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:kids?|children)/)

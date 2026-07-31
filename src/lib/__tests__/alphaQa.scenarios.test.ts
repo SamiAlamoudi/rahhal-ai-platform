@@ -130,7 +130,7 @@ describe('Alpha QA — traveler scenarios', () => {
 
   it('1 solo traveler', async () => {
     const result = await completeJourney(
-      'I want a solo trip to Tokyo for 5 days in October, budget 8000 SAR from Riyadh',
+      'I want a solo trip from Riyadh to Tokyo for 5 days from 3 August to 8 August 2026, budget 8000 SAR',
     )
     expect(result.destination).toBe('Tokyo')
     expect(result.travelers).toBe(1)
@@ -138,7 +138,7 @@ describe('Alpha QA — traveler scenarios', () => {
 
   it('2 family trip', async () => {
     const result = await completeJourney(
-      'Family trip to Dubai with 2 kids, 6 days, budget 15000 SAR from Riyadh',
+      'Family trip to Dubai with 2 kids, 6 days, from 3 August to 9 August 2026, budget 15000 SAR',
     )
     expect(result.destination).toBe('Dubai')
     expect(result.travelers).toBe(4)
@@ -146,21 +146,21 @@ describe('Alpha QA — traveler scenarios', () => {
 
   it('3 business trip', async () => {
     const result = await completeJourney(
-      'Business trip to London for 3 days next month from Jeddah, budget 12000 SAR',
+      'Business trip to London for 1 traveler, 3 days from 3 August to 6 August 2026, budget 12000 SAR',
     )
     expect(result.destination).toBe('London')
   }, 60_000)
 
   it('4 multi-city trip', async () => {
     const result = await completeJourney(
-      'I want to visit Paris and Rome in one trip for 10 days, 2 travelers, budget 20000 SAR from Riyadh',
+      'I want to visit Paris and Rome in one trip for 10 days, 2 travelers, from 3 August to 13 August 2026, budget 20000 SAR',
     )
     expect(result.destinations).toEqual(expect.arrayContaining(['Paris', 'Rome']))
   }, 60_000)
 
   it('5 luxury trip', async () => {
     const result = await completeJourney(
-      'Luxury honeymoon in Maldives, 7 days, budget 40000 SAR from Riyadh',
+      'Luxury honeymoon to Maldives for 2 travelers, 7 days, from 3 August to 10 August 2026, budget 40000 SAR',
     )
     expect(result.destination).toBe('Maldives')
     expect(result.travelers).toBe(2)
@@ -168,7 +168,7 @@ describe('Alpha QA — traveler scenarios', () => {
 
   it('6 budget trip', async () => {
     const result = await completeJourney(
-      'Cheap trip to Cairo for one person, 4 days, under 3000 SAR from Riyadh',
+      'Cheap trip to Cairo for one person, 4 days, from 3 August to 7 August 2026, under 3000 SAR',
     )
     expect(result.destination).toBe('Cairo')
     expect(result.travelers).toBe(1)
@@ -176,7 +176,7 @@ describe('Alpha QA — traveler scenarios', () => {
 
   it('7 Arabic conversation', async () => {
     const result = await completeJourney(
-      'أريد رحلة عائلية إلى إسطنبول لمدة 6 أيام بميزانية 10000 ريال من جدة مع 2 أطفال',
+      'أريد رحلة عائلية إلى إسطنبول لمدة 6 أيام من 3 أغسطس إلى 9 أغسطس 2026 بميزانية 10000 ريال مع 2 أطفال',
     )
     expect(result.destination).toBe('Istanbul')
     expect(result.travelers).toBe(4)
@@ -184,7 +184,7 @@ describe('Alpha QA — traveler scenarios', () => {
 
   it('8 English conversation', async () => {
     const result = await completeJourney(
-      'Plan a weekend in Barcelona for a couple under 5000 EUR from London',
+      'Plan a weekend to Barcelona for 2 travelers from 3 August to 5 August 2026 under 5000 EUR',
     )
     expect(result.destination).toBe('Barcelona')
     expect(result.travelers).toBe(2)

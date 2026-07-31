@@ -330,7 +330,11 @@ describe('Sprint 14 concierge confirmation intents', () => {
     }]
     const turn = await service.planTurn({ conversationId: 'c1', messages })
     expect(turn.memory.lastIntent).toBe('booking_confirmed')
-    expect(turn.reply).toMatch(/confirmed|pending|failed/i)
+    expect(turn.reply.length).toBeGreaterThan(10)
+    expect(turn.meta.spokenText?.length).toBeGreaterThan(0)
+    const live = getBookingOrchestrator().getBookingSession(session.id)!
+    expect(live.status).toBe('confirmed')
+    expect(confirmationStateFromSession(live).status).toBe('confirmed')
 
     vi.unstubAllGlobals()
   })

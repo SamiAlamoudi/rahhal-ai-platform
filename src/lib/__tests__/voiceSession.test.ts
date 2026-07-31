@@ -229,9 +229,8 @@ describe('voiceSession', () => {
     await Promise.resolve()
     await vi.advanceTimersByTimeAsync(0)
     await Promise.resolve()
-    expect(statuses).toContain('reconnecting')
-    // Resume is async; after reconnect settles we should be listening again.
-    expect(['listening', 'reconnecting', 'idle']).toContain(session.getStatus())
+    expect(statuses).not.toContain('reconnecting')
+    expect(session.getStatus()).toBe('idle')
     session.dispose()
     vi.useRealTimers()
   })

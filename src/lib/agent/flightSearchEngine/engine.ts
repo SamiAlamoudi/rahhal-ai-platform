@@ -18,6 +18,7 @@ import { paginateFlights } from './pagination'
 import { rankFlights } from './ranking'
 import { sortFlights } from './sort'
 import type {
+  FlightCabinClass,
   FlightSearchDiagnostics,
   FlightSearchPage,
   FlightSearchRequest,
@@ -48,6 +49,80 @@ function createRequestIdDefault(): string {
     return `flt_${crypto.randomUUID()}`
   }
   return `flt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+/**
+ * Deterministic mock inventory priced within the request budget cap.
+ * Keeps CI / mock-mode bookable without live providers, without fabricating
+ * traveler-facing "live" supplier labels.
+ */
+export function seedBudgetAwareMockFlights(request: {
+  origin?: string | null
+  destination?: string | null
+  currency?: string | null
+  cabin?: FlightCabinClass | string | null
+  departureDate?: string | null
+  filters?: { maxPrice?: number | null } | null
+}): UnifiedFlight[] {
+  const cabin: FlightCabinClass = request.cabin === 'business'
+    || request.cabin === 'first'
+    || request.cabin === 'premium_economy'
+    || request.cabin === 'economy'
+    ? request.cabin
+    : 'economy'
+  const origin = request.origin || 'RUH'
+  const destination = request.destination || ''
+  if (!destination) return []
+  const maxPrice = request.filters?.maxPrice
+  const defaults = cabin === 'business'
+    ? [9200, 8800, 10500]
+    : [2400, 2100, 2650]
+  const prices = defaults.map((base, index) => {
+    if (maxPrice == null || !(maxPrice > 0)) return base
+    // Keep three distinct bookable prices under the cap.
+    const fraction = 0.72 + index * 0.08
+    return Math.max(120, Math.min(base, Math.floor(maxPrice * fraction)))
+  })
+  const dep = request.departureDate || '2026-08-03'
+  return [
+    enrichMockFlight({
+      origin,
+      destination,
+      currency: request.currency || 'SAR',
+      cabin,
+      airline: 'Saudia',
+      price: prices[0],
+      stops: 0,
+      duration: 620,
+      departureTime: `${dep}T08:00:00Z`,
+      arrivalTime: `${dep}T18:20:00Z`,
+    }, 0),
+    enrichMockFlight({
+      origin,
+      destination,
+      currency: request.currency || 'SAR',
+      cabin,
+      airline: 'ANA',
+      price: prices[1],
+      stops: 1,
+      duration: 710,
+      refundable: false,
+      departureTime: `${dep}T09:30:00Z`,
+      arrivalTime: `${dep}T21:20:00Z`,
+    }, 1),
+    enrichMockFlight({
+      origin,
+      destination,
+      currency: request.currency || 'SAR',
+      cabin,
+      airline: 'Emirates',
+      price: prices[2],
+      stops: 1,
+      duration: 680,
+      departureTime: `${dep}T11:15:00Z`,
+      arrivalTime: `${dep}T22:35:00Z`,
+    }, 2),
+  ]
 }
 
 function isBookableFlight(flight: UnifiedFlight): boolean {
@@ -176,50 +251,10 @@ async function queryProviders(
   // (Mock runtime is the product default; junk stubs must not block the pad.)
   {
     const usable = bookable()
-    const cabin = request.cabin ?? 'economy'
-    const origin = request.origin || 'RUH'
     const destination = request.destination || ''
     if (destination && usable.length < 3) {
       collected.length = 0
-      collected.push(
-        enrichMockFlight({
-          origin,
-          destination,
-          currency: request.currency,
-          cabin,
-          airline: 'Saudia',
-          price: cabin === 'business' ? 9200 : 2400,
-          stops: 0,
-          duration: 620,
-          departureTime: `${request.departureDate || '2026-08-03'}T08:00:00Z`,
-          arrivalTime: `${request.departureDate || '2026-08-03'}T18:20:00Z`,
-        }, 0),
-        enrichMockFlight({
-          origin,
-          destination,
-          currency: request.currency,
-          cabin,
-          airline: 'ANA',
-          price: cabin === 'business' ? 8800 : 2100,
-          stops: 1,
-          duration: 710,
-          refundable: false,
-          departureTime: `${request.departureDate || '2026-08-03'}T09:30:00Z`,
-          arrivalTime: `${request.departureDate || '2026-08-03'}T21:20:00Z`,
-        }, 1),
-        enrichMockFlight({
-          origin,
-          destination,
-          currency: request.currency,
-          cabin,
-          airline: 'Emirates',
-          price: cabin === 'business' ? 10500 : 2650,
-          stops: 1,
-          duration: 680,
-          departureTime: `${request.departureDate || '2026-08-03'}T11:15:00Z`,
-          arrivalTime: `${request.departureDate || '2026-08-03'}T22:35:00Z`,
-        }, 2),
-      )
+      collected.push(...seedBudgetAwareMockFlights(request))
       if (!providersUsed.includes('mock')) providersUsed.push('mock')
       modes.mock = 'mock'
       providerLatencyMs.mock = providerLatencyMs.mock ?? 0
@@ -319,7 +354,29 @@ export function createFlightSearchEngine(
     const queried = await queryProviders(registry, normalized)
 
     const totalBeforeFilter = queried.flights.length
-    const filtered = applyFlightFilters(queried.flights, normalized.filters)
+    let filtered = applyFlightFilters(queried.flights, normalized.filters)
+    let fallbackUsed = queried.fallbackUsed
+    let gracefulMessage = queried.gracefulMessage
+    let providersUsed = [...queried.providersUsed]
+    const modes = { ...queried.modes }
+    const providerLatencyMs = { ...queried.providerLatencyMs }
+
+    // Budget filters can wipe fixed mock stubs — reseed within maxPrice so CI
+    // mock mode stays bookable without calling live suppliers.
+    if (filtered.length === 0 && normalized.destination) {
+      const seeded = seedBudgetAwareMockFlights(normalized)
+      const underCap = applyFlightFilters(seeded, normalized.filters)
+      if (underCap.length > 0) {
+        filtered = underCap
+        fallbackUsed = true
+        // Inventory available from mock — not a provider outage.
+        gracefulMessage = undefined
+        if (!providersUsed.includes('mock')) providersUsed.push('mock')
+        modes.mock = 'mock'
+        providerLatencyMs.mock = providerLatencyMs.mock ?? 0
+      }
+    }
+
     const totalAfterFilter = filtered.length
     const deduped = dedupeFlights(filtered)
     const totalAfterDedupe = deduped.length
@@ -331,15 +388,15 @@ export function createFlightSearchEngine(
 
     const diagnostics: FlightSearchDiagnostics = {
       requestId,
-      providersUsed: queried.providersUsed,
-      providerLatencyMs: queried.providerLatencyMs,
+      providersUsed,
+      providerLatencyMs,
       cacheHit: false,
-      fallbackUsed: queried.fallbackUsed,
-      modes: queried.modes,
+      fallbackUsed,
+      modes,
       totalBeforeFilter,
       totalAfterFilter,
       totalAfterDedupe,
-      gracefulMessage: queried.gracefulMessage,
+      gracefulMessage,
     }
 
     const result: FlightSearchPage = {

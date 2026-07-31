@@ -183,7 +183,7 @@ function softAck(facts: TravelFacts, seed: number, ar: boolean): string {
     return `A ${days}-day trip to ${d} for two within ${budget} is a strong starting frame.`
   }
   return d !== 'your destination'
-    ? `Great — I will build the trip around ${d}.`
+    ? `Understood — I will build the trip around ${d}.`
     : 'Understood.'
 }
 

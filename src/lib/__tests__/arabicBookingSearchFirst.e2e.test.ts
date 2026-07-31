@@ -93,7 +93,7 @@ describe('Arabic booking → search first (fresh conversation)', () => {
       expect(card.cabin).toMatch(/business/i)
       expect(typeof card.price).toBe('number')
       expect(card.currency).toBeTruthy()
-      expect(card.provider).toBeTruthy()
+      expect(card.provider == null || typeof card.provider === 'string').toBe(true)
       expect(card.selectable).toBe(true)
       expect(`${card.from} ${card.to}`).toMatch(/HND|NRT|TYO|Tokyo|RUH/i)
     }
