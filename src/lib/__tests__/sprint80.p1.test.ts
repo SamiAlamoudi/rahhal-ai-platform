@@ -35,6 +35,24 @@ describe('Sprint 80 P1-5 — voice meter store', () => {
   it('keeps an honest virtualization threshold (short chats fully mounted)', () => {
     expect(MESSAGE_LIST_VIRTUALIZE_AFTER).toBe(40)
   })
+
+  it('isolates meter ticks from ChatPage React state (no full-tree re-render owner)', () => {
+    const chatPage = readFileSync(resolve(__dirname, '../../pages/ChatPage.tsx'), 'utf8')
+    expect(chatPage).toContain('setVoiceMeterLevel')
+    expect(chatPage).toContain('useVoiceMeterLevel')
+    expect(chatPage).not.toMatch(/\buseState\s*<[^>]*>\s*\(\s*0\s*\)/)
+    expect(chatPage).not.toMatch(/\bvoiceLevel\b/)
+    expect(chatPage).not.toMatch(/\bsetVoiceLevel\b/)
+    expect(chatPage).toContain('const renderMessage = useCallback')
+  })
+
+  it('memoizes MessageBubble', () => {
+    const bubble = readFileSync(
+      resolve(__dirname, '../../components/chat/MessageBubble.tsx'),
+      'utf8',
+    )
+    expect(bubble).toMatch(/export default memo\(function MessageBubble/)
+  })
 })
 
 describe('Sprint 80 P1-6 — TTS unlock does not synthesize warm speech', () => {
@@ -51,6 +69,21 @@ describe('Sprint 80 P1-6 — TTS unlock does not synthesize warm speech', () => 
     expect(file).toContain('preconnectOpenAiTtsRoute')
     expect(file).not.toContain("text: 'مرحبا'")
     expect(file).not.toContain('openai_tts_warmup_ok')
+  })
+
+  it('call sites only invoke unlockAudioPlayback (no local مرحبا TTS warm POST)', () => {
+    const home = readFileSync(
+      resolve(__dirname, '../../components/home/HomeVoiceConsultant.tsx'),
+      'utf8',
+    )
+    const session = readFileSync(
+      resolve(__dirname, '../chat/voice/voiceSession.ts'),
+      'utf8',
+    )
+    expect(home).toContain('unlockAudioPlayback')
+    expect(session).toContain('unlockAudioPlayback')
+    expect(home).not.toContain("text: 'مرحبا'")
+    expect(session).not.toContain("text: 'مرحبا'")
   })
 
   it('unlockAudioPlayback never POSTs /api/openai/tts', async () => {
@@ -112,5 +145,11 @@ describe('Sprint 80 P1-7 — doc/code voice freeze alignment', () => {
     expect(file).toMatch(/mic stays IDLE/i)
     expect(file).toMatch(/interrupt_response:\s*false/)
     expect(file).toMatch(/no auto-relisten/i)
+  })
+
+  it('AGENTS.md documents IDLE mic after assistant reply', () => {
+    const file = readFileSync(resolve(__dirname, '../../../AGENTS.md'), 'utf8')
+    expect(file).toMatch(/IDLE/)
+    expect(file).toMatch(/interrupt_response:\s*false/)
   })
 })
