@@ -78,15 +78,21 @@ function cabinFrom(req: TripRequirements): FlightSearchRequest['cabin'] {
 
 export function buildFlightSearchRequest(ctx: AgentToolContext): FlightSearchRequest {
   const req = ctx.requirements
-  const originRaw = String(ctx.input?.origin ?? req.origin ?? 'Riyadh')
+  const originRaw = String(ctx.input?.origin ?? req.origin ?? '').trim()
+  if (!originRaw) {
+    throw new Error('search_blocked_origin_unconfirmed')
+  }
   // Same normalized destination object as planTurn memory — never invent Dubai/DXB/Jordan.
   const destinationRaw = String(
     ctx.input?.destination
-    ?? req.destinationCity
     ?? req.destination
+    ?? req.destinationCity
     ?? req.destinations[0]
     ?? '',
-  )
+  ).trim()
+  if (!destinationRaw) {
+    throw new Error('search_blocked_destination_unconfirmed')
+  }
   // Lock search to the single confirmed destination (ignore stale multi-city unions).
   const lockedReq: TripRequirements = {
     ...req,

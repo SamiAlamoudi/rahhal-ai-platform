@@ -83,6 +83,7 @@ describe('Lebanon + travelers integrity', () => {
     expect(provenance.destination?.value).toBe('لبنان')
     expect(provenance.destination?.confirmed).toBe(true)
     expect(provenance.destination?.source).toBe('current_turn')
+    expect(provenance.destination?.currentTurnPriority).toBe(true)
     expect(provenance.travelers?.value).toBeNull()
     expect(provenance.travelers?.confirmed).toBe(false)
     expect(bookingFieldsSearchReady(provenance).ready).toBe(false)
@@ -110,8 +111,9 @@ describe('Lebanon + travelers integrity', () => {
       userMessage: 'أريد السفر إلى لبنان لمدة أسبوع',
       conversationId: 'lebanon-integrity',
     })
-    expect(reply.displayText).toMatch(/لبنان/)
-    expect(reply.displayText).toMatch(/كم عدد المسافرين؟/)
+    expect(reply.displayText).toBe(
+      'فهمت أنك تريد السفر إلى لبنان لمدة أسبوع. كم عدد المسافرين؟',
+    )
     expect(reply.displayText).not.toMatch(/شخصين|لشخصين|شريكتكم/)
     expect(reply.spokenText).not.toMatch(/شخصين|لشخصين|شريكتكم/)
     expect(reply.displayText).not.toMatch(/جاهز|الخيارات|بطاقات|دولار|\$/)

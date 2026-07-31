@@ -1,6 +1,7 @@
 /**
  * Strict field provenance for booking-critical trip slots.
  * Search may start only when mandatory fields are confirmed with valid source.
+ * Current-turn values always outrank confirmed_memory / stale trip state.
  */
 
 export type FieldProvenanceSource = 'current_turn' | 'confirmed_memory' | 'user_selection'
@@ -8,8 +9,11 @@ export type FieldProvenanceSource = 'current_turn' | 'confirmed_memory' | 'user_
 export type ProvenancedField<T> = {
   value: T
   source: FieldProvenanceSource
+  /** 0–1 confidence */
   confidence: number
   confirmed: boolean
+  /** True when the value was set or refreshed by the current user turn. */
+  currentTurnPriority: boolean
 }
 
 export type RequirementsProvenance = {
@@ -33,8 +37,9 @@ export function provenanced<T>(
   source: FieldProvenanceSource,
   confidence = 1,
   confirmed = true,
+  currentTurnPriority = source === 'current_turn',
 ): ProvenancedField<T> {
-  return { value, source, confidence, confirmed }
+  return { value, source, confidence, confirmed, currentTurnPriority }
 }
 
 /** True when a mandatory field may drive search / cards. */
@@ -52,18 +57,74 @@ export function isSearchReadyField<T>(
   return true
 }
 
+/**
+ * Booking search / cards require confirmed destination, travelers,
+ * calendar dates (start + end), and origin — never duration alone,
+ * and never invented defaults.
+ */
 export function bookingFieldsSearchReady(provenance: RequirementsProvenance | null | undefined): {
   ready: boolean
   missing: Array<keyof RequirementsProvenance>
 } {
   const missing: Array<keyof RequirementsProvenance> = []
   if (!isSearchReadyField(provenance?.destination)) missing.push('destination')
-  const hasDates = isSearchReadyField(provenance?.durationDays)
-    || (isSearchReadyField(provenance?.startDate) && isSearchReadyField(provenance?.endDate))
-    || isSearchReadyField(provenance?.startDate)
-  if (!hasDates) missing.push('durationDays')
   if (!isSearchReadyField(provenance?.travelers)) missing.push('travelers')
+  if (!isSearchReadyField(provenance?.startDate)) missing.push('startDate')
+  if (!isSearchReadyField(provenance?.endDate)) missing.push('endDate')
+  if (!isSearchReadyField(provenance?.origin)) missing.push('origin')
   return { ready: missing.length === 0, missing }
+}
+
+/** Next booking question order for voice intake (one at a time). */
+export function nextBookingMissingField(
+  provenance: RequirementsProvenance | null | undefined,
+  requirements: {
+    destination?: string | null
+    destinations?: string[]
+    travelers?: number | null
+    startDate?: string | null
+    endDate?: string | null
+    origin?: string | null
+  },
+): keyof RequirementsProvenance | null {
+  const hasDest = Boolean(
+    requirements.destination
+    || (requirements.destinations && requirements.destinations.length > 0)
+    || isSearchReadyField(provenance?.destination),
+  )
+  if (!hasDest) return 'destination'
+  if (!isSearchReadyField(provenance?.travelers) && requirements.travelers == null) return 'travelers'
+  if (!isSearchReadyField(provenance?.startDate) && !requirements.startDate) return 'startDate'
+  if (!isSearchReadyField(provenance?.endDate) && !requirements.endDate) return 'endDate'
+  if (!isSearchReadyField(provenance?.origin) && !requirements.origin) return 'origin'
+  return null
+}
+
+function fromPatchOrMemory<T>(input: {
+  patchValue: T | null | undefined
+  mergedValue: T | null | undefined
+  prior?: ProvenancedField<T> | null
+  patchPresent: boolean
+}): ProvenancedField<T> | undefined {
+  const { patchValue, mergedValue, prior, patchPresent } = input
+  if (patchPresent && patchValue !== undefined) {
+    // Current turn always wins over stale memory.
+    const confirmed = patchValue != null && !(typeof patchValue === 'string' && !String(patchValue).trim())
+    return provenanced(
+      (patchValue ?? null) as T,
+      'current_turn',
+      confirmed ? 1 : 0,
+      Boolean(confirmed),
+      true,
+    )
+  }
+  if (mergedValue != null && prior?.confirmed && prior.value === mergedValue) {
+    return provenanced(mergedValue, 'confirmed_memory', prior.confidence, true, false)
+  }
+  if (mergedValue != null) {
+    return provenanced(mergedValue, 'confirmed_memory', 0.85, true, false)
+  }
+  return undefined
 }
 
 /**
@@ -95,71 +156,77 @@ export function buildRequirementsProvenance(input: {
   const { patch, merged, prior, destinationChanged } = input
   const out: RequirementsProvenance = {}
 
-  if (merged.destination) {
-    out.destination = patch.destination
-      ? provenanced(merged.destination, 'current_turn', 1, true)
-      : (prior?.destination?.confirmed
-        ? provenanced(merged.destination, 'confirmed_memory', prior.destination.confidence, true)
-        : provenanced(merged.destination, 'current_turn', 0.9, true))
-  }
+  const dest = fromPatchOrMemory({
+    patchValue: patch.destination,
+    mergedValue: merged.destination,
+    prior: prior?.destination,
+    patchPresent: patch.destination !== undefined && patch.destination != null,
+  })
+  if (dest) out.destination = dest
 
-  if (merged.origin) {
-    out.origin = patch.origin
-      ? provenanced(merged.origin, 'current_turn', 1, true)
-      : (prior?.origin?.confirmed
-        ? provenanced(merged.origin, 'confirmed_memory', prior.origin.confidence, true)
-        : undefined)
-  }
+  const origin = fromPatchOrMemory({
+    patchValue: patch.origin,
+    mergedValue: merged.origin,
+    prior: prior?.origin,
+    patchPresent: patch.origin !== undefined && patch.origin != null,
+  })
+  if (origin) out.origin = origin
 
-  if (merged.startDate) {
-    out.startDate = patch.startDate
-      ? provenanced(merged.startDate, 'current_turn', 1, true)
-      : (prior?.startDate?.confirmed
-        ? provenanced(merged.startDate, 'confirmed_memory', prior.startDate.confidence, true)
-        : undefined)
-  }
+  const startDate = fromPatchOrMemory({
+    patchValue: patch.startDate,
+    mergedValue: merged.startDate,
+    prior: prior?.startDate,
+    patchPresent: patch.startDate !== undefined && patch.startDate != null,
+  })
+  if (startDate) out.startDate = startDate
 
-  if (merged.endDate) {
-    out.endDate = patch.endDate
-      ? provenanced(merged.endDate, 'current_turn', 1, true)
-      : (prior?.endDate?.confirmed
-        ? provenanced(merged.endDate, 'confirmed_memory', prior.endDate.confidence, true)
-        : undefined)
-  }
+  const endDate = fromPatchOrMemory({
+    patchValue: patch.endDate,
+    mergedValue: merged.endDate,
+    prior: prior?.endDate,
+    patchPresent: patch.endDate !== undefined && patch.endDate != null,
+  })
+  if (endDate) out.endDate = endDate
 
-  if (merged.durationDays != null) {
-    out.durationDays = patch.durationDays != null
-      ? provenanced(merged.durationDays, 'current_turn', 1, true)
-      : (prior?.durationDays?.confirmed
-        ? provenanced(merged.durationDays, 'confirmed_memory', prior.durationDays.confidence, true)
-        : provenanced(merged.durationDays, 'current_turn', 0.9, true))
+  if (patch.durationDays != null) {
+    out.durationDays = provenanced(patch.durationDays, 'current_turn', 1, true, true)
+  } else if (merged.durationDays != null && prior?.durationDays?.confirmed) {
+    out.durationDays = provenanced(merged.durationDays, 'confirmed_memory', prior.durationDays.confidence, true, false)
+  } else if (merged.durationDays != null) {
+    out.durationDays = provenanced(merged.durationDays, 'confirmed_memory', 0.85, true, false)
   }
 
   // Travelers: never inherit across destination changes; never invent.
   if (destinationChanged && patch.travelers == null) {
-    out.travelers = provenanced(null, 'current_turn', 0, false)
+    out.travelers = provenanced(null, 'current_turn', 0, false, true)
   } else if (patch.travelers != null && patch.travelers > 0) {
-    out.travelers = provenanced(patch.travelers, 'current_turn', 1, true)
+    out.travelers = provenanced(patch.travelers, 'current_turn', 1, true, true)
   } else if (
     !destinationChanged
     && prior?.travelers?.confirmed
     && prior.travelers.value != null
     && merged.travelers === prior.travelers.value
   ) {
-    out.travelers = provenanced(merged.travelers, 'confirmed_memory', prior.travelers.confidence, true)
+    out.travelers = provenanced(merged.travelers, 'confirmed_memory', prior.travelers.confidence, true, false)
   } else if (merged.travelers != null) {
-    // Present in memory without valid provenance → unconfirmed (block search).
-    out.travelers = provenanced(merged.travelers, 'current_turn', 0.3, false)
+    out.travelers = provenanced(merged.travelers, 'current_turn', 0.3, false, false)
   } else {
-    out.travelers = provenanced(null, 'current_turn', 0, false)
+    out.travelers = provenanced(null, 'current_turn', 0, false, true)
   }
 
-  if (merged.cabinPreference) {
-    out.cabinPreference = patch.cabinPreference
-      ? provenanced(merged.cabinPreference, 'current_turn', 1, true)
-      : (prior?.cabinPreference?.confirmed
-        ? provenanced(merged.cabinPreference, 'confirmed_memory', prior.cabinPreference.confidence, true)
-        : undefined)
+  if (destinationChanged && patch.cabinPreference == null) {
+    // Drop stale cabin from prior trip.
+    out.cabinPreference = provenanced(null, 'current_turn', 0, false, true)
+  } else if (patch.cabinPreference) {
+    out.cabinPreference = provenanced(patch.cabinPreference, 'current_turn', 1, true, true)
+  } else if (merged.cabinPreference && prior?.cabinPreference?.confirmed) {
+    out.cabinPreference = provenanced(
+      merged.cabinPreference,
+      'confirmed_memory',
+      prior.cabinPreference.confidence,
+      true,
+      false,
+    )
   }
 
   return out

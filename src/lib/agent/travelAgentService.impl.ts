@@ -40,6 +40,7 @@ import { resolveAirportCode } from './airportCodes'
 import {
   bookingFieldsSearchReady,
   buildRequirementsProvenance,
+  nextBookingMissingField,
 } from './fieldProvenance'
 import {
   buildBookingOptionsFromPlan,
@@ -2081,11 +2082,11 @@ export function createTravelAgentService(
         const hasDestination = Boolean(
           memory.requirements.destination || (memory.requirements.destinations?.length ?? 0) > 0,
         )
-        const hasDates = Boolean(
-          memory.requirements.durationDays != null
-          || (memory.requirements.startDate && memory.requirements.endDate)
-          || memory.requirements.startDate,
+        // Calendar dates required — duration alone must not unlock cards.
+        const hasCalendarDates = Boolean(
+          memory.requirements.startDate && memory.requirements.endDate,
         )
+        const hasOrigin = Boolean(memory.requirements.origin)
         const provenanceGate = bookingFieldsSearchReady(memory.fieldProvenance)
         const hasTravelers = Boolean(
           memory.requirements.travelers != null
@@ -2094,18 +2095,39 @@ export function createTravelAgentService(
             || memory.fieldProvenance.travelers.source === 'confirmed_memory'
             || memory.fieldProvenance.travelers.source === 'user_selection'),
         )
-        const bookingSearchReady = hasDestination && hasDates && hasTravelers && provenanceGate.ready
+        const bookingSearchReady = hasDestination
+          && hasCalendarDates
+          && hasOrigin
+          && hasTravelers
+          && provenanceGate.ready
+        const nextBookingAsk = nextBookingMissingField(
+          memory.fieldProvenance,
+          memory.requirements,
+        )
+        // Keep voice intake asking booking spine fields even when soft missingFields is empty.
+        if (nextBookingAsk && !memory.missingFields.includes(nextBookingAsk as keyof typeof memory.requirements)) {
+          memory.missingFields = [
+            nextBookingAsk as keyof typeof memory.requirements,
+            ...memory.missingFields,
+          ]
+        }
         if (!bookingSearchReady) {
           logPipeline({
             stage: 'conversation',
             event: 'booking_search_blocked_provenance',
             meta: {
               hasDestination,
-              hasDates,
+              hasCalendarDates,
+              hasOrigin,
               hasTravelers,
               travelers: memory.requirements.travelers,
+              destination: memory.requirements.destination,
+              startDate: memory.requirements.startDate,
+              endDate: memory.requirements.endDate,
+              origin: memory.requirements.origin,
               provenance: memory.fieldProvenance,
               missingProvenance: provenanceGate.missing,
+              nextBookingAsk,
             },
           })
         }

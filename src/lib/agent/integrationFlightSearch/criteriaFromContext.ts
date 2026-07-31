@@ -75,10 +75,21 @@ export function preferredDepartureFromContext(ctx: AgentToolContext): DepartureT
 
 export function buildLiveCriteriaFromContext(ctx: AgentToolContext): LiveFlightSearchCriteria {
   const req = ctx.requirements
-  const originRaw = String(ctx.input?.origin ?? req.origin ?? 'Riyadh')
-  const destinationRaw = String(ctx.input?.destination ?? req.destination ?? req.destinations[0] ?? '')
+  const originRaw = String(ctx.input?.origin ?? req.origin ?? '').trim()
+  if (!originRaw) {
+    throw new Error('search_blocked_origin_unconfirmed')
+  }
+  const destinationRaw = String(
+    ctx.input?.destination ?? req.destination ?? req.destinations[0] ?? '',
+  ).trim()
+  if (!destinationRaw) {
+    throw new Error('search_blocked_destination_unconfirmed')
+  }
+  if (!req.startDate && !ctx.input?.startDate) {
+    throw new Error('search_blocked_dates_unconfirmed')
+  }
   const departureDate = normalizeCalendarDate(
-    String(ctx.input?.startDate ?? req.startDate ?? defaultDepartureDate()),
+    String(ctx.input?.startDate ?? req.startDate),
   )
   const returnRaw = ctx.input?.endDate ?? req.endDate
   const returnDate = returnRaw ? normalizeCalendarDate(String(returnRaw)) : null

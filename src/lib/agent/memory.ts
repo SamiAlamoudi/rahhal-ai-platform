@@ -66,12 +66,11 @@ export function mergeRequirements(
     ? uniqueStrings([...base.interests, ...patch.interests])
     : base.interests
 
-  // New destination / trip → never reuse stale traveler count from a prior trip.
-  const clearStaleTravelers = Boolean(
+  // New destination / trip → never reuse stale party size, dates, cabin, or origin.
+  const clearStaleTrip = Boolean(
     replaceDestinations
     && patch.destination
-    && patch.destination !== base.destination
-    && patch.travelers === undefined,
+    && patch.destination !== base.destination,
   )
 
   const merged: TripRequirements = {
@@ -86,12 +85,22 @@ export function mergeRequirements(
     destinationCity: patch.destinationCity ?? (replaceDestinations ? null : base.destinationCity) ?? null,
     destinationCountry: patch.destinationCountry ?? (replaceDestinations ? null : base.destinationCountry) ?? null,
     destinationFlexible: patch.destinationFlexible ?? base.destinationFlexible,
-    origin: patch.origin ?? base.origin,
-    startDate: patch.startDate ?? base.startDate,
-    endDate: patch.endDate ?? base.endDate,
-    durationDays: patch.durationDays ?? base.durationDays,
-    travelers: clearStaleTravelers ? null : (patch.travelers ?? base.travelers),
-    travelerType: clearStaleTravelers
+    origin: clearStaleTrip
+      ? (patch.origin ?? null)
+      : (patch.origin ?? base.origin),
+    startDate: clearStaleTrip
+      ? (patch.startDate ?? null)
+      : (patch.startDate ?? base.startDate),
+    endDate: clearStaleTrip
+      ? (patch.endDate ?? null)
+      : (patch.endDate ?? base.endDate),
+    durationDays: clearStaleTrip
+      ? (patch.durationDays ?? null)
+      : (patch.durationDays ?? base.durationDays),
+    travelers: clearStaleTrip && patch.travelers === undefined
+      ? null
+      : (patch.travelers ?? (clearStaleTrip ? null : base.travelers)),
+    travelerType: clearStaleTrip
       ? (patch.travelerType ?? null)
       : (patch.travelerType ?? base.travelerType),
     budgetAmount: patch.budgetAmount ?? base.budgetAmount,
@@ -106,7 +115,9 @@ export function mergeRequirements(
     tripPurpose: patch.tripPurpose ?? base.tripPurpose,
     regenerateDay: patch.regenerateDay ?? null,
     regenerateScope: patch.regenerateScope ?? base.regenerateScope ?? null,
-    cabinPreference: patch.cabinPreference ?? base.cabinPreference ?? null,
+    cabinPreference: clearStaleTrip
+      ? (patch.cabinPreference ?? null)
+      : (patch.cabinPreference ?? base.cabinPreference ?? null),
     children: patch.children ?? base.children ?? null,
     preferredAirline: patch.preferredAirline ?? base.preferredAirline ?? null,
     preferredDepartureTime: patch.preferredDepartureTime ?? base.preferredDepartureTime ?? null,

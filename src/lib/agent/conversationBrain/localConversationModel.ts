@@ -54,23 +54,30 @@ export function nextHardSlot(facts: TravelFacts): string | null {
     if (slot === 'budgetAmount') return known.budgetAmount != null || Boolean(known.budgetFlexible)
     // travelerType alone must NEVER satisfy travelers — ask for an explicit count.
     if (slot === 'travelers') return known.travelers != null
+    // Calendar dates are required before search — duration alone is not enough.
+    if (slot === 'startDate') return Boolean(known.startDate)
+    if (slot === 'endDate') return Boolean(known.endDate)
     if (slot === 'origin') return Boolean(known.origin)
     return false
   }
 
+  // Booking order: destination → travelers → calendar dates → origin.
+  // Duration/budget are soft after the booking spine.
   const ordered = [
     ...facts.missingSlots,
     'destination',
+    'travelers',
+    'startDate',
+    'endDate',
+    'origin',
     'durationDays',
     'budgetAmount',
-    'travelers',
-    'origin',
   ]
   const seen = new Set<string>()
   for (const slot of ordered) {
     if (!slot || seen.has(slot)) continue
     seen.add(slot)
-    if (!['destination', 'durationDays', 'budgetAmount', 'travelers', 'origin'].includes(slot)) {
+    if (!['destination', 'durationDays', 'budgetAmount', 'travelers', 'startDate', 'endDate', 'origin'].includes(slot)) {
       continue
     }
     if (!isFilled(slot)) return slot
@@ -114,6 +121,14 @@ function askForSlot(slot: string, facts: TravelFacts, seed: number, ar: boolean)
     travelers: {
       ar: ['كم عدد المسافرين؟'],
       en: ['How many travelers?'],
+    },
+    startDate: {
+      ar: ['ما تاريخ المغادرة والعودة؟'],
+      en: ['What are your departure and return dates?'],
+    },
+    endDate: {
+      ar: ['وما تاريخ العودة؟'],
+      en: ['And what is the return date?'],
     },
     origin: {
       ar: ['من أي مدينة تكون المغادرة؟'],
@@ -179,6 +194,24 @@ function softAck(facts: TravelFacts, seed: number, ar: boolean): string {
 function continueAfterDestination(facts: TravelFacts, seed: number, ar: boolean): LocalConversationResult {
   const d = dest(facts)
   const slot = nextHardSlot(facts)
+  const days = facts.known.durationDays
+
+  // Exact booking spine: destination + duration, missing travelers — no advice/cards.
+  if (
+    ar
+    && slot === 'travelers'
+    && d !== 'وجهتكم'
+    && days != null
+    && facts.known.travelers == null
+  ) {
+    const durationPhrase = days === 7 ? 'أسبوع' : `${days} أيام`
+    const line = `فهمت أنك تريد السفر إلى ${d} لمدة ${durationPhrase}. كم عدد المسافرين؟`
+    return {
+      displayText: line,
+      spokenText: optimizeLocalSpoken(line, facts.locale),
+    }
+  }
+
   const ack = softAck(facts, seed, ar)
 
   if (slot && slot !== 'destination') {
