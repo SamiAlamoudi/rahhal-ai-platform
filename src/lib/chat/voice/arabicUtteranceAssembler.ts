@@ -9,8 +9,11 @@ import {
 } from './arabicAsrNormalize'
 import { isConfirmedUserUtterance } from './userTranscriptGate'
 
-/** Wait after last speech_stopped / segment so brief Arabic hesitations do not split turns. */
-export const ARABIC_UTTERANCE_COMMIT_MS = 1500
+/**
+ * Wait after last speech_stopped / segment so brief Arabic hesitations do not split turns.
+ * Kept short for ChatGPT-Voice-like first-audio latency (was 1500ms — felt like a long mute).
+ */
+export const ARABIC_UTTERANCE_COMMIT_MS = 450
 
 export type AssembledUtteranceCommit = {
   /** Exact ASR text for display + conversation message (never rewritten). */

@@ -43,10 +43,13 @@ import {
   nextBookingMissingField,
 } from './fieldProvenance'
 import {
+  bookingOptionSelectionLabel,
   buildBookingOptionsFromPlan,
   countProviderFlightOffers,
   countProviderHotelStays,
+  matchBookingOptionSelection,
   providerFlightError,
+  type BookingOptionCard,
 } from './bookingOptionsFromSearch'
 import { logPipeline } from '../chat/pipelineDiagnostics'
 import { saveGeneratedItinerary } from './itineraryPersistence'
@@ -1741,6 +1744,89 @@ export function createTravelAgentService(
           prior: greetingCleanStart ? null : prior.fieldProvenance,
           destinationChanged: destinationChanged || destinationNewlySet || greetingCleanStart,
         }),
+      }
+
+      // Card "اختيار" / select flight|hotel <id> → update memory + acknowledge (no dead buttons).
+      const priorBookingOptions = (() => {
+        for (let i = input.messages.length - 2; i >= 0; i -= 1) {
+          const msg = input.messages[i]
+          if (!msg || msg.role !== 'assistant') continue
+          const opts = (msg.providerMeta as unknown as AgentProviderMeta | null | undefined)?.bookingOptions
+          if (Array.isArray(opts) && opts.length > 0) return opts as BookingOptionCard[]
+        }
+        return [] as BookingOptionCard[]
+      })()
+      const selectedCard = matchBookingOptionSelection(userText, priorBookingOptions)
+      if (selectedCard) {
+        const label = bookingOptionSelectionLabel(selectedCard)
+        const priceOk = selectedCard.price != null && selectedCard.price > 0
+        memory = {
+          ...memory,
+          phase: 'editing',
+          lastIntent: 'plan',
+          selectedBookingOption: {
+            id: selectedCard.id,
+            kind: selectedCard.kind,
+            label,
+            price: priceOk ? selectedCard.price! : null,
+            currency: selectedCard.currency ?? null,
+          },
+        }
+        const priceBit = priceOk
+          ? (memory.locale === 'ar'
+            ? ` بسعر ${selectedCard.price} ${selectedCard.currency || 'SAR'}`
+            : ` at ${selectedCard.price} ${selectedCard.currency || 'SAR'}`)
+          : ''
+        const displayText = memory.locale === 'ar'
+          ? (selectedCard.kind === 'flight'
+            ? `تم اختيار رحلة ${label}${priceBit}. نكمل تجهيز الحجز — هل تريد فندقًا أيضًا؟`
+            : `تم اختيار فندق ${label}${priceBit}. نكمل تجهيز الحجز — هل تريد تأكيد المعاينة؟`)
+          : (selectedCard.kind === 'flight'
+            ? `Selected flight ${label}${priceBit}. Shall I add a hotel next?`
+            : `Selected hotel ${label}${priceBit}. Ready to confirm the preview?`)
+        logPipeline({
+          stage: 'conversation',
+          event: 'booking_option_selected',
+          meta: {
+            optionId: selectedCard.id,
+            kind: selectedCard.kind,
+            label,
+            price: memory.selectedBookingOption?.price ?? null,
+          },
+        })
+        const meta: AgentProviderMeta = {
+          kind: 'travel_agent',
+          version: 2,
+          memory,
+          tripPlan: memory.tripPlan,
+          itinerary: memory.tripPlan,
+          spokenText: displayText,
+          voicePhase: 'final',
+          bookingOptions: priorBookingOptions,
+          selectedBookingOptionId: selectedCard.id,
+          bookingSearch: {
+            intent: 'booking',
+            destination: memory.requirements.destination,
+            origin: memory.requirements.origin,
+            startDate: memory.requirements.startDate,
+            endDate: memory.requirements.endDate,
+            travelers: memory.requirements.travelers,
+            cabin: memory.requirements.cabinPreference,
+            searchInvoked: false,
+            providerFlightCount: 0,
+            providerHotelCount: 0,
+            normalizedFlightCount: priorBookingOptions.filter((o) => o.kind === 'flight').length,
+            cardsRenderedCount: priorBookingOptions.length,
+            providerError: null,
+          },
+        }
+        return {
+          reply: displayText,
+          memory,
+          tripPlan: memory.tripPlan,
+          meta,
+          toolBatch: null,
+        }
       }
 
       const transcriptDestination = destinationFromTranscript(userText)

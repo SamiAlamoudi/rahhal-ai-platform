@@ -331,8 +331,8 @@ describe('realtime session lifecycle contract', () => {
         transcript: 'أريد السفر من الرياض إلى طوكيو',
       }),
     })
-    // Silence commit (~1500ms)
-    await new Promise<void>((r) => setTimeout(r, 1600))
+    // Silence commit (~450ms + buffer)
+    await new Promise<void>((r) => setTimeout(r, 700))
 
     expect(finals.length).toBe(1)
     expect(session.getStatus()).toBe('thinking')

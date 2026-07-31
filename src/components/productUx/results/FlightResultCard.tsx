@@ -49,7 +49,9 @@ export function FlightResultCard({ flight, locale = 'ar', onSelect }: FlightResu
           <p className="mt-1 text-xs text-slate-500">{flight.reason}</p>
         </div>
         <p className="text-end text-base font-bold text-primary-700">
-          {flight.price} {flight.currency}
+          {flight.price > 0
+            ? `${flight.price} ${flight.currency}`
+            : (locale === 'ar' ? 'السعر غير متوفر' : 'Price unavailable')}
         </p>
       </div>
 

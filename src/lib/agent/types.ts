@@ -251,6 +251,14 @@ export interface AgentMemory {
    * Search/cards require confirmed destination + dates + travelers.
    */
   fieldProvenance?: import('./fieldProvenance').RequirementsProvenance
+  /** Last booking card the traveler selected (flight/hotel). */
+  selectedBookingOption?: {
+    id: string
+    kind: 'flight' | 'hotel'
+    label: string
+    price: number | null
+    currency: string | null
+  } | null
 }
 
 export interface AgentToolRunSummary {
@@ -314,6 +322,8 @@ export interface AgentProviderMeta {
     area?: string | null
     selectable: true
   }>
+  /** Card id acknowledged on the latest selection turn. */
+  selectedBookingOptionId?: string | null
   /**
    * Sprint 9 — Concierge dialogue state (additive, optional).
    * Opaque to the provider layer; Concierge remains supplier-agnostic.

@@ -211,6 +211,8 @@ export function createRealtimeWebRtcSession(
   const captureAudit = createVoiceCaptureAudit()
   /** Brief ICE blip timer — avoid tearing down on mobile transient disconnects. */
   let iceRecoveryTimer: ReturnType<typeof setTimeout> | null = null
+  /** Queue progressive speakWrittenDraft chunks while a response is already playing. */
+  let speakQueue: Array<{ spoken: string; locale: 'ar' | 'en' }> = []
 
   const transcriptGate = createUserTranscriptGate(() => activeLanguage)
 
@@ -747,6 +749,7 @@ export function createRealtimeWebRtcSession(
     sessionGeneration += 1
     clearPlaybackTimers()
     clientRequestedResponse = false
+    speakQueue = []
     utteranceAssembler.cancelPendingCommit()
     utteranceAssembler.reset()
     lockedUserTranscript = null
@@ -820,6 +823,50 @@ export function createRealtimeWebRtcSession(
     }
   }
 
+  const startSpeakUtterance = (spoken: string, locale: 'ar' | 'en') => {
+    // Speaking must never overlap local capture (no Listening + Speaking).
+    stopLocalMicCapture('speak_written_draft')
+    if (locale === 'ar') activeLanguage = 'ar'
+    else activeLanguage = 'en'
+    const context = inferSpokenContext(spoken)
+    assistantBuffer = ''
+    setStatus('thinking')
+    sendEvent({
+      type: 'conversation.item.create',
+      item: {
+        type: 'message',
+        role: 'system',
+        content: [{
+          type: 'input_text',
+          text: [
+            'Speak the following booking-agent dialogue aloud now, VERBATIM — every sentence to the end.',
+            `Language lock: speak only in ${locale === 'ar' ? 'Arabic' : 'English'}. Do not switch languages.`,
+            spokenToneCue(context),
+            'Do not expand, advise, lecture, or add website referrals.',
+            'Do not add extra questions beyond what is written.',
+            'Do not stop mid-sentence. Do not continue after the dialogue ends.',
+            `DIALOGUE: ${spoken}`,
+          ].join('\n'),
+        }],
+      },
+    })
+    requestAssistantResponse('speak_written_draft')
+    callbacks.onAssistantTranscript?.(spoken, false)
+  }
+
+  const flushSpeakQueue = () => {
+    if (hardStopped || disposed) {
+      speakQueue = []
+      return false
+    }
+    if (hasCancellableResponse()) return false
+    const next = speakQueue.shift()
+    if (!next) return false
+    telemetry('speak_queue_flush', { remaining: speakQueue.length, sample: next.spoken.slice(0, 40) })
+    startSpeakUtterance(next.spoken, next.locale)
+    return true
+  }
+
   const maybeEnterListening = () => {
     /**
      * After playback completion: release the mic to IDLE.
@@ -836,6 +883,7 @@ export function createRealtimeWebRtcSession(
       return
     }
     if (!activeResponse) {
+      if (flushSpeakQueue()) return
       releaseToIdleInternal('no_active_response')
       telemetry('entered_idle_mic_released', { reason: 'no_active_response' })
       return
@@ -845,6 +893,7 @@ export function createRealtimeWebRtcSession(
       clientRequestedResponse = false
       clearActiveResponse()
       if (hardStopped) return
+      if (flushSpeakQueue()) return
       releaseToIdleInternal('response_cancelled')
       telemetry('entered_idle_mic_released', { reason: 'cancelled' })
       return
@@ -863,6 +912,8 @@ export function createRealtimeWebRtcSession(
     clientRequestedResponse = false
     clearActiveResponse()
     if (hardStopped || disposed) return
+    // Progressive speech: play queued tail before releasing to idle.
+    if (flushSpeakQueue()) return
     releaseToIdleInternal('playback_complete')
     telemetry('entered_idle_mic_released', { responseDoneAt, via: 'playback_complete' })
   }
@@ -1441,11 +1492,27 @@ export function createRealtimeWebRtcSession(
         return
       }
       if (!pc || !dc || dc.readyState !== 'open') return
-      // Never force listening while an assistant response is still speaking.
-      if (hasCancellableResponse() && status === 'speaking') return
+      // Never Listening while Processing/Speaking — mic stays released.
+      if (
+        status === 'speaking'
+        || status === 'thinking'
+        || hasCancellableResponse()
+        || speakQueue.length > 0
+      ) {
+        telemetry('ensure_listening_blocked_busy', { status, queue: speakQueue.length })
+        return
+      }
       void acquireLocalMic().then((ok) => {
         if (!ok || hardStopped || disposed) return
-        if (hasCancellableResponse() && status === 'speaking') return
+        if (
+          status === 'speaking'
+          || status === 'thinking'
+          || hasCancellableResponse()
+          || speakQueue.length > 0
+        ) {
+          stopLocalMicCapture('ensure_listening_aborted_busy')
+          return
+        }
         reassertTurnDetection()
         muteRemote(false)
         setStatus('listening')
@@ -1461,13 +1528,10 @@ export function createRealtimeWebRtcSession(
     },
     interrupt() {
       if (hardStopped || disposed) return
-      // Explicit user barge-in (mic tap) — always allowed when a response is active.
+      // Cancel playback only — never auto-reopen Listening (explicit mic tap required).
+      speakQueue = []
       interruptInternal(true, { rearmMic: false })
-      void acquireLocalMic().then((ok) => {
-        if (!ok || hardStopped || disposed) return
-        reassertTurnDetection()
-        setStatus('listening')
-      })
+      releaseToIdleInternal('interrupt')
     },
     sendText(text: string) {
       // Architecture: text turns are owned by planTurn (HomeVoiceConsultant).
@@ -1495,33 +1559,13 @@ export function createRealtimeWebRtcSession(
       })
       const spoken = (cleaned || written).replace(/\s+/g, ' ').trim()
       if (!spoken) return
-      if (locale === 'ar') activeLanguage = 'ar'
-      else if (locale === 'en') activeLanguage = 'en'
-      const context = inferSpokenContext(spoken)
-      assistantBuffer = ''
-      setStatus('thinking')
-      sendEvent({
-        type: 'conversation.item.create',
-        item: {
-          type: 'message',
-          role: 'system',
-          content: [{
-            type: 'input_text',
-            text: [
-              'Speak the following booking-agent dialogue aloud now, VERBATIM — every sentence to the end.',
-              `Language lock: speak only in ${locale === 'ar' ? 'Arabic' : 'English'}. Do not switch languages.`,
-              spokenToneCue(context),
-              'Do not expand, advise, lecture, or add website referrals.',
-              'Do not add extra questions beyond what is written.',
-              'Do not stop mid-sentence. Do not continue after the dialogue ends.',
-              `DIALOGUE: ${spoken}`,
-            ].join('\n'),
-          }],
-        },
-      })
-      requestAssistantResponse('speak_written_draft')
-      // Do not rewrite the on-screen reply with a different shortened string.
-      callbacks.onAssistantTranscript?.(spoken, false)
+      // If audio is already playing, queue the next breath-group (progressive TTS).
+      if (hasCancellableResponse()) {
+        speakQueue.push({ spoken, locale })
+        telemetry('speak_queued', { queue: speakQueue.length, sample: spoken.slice(0, 40) })
+        return
+      }
+      startSpeakUtterance(spoken, locale)
     },
   }
 }

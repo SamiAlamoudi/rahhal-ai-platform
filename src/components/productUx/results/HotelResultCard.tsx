@@ -39,7 +39,9 @@ export function HotelResultCard({ hotel, locale = 'ar', onSelect }: HotelResultC
         <div className="flex items-start justify-between gap-2">
           <p className="text-xs leading-relaxed text-slate-600">{hotel.reason}</p>
           <p className="shrink-0 text-sm font-bold text-primary-700">
-            {hotel.totalPrice} {hotel.currency}
+            {hotel.totalPrice > 0
+              ? `${hotel.totalPrice} ${hotel.currency}`
+              : (locale === 'ar' ? 'السعر غير متوفر' : 'Price unavailable')}
           </p>
         </div>
         <p className="mt-2 text-[11px] text-slate-500">

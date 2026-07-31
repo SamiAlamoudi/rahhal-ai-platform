@@ -7,11 +7,7 @@ import {
   type HotelCardModel,
 } from '../../../lib/chat/conversationExperienceUi'
 import {
-  buildResultCardsFromTripPlan,
   destinationMatches,
-  resultCardMeta,
-  resultCardSubtitle,
-  resultCardTitle,
 } from '../../../lib/premiumExperience'
 import type { ProductLocale } from '../../../lib/productUx'
 import { ConversationResults } from '../results/ConversationResults'
@@ -68,51 +64,54 @@ export function NewExperienceResultsBridge({
 
     const plan = tripPlanFromMeta(message.providerMeta)
     if ((!flights.length || !hotels.length) && plan) {
-      const fromPlan = buildResultCardsFromTripPlan(plan, {
-        destinationHint: destinationHint || plan.destinations?.[0],
-        limit: 6,
-      })
       if (!flights.length) {
-        flights = fromPlan
-          .filter((c) => c.kind === 'flight')
-          .map((c, i) => ({
+        // Never invent price 0 — only map provider-backed flights with real totals.
+        flights = (plan.flights || [])
+          .filter((f) => f.fromProvider && f.estimatedCost != null && f.estimatedCost > 0 && f.airline)
+          .slice(0, 6)
+          .map((f, i) => ({
             kind: 'flight' as const,
-            id: c.id || `plan-flight-${i}`,
-            airline: resultCardTitle(c, locale),
-            logoLabel: resultCardTitle(c, locale).slice(0, 2).toUpperCase(),
+            id: f.id || `plan-flight-${i}`,
+            airline: f.airline!,
+            logoLabel: f.airline!.slice(0, 2).toUpperCase(),
             departure: locale === 'ar' ? 'مغادرة' : 'DEP',
             arrival: locale === 'ar' ? 'وصول' : 'ARR',
-            durationLabel: resultCardMeta(c, locale) || '—',
-            stops: 0,
+            durationLabel: f.durationMinutes != null
+              ? (locale === 'ar'
+                ? `${Math.floor(f.durationMinutes / 60)}س ${f.durationMinutes % 60}د`
+                : `${Math.floor(f.durationMinutes / 60)}h ${f.durationMinutes % 60}m`)
+              : '—',
+            stops: f.stops ?? 0,
             baggage: locale === 'ar' ? 'حقيبة مقصورة' : 'Cabin bag',
             refundPolicy: locale === 'ar' ? 'حسب الأجرة' : 'Per fare',
             changePolicy: locale === 'ar' ? 'تغيير برسوم' : 'Changes may apply',
             fareFamily: locale === 'ar' ? 'اقتصادية' : 'Economy',
-            price: 0,
-            currency: 'SAR',
+            price: f.estimatedCost as number,
+            currency: f.currency || 'SAR',
             loyaltyPoints: 0,
           }))
       }
       if (!hotels.length) {
-        hotels = fromPlan
-          .filter((c) => c.kind === 'hotel')
-          .map((c, i) => ({
+        hotels = (plan.accommodations || [])
+          .filter((h) => h.fromProvider && h.estimatedNightly != null && h.estimatedNightly > 0 && h.name)
+          .slice(0, 3)
+          .map((h, i) => ({
             kind: 'hotel' as const,
-            id: c.id || `plan-hotel-${i}`,
-            name: resultCardTitle(c, locale),
+            id: `plan-hotel-${i}`,
+            name: h.name.replace(/\bMock\s*Hotel\b/gi, 'City Hotel'),
             photos: [],
-            mapQuery: resultCardTitle(c, locale),
+            mapQuery: h.name,
             stars: 4,
             rating: 8,
-            reviewsLabel: resultCardSubtitle(c, locale),
+            reviewsLabel: h.area || '',
             roomTypes: [],
             breakfast: '',
             cancellationPolicy: '',
             refundPolicy: '',
             loyaltyRewards: '',
-            price: 0,
-            currency: 'SAR',
-            area: resultCardMeta(c, locale) || resultCardSubtitle(c, locale),
+            price: h.estimatedNightly as number,
+            currency: h.currency || 'SAR',
+            area: h.area || '',
           }))
       }
     }

@@ -19,10 +19,12 @@ import {
 } from '../../lib/chat/voice/voiceLatency'
 import { logPipeline } from '../../lib/chat/pipelineDiagnostics'
 import {
+  formatBookingOptionPrice,
   formatClock,
   formatDuration,
   type BookingOptionCard,
 } from '../../lib/agent/bookingOptionsFromSearch'
+import { takeNewSpokenChunks, takeSpokenTail } from '../../lib/chat/voice/progressiveSpeech'
 import { logMicSessionState, mapToMicSessionState } from '../../lib/chat/voice/micSessionState'
 import { ConversationComposer } from './ConversationComposer'
 
@@ -56,6 +58,7 @@ export function HomeVoiceConsultant({
   const [error, setError] = useState<string | null>(null)
   const [sessionReady, setSessionReady] = useState(false)
   const [bookingOptions, setBookingOptions] = useState<BookingOptionCard[]>([])
+  const [selectedBookingOptionId, setSelectedBookingOptionId] = useState<string | null>(null)
   const [providerError, setProviderError] = useState<string | null>(null)
   const [audioPlaying, setAudioPlaying] = useState(false)
   /** Soft ASR retry cue — calm status, never red technical diagnostics. */
@@ -91,6 +94,10 @@ export function HomeVoiceConsultant({
         ? (message.providerMeta.bookingOptions as BookingOptionCard[])
         : []
       setBookingOptions(options)
+      const selectedId = typeof message.providerMeta?.selectedBookingOptionId === 'string'
+        ? message.providerMeta.selectedBookingOptionId
+        : null
+      if (selectedId) setSelectedBookingOptionId(selectedId)
       const searchMeta = message.providerMeta?.bookingSearch as
         | { providerError?: string | null; providerFlightCount?: number }
         | undefined
@@ -154,12 +161,46 @@ export function HomeVoiceConsultant({
 
     setError(null)
     setAsrHint(null)
+    // Processing — mic already released on ASR commit; never re-open until idle + user tap.
     setMicStatus('thinking', { phase: 'owned_turn_start' })
     setAudioPlaying(false)
     setAssistantText('')
     setAssistantMessage(null)
     speechStartedRef.current = false
     pendingAssistantRef.current = null
+    let spokenCursor = 0
+    latencyRef.current = createVoiceLatencyMarks()
+    latencyRef.current.sttFinalAt = performance.now()
+    latencyRef.current.requestSentAt = performance.now()
+
+    const resolveSpeakLocale = (spokenRaw: string, message: ChatMessage): 'ar' | 'en' => {
+      const memoryLocale = (message.providerMeta?.memory as { locale?: string } | undefined)?.locale
+      if (memoryLocale === 'en' || memoryLocale === 'ar') return memoryLocale
+      return /[\u0600-\u06FF]/.test(spokenRaw) ? 'ar' : (locale === 'en' ? 'en' : 'ar')
+    }
+
+    const speakRealtimeChunk = (chunk: string, speakLocale: 'ar' | 'en', phase: string) => {
+      if (!chunk || userStoppedRef.current) return
+      if (!preferRealtimeRef.current || !realtimeRef.current?.isConnected()) return
+      const marks = latencyRef.current
+      if (marks && marks.ttsStartedAt == null) marks.ttsStartedAt = performance.now()
+      if (!speechStartedRef.current) {
+        speechStartedRef.current = true
+        setMicStatus('speaking', { phase })
+        setAudioPlaying(true)
+      }
+      realtimeRef.current.speakWrittenDraft(chunk, { locale: speakLocale })
+      logPipeline({
+        stage: 'tts',
+        event: 'realtime_speak_chunk',
+        meta: {
+          phase,
+          chars: chunk.length,
+          sample: chunk.slice(0, 60),
+          latency: marks ? summarizeVoiceLatency(marks) : null,
+        },
+      })
+    }
 
     try {
       let id = conversationIdRef.current
@@ -207,9 +248,33 @@ export function HomeVoiceConsultant({
             if (gen !== bookingSearchGenRef.current || userStoppedRef.current) return
             setAssistantMessage(message)
             if (message.content) setAssistantText(message.content)
+            const marks = latencyRef.current
+            if (marks && marks.firstTokenAt == null) {
+              marks.firstTokenAt = performance.now()
+              logPipeline({
+                stage: 'ai',
+                event: 'first_token',
+                meta: summarizeVoiceLatency(marks) as unknown as Record<string, unknown>,
+              })
+            }
+            // ChatGPT-like: start audio as soon as a speakable clause exists.
+            if (
+              preferRealtimeRef.current
+              && realtimeRef.current?.isConnected()
+              && !userStoppedRef.current
+            ) {
+              const content = (message.content || '').trim()
+              if (!content) return
+              const { chunks, nextCursor } = takeNewSpokenChunks(content, spokenCursor)
+              if (chunks[0]) {
+                spokenCursor = nextCursor
+                speakRealtimeChunk(chunks[0], resolveSpeakLocale(chunks[0], message), 'realtime_early_chunk')
+              }
+            }
           },
           onComplete: (message) => {
             if (gen !== bookingSearchGenRef.current || userStoppedRef.current) return
+            if (latencyRef.current) latencyRef.current.modelCompleteAt = performance.now()
             flushAssistant(message)
             const req = (message.providerMeta?.memory as {
               requirements?: {
@@ -234,6 +299,9 @@ export function HomeVoiceConsultant({
                 },
                 extractedPassengers: req?.travelers ?? null,
                 extractedCabinClass: req?.cabinPreference ?? null,
+                latency: latencyRef.current
+                  ? summarizeVoiceLatency(latencyRef.current)
+                  : null,
               },
             })
             // Spoken audio must match the full displayed text (one reply, one owner).
@@ -251,20 +319,28 @@ export function HomeVoiceConsultant({
               }
               return
             }
-            const memoryLocale = (message.providerMeta?.memory as { locale?: string } | undefined)?.locale
-            const speakLocale: 'ar' | 'en' =
-              memoryLocale === 'en' || memoryLocale === 'ar'
-                ? memoryLocale
-                : (/[\u0600-\u06FF]/.test(spokenRaw) ? 'ar' : (locale === 'en' ? 'en' : 'ar'))
+            const speakLocale = resolveSpeakLocale(spokenRaw, message)
             // ONE streamed spoken reply — planTurn owns the words.
             if (
               preferRealtimeRef.current
               && realtimeRef.current?.isConnected()
               && !userStoppedRef.current
             ) {
-              setMicStatus('speaking', { phase: 'realtime_playback' })
-              setAudioPlaying(true)
-              realtimeRef.current.speakWrittenDraft(spokenRaw, { locale: speakLocale })
+              if (speechStartedRef.current) {
+                const tail = takeSpokenTail(spokenRaw, spokenCursor)
+                if (tail.length >= 8) {
+                  speakRealtimeChunk(tail, speakLocale, 'realtime_tail')
+                }
+              } else {
+                speakRealtimeChunk(spokenRaw, speakLocale, 'realtime_playback')
+              }
+              if (latencyRef.current) {
+                logPipeline({
+                  stage: 'tts',
+                  event: 'latency_report',
+                  meta: summarizeVoiceLatency(latencyRef.current) as unknown as Record<string, unknown>,
+                })
+              }
               // Mic reopen only on explicit user tap after playback → idle.
             } else if (voiceRef.current && !userStoppedRef.current) {
               setMicStatus('speaking', { phase: 'classic_tts' })
@@ -546,7 +622,9 @@ export function HomeVoiceConsultant({
     setUserHeard('')
     setAssistantText('')
     setAssistantMessage(null)
-    setBookingOptions([]); setProviderError(null)
+    setBookingOptions([])
+    setSelectedBookingOptionId(null)
+    setProviderError(null)
     setError(null)
   }, [])
 
@@ -939,14 +1017,21 @@ export function HomeVoiceConsultant({
             <div className="grid gap-2 sm:grid-cols-2">
               {bookingOptions.map((card) => {
                 const isFlight = card.kind === 'flight'
-                const price = card.price != null
-                  ? `${card.price.toLocaleString(locale === 'ar' ? 'ar-SA' : 'en-US')} ${card.currency || 'SAR'}`
-                  : '—'
+                const price = formatBookingOptionPrice(card.price, card.currency, locale)
+                const selected = selectedBookingOptionId === card.id
+                const selectionCommand = isFlight
+                  ? `select flight ${card.id}`
+                  : `select hotel ${card.id}`
                 return (
                   <div
                     key={card.id}
-                    className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm"
+                    className={`rounded-2xl border px-3 py-3 shadow-sm ${
+                      selected
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-slate-200 bg-white'
+                    }`}
                     data-testid={isFlight ? 'booking-flight-card' : 'booking-hotel-card'}
+                    data-selected={selected ? 'true' : 'false'}
                   >
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                       {isFlight ? t('طيران', 'Flight') : t('فندق', 'Hotel')}
@@ -975,12 +1060,43 @@ export function HomeVoiceConsultant({
                       </>
                     )}
                     <div className="mt-2 flex items-center justify-between gap-2">
-                      <p className="text-sm font-bold text-primary-700">{price}</p>
+                      {price ? (
+                        <p
+                          className={`text-sm font-bold ${
+                            card.price != null && card.price > 0
+                              ? 'text-primary-700'
+                              : 'text-slate-500 font-medium'
+                          }`}
+                          data-testid="booking-card-price"
+                        >
+                          {price}
+                        </p>
+                      ) : null}
                       <button
                         type="button"
-                        className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700"
+                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white ${
+                          selected
+                            ? 'bg-primary-800'
+                            : 'bg-primary-600 hover:bg-primary-700'
+                        }`}
+                        data-testid="booking-card-select"
+                        onClick={() => {
+                          setSelectedBookingOptionId(card.id)
+                          logPipeline({
+                            stage: 'conversation',
+                            event: 'booking_card_clicked',
+                            meta: { optionId: card.id, kind: card.kind },
+                          })
+                          // Selection is an explicit user turn — cancel any in-flight speech first.
+                          if (preferRealtimeRef.current && realtimeRef.current) {
+                            realtimeRef.current.interrupt()
+                          } else {
+                            voiceRef.current?.interrupt(undefined, { resumeHandsFree: false })
+                          }
+                          void runOwnedTurn(selectionCommand)
+                        }}
                       >
-                        {t('اختيار', 'Select')}
+                        {selected ? t('تم الاختيار', 'Selected') : t('اختيار', 'Select')}
                       </button>
                     </div>
                   </div>
