@@ -40,6 +40,7 @@ export {
 export {
   LIVE_FLIGHT_PROVIDER_PILOT_FEATURE_ID,
   isLiveFlightProviderPilotEnabled,
+  isPilotDeployTargetAllowed,
 } from './pilotFeature'
 
 export {
@@ -63,6 +64,20 @@ export {
   createAmadeusLiveFlightProvider,
   createLiveFlightProvider,
 } from './adapters/amadeusLiveFlightProvider'
+
+/** Sprint 80 P2 — end-to-end live flight validation (dev/staging only) */
+export {
+  LIVE_FLIGHT_P2_VALIDATION_VERSION,
+  evaluateLiveFlightValidationGate,
+  isLiveFlightPilotAllowedForDeploy,
+  runLiveFlightValidation,
+  comparePilotToLegacy,
+  renderLiveFlightValidationMarkdown,
+  renderLiveFlightValidationJson,
+  DEFAULT_LIVE_FLIGHT_VALIDATION_SCENARIO,
+  type LiveFlightValidationResult,
+  type RunLiveFlightValidationOptions,
+} from './liveFlightValidation'
 
 export {
   ConversationalProviderRegistry,

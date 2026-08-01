@@ -38,6 +38,8 @@
     "conversation:verify": "vitest run src/lib/__tests__/conversationSearch.sprint74.test.ts",
     "conversational-provider:verify": "vitest run src/lib/__tests__/conversationalProvider.sprint80.p13.test.ts",
     "live-flight-pilot:verify": "vitest run src/lib/__tests__/liveFlightProviderPilot.sprint80.p14.test.ts",
+    "live-flight-p2:verify": "vitest run src/lib/__tests__/liveFlightValidation.sprint80.p2.test.ts",
+    "live-flight-p2:validate": "node scripts/live-flight-p2-validate.mjs",
     "budget:verify": "vitest run src/lib/__tests__/budgetIntelligence.sprint75.test.ts",
     "personalization:verify": "vitest run src/lib/__tests__/travelerPersonalization.sprint76.test.ts",
     "optimizer:verify": "vitest run src/lib/__tests__/tripOptimizer.sprint77.test.ts",

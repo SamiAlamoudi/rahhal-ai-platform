@@ -55,7 +55,11 @@ const FALLBACK_ERROR_CODES = new Set([
 export function shouldUseLiveFlightProviderPilot(
   deps?: { pilotEnabled?: boolean },
 ): boolean {
-  return isLiveFlightProviderPilotEnabled({ enabled: deps?.pilotEnabled })
+  return isLiveFlightProviderPilotEnabled({
+    enabled: deps?.pilotEnabled,
+    // Explicit test/harness overrides skip deploy-target gate; registry ON still gated.
+    bypassDeployGateForTests: deps?.pilotEnabled === true,
+  })
 }
 
 function stripProviderErrors(
