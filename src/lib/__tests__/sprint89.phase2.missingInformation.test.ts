@@ -9,15 +9,15 @@ import { understandTurn } from '../brain/v1'
 import {
   createConversationStateSnapshot,
   emptyKnownSlots,
-  type ConversationKnownSlots,
   type UnderstandingTurnResult,
 } from '../brain/v1/understanding'
+import type { ConversationKnownSlots } from '../brain/v1/understanding/types'
 import {
   BOOKING_ONLY_FIELDS,
   MISSING_INFORMATION_PLANNER_VERSION,
   planMissingInformation,
 } from '../brain/v1/planning/phase2'
-import { emptyBrainV1Entities } from '../brain/v1/types'
+import { emptyBrainV1Entities, type BrainV1Intent } from '../brain/v1/types'
 
 function baseUnderstanding(
   overrides: {
@@ -72,7 +72,7 @@ function baseUnderstanding(
       contractVersion: 'sprint89-phase1-understanding-1',
       primaryIntent: overrides.primaryIntent ?? 'plan_trip',
       secondaryIntents: [],
-      legacyIntent: 'plan_trip',
+      legacyIntent: 'travel_advice' satisfies BrainV1Intent,
       isCorrection: overrides.isCorrection ?? false,
       isConfirmation: false,
       confidence: { level: 'confirmed', score: 1 },
@@ -102,7 +102,7 @@ function baseUnderstanding(
     provenance,
     summary: {
       consultantIntent: overrides.primaryIntent ?? 'plan_trip',
-      legacyIntent: 'plan_trip',
+      legacyIntent: 'travel_advice' satisfies BrainV1Intent,
       entityFields: [],
       resolvedReferenceCount: 0,
       ambiguousReferenceCount: overrides.ambiguous?.length ?? 0,
@@ -168,12 +168,15 @@ describe('Sprint 89 Phase 2 T2 — MissingInformationPlanner', () => {
       expect(result.confirmedFields).toContain('destination')
       expect(result.blocking).not.toContain('destination')
       // Planner must not invent slots absent from knownSlots.
+      const slots = turn.state.knownSlots
       for (const field of result.confirmedFields) {
-        const slots = turn.state.knownSlots
         if (field === 'dates') {
           expect(slots.startDate != null || slots.endDate != null).toBe(true)
-        } else if (field in slots) {
-          expect(slots[field as keyof ConversationKnownSlots]).not.toBeNull()
+          continue
+        }
+        const key = field as keyof ConversationKnownSlots
+        if (key in slots) {
+          expect(slots[key]).not.toBeNull()
         }
       }
     })
@@ -353,7 +356,7 @@ describe('Sprint 89 Phase 2 T2 — MissingInformationPlanner', () => {
       const result = planMissingInformation({
         understanding: baseUnderstanding({
           locale: 'ar',
-          primaryIntent: 'search',
+          primaryIntent: 'plan_trip',
           knownSlots: {
             destination: 'دبي',
             origin: 'الرياض',
@@ -381,9 +384,15 @@ describe('Sprint 89 Phase 2 T2 — MissingInformationPlanner', () => {
   describe('booking-only never blocks', () => {
     it('passport/payment never appear in blocking for search or advise', () => {
       for (const goal of ['advise', 'search', 'domain_flight', 'explore'] as const) {
+        const intent =
+          goal === 'search'
+            ? 'plan_trip'
+            : goal === 'explore'
+              ? 'explore_destination'
+              : goal
         const result = planMissingInformation({
           understanding: baseUnderstanding({
-            primaryIntent: goal === 'search' ? 'plan_trip' : goal,
+            primaryIntent: intent,
             knownSlots: {},
           }),
           goalHint: goal,
