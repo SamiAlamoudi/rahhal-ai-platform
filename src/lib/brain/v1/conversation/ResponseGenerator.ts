@@ -1,5 +1,5 @@
 /**
- * Sprint 85 — Response Generator (Value Before Questions).
+ * Sprint 85/87 — Response Generator (Value Before Questions).
  * Arabic-first, consultant tone. Value → assumptions → one question.
  * Never dumps slot tables, confidence scores, or provider internals.
  */
@@ -47,7 +47,7 @@ export class ResponseGenerator {
     }
 
     if (input.resumed) {
-      const value = this.valueBlock(input.valueItems, input.assumptions, input.destination)
+      const value = this.valueBlock(input.valueItems, input.assumptions, input.destination, input.revisedSlots)
       const qAr = input.question?.questionAr
       const qEn = input.question?.questionEn
       if (value.ar || qAr) {
@@ -78,7 +78,7 @@ export class ResponseGenerator {
       )
     }
 
-    const value = this.valueBlock(input.valueItems, input.assumptions, input.destination)
+    const value = this.valueBlock(input.valueItems, input.assumptions, input.destination, input.revisedSlots)
     const hasValue = value.ar.length > 0
 
     if (input.revisedSlots.length > 0 && hasValue) {
@@ -91,7 +91,7 @@ export class ResponseGenerator {
       )
     }
 
-    // Value-first primary path (Morocco and similar).
+    // Value-first primary path.
     if (hasValue) {
       const ar = `${value.ar}${input.question ? ` ${input.question.questionAr}` : ''}`.trim()
       const en = `${value.en}${input.question ? ` ${input.question.questionEn}` : ''}`.trim()
@@ -147,22 +147,35 @@ export class ResponseGenerator {
     items: ConversationValueItem[] | undefined,
     assumptions: ConversationAssumption[] | undefined,
     destination?: string | null,
+    revisedSlots?: TravelPlanSlotKey[],
   ): { ar: string; en: string } {
     if (!items?.length) return { ar: '', en: '' }
 
     const primary = items.filter((i) => i.kind === 'destination_option' || i.kind === 'itinerary_direction')
+    const estimates = items.filter((i) => i.kind === 'estimate')
     const frame = items.find((i) => i.kind === 'criteria')
     const tips = items.filter((i) => i.kind === 'tip')
 
     const arParts: string[] = []
     const enParts: string[] = []
 
-    if (destination) {
+    if (destination && !(revisedSlots?.length)) {
       arParts.push('اختيار ممتاز.')
       enParts.push('Excellent choice.')
     }
 
-    for (const item of primary) {
+    // Keep consultant replies dense but bounded (Arabic Morocco path must stay concise).
+    for (const item of primary.slice(0, 2)) {
+      arParts.push(item.detailAr)
+      enParts.push(item.detailEn)
+    }
+
+    if (frame) {
+      arParts.push(frame.detailAr)
+      enParts.push(frame.detailEn)
+    }
+
+    for (const item of estimates.slice(0, 2)) {
       arParts.push(item.detailAr)
       enParts.push(item.detailEn)
     }
@@ -187,12 +200,12 @@ export class ResponseGenerator {
         assumeBitsEn.push('mid-range stays')
       }
     }
-    if (assumeBitsAr.length || frame) {
+    if (assumeBitsAr.length) {
       arParts.push(
-        `أستطيع تجهيز تصور أولي الآن، وسأفترض مؤقتًا ${assumeBitsAr.join(' و') || 'إطارًا متوازنًا'} — تقديرات مبدئية فقط ويمكنك تعديل أي افتراض لاحقًا.`,
+        `أستطيع تجهيز تصور أولي الآن، وسأفترض مؤقتًا ${assumeBitsAr.join(' و')} — تقديرات مبدئية فقط ويمكنك تعديل أي افتراض لاحقًا.`,
       )
       enParts.push(
-        `I can start with a preliminary plan now, temporarily assuming ${assumeBitsEn.join(' and ') || 'a balanced frame'} — indicative only, and you can revise any assumption later.`,
+        `I can start with a preliminary plan now, temporarily assuming ${assumeBitsEn.join(' and ')} — indicative only, and you can revise any assumption later.`,
       )
     }
 
@@ -201,7 +214,13 @@ export class ResponseGenerator {
       enParts.push(tip.detailEn)
     }
 
-    return { ar: arParts.join(' '), en: enParts.join(' ') }
+    let ar = arParts.join(' ')
+    let en = enParts.join(' ')
+    // Soft trim to keep Arabic consultant replies readable.
+    if (ar.length > 620) ar = `${ar.slice(0, 617).trim()}…`
+    if (en.length > 720) en = `${en.slice(0, 717).trim()}…`
+
+    return { ar, en }
   }
 
   private pack(

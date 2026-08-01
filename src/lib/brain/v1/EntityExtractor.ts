@@ -1,17 +1,23 @@
 /**
- * Sprint 81 — EntityExtractor (Brain v1).
- * Rule-based foundation for conversational entity capture.
+ * Sprint 81/87 — EntityExtractor (Brain v1).
+ * Rule-based foundation for conversational entity capture + refinement.
  */
 
 import { emptyBrainV1Entities, type BrainV1Entities } from './types'
 
+/** More specific cities first so Agadir wins over Morocco aliases. */
 const DESTINATIONS: Array<{ keys: string[]; value: string }> = [
-  { keys: ['morocco', 'المغرب', 'مراكش', 'marrakech', 'casablanca', 'الدار البيضاء'], value: 'Morocco' },
+  { keys: ['agadir', 'أغادير', 'اكادير'], value: 'Agadir' },
+  { keys: ['marrakech', 'مراكش'], value: 'Marrakech' },
+  { keys: ['fes', 'fez', 'فاس'], value: 'Fes' },
+  { keys: ['casablanca', 'الدار البيضاء'], value: 'Casablanca' },
+  { keys: ['morocco', 'المغرب', 'مغرب'], value: 'Morocco' },
   { keys: ['dubai', 'دبي'], value: 'Dubai' },
   { keys: ['istanbul', 'اسطنبول', 'إسطنبول'], value: 'Istanbul' },
   { keys: ['paris', 'باريس'], value: 'Paris' },
   { keys: ['london', 'لندن'], value: 'London' },
-  { keys: ['tokyo', 'طوكيو', 'japan', 'اليابان'], value: 'Japan' },
+  { keys: ['tokyo', 'طوكيو', 'kyoto', 'كيوتو', 'osaka', 'أوساكا', 'japan', 'اليابان'], value: 'Japan' },
+  { keys: ['interlaken', 'إنترلاكن', 'zurich', 'زيورخ', 'geneva', 'جنيف', 'switzerland', 'سويسرا'], value: 'Switzerland' },
   { keys: ['cairo', 'القاهرة', 'egypt', 'مصر'], value: 'Egypt' },
   { keys: ['maldives', 'المالديف'], value: 'Maldives' },
   { keys: ['bali', 'بالي'], value: 'Bali' },
@@ -76,6 +82,16 @@ function parseCountToken(raw: string | undefined): number | null {
   return words[lower] ?? words[raw] ?? null
 }
 
+function hasDestinationCue(text: string, lower: string): boolean {
+  return /to |travel to|trip to|visit |إلى |الى |في |سفر|سافر|رحلة/.test(lower)
+    || /إلى |الى /.test(text)
+}
+
+function hasRefineCue(text: string, lower: string): boolean {
+  return /actually|make it|change (?:it )?to|instead|focus on|switch to|only |بدل|خلها|خليها|اجعلها|اجعله|غيّر|غير وجهة|فقط/.test(lower)
+    || /بدل|خلها|خليها|اجعل/.test(text)
+}
+
 export class EntityExtractor {
   extract(text: string, prior?: Partial<BrainV1Entities>): BrainV1Entities {
     const entities = { ...emptyBrainV1Entities(), ...prior }
@@ -89,9 +105,18 @@ export class EntityExtractor {
 
     const destination = matchFirst(text, DESTINATIONS)
     if (destination && destination !== entities.origin) {
-      // Prefer destination from "to X" / "إلى X" cues when present.
-      if (/to |إلى |الى |في /.test(lower) || !entities.destination) {
-        entities.destination = destination
+      const different = destination !== entities.destination
+      const cue = hasDestinationCue(text, lower) || hasRefineCue(text, lower)
+      const bareRefine =
+        Boolean(prior?.destination)
+        && different
+        && text.trim().length < 48
+        && Boolean(destination)
+      if (!entities.destination || (different && (cue || bareRefine))) {
+        // Avoid stealing an origin city as destination when "from" is present.
+        if (!( /from |من /.test(lower) && destination === matchFirst(text, ORIGINS))) {
+          entities.destination = destination
+        }
       }
     }
 
@@ -129,6 +154,14 @@ export class EntityExtractor {
     {
       const n = parseCountToken(children?.[1])
       if (n != null) entities.children = n
+    }
+
+    // Family cue without explicit counts → at least mark children unknown but adults 2 later via slots.
+    if (
+      entities.children == null
+      && /family|عائلة|عائلية|with (?:my )?kids|مع الأطفال/.test(lower)
+    ) {
+      // leave children null; SlotFillingEngine tags tripStyle=family
     }
 
     const infants =

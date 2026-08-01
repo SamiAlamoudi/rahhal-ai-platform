@@ -222,6 +222,8 @@ export interface BrainV1ReasoningStep {
     | 'understand_request'
     | 'resolve_conversation_context'
     | 'load_memory'
+    | 'destination_reasoning'
+    | 'trip_style_reasoning'
     | 'detect_missing_information'
     | 'choose_tools'
     | 'collect_provider_results'

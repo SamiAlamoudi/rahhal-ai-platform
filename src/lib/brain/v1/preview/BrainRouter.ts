@@ -45,25 +45,34 @@ function mergeSlotsIntoMemory(
   knownSlots: NonNullable<ReturnType<typeof runConversationManagerTurn>['knownSlots']>,
 ): AgentMemory {
   const req = { ...memory.requirements }
-  if (knownSlots.destination && !req.destination) {
+  // Destination refinements overwrite (Morocco → Agadir).
+  if (knownSlots.destination) {
     req.destination = knownSlots.destination
     req.destinations = [knownSlots.destination]
   }
-  if (knownSlots.origin && !req.origin) req.origin = knownSlots.origin
-  if (knownSlots.dates.start && !req.startDate) req.startDate = knownSlots.dates.start
-  if (knownSlots.dates.end && !req.endDate) req.endDate = knownSlots.dates.end
-  if (knownSlots.adults != null && req.travelers == null) {
+  if (knownSlots.origin) req.origin = knownSlots.origin
+  if (knownSlots.dates.start) req.startDate = knownSlots.dates.start
+  if (knownSlots.dates.end) req.endDate = knownSlots.dates.end
+  if (knownSlots.adults != null) {
     req.travelers = knownSlots.adults + (knownSlots.children ?? 0)
   }
-  if (knownSlots.budget != null && req.budgetAmount == null) {
-    req.budgetAmount = knownSlots.budget
+  if (knownSlots.children != null) req.children = knownSlots.children
+  if (knownSlots.budget != null) req.budgetAmount = knownSlots.budget
+  if (knownSlots.cabin) req.cabinPreference = knownSlots.cabin
+  if (knownSlots.currency) req.budgetCurrency = knownSlots.currency
+  if (knownSlots.hotelPreference) req.hotelPreference = knownSlots.hotelPreference
+  if (knownSlots.activities.length) {
+    req.interests = [...new Set([...req.interests, ...knownSlots.activities])]
   }
-  if (knownSlots.cabin && !req.cabinPreference) {
-    req.cabinPreference = knownSlots.cabin
+  if (knownSlots.specialRequests) {
+    req.notes = knownSlots.specialRequests
+    if (/tripStyle=business/i.test(knownSlots.specialRequests)) req.tripPurpose = 'business'
+    else if (/tripStyle=family/i.test(knownSlots.specialRequests)) req.tripPurpose = 'family'
+    else if (/tripStyle=weekend|tripStyle=leisure|tripStyle=solo/i.test(knownSlots.specialRequests)) {
+      req.tripPurpose = req.tripPurpose ?? 'leisure'
+    }
   }
-  if (knownSlots.currency && !req.budgetCurrency) {
-    req.budgetCurrency = knownSlots.currency
-  }
+  if (knownSlots.flexibleDates) req.datesFlexible = true
   return { ...memory, requirements: req }
 }
 
@@ -119,11 +128,21 @@ export function routeBrainPreviewTurn(input: BrainRouterInput): BrainRouterDecis
   try {
     const run = input.runBrain ?? runConversationManagerTurn
     const priorSession = extractBrainPreviewSession(input.messages)
+    const req = input.memory.requirements
     const brain = run(
       {
         text: input.userText,
         locale: input.locale,
         priorSession,
+        preferenceMemory: {
+          preferredAirlines: req.preferredAirline ? [req.preferredAirline] : [],
+          typicalBudget: req.budgetAmount,
+          cabinClass: req.cabinPreference,
+          currency: req.budgetCurrency,
+          hotelStarMin: null,
+          maxStops: null,
+          refundablePreferred: false,
+        },
       },
       { enabled: true },
     )

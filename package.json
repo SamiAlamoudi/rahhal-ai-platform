@@ -47,6 +47,7 @@
     "brain-v5:verify": "vitest run src/lib/__tests__/toolExecution.sprint85.test.ts",
     "brain-conversation:verify": "vitest run src/lib/__tests__/conversationManager.sprint85.test.ts",
     "brain-preview:verify": "vitest run src/lib/__tests__/brainPreview.sprint86.test.ts",
+    "brain-live:verify": "vitest run src/lib/__tests__/brainLiveExperience.sprint87.test.ts",
     "budget:verify": "vitest run src/lib/__tests__/budgetIntelligence.sprint75.test.ts",
     "personalization:verify": "vitest run src/lib/__tests__/travelerPersonalization.sprint76.test.ts",
     "optimizer:verify": "vitest run src/lib/__tests__/tripOptimizer.sprint77.test.ts",

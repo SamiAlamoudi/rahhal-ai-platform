@@ -11,7 +11,7 @@ import type {
   TravelGoal,
 } from '../planning/types'
 
-export const CONVERSATION_MANAGER_VERSION = '1.1.0-value-before-questions'
+export const CONVERSATION_MANAGER_VERSION = '1.2.0-live-brain-experience'
 
 export type ConversationLifecycleState =
   | 'idle'

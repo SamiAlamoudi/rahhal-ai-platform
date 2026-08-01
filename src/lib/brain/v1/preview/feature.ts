@@ -14,7 +14,7 @@ import { isProductionDeployTarget } from '../../../../core/amadeusSandbox/config
 import { detectDeployProfile } from '../../../ops/deployment/profiles'
 
 export const BRAIN_V1_PREVIEW_FEATURE_ID = 'ai.brain.v1.preview' as const
-export const BRAIN_V1_PREVIEW_VERSION = '1.0.0-brain-preview'
+export const BRAIN_V1_PREVIEW_VERSION = '1.1.0-live-brain-preview'
 
 function readEnvBag(
   env?: Record<string, string | undefined>,
