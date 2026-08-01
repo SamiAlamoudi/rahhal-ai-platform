@@ -34,3 +34,19 @@ export {
   type AssumptionPolicyInput,
   type AssumptionPolicyResult,
 } from './AssumptionPolicy'
+
+export {
+  CONFIDENCE_GATES_VERSION,
+  CONFIDENCE_SCORE_HIGH,
+  CONFIDENCE_SCORE_MEDIUM,
+  SEARCH_INFERENCE_ALLOWLIST,
+  ConfidenceGates,
+  createConfidenceGates,
+  evaluateConfidenceGates,
+  scoreToConfidenceLevel,
+  type ConfidenceLevel,
+  type ConfidenceBlockingReason,
+  type FieldConfidenceMap,
+  type ConfidenceGateInput,
+  type ConfidenceDecision,
+} from './ConfidenceGates'
