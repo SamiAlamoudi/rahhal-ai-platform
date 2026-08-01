@@ -109,3 +109,19 @@ export {
   type ExecutableToolType,
   type UnifiedToolResult,
 } from './execution'
+
+export {
+  CONVERSATION_MANAGER_VERSION,
+  createConversationManager,
+  runConversationManagerTurn,
+  createQuestionGenerator,
+  createResponseGenerator,
+  createConfidenceEngine,
+  createConversationSummaryBuilder,
+  createInterruptHandler,
+  createConversationExplainability,
+  type ConversationManagerResult,
+  type ConversationSession,
+  type ConversationSummary,
+  type ConversationQuestion,
+} from './conversation'

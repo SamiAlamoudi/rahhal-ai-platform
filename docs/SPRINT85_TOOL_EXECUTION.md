@@ -118,6 +118,10 @@ npm run brain-v4:verify
 npm run typecheck && npm run lint && npm run build
 ```
 
+## Follow-on
+
+Conversation Manager & Response Generator — see `docs/SPRINT85_CONVERSATION_MANAGER.md`.
+
 ## Out of scope
 
 - Enabling `ai.brain.v1`
