@@ -1,6 +1,6 @@
 /**
  * Sprint 89 Phase 2 — planning facade exports.
- * T2–T8: … → PlanningHints → BrainRouterPlanningAdapter (normalize only).
+ * T2–T9: … → PlanningHints → PlanningAdapter → DecisionContract (compile-only).
  * No BrainRouter / CM runtime wiring.
  */
 
@@ -104,3 +104,15 @@ export {
   type BrainRouterPlanningResult,
   type BrainRouterPlanningAdapterInput,
 } from './BrainRouterPlanningAdapter'
+
+export {
+  BRAIN_ROUTER_DECISION_CONTRACT_VERSION,
+  BrainRouterDecisionContractBuilder,
+  createBrainRouterDecisionContractBuilder,
+  buildBrainRouterDecisionContract,
+  assertBrainRouterDecisionContractInvariants,
+  type BrainRouterDecisionPayload,
+  type BrainRouterDecisionCapabilities,
+  type BrainRouterDecisionContract,
+  type BrainRouterDecisionContractInput,
+} from './BrainRouterDecisionContract'
