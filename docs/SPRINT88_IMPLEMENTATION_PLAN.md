@@ -121,8 +121,21 @@ Establish the **minimal scaffolding** for Travel Intelligence under the existing
 | Unlocks | Sprint 94 SLOs / later dual-run harness |
 | Artifacts | `src/lib/brain/v1/preview/telemetry/`; `docs/SPRINT88_SHADOW_TELEMETRY.md`; `src/lib/__tests__/sprint88.shadowTelemetry.task5.test.ts` |
 
+### Task 6 — Final verification & Architecture Gate
+**Effort:** S (relative 3)  
+**Status:** Complete (awaiting review; Task 7 not started)
+
+| Item | Detail |
+| --- | --- |
+| Goal | Final verification layer only — no new product functionality |
+| Work | Re-run Sprint 88 suites + typecheck/lint/build/freeze; validate ADR/contracts/adapters/evals/telemetry isolation; Architecture Gate Report |
+| Out | No runtime/production code changes; no flag enablement |
+| Depends on | Tasks 1–5 complete |
+| Artifacts | `docs/SPRINT88_ARCHITECTURE_GATE_REPORT.md` |
+
 ### Task 7 — Docs, verify scripts, freeze/regression gates
-**Effort:** S (relative 3)
+**Effort:** S (relative 3)  
+**Status:** Not started
 
 | Item | Detail |
 | --- | --- |
