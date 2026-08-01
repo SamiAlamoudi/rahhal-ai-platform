@@ -13,6 +13,22 @@ export {
   isRahhalBrainEnabled,
   RAHHAL_BRAIN_FEATURE_ID,
 } from './core'
+
+/** Sprint 81 — AI Brain Foundation v1 (flag OFF; not production turn owner) */
+export {
+  BRAIN_V1_VERSION,
+  BRAIN_V1_FEATURE_ID,
+  isBrainV1Enabled,
+  runBrainV1Turn,
+  createIntentDetector,
+  createEntityExtractor,
+  createMemoryManager,
+  createClarificationPlanner,
+  createRecommendationEngine,
+  type BrainV1TurnResult,
+  type BrainV1Intent,
+  type BrainV1Entities,
+} from './v1'
 export type {
   RahhalBrainHandle,
   RahhalBrainOptions,

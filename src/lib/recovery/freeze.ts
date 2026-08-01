@@ -55,6 +55,7 @@ export const RECOVERY_FROZEN_OFF_FLAGS = [
   'brain.finance_platform',
   'brain.context_memory',
   'brain.memory',
+  'ai.brain.v1',
   'ai.memory_engine',
   'ai.orchestrator',
   'ai.execution_pipeline',
