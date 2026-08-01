@@ -1,0 +1,72 @@
+import type { DestinationKnowledge } from '../types'
+
+export const dubaiKnowledge: DestinationKnowledge = {
+  key: 'dubai',
+  kind: 'city',
+  country: 'United Arab Emirates',
+  countryAr: 'الإمارات',
+  displayNameEn: 'Dubai',
+  displayNameAr: 'دبي',
+  aliases: ['dubai', 'دبي', 'uae', 'الامارات', 'الإمارات'],
+  cities: [
+    {
+      key: 'dubai',
+      nameEn: 'Dubai',
+      nameAr: 'دبي',
+      aliases: ['dubai', 'دبي'],
+      traitsEn: ['marina', 'shopping', 'short-haul'],
+      traitsAr: ['مارينا', 'تسوق', 'رحلة قصيرة'],
+      familyScore: 8,
+      honeymoonScore: 8,
+      businessScore: 9,
+      beaches: 8,
+      mountains: 1,
+      nightlife: 9,
+      shopping: 10,
+      culture: 5,
+      suggestedDays: 3,
+      highlightsEn: ['Marina / Downtown'],
+      highlightsAr: ['المارينا / وسط المدينة'],
+    },
+  ],
+  bestSeason: {
+    en: 'Best Nov–Mar; summer favors indoor plans.',
+    ar: 'الأفضل نوفمبر–مارس؛ الصيف للأنشطة الداخلية.',
+  },
+  climate: {
+    en: 'Summers are intense; winter suits walking and beach time.',
+    ar: 'صيف حار جداً؛ الشتاء معتدل للمشي والشاطئ.',
+  },
+  averageBudgetSar: { low: 2500, mid: 4500, high: 8000 },
+  tripDuration: { min: 2, max: 5, recommended: 3 },
+  familyScore: 8,
+  honeymoonScore: 8,
+  businessScore: 9,
+  beaches: 8,
+  mountains: 1,
+  nightlife: 9,
+  shopping: 10,
+  culture: 5,
+  transportation: {
+    en: 'Metro, taxis, and short drives — keep weekend plans to two areas.',
+    ar: 'مترو وتاكسي وتنقل قصير — لعطلة نهاية الأسبوع ركّز على حيّين.',
+  },
+  visaNotes: {
+    en: 'UAE entry rules vary by nationality — confirm; not assumed in planning.',
+    ar: 'قواعد دخول الإمارات تختلف حسب الجنسية — أكّد؛ لا افتراض في التخطيط.',
+  },
+  airports: [
+    { code: 'DXB', nameEn: 'Dubai International', nameAr: 'مطار دبي الدولي', primary: true },
+    { code: 'DWC', nameEn: 'Al Maktoum', nameAr: 'آل مكتوم' },
+  ],
+  flightFromKsa: {
+    en: 'Short hop from Saudi (~2–3 hours) — ideal for a weekend.',
+    ar: 'من السعودية رحلة قصيرة (~2–3 ساعات) — مثالية لعطلة نهاية الأسبوع.',
+  },
+  timezone: {
+    en: 'Negligible jet lag from Saudi Arabia.',
+    ar: 'لا إرهاق فرق توقيت يذكر.',
+  },
+  attractionsEn: ['Marina', 'Downtown Dubai', 'shopping'],
+  attractionsAr: ['المارينا', 'وسط دبي', 'التسوق'],
+}

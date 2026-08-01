@@ -5,11 +5,14 @@
  * Behind `ai.brain.v1`. No UI / Voice / providers / booking / payments wiring.
  */
 
+import { reasonFromDestinationKnowledge } from '../destinationKnowledge'
 import { isBrainV1Enabled } from '../feature'
 import { IntentDetector } from '../IntentDetector'
 import { SlotFillingEngine } from '../planning/SlotFillingEngine'
 import { TravelPlanningEngine } from '../planning/TravelPlanningEngine'
 import { emptyTravelPlanSlots, type TravelPlanSlotKey } from '../planning/types'
+import { TravelReasoner } from '../TravelReasoner'
+import { emptyPlannerState, type BrainV1PreferenceMemory } from '../types'
 import { AssumptionEngine } from './AssumptionEngine'
 import { ClarificationPolicy, DEFAULT_MAX_QUESTIONS_PER_TURN } from './ClarificationPolicy'
 import { ConfidenceEngine } from './ConfidenceEngine'
@@ -49,6 +52,7 @@ export type ConversationManagerDeps = {
   valueFirst?: ValueFirstPlanner
   intents?: IntentDetector
   slots?: SlotFillingEngine
+  reasoner?: TravelReasoner
 }
 
 function now(): string {
@@ -124,6 +128,7 @@ export class ConversationManager {
   private readonly valueFirst: ValueFirstPlanner
   private readonly intents: IntentDetector
   private readonly slotsEngine: SlotFillingEngine
+  private readonly reasoner: TravelReasoner
 
   constructor(deps: ConversationManagerDeps = {}) {
     this.planning = deps.planning ?? new TravelPlanningEngine()
@@ -139,6 +144,7 @@ export class ConversationManager {
     this.valueFirst = deps.valueFirst ?? new ValueFirstPlanner()
     this.intents = deps.intents ?? new IntentDetector()
     this.slotsEngine = deps.slots ?? new SlotFillingEngine()
+    this.reasoner = deps.reasoner ?? new TravelReasoner()
   }
 
   turn(
@@ -186,7 +192,7 @@ export class ConversationManager {
       session.state = 'paused'
       session.updatedAt = now()
       session.turns = [...session.turns, { role: 'assistant' as const, text: response[locale], at: now() }]
-      return this.finish(session, response, null, null, null, null, null, [], [], [], null)
+      return this.finish(session, response, null, null, null, null, null, [], [], [], null, null)
     }
 
     const planResult = this.planning.planTurn(
@@ -314,11 +320,85 @@ export class ConversationManager {
       missingBase.push('adults')
     }
 
+    const preferenceMemory: BrainV1PreferenceMemory = {
+      cabinClass: mem.preferenceMemory.cabinClass,
+      maxStops: mem.preferenceMemory.maxStops,
+      preferredAirlines: mem.preferenceMemory.preferredAirlines,
+      hotelStarMin: mem.preferenceMemory.hotelStarMin,
+      refundablePreferred: mem.preferenceMemory.refundablePreferred,
+      currency: mem.preferenceMemory.currency,
+      typicalBudget: mem.preferenceMemory.typicalBudget,
+    }
+    const reasonerMissing = missingBase.flatMap((m) => {
+      if (m === 'destination') return ['destination'] as const
+      if (m === 'origin') return ['origin'] as const
+      if (m === 'dates') return ['travel_dates'] as const
+      if (m === 'adults') return ['travelers'] as const
+      if (m === 'budget') return ['budget'] as const
+      if (m === 'cabin') return ['cabin'] as const
+      if (m === 'hotelPreference') return ['hotel_rating'] as const
+      return []
+    })
+    const reasoningSteps = this.reasoner.reason({
+      intent,
+      entities: {
+        destination: workingSlots.destination,
+        origin: workingSlots.origin,
+        travelDates: workingSlots.dates,
+        flexibleDates: workingSlots.flexibleDates,
+        travelerCount: workingSlots.adults,
+        adults: workingSlots.adults,
+        children: workingSlots.children,
+        infants: null,
+        budget: workingSlots.budget,
+        cabinClass: workingSlots.cabin,
+        preferredAirline: null,
+        hotelRating: null,
+        starLevel: null,
+        mealPreference: workingSlots.specialRequests?.includes('food=')
+          ? workingSlots.specialRequests.match(/food=([^\s|;]+)/)?.[1] ?? null
+          : null,
+        activities: workingSlots.activities,
+        transportation: workingSlots.transportation,
+        language: workingSlots.language,
+        currency: workingSlots.currency,
+        nationality: null,
+        visaDestination: workingSlots.visa,
+      },
+      missing: [...reasonerMissing],
+      tools: ['none'],
+      collected: [],
+      ranked: [],
+      explanation: null,
+      planner: {
+        ...emptyPlannerState(),
+        currentGoal: planResult.goal?.label ?? 'Plan a trip',
+        resumed: interruptKind === 'resume',
+      },
+      preferenceMemory,
+      bookingActionCount: 0,
+      planSlots: workingSlots,
+    })
+    const destReasoning = reasonFromDestinationKnowledge({
+      destination: workingSlots.destination,
+      specialRequests: workingSlots.specialRequests,
+      adults: workingSlots.adults,
+      children: workingSlots.children,
+    })
+    const reasonedRecommendations = [
+      ...(input.recommendations ?? []),
+      ...(destReasoning?.attractionsEn.slice(0, 2).map((a) => `Popular highlight: ${a}`) ?? []),
+      ...reasoningSteps
+        .filter((s) => s.id === 'destination_reasoning' && s.ok)
+        .map((s) => s.detail)
+        .slice(0, 1),
+    ]
+
     const valueItems = this.valueFirst.canProvideValue(workingSlots)
       ? this.valueFirst.build({
           slots: workingSlots,
           assumptions,
-          recommendations: input.recommendations,
+          recommendations: reasonedRecommendations.filter((r) => !r.includes('destination=')),
         })
       : []
 
@@ -329,7 +409,7 @@ export class ConversationManager {
       slots: workingSlots,
       completedSlots,
       pendingSlots: missingBase,
-      recommendations: input.recommendations,
+      recommendations: reasonedRecommendations,
       ambiguousText: /\b(?:maybe|perhaps|not sure|ربما|مو متأكد|غير متأكد)\b/i.test(input.text),
       hasDestination: Boolean(workingSlots.destination),
       unsafe: stage === 'payment' || stage === 'booking',
@@ -380,12 +460,12 @@ export class ConversationManager {
       intentLabel: intent,
       slots: knownSlots,
       remaining: pendingSlots,
-      recommendations: input.recommendations,
+      recommendations: reasonedRecommendations,
     })
 
     const explanation = this.explainability.explain({
       question,
-      recommendation: valueItems[0]?.detailEn ?? input.recommendations?.[0] ?? null,
+      recommendation: valueItems[0]?.detailEn ?? reasonedRecommendations[0] ?? null,
       missing: pendingSlots,
     })
 
@@ -406,26 +486,29 @@ export class ConversationManager {
     let state: ConversationLifecycleState = interruptApplied.state
     if (interruptKind === 'resume') state = 'resumed'
     else if (interruptKind === 'topic_switch') state = 'topic_switch'
-    else if (valueItems.length > 0) state = 'value_first'
     else if (hadPriorPlan && planResult.revisedSlots.length > 0) state = 'revising'
+    else if (valueItems.length > 0) state = 'value_first'
     else if (question) state = 'waiting_user'
     else if (input.recommendations?.length) state = 'summarizing'
     else state = 'ready'
 
     if (session.state === 'restarted' && !planResult.plan) state = 'greeting'
 
+    // Only surface "updated affected parts" when revising an existing plan.
+    const revisedForResponse = hadPriorPlan ? planResult.revisedSlots : []
+
     const response = this.responses.generate({
       locale,
       state,
       question,
       summary,
-      revisedSlots: planResult.revisedSlots,
+      revisedSlots: revisedForResponse,
       destination: workingSlots.destination,
       confidence,
       resumed: interruptKind === 'resume' || state === 'resumed',
       topicSwitch: interruptKind === 'topic_switch',
       previousGoal: session.previousGoalLabel,
-      recommendations: input.recommendations,
+      recommendations: reasonedRecommendations,
       valueItems,
       assumptions,
       decision: decisionModel,
@@ -489,6 +572,7 @@ export class ConversationManager {
       valueItems,
       planResult.revisedSlots,
       intent,
+      destReasoning?.explainability ?? null,
     )
   }
 
@@ -524,6 +608,7 @@ export class ConversationManager {
     value: ConversationValueItem[],
     revisedSlots: TravelPlanSlotKey[],
     intent: ConversationManagerResult['intent'],
+    destinationExplainability: ConversationManagerResult['destinationExplainability'] = null,
   ): ConversationManagerResult {
     return {
       version: CONVERSATION_MANAGER_VERSION,
@@ -540,6 +625,7 @@ export class ConversationManager {
       revisedSlots,
       knownSlots: session.plan?.knownSlots ?? null,
       intent,
+      destinationExplainability: destinationExplainability ?? null,
     }
   }
 

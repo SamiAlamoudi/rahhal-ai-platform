@@ -44,6 +44,30 @@ export { ToolRegistry, createToolRegistry, type BrainV1ToolDefinition } from './
 export { ToolDecisionEngine, createToolDecisionEngine } from './ToolDecisionEngine'
 export { TravelReasoner, createTravelReasoner } from './TravelReasoner'
 export {
+  getDestinationInsight,
+  buildDestinationReasoningLines,
+  indicativeBudgetForSlots,
+  inferTripStyle,
+  resolveInsightKey,
+  reasonFromDestinationKnowledge,
+  type DestinationInsight,
+  type TripStyleHint,
+} from './destinationInsights'
+
+export {
+  ensureDestinationKnowledgeLoaded,
+  registerDestinationKnowledge,
+  getDestinationKnowledgeByKey,
+  listDestinationKnowledge,
+  resolveDestinationKnowledgeKey,
+  buildExplainableRecommendation,
+  type DestinationKnowledge,
+  type DestinationReasoning,
+  type CityKnowledge,
+  type ExplainableRecommendation,
+  type DestinationAlternative,
+} from './destinationKnowledge'
+export {
   RecommendationEngine,
   createRecommendationEngine,
   DEFAULT_RANKING_WEIGHTS,

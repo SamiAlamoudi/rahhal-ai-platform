@@ -1,8 +1,17 @@
 /**
- * Sprint 82 — TravelReasoner (Brain v1).
+ * Sprint 82/87 — TravelReasoner (Brain v1).
  * Executes the multi-step reasoning trace for each consultant turn.
+ * Sprint 87: connects structured destination insights (season, weather, costs, …).
  */
 
+import {
+  buildDestinationReasoningLines,
+  getDestinationKnowledgeByKey,
+  inferTripStyle,
+  readTaggedDuration,
+  resolveKnowledgeKey,
+} from './destinationKnowledge'
+import type { TravelPlanSlots } from './planning/types'
 import type {
   BrainV1Entities,
   BrainV1Explanation,
@@ -27,6 +36,8 @@ export class TravelReasoner {
     planner: BrainV1PlannerState
     preferenceMemory: BrainV1PreferenceMemory
     bookingActionCount: number
+    /** Optional planning slots for Sprint 87 destination reasoning. */
+    planSlots?: TravelPlanSlots | null
   }): BrainV1ReasoningStep[] {
     const contextDetail = input.planner.resumed
       ? `Resumed conversation; goal=${input.planner.currentGoal}`
@@ -46,6 +57,34 @@ export class TravelReasoner {
       .filter(Boolean)
       .join(', ') || 'No preference memory loaded'
 
+    const slots: TravelPlanSlots | null = input.planSlots ?? null
+    const knowledgeKey = slots
+      ? resolveKnowledgeKey(slots.destination, slots.specialRequests)
+      : resolveKnowledgeKey(input.entities.destination, null)
+    const knowledge = knowledgeKey ? getDestinationKnowledgeByKey(knowledgeKey) : null
+    const style = slots
+      ? inferTripStyle({
+          durationDays: readTaggedDuration(slots.specialRequests),
+          specialRequests: slots.specialRequests,
+          adults: slots.adults,
+          children: slots.children,
+        })
+      : inferTripStyle({
+          specialRequests: null,
+          adults: input.entities.adults,
+          children: input.entities.children,
+        })
+    const destinationLines = slots
+      ? buildDestinationReasoningLines(slots)
+      : knowledge
+        ? [
+            `destination=${knowledge.key}`,
+            `season=${knowledge.bestSeason.en}`,
+            `style=${style}`,
+            `scores=family:${knowledge.familyScore},business:${knowledge.businessScore},culture:${knowledge.culture}`,
+          ]
+        : []
+
     return [
       {
         id: 'understand_request',
@@ -60,6 +99,20 @@ export class TravelReasoner {
       {
         id: 'load_memory',
         detail: memoryDetail,
+        ok: true,
+      },
+      {
+        id: 'destination_reasoning',
+        detail: destinationLines.length
+          ? destinationLines.join('; ')
+          : 'No structured destination insight for this turn',
+        ok: true,
+      },
+      {
+        id: 'trip_style_reasoning',
+        detail: `tripStyle=${style}; familyVsSolo=${
+          style === 'family' ? 'family' : style === 'solo' ? 'solo' : 'unspecified'
+        }; businessVsTourism=${style === 'business' ? 'business' : 'tourism_or_leisure'}`,
         ok: true,
       },
       {

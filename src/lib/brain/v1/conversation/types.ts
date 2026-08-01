@@ -3,6 +3,7 @@
  * Brain v1 island. Gated by `ai.brain.v1`. No UI / Voice / providers / booking.
  */
 
+import type { ExplainableRecommendation } from '../destinationKnowledge/types'
 import type { BrainV1Intent, BrainV1PreferenceMemory } from '../types'
 import type {
   TravelPlan,
@@ -11,7 +12,7 @@ import type {
   TravelGoal,
 } from '../planning/types'
 
-export const CONVERSATION_MANAGER_VERSION = '1.1.0-value-before-questions'
+export const CONVERSATION_MANAGER_VERSION = '1.2.0-live-brain-experience'
 
 export type ConversationLifecycleState =
   | 'idle'
@@ -185,4 +186,9 @@ export interface ConversationManagerResult {
   revisedSlots: TravelPlanSlotKey[]
   knownSlots: TravelPlanSlots | null
   intent: BrainV1Intent | null
+  /**
+   * Sprint 87 — structured destination explainability for future UI.
+   * Not rendered in chat copy by default.
+   */
+  destinationExplainability?: ExplainableRecommendation | null
 }
