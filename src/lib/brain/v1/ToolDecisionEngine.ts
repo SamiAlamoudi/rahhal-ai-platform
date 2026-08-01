@@ -1,43 +1,37 @@
 /**
- * Sprint 81 — ToolDecisionEngine (Brain v1).
- * Selects required providers/tools from intent + completeness.
+ * Sprint 82 — ToolDecisionEngine (Brain v1).
+ * Decides tools automatically via ToolRegistry — never hardcodes provider choice.
  */
 
+import { createToolRegistry, type ToolRegistry } from './ToolRegistry'
 import type { BrainV1Intent, BrainV1MissingField, BrainV1ToolId } from './types'
 
 export class ToolDecisionEngine {
-  select(intent: BrainV1Intent, missing: BrainV1MissingField[]): BrainV1ToolId[] {
-    if (missing.length > 0) return ['none']
+  private readonly registry: ToolRegistry
 
-    switch (intent) {
-      case 'flight_search':
-      case 'price_comparison':
-      case 'price_prediction':
-        return ['flights']
-      case 'hotel_search':
-        return ['hotels']
-      case 'package_search':
-      case 'family_vacation':
-      case 'weekend_trip':
-      case 'business_travel':
-        return ['flights', 'hotels', 'packages']
-      case 'multi_city_trip':
-        return ['flights', 'hotels']
-      case 'visa_question':
-        return ['visa']
-      case 'budget_planning':
-        return ['budget']
-      case 'travel_advice':
-        return ['advice']
-      case 'booking_modification':
-      case 'cancellation':
-        return ['none']
-      default:
-        return ['none']
-    }
+  constructor(registry?: ToolRegistry) {
+    this.registry = registry ?? createToolRegistry()
+  }
+
+  getRegistry(): ToolRegistry {
+    return this.registry
+  }
+
+  select(intent: BrainV1Intent, missing: BrainV1MissingField[]): BrainV1ToolId[] {
+    if (intent === 'cancellation' || intent === 'unknown') return ['none']
+
+    const needsTripTools = this.registry.list().some(
+      (def) => def.requiresCompleteTrip && def.intents.includes(intent),
+    )
+    if (needsTripTools && missing.length > 0) return ['none']
+
+    return this.registry.resolveForIntent(intent, {
+      complete: !needsTripTools || missing.length === 0,
+      includeSecondary: missing.length === 0,
+    })
   }
 }
 
-export function createToolDecisionEngine(): ToolDecisionEngine {
-  return new ToolDecisionEngine()
+export function createToolDecisionEngine(registry?: ToolRegistry): ToolDecisionEngine {
+  return new ToolDecisionEngine(registry)
 }

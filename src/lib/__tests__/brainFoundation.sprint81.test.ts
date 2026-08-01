@@ -1,5 +1,6 @@
 /**
  * Sprint 81 — Rahhal AI Brain Foundation (Phase 1) architecture tests.
+ * Updated for Sprint 82 clarification order + reasoning step ids.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -35,7 +36,7 @@ describe('Sprint 81 — Brain Foundation v1', () => {
       expect(isBrainV1Enabled()).toBe(false)
       expect(RECOVERY_FROZEN_OFF_FLAGS).toContain('ai.brain.v1')
       expect(RECOVERY_TURN_OWNER).toBe('travelAgentService.planTurn')
-      expect(BRAIN_V1_VERSION).toMatch(/brain-v1/)
+      expect(BRAIN_V1_VERSION).toMatch(/brain-v2-reasoning|brain-v1/)
     })
 
     it('is a no-op when flag is OFF', () => {
@@ -117,6 +118,7 @@ describe('Sprint 81 — Brain Foundation v1', () => {
       expect(memory.getConversationMemory().pendingClarification).toBe('travel_dates')
       expect(memory.getLongTermMemory().favoriteAirlines).toEqual(['Saudia'])
       expect(memory.getLongTermMemory().preferences.cabinClass).toBe('business')
+      expect(memory.getPreferenceMemory().preferredAirlines).toContain('Saudia')
     })
   })
 
@@ -127,14 +129,13 @@ describe('Sprint 81 — Brain Foundation v1', () => {
       const { clarifications, missing } = planner.plan('flight_search', entities)
       expect(missing.length).toBeGreaterThan(0)
       expect(clarifications).toHaveLength(1)
-      expect(clarifications[0]?.field).toBe('origin')
-      // Destination-only → ask origin or dates, never a form dump.
+      expect(clarifications[0]?.field).toBe('travel_dates')
       expect(clarifications[0]?.questionEn.toLowerCase()).not.toMatch(/budget.*cabin.*airline/)
     })
 
-    it('asks when for destination-only Morocco example after origin known', () => {
+    it('asks when for destination-only Morocco example', () => {
       const planner = createClarificationPlanner()
-      const entities = createEntityExtractor().extract('I want to travel to Morocco from Riyadh')
+      const entities = createEntityExtractor().extract('I want to travel to Morocco')
       const { clarifications } = planner.plan('flight_search', entities)
       expect(clarifications).toHaveLength(1)
       expect(clarifications[0]?.field).toBe('travel_dates')
@@ -184,6 +185,7 @@ describe('Sprint 81 — Brain Foundation v1', () => {
       )
       expect(ranked[0]?.id).toBe('f_best')
       expect((ranked[0]?.score ?? 0) > (ranked[1]?.score ?? 0)).toBe(true)
+      expect(ranked[0]?.scoreBreakdown?.overall).toBe(ranked[0]?.score)
 
       const result = runBrainV1Turn(
         {
@@ -195,12 +197,16 @@ describe('Sprint 81 — Brain Foundation v1', () => {
       expect(result.enabled).toBe(true)
       expect(result.reasoning.map((s) => s.id)).toEqual([
         'understand_request',
+        'resolve_conversation_context',
+        'load_memory',
         'detect_missing_information',
-        'choose_best_provider',
-        'merge_provider_results',
+        'choose_tools',
+        'collect_provider_results',
+        'evaluate_results',
         'rank_offers',
         'explain_recommendation',
-        'generate_conversational_response',
+        'generate_natural_answer',
+        'generate_booking_actions',
       ])
       expect(result.rankedOffers[0]?.id).toBe('f_best')
       expect(result.tools).toContain('flights')
@@ -219,7 +225,8 @@ describe('Sprint 81 — Brain Foundation v1', () => {
       expect(result.intent.intent).toBe('flight_search')
       expect(result.entities.destination).toBe('Morocco')
       expect(result.clarifications).toHaveLength(1)
-      expect(result.responseEn).toMatch(/depart|when|city/i)
+      expect(result.clarifications[0]?.field).toBe('travel_dates')
+      expect(result.responseEn).toMatch(/when/i)
       expect(result.tools).toEqual(['none'])
     })
   })

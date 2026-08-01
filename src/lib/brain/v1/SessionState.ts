@@ -1,30 +1,94 @@
 /**
- * Sprint 81 — SessionState (Brain v1).
+ * Sprint 82 — SessionState (Brain v1).
+ * Holds entities + planner state for recovery / continuation (in-memory only).
  */
 
-import { emptyBrainV1Entities, type BrainV1Entities, type BrainV1Intent, type BrainV1SessionMemory } from './types'
+import {
+  emptyBrainV1Entities,
+  emptyPlannerState,
+  type BrainV1Entities,
+  type BrainV1Intent,
+  type BrainV1PlannerState,
+  type BrainV1SessionMemory,
+} from './types'
 
 export class SessionState {
   private memory: BrainV1SessionMemory
 
-  constructor(sessionId = `brain-v1-${Date.now()}`) {
+  constructor(sessionId = `brain-v1-${Date.now()}`, prior?: BrainV1SessionMemory) {
+    if (prior) {
+      this.memory = {
+        sessionId: prior.sessionId || sessionId,
+        startedAt: prior.startedAt,
+        lastIntent: prior.lastIntent,
+        entities: {
+          ...emptyBrainV1Entities(),
+          ...prior.entities,
+          travelDates: {
+            start: prior.entities.travelDates?.start ?? null,
+            end: prior.entities.travelDates?.end ?? null,
+          },
+          activities: [...(prior.entities.activities ?? [])],
+        },
+        plannerState: prior.plannerState
+          ? { ...prior.plannerState, steps: [...prior.plannerState.steps] }
+          : null,
+        interruptedAt: prior.interruptedAt,
+      }
+      return
+    }
+
     this.memory = {
       sessionId,
       startedAt: new Date().toISOString(),
       lastIntent: null,
       entities: emptyBrainV1Entities(),
+      plannerState: null,
+      interruptedAt: null,
     }
   }
 
   getSnapshot(): BrainV1SessionMemory {
     return {
       ...this.memory,
-      entities: { ...this.memory.entities, travelDates: { ...this.memory.entities.travelDates }, activities: [...this.memory.entities.activities] },
+      entities: {
+        ...this.memory.entities,
+        travelDates: { ...this.memory.entities.travelDates },
+        activities: [...this.memory.entities.activities],
+      },
+      plannerState: this.memory.plannerState
+        ? {
+            ...this.memory.plannerState,
+            completedSteps: [...this.memory.plannerState.completedSteps],
+            remainingSteps: [...this.memory.plannerState.remainingSteps],
+            steps: this.memory.plannerState.steps.map((s) => ({ ...s })),
+          }
+        : null,
     }
   }
 
   updateIntent(intent: BrainV1Intent): void {
     this.memory.lastIntent = intent
+  }
+
+  setPlannerState(state: BrainV1PlannerState): void {
+    this.memory.plannerState = state
+  }
+
+  markInterrupted(): void {
+    this.memory.interruptedAt = new Date().toISOString()
+    if (this.memory.plannerState) {
+      this.memory.plannerState = {
+        ...this.memory.plannerState,
+        interrupted: true,
+        resumed: false,
+      }
+    } else {
+      this.memory.plannerState = {
+        ...emptyPlannerState(),
+        interrupted: true,
+      }
+    }
   }
 
   mergeEntities(entities: BrainV1Entities): BrainV1Entities {
@@ -61,6 +125,9 @@ export class SessionState {
   }
 }
 
-export function createSessionState(sessionId?: string): SessionState {
-  return new SessionState(sessionId)
+export function createSessionState(
+  sessionId?: string,
+  prior?: BrainV1SessionMemory,
+): SessionState {
+  return new SessionState(sessionId, prior)
 }

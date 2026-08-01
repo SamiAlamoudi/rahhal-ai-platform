@@ -1,14 +1,16 @@
 /**
- * Sprint 81 — ResponseComposer (Brain v1).
- * Natural conversational answers (foundation templates).
+ * Sprint 82 — ResponseComposer (Brain v1).
+ * Natural conversational answers with explainability.
  */
 
 import type { BrainV1Plan } from './ConversationPlanner'
 import type {
   BrainV1Clarification,
   BrainV1Entities,
+  BrainV1Explanation,
   BrainV1Intent,
   BrainV1Offer,
+  BrainV1PlannerState,
 } from './types'
 
 export class ResponseComposer {
@@ -18,11 +20,28 @@ export class ResponseComposer {
     plan: BrainV1Plan
     clarification?: BrainV1Clarification | null
     topOffer?: BrainV1Offer | null
-  }): { ar: string; en: string; bookingActions: Array<{ type: string; label: string; payload?: Record<string, unknown> }> } {
-    if (input.plan.kind === 'clarify' && input.clarification) {
+    explanation?: BrainV1Explanation | null
+    planner?: BrainV1PlannerState | null
+  }): {
+    ar: string
+    en: string
+    bookingActions: Array<{ type: string; label: string; payload?: Record<string, unknown> }>
+  } {
+    const clarify =
+      input.clarification
+      ?? (input.plan.kind === 'clarify' ? input.plan.clarification : null)
+      ?? (input.plan.kind === 'resume' ? input.plan.clarification ?? null : null)
+
+    if ((input.plan.kind === 'clarify' || input.plan.kind === 'resume') && clarify) {
+      const resumePrefixEn = input.planner?.resumed
+        ? 'Welcome back — continuing where we left off. '
+        : ''
+      const resumePrefixAr = input.planner?.resumed
+        ? 'مرحباً بعودتك — نكمل من حيث توقفنا. '
+        : ''
       return {
-        ar: input.clarification.questionAr,
-        en: input.clarification.questionEn,
+        ar: `${resumePrefixAr}${clarify.questionAr}`,
+        en: `${resumePrefixEn}${clarify.questionEn}`,
         bookingActions: [],
       }
     }
@@ -45,10 +64,19 @@ export class ResponseComposer {
     }
 
     if (input.topOffer) {
-      const why = input.topOffer.reasons?.[0] ?? 'best overall fit'
+      const whyEn = input.explanation?.en
+        ?? (input.topOffer.reasons?.[0]
+          ? `Why: ${input.topOffer.reasons[0]}.`
+          : 'Why: best overall fit.')
+      const whyAr = input.explanation?.ar
+        ?? (input.topOffer.reasons?.[0]
+          ? `السبب: ${input.topOffer.reasons[0]}.`
+          : 'السبب: الأنسب إجمالاً.')
+      const resumeEn = input.planner?.resumed ? 'Continuing your search — ' : ''
+      const resumeAr = input.planner?.resumed ? 'نكمل بحثك — ' : ''
       return {
-        ar: `أقترح لك: ${input.topOffer.title} بسعر ${input.topOffer.price ?? '—'} ${input.topOffer.currency}. السبب: ${why}. هل نجهّز خطوة الحجز؟`,
-        en: `I recommend: ${input.topOffer.title} at ${input.topOffer.price ?? '—'} ${input.topOffer.currency}. Why: ${why}. Shall I prepare booking?`,
+        ar: `${resumeAr}أقترح لك: ${input.topOffer.title} بسعر ${input.topOffer.price ?? '—'} ${input.topOffer.currency}. ${whyAr} هل نجهّز خطوة الحجز؟`,
+        en: `${resumeEn}I recommend: ${input.topOffer.title} at ${input.topOffer.price ?? '—'} ${input.topOffer.currency}. ${whyEn} Shall I prepare booking?`,
         bookingActions: [{
           type: 'prepare_booking',
           label: 'Prepare booking',

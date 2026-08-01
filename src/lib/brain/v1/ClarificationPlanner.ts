@@ -1,6 +1,8 @@
 /**
- * Sprint 81 — ClarificationPlanner (Brain v1).
- * Ask only the minimum required question — never a form dump.
+ * Sprint 82 — ClarificationPlanner (Brain v1).
+ * Ask ONLY one question at a time — never a form dump.
+ *
+ * Example: "I want to go to Morocco." → "When would you like to travel?"
  */
 
 import type {
@@ -41,6 +43,14 @@ const QUESTIONS: Record<BrainV1MissingField, { ar: string; en: string }> = {
   },
 }
 
+/** Minimum intake order — dates before origin so Morocco → "When?". */
+const INTAKE_ORDER: BrainV1MissingField[] = [
+  'destination',
+  'travel_dates',
+  'origin',
+  'travelers',
+]
+
 export class ClarificationPlanner {
   detectMissing(intent: BrainV1Intent, entities: BrainV1Entities): BrainV1MissingField[] {
     const missing: BrainV1MissingField[] = []
@@ -58,18 +68,27 @@ export class ClarificationPlanner {
     if (!needsTrip) return missing
 
     if (!entities.destination) missing.push('destination')
-    if (
-      (intent === 'flight_search' || intent === 'package_search' || intent === 'multi_city_trip')
-      && !entities.origin
-    ) {
-      missing.push('origin')
-    }
     if (!entities.travelDates.start && !entities.flexibleDates) {
       missing.push('travel_dates')
     }
-    if (entities.travelerCount == null && entities.adults == null) {
-      // Only ask travelers after destination + dates are known (minimum path).
+    if (
+      (intent === 'flight_search'
+        || intent === 'package_search'
+        || intent === 'multi_city_trip'
+        || intent === 'price_comparison')
+      && !entities.origin
+    ) {
+      // Only ask origin after destination + dates (minimum path).
       if (entities.destination && (entities.travelDates.start || entities.flexibleDates)) {
+        missing.push('origin')
+      }
+    }
+    if (entities.travelerCount == null && entities.adults == null) {
+      if (
+        entities.destination
+        && (entities.travelDates.start || entities.flexibleDates)
+        && (intent === 'hotel_search' || entities.origin)
+      ) {
         missing.push('travelers')
       }
     }
@@ -83,7 +102,10 @@ export class ClarificationPlanner {
   ): { missing: BrainV1MissingField[]; clarifications: BrainV1Clarification[] } {
     const missing = this.detectMissing(intent, entities)
     if (missing.length === 0) return { missing, clarifications: [] }
-    const field = missing[0]!
+
+    const field =
+      INTAKE_ORDER.find((f) => missing.includes(f))
+      ?? missing[0]!
     const q = QUESTIONS[field]
     return {
       missing,

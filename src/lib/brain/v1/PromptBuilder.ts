@@ -20,7 +20,7 @@ export class PromptBuilder {
     clarification?: BrainV1Clarification | null
   }): string {
     const lines = [
-      'Rahhal Brain v1 — internal prompt preview',
+      'Rahhal Brain v2 reasoning — internal prompt preview',
       `intent: ${input.intent}`,
       `destination: ${input.entities.destination ?? ''}`,
       `origin: ${input.entities.origin ?? ''}`,
