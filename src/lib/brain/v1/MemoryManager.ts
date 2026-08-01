@@ -1,7 +1,7 @@
 /**
- * Sprint 81 — MemoryManager (Brain v1).
- * Separates session / conversation / long-term memory interfaces.
- * Does NOT replace production agent/memory.ts.
+ * Sprint 82 — MemoryManager (Brain v1).
+ * Session / conversation / preference / long-term memory interfaces.
+ * No persistence yet.
  */
 
 import type { ConversationHistory } from './ConversationHistory'
@@ -11,6 +11,7 @@ import type {
   BrainV1Intent,
   BrainV1LongTermMemory,
   BrainV1MissingField,
+  BrainV1PreferenceMemory,
   BrainV1SessionMemory,
 } from './types'
 
@@ -33,6 +34,7 @@ function defaultLongTerm(): BrainV1LongTermMemory {
     favoriteAirlines: [],
     favoriteHotels: [],
     budgetPreferences: { typicalAmount: null, currency: null },
+    previousSelections: [],
   }
 }
 
@@ -68,6 +70,23 @@ export class MemoryManager {
     }
   }
 
+  getPreferenceMemory(): BrainV1PreferenceMemory {
+    return {
+      cabinClass: this.longTerm.preferences.cabinClass,
+      maxStops: this.longTerm.preferences.maxStops,
+      preferredAirlines: [
+        ...this.longTerm.preferences.preferredAirlines,
+        ...this.longTerm.favoriteAirlines,
+      ],
+      hotelStarMin: this.longTerm.preferences.hotelStarMin,
+      refundablePreferred: this.longTerm.preferences.refundablePreferred,
+      currency:
+        this.longTerm.profile.currency
+        ?? this.longTerm.budgetPreferences.currency,
+      typicalBudget: this.longTerm.budgetPreferences.typicalAmount,
+    }
+  }
+
   getLongTermMemory(): BrainV1LongTermMemory {
     return {
       ...this.longTerm,
@@ -80,6 +99,7 @@ export class MemoryManager {
       favoriteHotels: [...this.longTerm.favoriteHotels],
       budgetPreferences: { ...this.longTerm.budgetPreferences },
       profile: { ...this.longTerm.profile },
+      previousSelections: [...(this.longTerm.previousSelections ?? [])],
     }
   }
 
@@ -110,6 +130,8 @@ export class MemoryManager {
         ...this.longTerm.budgetPreferences,
         ...partial.budgetPreferences,
       },
+      previousSelections:
+        partial.previousSelections ?? this.longTerm.previousSelections ?? [],
     }
   }
 }

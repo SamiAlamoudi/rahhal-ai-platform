@@ -92,9 +92,10 @@ npm run test:run -- src/lib/__tests__/recoveryPhase1.freeze.test.ts
 
 ## Out of scope (Phase 1)
 
-- Advanced reasoning / LLM prompt execution  
 - UI redesign  
 - planTurn ownership changes  
 - Live provider calls from Brain v1  
 
-Await approval before advanced reasoning implementation.
+## Follow-on
+
+Sprint 82 implements the reasoning engine inside this island — see `docs/SPRINT82_BRAIN_REASONING.md`. Flag remains `ai.brain.v1` OFF.

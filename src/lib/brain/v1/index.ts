@@ -1,22 +1,28 @@
 /**
- * Sprint 81 — Rahhal AI Brain Foundation (Phase 1)
+ * Sprint 81/82 — Rahhal AI Brain Foundation + Reasoning Engine
  *
  * Additive architecture under `src/lib/brain/v1/`.
  * Feature flag `ai.brain.v1` defaults OFF.
- * Not wired into travelAgentService.planTurn.
+ * Not wired into travelAgentService.planTurn / Voice / UI.
  */
 
-export { BRAIN_V1_VERSION } from './types'
+export { BRAIN_V1_VERSION, emptyBrainV1Entities, emptyPlannerState } from './types'
 export type {
   BrainV1Clarification,
   BrainV1ConversationMemory,
   BrainV1Entities,
+  BrainV1Explanation,
   BrainV1Intent,
   BrainV1IntentResult,
   BrainV1LongTermMemory,
   BrainV1MissingField,
   BrainV1Offer,
+  BrainV1PlannerState,
+  BrainV1PlannerStep,
+  BrainV1PlannerStepId,
+  BrainV1PreferenceMemory,
   BrainV1ReasoningStep,
+  BrainV1ScoreBreakdown,
   BrainV1SessionMemory,
   BrainV1ToolId,
   BrainV1TravelPreferences,
@@ -24,7 +30,6 @@ export type {
   BrainV1TurnResult,
   BrainV1UserProfile,
 } from './types'
-export { emptyBrainV1Entities } from './types'
 
 export { BRAIN_V1_FEATURE_ID, isBrainV1Enabled } from './feature'
 
@@ -35,9 +40,16 @@ export { ConversationHistory, createConversationHistory } from './ConversationHi
 export { ConversationContext, createConversationContext } from './ConversationContext'
 export { MemoryManager, createMemoryManager } from './MemoryManager'
 export { ClarificationPlanner, createClarificationPlanner } from './ClarificationPlanner'
+export { ToolRegistry, createToolRegistry, type BrainV1ToolDefinition } from './ToolRegistry'
 export { ToolDecisionEngine, createToolDecisionEngine } from './ToolDecisionEngine'
 export { TravelReasoner, createTravelReasoner } from './TravelReasoner'
-export { RecommendationEngine, createRecommendationEngine } from './RecommendationEngine'
+export {
+  RecommendationEngine,
+  createRecommendationEngine,
+  DEFAULT_RANKING_WEIGHTS,
+  type RankingWeights,
+} from './RecommendationEngine'
+export { ExplainabilityEngine, createExplainabilityEngine } from './ExplainabilityEngine'
 export {
   ConversationPlanner,
   createConversationPlanner,
