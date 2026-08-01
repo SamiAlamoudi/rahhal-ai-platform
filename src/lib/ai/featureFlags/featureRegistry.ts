@@ -392,6 +392,16 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
       'Product alias: conversational_provider_unify. Additive under src/lib/agent/conversationalProvider. Does not modify voice, STT/TTS, chatEngine, memory, or UI. When OFF, runConversationAware* keeps prior mock/live bridges.',
   },
   {
+    id: 'ai.live_flight_provider_pilot',
+    name: 'Live Flight Provider Pilot',
+    description:
+      'Sprint 80 P1-4 — routes conversational flight search through the unified provider resolver using Amadeus LiveFlightProvider, with silent legacy fallback on unavailable/timeout/auth/parse failures. Default OFF — production flight path unchanged. Hotels not included.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: live_flight_provider_pilot. Additive under src/lib/agent/conversationalProvider (flightPilot). Does not modify voice, STT/TTS, chatEngine, memory, booking, payments, or UI. When OFF, runConversationAwareFlightSearch keeps prior bridges.',
+  },
+  {
     id: 'ai.integration_trip_orchestrator',
     name: 'Integration Trip Orchestrator',
     description:

@@ -11,7 +11,7 @@
 | P1-6 | TTS unlock = silent local unlock + preconnect/OPTIONS only (no `مرحبا` POST) | **Done** |
 | P1-7 | Doc/code freeze — mic IDLE after reply; `interrupt_response: false` | **Done** |
 
-Deferred outside this PR: P1-1 museum deletion (done in #314), P1-2 PR hygiene ops, P1-3 provider unify (see `docs/SPRINT80_P1_3.md`), P1-4 live flight pilot.
+Deferred outside this PR: P1-1 museum deletion (done in #314), P1-2 PR hygiene ops, P1-3 provider unify (done in #315 — `docs/SPRINT80_P1_3.md`), P1-4 live flight pilot (see `docs/SPRINT80_P1_4.md`).
 
 ## Code / docs
 

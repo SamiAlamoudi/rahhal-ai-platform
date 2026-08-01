@@ -1,5 +1,7 @@
 /**
  * Sprint 80 P1-3 — Unified conversational travel search provider layer.
+ * Sprint 80 P1-4 — Live flight provider pilot (Amadeus) behind
+ * `ai.live_flight_provider_pilot` (default OFF).
  *
  * Components:
  * - Provider Interface (`types.ts`)
@@ -8,8 +10,9 @@
  * - Request Mapper (`requestMapper.ts`)
  * - Response Normalizer (`responseNormalizer.ts`)
  * - Error Handling (`errors.ts`)
+ * - Flight pilot + telemetry (`flightPilot.ts`, `telemetry.ts`)
  *
- * Feature flag `ai.conversational_provider_unify` defaults OFF — legacy bridges unchanged.
+ * Feature flags default OFF — legacy bridges unchanged.
  */
 
 export {
@@ -31,7 +34,35 @@ export {
   GRACEFUL_CONVERSATIONAL_PROVIDER_MESSAGE,
   classifyConversationalProviderFailure,
   isRetryableConversationalProviderCode,
+  mapLiveFlightErrorCode,
 } from './errors'
+
+export {
+  LIVE_FLIGHT_PROVIDER_PILOT_FEATURE_ID,
+  isLiveFlightProviderPilotEnabled,
+} from './pilotFeature'
+
+export {
+  LIVE_FLIGHT_PROVIDER_PILOT_VERSION,
+  runLiveFlightProviderPilot,
+  shouldUseLiveFlightProviderPilot,
+  type LiveFlightProviderPilotDeps,
+} from './flightPilot'
+
+export {
+  FlightPilotTelemetry,
+  createFlightPilotTelemetry,
+  getFlightPilotTelemetry,
+  resetFlightPilotTelemetry,
+  type FlightPilotTelemetryEvent,
+  type FlightPilotTelemetrySnapshot,
+} from './telemetry'
+
+export {
+  AMADEUS_LIVE_FLIGHT_PROVIDER_ID,
+  createAmadeusLiveFlightProvider,
+  createLiveFlightProvider,
+} from './adapters/amadeusLiveFlightProvider'
 
 export {
   ConversationalProviderRegistry,

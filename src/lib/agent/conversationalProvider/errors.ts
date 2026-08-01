@@ -118,6 +118,31 @@ export function classifyConversationalProviderFailure(
     })
   }
 
+  if (
+    statusCode === 401
+    || statusCode === 403
+    || /unauthorized|forbidden|oauth|secrets?_?missing|authentication/.test(lower)
+  ) {
+    return new ConversationalProviderError({
+      code: 'AUTH_FAILURE',
+      message,
+      providerId,
+      statusCode: statusCode ?? null,
+      retryable: false,
+      cause: err,
+    })
+  }
+
+  if (/parse|mapper|malformed|invalid json|unexpected token/.test(lower)) {
+    return new ConversationalProviderError({
+      code: 'PARSE_FAILURE',
+      message,
+      providerId,
+      retryable: false,
+      cause: err,
+    })
+  }
+
   return new ConversationalProviderError({
     code: 'UNKNOWN',
     message,
@@ -126,6 +151,35 @@ export function classifyConversationalProviderFailure(
     statusCode: statusCode ?? null,
     cause: err,
   })
+}
+
+/** Map Sprint 105 live flight error payloads into conversational codes. */
+export function mapLiveFlightErrorCode(error: {
+  code?: string | null
+  timedOut?: boolean
+  message?: string | null
+  httpStatus?: number | null
+} | null | undefined): ConversationalProviderErrorCode {
+  if (!error) return 'PROVIDER_UNAVAILABLE'
+  if (error.timedOut || error.code === 'TIMEOUT') return 'TIMEOUT'
+  const code = String(error.code ?? '').toUpperCase()
+  if (
+    code === 'UNAUTHORIZED'
+    || code === 'FORBIDDEN'
+    || code === 'SECRETS_MISSING'
+  ) {
+    return 'AUTH_FAILURE'
+  }
+  if (code === 'RATE_LIMITED') return 'RATE_LIMITED'
+  if (code === 'NETWORK_FAILURE') return 'NETWORK_FAILURE'
+  if (code === 'SERVER_ERROR') return 'SERVER_ERROR'
+  if (code === 'INVALID_REQUEST' || code === 'VALIDATION_ERROR') return 'INVALID_REQUEST'
+  if (code === 'EMPTY_RESULTS') return 'EMPTY_INVENTORY'
+  const lower = String(error.message ?? '').toLowerCase()
+  if (/parse|malformed|mapper/.test(lower)) return 'PARSE_FAILURE'
+  if (/unauthorized|oauth|secret/.test(lower)) return 'AUTH_FAILURE'
+  if (error.httpStatus === 401 || error.httpStatus === 403) return 'AUTH_FAILURE'
+  return 'PROVIDER_UNAVAILABLE'
 }
 
 export const GRACEFUL_CONVERSATIONAL_PROVIDER_MESSAGE =

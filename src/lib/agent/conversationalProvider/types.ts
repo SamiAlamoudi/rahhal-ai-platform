@@ -75,6 +75,8 @@ export type ConversationalProviderErrorCode =
   | 'NETWORK_FAILURE'
   | 'RATE_LIMITED'
   | 'SERVER_ERROR'
+  | 'AUTH_FAILURE'
+  | 'PARSE_FAILURE'
   | 'EMPTY_INVENTORY'
   | 'UNKNOWN'
 
