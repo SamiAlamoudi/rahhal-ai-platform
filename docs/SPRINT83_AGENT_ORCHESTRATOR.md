@@ -157,6 +157,10 @@ npm run brain-v2:verify
 npm run typecheck && npm run lint && npm run build
 ```
 
+## Follow-on
+
+Sprint 84 adds the Travel Planning Engine — see `docs/SPRINT84_TRAVEL_PLANNING.md`.
+
 ## Out of scope
 
 - Enabling `ai.brain.v1`

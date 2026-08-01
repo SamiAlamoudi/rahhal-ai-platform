@@ -43,6 +43,7 @@
     "brain-v1:verify": "vitest run src/lib/__tests__/brainFoundation.sprint81.test.ts",
     "brain-v2:verify": "vitest run src/lib/__tests__/brainReasoning.sprint82.test.ts src/lib/__tests__/brainFoundation.sprint81.test.ts",
     "brain-v3:verify": "vitest run src/lib/__tests__/agentOrchestrator.sprint83.test.ts",
+    "brain-v4:verify": "vitest run src/lib/__tests__/travelPlanning.sprint84.test.ts",
     "budget:verify": "vitest run src/lib/__tests__/budgetIntelligence.sprint75.test.ts",
     "personalization:verify": "vitest run src/lib/__tests__/travelerPersonalization.sprint76.test.ts",
     "optimizer:verify": "vitest run src/lib/__tests__/tripOptimizer.sprint77.test.ts",

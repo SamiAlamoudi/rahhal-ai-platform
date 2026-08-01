@@ -77,3 +77,19 @@ export {
   type BrainAgentSelection,
   type AgentOrchestratorDeps,
 } from './agents'
+
+export {
+  TRAVEL_PLANNING_ENGINE_VERSION,
+  emptyTravelPlanSlots,
+  createTravelPlanningEngine,
+  runTravelPlanningTurn,
+  createSlotFillingEngine,
+  createQuestionPlanner,
+  createPlanValidator,
+  createItinerarySkeletonBuilder,
+  type TravelPlan,
+  type TravelGoal,
+  type TravelPlanningTurnResult,
+  type PlanningConversationState,
+  type ItinerarySkeleton,
+} from './planning'
