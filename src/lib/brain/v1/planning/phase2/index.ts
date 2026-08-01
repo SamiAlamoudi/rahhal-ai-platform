@@ -1,6 +1,6 @@
 /**
  * Sprint 89 Phase 2 — planning facade exports.
- * T2–T9: … → PlanningHints → PlanningAdapter → DecisionContract (compile-only).
+ * T2–T10: … → DecisionContract → planReasonTurn (pure orchestration).
  * No BrainRouter / CM runtime wiring.
  */
 
@@ -116,3 +116,16 @@ export {
   type BrainRouterDecisionContract,
   type BrainRouterDecisionContractInput,
 } from './BrainRouterDecisionContract'
+
+export {
+  PLAN_REASON_TURN_VERSION,
+  PlanReasonTurnOrchestrator,
+  createPlanReasonTurnOrchestrator,
+  planReasonTurn,
+  assertPlanReasonTurnInvariants,
+  type PlanReasonFailureCode,
+  type PlanReasonRecoveryReason,
+  type ValueBeforeQuestionMeta,
+  type PlanReasonTurnInput,
+  type PlanReasonTurnResult,
+} from './PlanReasonTurn'
