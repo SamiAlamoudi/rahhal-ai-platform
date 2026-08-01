@@ -59,3 +59,21 @@ export { PromptBuilder, createPromptBuilder } from './PromptBuilder'
 export { ResponseComposer, createResponseComposer } from './ResponseComposer'
 export { SafetyLayer, createSafetyLayer } from './SafetyLayer'
 export { runBrainV1Turn, type BrainV1PipelineDeps } from './pipeline'
+
+export {
+  BRAIN_AGENT_ORCHESTRATOR_VERSION,
+  AgentRegistry,
+  createAgentRegistry,
+  AgentOrchestrator,
+  createAgentOrchestrator,
+  runBrainAgentOrchestrator,
+  DependencyGraph,
+  createDependencyGraph,
+  DEFAULT_BRAIN_AGENTS,
+  type BrainAgentId,
+  type BrainAgentLifecycle,
+  type BrainAgentDefinition,
+  type BrainAgentOrchestratorResult,
+  type BrainAgentSelection,
+  type AgentOrchestratorDeps,
+} from './agents'

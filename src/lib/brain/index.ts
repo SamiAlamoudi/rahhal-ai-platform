@@ -28,6 +28,10 @@ export {
   type BrainV1TurnResult,
   type BrainV1Intent,
   type BrainV1Entities,
+  runBrainAgentOrchestrator,
+  createAgentOrchestrator,
+  BRAIN_AGENT_ORCHESTRATOR_VERSION,
+  type BrainAgentOrchestratorResult,
 } from './v1'
 export type {
   RahhalBrainHandle,
