@@ -151,7 +151,17 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     lifecycle: 'experimental',
     enabled: false,
     notes:
-      'Product alias: brain_v1. Additive under src/lib/brain/v1 (+ agents/). Sprint 83–85 orchestrator + planning + tool execution + conversation manager remain behind this flag — no UI/Voice/planTurn/provider wiring. When OFF, brain v1 entrypoints return enabled:false with no side effects.',
+      'Product alias: brain_v1. Additive under src/lib/brain/v1 (+ agents/). Remains recovery-frozen OFF. Sprint 86 preview orchestration uses ai.brain.v1.preview instead — this foundation flag stays OFF in product traffic.',
+  },
+  {
+    id: 'ai.brain.v1.preview',
+    name: 'Brain v1 Preview Integration',
+    description:
+      'Sprint 86 — Safe pilot: BrainRouter may orchestrate Conversation Manager (Value Before Questions) inside planTurn on non-production deploy targets only. Default OFF. Production hard-blocked.',
+    lifecycle: 'experimental',
+    enabled: false,
+    notes:
+      'Product alias: brain_v1_preview. Distinct from frozen ai.brain.v1. When OFF, planTurn is unchanged. When ON (preview/dev/staging/beta), BrainRouter tries Brain orchestration and falls back to the current planner on any failure. Optional VITE_BRAIN_V1_PREVIEW=true for Preview deploys.',
   },
   {
     id: 'ai.autonomous_agent',

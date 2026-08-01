@@ -136,3 +136,16 @@ export {
   type ClarificationTier,
   type ConfidenceBand,
 } from './conversation'
+
+export {
+  BRAIN_V1_PREVIEW_FEATURE_ID,
+  BRAIN_V1_PREVIEW_VERSION,
+  isBrainV1PreviewEnabled,
+  isBrainPreviewDeployTargetAllowed,
+  routeBrainPreviewTurn,
+  tryBrainV1PreviewTurn,
+  extractBrainPreviewSession,
+  type BrainRouterDecision,
+  type BrainRouterInput,
+  type BrainRouterPath,
+} from './preview'
