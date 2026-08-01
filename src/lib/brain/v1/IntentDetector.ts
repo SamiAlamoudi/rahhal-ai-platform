@@ -75,12 +75,12 @@ const RULES: Rule[] = [
   },
   {
     intent: 'travel_advice',
-    patterns: [/advice|نصيح|recommend|اقترح|أين أذهب|where should i/],
+    patterns: [/advice|نصيح|recommend|اقترح|أين أذهب|where should i|أريد رحلة|ابي رحلة|أبغى رحلة/],
     confidence: 0.78,
   },
   {
     intent: 'general_conversation',
-    patterns: [/hello|hi|مرحبا|السلام|شكرا|thanks|كيفك/],
+    patterns: [/hello|hi|مرحبا|السلام|شكرا|thanks|كيفك|هلا/],
     confidence: 0.7,
   },
 ]

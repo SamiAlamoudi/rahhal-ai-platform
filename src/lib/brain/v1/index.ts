@@ -252,3 +252,33 @@ export {
   type ExtendedRankingWeightKey,
   type NormalizedOffer,
 } from './contracts'
+
+/** Sprint 89 Phase 1 — Understanding core (preview-gated; flags OFF by default). */
+export {
+  UNDERSTANDING_CONTRACT_VERSION,
+  UNDERSTANDING_MEMORY_MANAGER_VERSION,
+  IntentExtractor,
+  createIntentExtractor,
+  ProvenancedEntityExtractor,
+  UnderstandingEntityExtractor,
+  createProvenancedEntityExtractor,
+  ReferenceResolver,
+  createReferenceResolver,
+  UnderstandingMemoryManager,
+  createUnderstandingMemoryManager,
+  understandTurn,
+  createUnderstandTurn,
+  mapLifecycleToBrainState,
+  mapBrainStateToPreviewStage,
+  mapPreviewStageToBrainState,
+  createConversationStateSnapshot,
+  advanceUnderstandingState,
+  type BrainCognitiveState,
+  type ConsultantIntent,
+  type UnderstandingTurnResult,
+  type UnderstandingTurnInput,
+  type ConversationStateSnapshot,
+  type IntentExtractorResult,
+  type EntityExtractorResult,
+  type ReferenceResolverResult,
+} from './understanding'
