@@ -368,27 +368,28 @@ package.json                                    (optional verify script)
 
 ## 12. Definition of Done checklist
 
-- [ ] Plan approved; Task 1 authorized  
-- [ ] ADR merged with Option A or B selected  
-- [ ] Early-return tests green  
-- [ ] Preview contracts extended; L1/L2 not rebuilt  
-- [ ] Memory adapters + privacy/trip isolation tests green  
-- [ ] DomainIntelligence / ranking / NormalizedOffer interfaces exported  
-- [ ] Golden harness + G01–G05 green in CI  
-- [ ] Shadow telemetry tests green; no PII/secrets  
-- [ ] Freeze + typecheck + lint + build + relevant test:run green  
-- [ ] Flags still OFF; no `ai.tie.v1`  
-- [ ] Completion report written  
-- [ ] Explicit confirmation: Search Handoff **not** implemented (deferred to Sprint 90)
+- [x] Plan approved; Task 1 authorized  
+- [x] ADR merged with Option A or B selected  
+- [x] Early-return tests green  
+- [x] Preview contracts extended; L1/L2 not rebuilt  
+- [x] Memory adapters + privacy/trip isolation tests green  
+- [x] DomainIntelligence / ranking / NormalizedOffer interfaces exported  
+- [x] Golden harness + G01–G05 green in CI  
+- [x] Shadow telemetry tests green; no PII/secrets  
+- [x] Freeze + typecheck + lint + build + relevant test:run green  
+- [x] Flags still OFF; no `ai.tie.v1`  
+- [x] Completion report written  
+- [x] Explicit confirmation: Search Handoff **not** implemented (deferred to Sprint 90)  
+- [x] Architecture Gate PASS  
+- [x] Tag `sprint88-complete`  
 
 ---
 
-## 13. Kickoff gate
+## 13. Closeout
 
-**Do not implement Task 1 until explicit approval of this plan.**
-
-After approval, implementation order starts at **Task 1** only.
+Sprint 88 is **COMPLETE**. Ready for Sprint 89 (Reasoning Engine vNext per ADD).  
+Flags remain OFF. Production / runtime unchanged.
 
 ---
 
-*Sprint 88 Implementation Plan · Architecture approved · Flags OFF · No production code in this document · Awaiting authorization to begin Task 1.*
+*Sprint 88 Implementation Plan · COMPLETE · Architecture Gate PASS · Tag `sprint88-complete` · Flags OFF · Ready for Sprint 89*
