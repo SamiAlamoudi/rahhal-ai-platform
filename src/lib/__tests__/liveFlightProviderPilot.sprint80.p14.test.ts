@@ -232,7 +232,9 @@ describe('Sprint 80 P1-4 — Live Flight Provider Pilot', () => {
 
       expect(result.empty).toBe(false)
       expect(result.data.searchEngine).toBe('flightSearchEngine')
-      expect(JSON.stringify(result.data)).not.toMatch(/UNAUTHORIZED|401|OAuth/i)
+      // Avoid matching UUID hex fragments (e.g. "...-401c-...") as leaked "401".
+      expect(JSON.stringify(result.data)).not.toMatch(/UNAUTHORIZED|OAuth/i)
+      expect(result.data.diagnostics?.gracefulMessage ?? '').not.toMatch(/UNAUTHORIZED|401|OAuth/i)
       expect(telemetry.snapshot().lastEvent?.errorCode).toBe('AUTH_FAILURE')
       expect(telemetry.snapshot().fallbacks).toBe(1)
     })
