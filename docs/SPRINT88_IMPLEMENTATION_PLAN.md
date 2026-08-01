@@ -54,16 +54,19 @@ Establish the **minimal scaffolding** for Travel Intelligence under the existing
 | Unlocks | Tasks 5–6 clarity; Sprint 90 |
 | Artifacts | `docs/adr/ADR-SPRINT88-SEARCH-HANDOFF.md`; `src/lib/__tests__/sprint88.searchHandoff.task1.test.ts` |
 
-### Task 2 — Preview Orchestrator contract evolution (BrainRouter+)
-**Effort:** M (relative 5)
+### Task 2 — Preview contracts + Domain / Ranking / NormalizedOffer interfaces
+**Effort:** M (relative 5)  
+**Status:** In progress / complete pending review  
+**Includes plan Task 4 interface work** (combined per kickoff approval)
 
 | Item | Detail |
 | --- | --- |
-| Goal | Extend preview **result/session contracts** for future handoff, XAI sidecar, and telemetry hooks without changing default-OFF behavior |
-| Work | Types for preview turn result extensions (e.g. `searchHandoffHint`, stage, explainability passthrough already present); thin BrainRouter+ surface naming/docs in `preview/`; optional no-op hooks when flag OFF |
-| Out | No ConversationManager / ValueFirstPlanner / ClarificationPolicy rewrite |
-| Depends on | Task 1 ADR decision fields (can stub union until ADR merged) |
+| Goal | Extend preview **result/session contracts** + publish DomainIntelligence / RankingConfig / NormalizedOffer **interfaces only** without changing default-OFF behavior |
+| Work | `src/lib/brain/v1/contracts/*`; optional meta fields on `brainV1Preview`; docs `SPRINT88_PREVIEW_CONTRACTS.md` |
+| Out | No ConversationManager / ValueFirstPlanner / ClarificationPolicy rewrite; no provider execute; no Search Handoff impl |
+| Depends on | Task 1 ADR (complete; tag `sprint88-task1-complete`) |
 | Unlocks | Tasks 3, 6, 7 |
+| Artifacts | `src/lib/brain/v1/contracts/`; `docs/SPRINT88_PREVIEW_CONTRACTS.md`; `src/lib/__tests__/sprint88.previewContracts.task2.test.ts` |
 
 ### Task 3 — Memory adapters (working / preference / trip)
 **Effort:** M (relative 8)
@@ -77,12 +80,13 @@ Establish the **minimal scaffolding** for Travel Intelligence under the existing
 | Unlocks | Golden evals that assert memory continuity |
 
 ### Task 4 — Required interfaces only
-**Effort:** S–M (relative 5)
+**Effort:** S–M (relative 5)  
+**Status:** Folded into Task 2 (per kickoff) — do not re-implement
 
 | Item | Detail |
 | --- | --- |
 | Goal | Type-level contracts for DomainIntelligence, ranking weights config keys, offer normalization checklist |
-| Work | `DomainIntelligence` interface + stub `notImplemented` / type exports; `RankingConfig` keys aligned with `RecommendationEngine`; `NormalizedOffer` fields (currency, taxes/fees, baggage, fare family, cancel/refund, fetchedAt, provenance); **no** gateway calls |
+| Work | Delivered under Task 2 (`src/lib/brain/v1/contracts/`) |
 | Out | No Flight/Hotel domain execute(); no new provider bus |
 | Depends on | ADD §5, §13.3, §14 |
 | Unlocks | Sprint 90+ implementations |

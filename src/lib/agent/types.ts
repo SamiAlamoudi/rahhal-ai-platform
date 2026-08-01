@@ -641,6 +641,20 @@ export interface AgentProviderMeta {
     providedValue: boolean
     intent: string | null
     session: unknown
+    /**
+     * Sprint 88 Task 2 — optional Preview Orchestrator (BrainRouter+) contract fields.
+     * Not populated by BrainRouter yet; reserved for Sprint 90 soft-enrich / handoff.
+     * Absence must not change default-OFF or current early-return behavior.
+     */
+    contractsVersion?: string
+    stage?: string
+    searchHandoffHint?: {
+      kind: string
+      reason?: string
+      missingFields?: string[]
+      mustNotInvokeSearchOrGateway?: boolean
+      eligible?: boolean
+    }
   }
   /**
    * @deprecated Removed in Conversation-First reset — experimental Phase 5 soft-enrich deleted.
