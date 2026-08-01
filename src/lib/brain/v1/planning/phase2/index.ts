@@ -1,6 +1,6 @@
 /**
  * Sprint 89 Phase 2 — planning facade exports.
- * T2: MissingInformationPlanner. T3: AssumptionPolicy.
+ * T2–T5: MissingInfo, Assumptions, ConfidenceGates, ClarificationBridge.
  * No BrainRouter / CM wiring.
  */
 
@@ -50,3 +50,19 @@ export {
   type ConfidenceGateInput,
   type ConfidenceDecision,
 } from './ConfidenceGates'
+
+export {
+  CLARIFICATION_BRIDGE_VERSION,
+  CLARIFICATION_MERGE_GROUPS,
+  ClarificationBridge,
+  createClarificationBridge,
+  planClarification,
+  mergeClarificationFields,
+  type ClarificationAvoidReasonCode,
+  type ClarificationAvoidReason,
+  type ClarificationQuestionCandidatePlan,
+  type ClarificationPlanningHints,
+  type ClarificationCmInjectionDesign,
+  type ClarificationBridgeInput,
+  type ClarificationBridgeResult,
+} from './ClarificationBridge'
