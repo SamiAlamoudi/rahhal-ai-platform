@@ -101,6 +101,58 @@ export type RankedCity = {
   reasonsAr: string[]
 }
 
+/** Preference keys inferred from trip style / special requests / activities. */
+export type DestinationPreferenceKey =
+  | 'family'
+  | 'business'
+  | 'honeymoon'
+  | 'weekend'
+  | 'solo'
+  | 'leisure'
+  | 'beaches'
+  | 'mountains'
+  | 'nightlife'
+  | 'shopping'
+  | 'culture'
+  | 'budget_low'
+  | 'budget_mid'
+  | 'budget_high'
+  | 'direct_or_easy_flights'
+  | 'short_haul'
+
+export type DestinationAlternative = {
+  key: string
+  nameEn: string
+  nameAr: string
+  /** Strongest distinguishing reason (e.g. culture, business). */
+  reasonEn: string
+  reasonAr: string
+  rankingScore: number
+}
+
+/**
+ * Explainable AI payload for a destination/city recommendation.
+ * Structured for future UI — not dumped raw into traveler chat.
+ */
+export type ExplainableRecommendation = {
+  subjectKey: string
+  subjectNameEn: string
+  subjectNameAr: string
+  /** 0–100 confidence in this recommendation for the inferred preferences. */
+  confidence: number
+  /** Relative ranking score used to order candidates. */
+  rankingScore: number
+  /** Human-readable explanation bullets (EN/AR). */
+  explanations: LocalizedText[]
+  /** Convenience mirrors of explanations.*.en / .ar */
+  explanationEn: string[]
+  explanationAr: string[]
+  matchedPreferences: DestinationPreferenceKey[]
+  unmatchedPreferences: DestinationPreferenceKey[]
+  assumptions: string[]
+  alternatives: DestinationAlternative[]
+}
+
 export type DestinationReasoning = {
   knowledge: DestinationKnowledge
   tripStyle: TripStyleHint
@@ -142,4 +194,6 @@ export type DestinationReasoning = {
     shopping: KnowledgeScore
     culture: KnowledgeScore
   }
+  /** Explainable AI recommendation (confidence, reasons, alternatives, …). */
+  explainability: ExplainableRecommendation
 }

@@ -27,14 +27,19 @@ export type {
   AirportInfo,
   BudgetBandSar,
   CityKnowledge,
+  DestinationAlternative,
   DestinationKnowledge,
+  DestinationPreferenceKey,
   DestinationReasoning,
   DurationBand,
+  ExplainableRecommendation,
   KnowledgeScore,
   LocalizedText,
   RankedCity,
   TripStyleHint,
 } from './types'
+
+export { buildExplainableRecommendation, inferRequestedPreferences } from './explainability'
 
 export {
   ensureDestinationKnowledgeLoaded,

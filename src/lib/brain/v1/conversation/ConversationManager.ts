@@ -192,7 +192,7 @@ export class ConversationManager {
       session.state = 'paused'
       session.updatedAt = now()
       session.turns = [...session.turns, { role: 'assistant' as const, text: response[locale], at: now() }]
-      return this.finish(session, response, null, null, null, null, null, [], [], [], null)
+      return this.finish(session, response, null, null, null, null, null, [], [], [], null, null)
     }
 
     const planResult = this.planning.planTurn(
@@ -572,6 +572,7 @@ export class ConversationManager {
       valueItems,
       planResult.revisedSlots,
       intent,
+      destReasoning?.explainability ?? null,
     )
   }
 
@@ -607,6 +608,7 @@ export class ConversationManager {
     value: ConversationValueItem[],
     revisedSlots: TravelPlanSlotKey[],
     intent: ConversationManagerResult['intent'],
+    destinationExplainability: ConversationManagerResult['destinationExplainability'] = null,
   ): ConversationManagerResult {
     return {
       version: CONVERSATION_MANAGER_VERSION,
@@ -623,6 +625,7 @@ export class ConversationManager {
       revisedSlots,
       knownSlots: session.plan?.knownSlots ?? null,
       intent,
+      destinationExplainability: destinationExplainability ?? null,
     }
   }
 

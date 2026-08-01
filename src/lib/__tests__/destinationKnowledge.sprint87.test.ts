@@ -135,4 +135,40 @@ describe('Sprint 87 — Destination Knowledge layer', () => {
     // Must still ask at most one question.
     expect(result.response?.questionCount).toBeLessThanOrEqual(1)
   })
+
+  describe('Explainable AI', () => {
+    it('returns confidence, ranking, explanations, preferences, assumptions, alternatives', () => {
+      reloadCatalog()
+      const family = reasonFromDestinationKnowledge({
+        destination: 'Agadir',
+        specialRequests: 'tripStyle=family',
+      })
+      expect(family).toBeTruthy()
+      const x = family!.explainability
+      expect(x.subjectNameEn).toBe('Agadir')
+      expect(x.confidence).toBeGreaterThanOrEqual(70)
+      expect(x.confidence).toBeLessThanOrEqual(100)
+      expect(x.rankingScore).toBeGreaterThan(0)
+      expect(x.explanationEn.length).toBeGreaterThanOrEqual(3)
+      expect(x.explanationEn.join(' | ').toLowerCase()).toMatch(/family|beach|budget|flight/)
+      expect(x.matchedPreferences).toContain('family')
+      expect(x.assumptions.length).toBeGreaterThan(0)
+      expect(x.alternatives.length).toBeGreaterThanOrEqual(1)
+      expect(x.alternatives.some((a) => /marrakech|casablanca|fes/i.test(a.nameEn))).toBe(true)
+      expect(x.alternatives.every((a) => a.reasonEn && a.rankingScore >= 0)).toBe(true)
+    })
+
+    it('exposes explainability on ConversationManager for future UI (not chat UI)', () => {
+      reloadCatalog()
+      const result = runConversationManagerTurn(
+        { text: 'Family trip to Agadir', locale: 'en' },
+        { enabled: true },
+      )
+      expect(result.destinationExplainability?.subjectNameEn).toBe('Agadir')
+      expect(result.destinationExplainability?.confidence).toBeGreaterThanOrEqual(70)
+      expect(result.destinationExplainability?.explanationEn.length).toBeGreaterThan(0)
+      // Chat copy remains value-first; explainability is structured sidecar.
+      expect(result.response?.providedValue).toBe(true)
+    })
+  })
 })

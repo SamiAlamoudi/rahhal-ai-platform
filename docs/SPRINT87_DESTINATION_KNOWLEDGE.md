@@ -27,7 +27,33 @@ Brain Preview reasons from **structured destination data**, not hardcoded city r
 2. Infers trip style (family / business / weekend / …)  
 3. **Ranks cities by weighted scores** (not fixed lists)  
 4. Builds contrast, itinerary sketch, style note, budget adjustment  
-5. ValueFirstPlanner / TravelReasoner consume that derived reasoning  
+5. Builds **Explainable AI** payload (`explainability`)  
+6. ValueFirstPlanner / TravelReasoner consume that derived reasoning  
+
+## Explainable AI (`explainability`)
+
+Every recommendation includes:
+
+| Field | Meaning |
+| --- | --- |
+| `confidence` | 0–100 |
+| `rankingScore` | Relative ranking score |
+| `explanationEn` / `explanationAr` | Reason bullets |
+| `matchedPreferences` | Requested prefs the subject satisfies |
+| `unmatchedPreferences` | Requested prefs that are weak/missing |
+| `assumptions` | Soft assumptions used for preliminary planning |
+| `alternatives` | Other cities with distinguishing reason (e.g. culture / business) |
+
+Example shape (Agadir + family):
+
+```text
+Agadir
+confidence: ~90+
+Reasons: Excellent family destination · Warm beaches · Medium indicative budget · …
+Alternatives: Marrakech (culture) · Casablanca (business)
+```
+
+Structured for **future UI** — not rendered in chat by default. Also available on `ConversationManagerResult.destinationExplainability`.
 
 ## Add a future country (data only)
 

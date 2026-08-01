@@ -60,9 +60,12 @@ export {
   getDestinationKnowledgeByKey,
   listDestinationKnowledge,
   resolveDestinationKnowledgeKey,
+  buildExplainableRecommendation,
   type DestinationKnowledge,
   type DestinationReasoning,
   type CityKnowledge,
+  type ExplainableRecommendation,
+  type DestinationAlternative,
 } from './destinationKnowledge'
 export {
   RecommendationEngine,

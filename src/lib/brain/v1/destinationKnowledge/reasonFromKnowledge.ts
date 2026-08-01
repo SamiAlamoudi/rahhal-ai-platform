@@ -4,6 +4,7 @@
  */
 
 import type { TravelPlanSlots } from '../planning/types'
+import { buildExplainableRecommendation } from './explainability'
 import { getDestinationKnowledgeByKey, resolveDestinationKnowledgeKey } from './registry'
 import type {
   CityKnowledge,
@@ -241,6 +242,15 @@ export function reasonFromDestinationKnowledge(input: {
   const itinerary = buildItinerary(ranked, durationDays)
   const styleNote = buildStyleNote(knowledge, style, ranked)
   const airports = airportSummary(knowledge)
+  const explainability = buildExplainableRecommendation({
+    knowledge,
+    ranked,
+    tripStyle: style,
+    specialRequests: input.specialRequests,
+    adults: input.adults,
+    children: input.children,
+    durationDays: taggedDuration ?? input.durationDays,
+  })
 
   return {
     knowledge,
@@ -283,6 +293,7 @@ export function reasonFromDestinationKnowledge(input: {
       shopping: knowledge.shopping,
       culture: knowledge.culture,
     },
+    explainability,
   }
 }
 
@@ -295,6 +306,7 @@ export function buildDestinationReasoningLines(slots: TravelPlanSlots): string[]
     durationDays: readTaggedDuration(slots.specialRequests),
   })
   if (!reasoning) return []
+  const x = reasoning.explainability
   return [
     `destination=${reasoning.knowledge.key}`,
     `country=${reasoning.knowledge.country}`,
@@ -312,6 +324,14 @@ export function buildDestinationReasoningLines(slots: TravelPlanSlots): string[]
     `scores=family:${reasoning.scores.family},business:${reasoning.scores.business},beaches:${reasoning.scores.beaches},culture:${reasoning.scores.culture}`,
     `styleNote=${reasoning.styleNoteEn}`,
     `attractions=${reasoning.attractionsEn.slice(0, 3).join('|')}`,
+    `explain.subject=${x.subjectNameEn}`,
+    `explain.confidence=${x.confidence}`,
+    `explain.rankingScore=${x.rankingScore}`,
+    `explain.reasons=${x.explanationEn.join('|')}`,
+    `explain.matched=${x.matchedPreferences.join('|')}`,
+    `explain.unmatched=${x.unmatchedPreferences.join('|')}`,
+    `explain.assumptions=${x.assumptions.join('|')}`,
+    `explain.alternatives=${x.alternatives.map((a) => `${a.nameEn}:${a.reasonEn}`).join('|')}`,
   ]
 }
 

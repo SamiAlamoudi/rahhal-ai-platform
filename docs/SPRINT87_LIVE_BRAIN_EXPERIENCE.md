@@ -52,6 +52,7 @@ Add a future country by creating `data/<key>.ts` and registering it in `data/ind
 | Area | Change |
 | --- | --- |
 | Destination Knowledge | Reusable registry + reasoner (Morocco/Agadir/Japan/London/Dubai/Switzerland) |
+| Explainable AI | confidence, ranking, explanations, matched/unmatched prefs, assumptions, alternatives |
 | ValueFirstPlanner | Composes value from `reasonFromDestinationKnowledge` |
 | EntityExtractor | Agadir/Switzerland + refine cues (`actually make it…`) |
 | Slot memory tags | `tripStyle`, `preferredCity`, `food`, `hotelLevel`, `transport`, `visaInterest` |
