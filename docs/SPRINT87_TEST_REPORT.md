@@ -4,7 +4,8 @@
 
 | Suite | Command | Result |
 | --- | --- | --- |
-| Live Brain Experience | `npm run brain-live:verify` | **13/13 passed** |
+| Live Brain Experience | `npm run brain-live:verify` | **13/13 + knowledge layer** |
+| Destination Knowledge | included in `brain-live:verify` | data-driven ranking + insert-only country |
 | Demo transcripts artifact | `vitest …sprint87.demos.test.ts` | **1/1 passed** |
 | Conversation Manager (S85) | `npm run brain-conversation:verify` | **14/14 passed** |
 | Brain Preview (S86) | `npm run brain-preview:verify` | **14/14 passed** |

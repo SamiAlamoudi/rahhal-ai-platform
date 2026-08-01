@@ -30,12 +30,29 @@ User Input
                  → fallback on exception / empty
 ```
 
+## Destination Knowledge layer (data-driven)
+
+```text
+src/lib/brain/v1/destinationKnowledge/
+  types.ts                 — DestinationKnowledge schema
+  registry.ts              — register / resolve aliases
+  reasonFromKnowledge.ts   — rank cities + compose value from scores
+  data/<country>.ts        — insert-only destination records
+```
+
+Each record exposes: country, cities, best season, climate, average budget, trip duration,
+family/honeymoon/business scores, beaches, mountains, nightlife, shopping, culture,
+transportation, visa notes, airport information.
+
+**City recommendations are derived from scores + trip style** — not hardcoded essays.
+Add a future country by creating `data/<key>.ts` and registering it in `data/index.ts`.
+
 ## What changed
 
 | Area | Change |
 | --- | --- |
-| Destination insights | Structured knowledge for Morocco/Agadir/Japan/London/Dubai/Switzerland |
-| ValueFirstPlanner | Cities, season, duration, indicative budget, itinerary, style notes |
+| Destination Knowledge | Reusable registry + reasoner (Morocco/Agadir/Japan/London/Dubai/Switzerland) |
+| ValueFirstPlanner | Composes value from `reasonFromDestinationKnowledge` |
 | EntityExtractor | Agadir/Switzerland + refine cues (`actually make it…`) |
 | Slot memory tags | `tripStyle`, `preferredCity`, `food`, `hotelLevel`, `transport`, `visaInterest` |
 | TravelReasoner | `destination_reasoning` + `trip_style_reasoning` steps |

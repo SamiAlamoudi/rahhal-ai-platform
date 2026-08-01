@@ -5,7 +5,7 @@
  * Behind `ai.brain.v1`. No UI / Voice / providers / booking / payments wiring.
  */
 
-import { getDestinationInsight } from '../destinationInsights'
+import { reasonFromDestinationKnowledge } from '../destinationKnowledge'
 import { isBrainV1Enabled } from '../feature'
 import { IntentDetector } from '../IntentDetector'
 import { SlotFillingEngine } from '../planning/SlotFillingEngine'
@@ -379,10 +379,15 @@ export class ConversationManager {
       bookingActionCount: 0,
       planSlots: workingSlots,
     })
-    const insight = getDestinationInsight(workingSlots.destination, workingSlots.specialRequests)
+    const destReasoning = reasonFromDestinationKnowledge({
+      destination: workingSlots.destination,
+      specialRequests: workingSlots.specialRequests,
+      adults: workingSlots.adults,
+      children: workingSlots.children,
+    })
     const reasonedRecommendations = [
       ...(input.recommendations ?? []),
-      ...(insight?.attractionsEn.slice(0, 2).map((a) => `Popular highlight: ${a}`) ?? []),
+      ...(destReasoning?.attractionsEn.slice(0, 2).map((a) => `Popular highlight: ${a}`) ?? []),
       ...reasoningSteps
         .filter((s) => s.id === 'destination_reasoning' && s.ok)
         .map((s) => s.detail)

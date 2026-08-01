@@ -1,0 +1,73 @@
+import type { DestinationKnowledge } from '../types'
+
+export const londonKnowledge: DestinationKnowledge = {
+  key: 'london',
+  kind: 'city',
+  country: 'United Kingdom',
+  countryAr: 'المملكة المتحدة',
+  displayNameEn: 'London',
+  displayNameAr: 'لندن',
+  aliases: ['london', 'لندن', 'uk', 'britain', 'بريطانيا', 'إنجلترا'],
+  cities: [
+    {
+      key: 'london',
+      nameEn: 'London',
+      nameAr: 'لندن',
+      aliases: ['london', 'لندن'],
+      traitsEn: ['central', 'business', 'museums'],
+      traitsAr: ['وسط المدينة', 'أعمال', 'متاحف'],
+      familyScore: 7,
+      honeymoonScore: 7,
+      businessScore: 10,
+      beaches: 0,
+      mountains: 0,
+      nightlife: 8,
+      shopping: 9,
+      culture: 9,
+      suggestedDays: 4,
+      highlightsEn: ['meetings with nearby stay'],
+      highlightsAr: ['اجتماعات مع سكن قريب'],
+    },
+  ],
+  bestSeason: {
+    en: 'Late spring through early autumn is usually the most pleasant.',
+    ar: 'أواخر الربيع إلى أوائل الخريف ألطف.',
+  },
+  climate: {
+    en: 'Changeable weather — light layers and an umbrella help.',
+    ar: 'طقس متقلب — طبقات خفيفة ومظلة مفيدة.',
+  },
+  averageBudgetSar: { low: 6000, mid: 9500, high: 15000 },
+  tripDuration: { min: 3, max: 7, recommended: 4 },
+  familyScore: 7,
+  honeymoonScore: 7,
+  businessScore: 10,
+  beaches: 0,
+  mountains: 0,
+  nightlife: 8,
+  shopping: 9,
+  culture: 9,
+  transportation: {
+    en: 'Underground, trains, and taxis — stay near meeting districts for business trips.',
+    ar: 'مترو وقطارات وتاكسي — اقترب من أحياء الاجتماعات لرحلات العمل.',
+  },
+  visaNotes: {
+    en: 'UK entry/visa depends on passport — confirm before travel; not assumed.',
+    ar: 'دخول/تأشيرة بريطانيا حسب جواز السفر — أكّد قبل السفر؛ لا افتراض.',
+  },
+  airports: [
+    { code: 'LHR', nameEn: 'Heathrow', nameAr: 'هيثرو', primary: true },
+    { code: 'LGW', nameEn: 'Gatwick', nameAr: 'غاتويك' },
+    { code: 'LCY', nameEn: 'London City', nameAr: 'لندن سيتي' },
+  ],
+  flightFromKsa: {
+    en: 'From Riyadh/Jeddah often direct or short-stop (~7–8 hours).',
+    ar: 'من الرياض/جدة غالباً مباشرة أو بتوقف قصير (~7–8 ساعات).',
+  },
+  timezone: {
+    en: 'Relatively small timezone gap versus Saudi Arabia.',
+    ar: 'فرق بسيط نسبياً عن السعودية.',
+  },
+  attractionsEn: ['central London', 'museums', 'business districts'],
+  attractionsAr: ['وسط لندن', 'المتاحف', 'أحياء الأعمال'],
+}

@@ -1,15 +1,14 @@
 /**
  * Sprint 85/87 — Value-First Planner.
- * Decide whether useful preliminary value can be produced before asking.
+ * Builds preliminary value from Destination Knowledge reasoning (scores + fields).
  * Never fabricates live prices, availability, schedules, or provider data.
  */
 
 import {
-  getDestinationInsight,
   indicativeBudgetForSlots,
-  inferTripStyle,
   readTaggedDuration,
-} from '../destinationInsights'
+  reasonFromDestinationKnowledge,
+} from '../destinationKnowledge'
 import type { TravelPlanSlots } from '../planning/types'
 import type {
   ConversationAssumption,
@@ -29,68 +28,68 @@ export class ValueFirstPlanner {
     const dest = input.slots.destination
     if (!dest) return []
 
-    const insight = getDestinationInsight(dest, input.slots.specialRequests)
-    const style = inferTripStyle({
-      durationDays: readTaggedDuration(input.slots.specialRequests),
+    const reasoning = reasonFromDestinationKnowledge({
+      destination: dest,
       specialRequests: input.slots.specialRequests,
       adults: input.slots.adults,
       children: input.slots.children,
+      durationDays: readTaggedDuration(input.slots.specialRequests),
     })
     const budget = indicativeBudgetForSlots(input.slots)
     const items: ConversationValueItem[] = []
 
-    if (insight) {
-      if (insight.cities.length > 1 && insight.cityContrastAr && insight.cityContrastEn) {
+    if (reasoning) {
+      const key = reasoning.knowledge.key
+      if (reasoning.recommendedCityNamesEn.length > 1) {
         items.push({
-          id: `${insight.destinationKey}_cities`,
+          id: `${key}_cities`,
           kind: 'destination_option',
-          titleAr: `مدن ${insight.displayNameAr}`,
-          titleEn: `${insight.displayNameEn} cities`,
-          detailAr: `${insight.cityContrastAr} مقترح أولي: ${insight.cities.slice(0, 3).join('، ')}.`,
-          detailEn: `${insight.cityContrastEn} First cut: ${insight.citiesEn.slice(0, 3).join(', ')}.`,
+          titleAr: `مدن ${reasoning.knowledge.displayNameAr}`,
+          titleEn: `${reasoning.knowledge.displayNameEn} cities`,
+          detailAr: `${reasoning.cityContrastAr} مقترح أولي: ${reasoning.recommendedCityNamesAr.slice(0, 3).join('، ')}.`,
+          detailEn: `${reasoning.cityContrastEn} First cut: ${reasoning.recommendedCityNamesEn.slice(0, 3).join(', ')}.`,
           preliminary: true,
         })
       } else {
         items.push({
-          id: `${insight.destinationKey}_focus`,
+          id: `${key}_focus`,
           kind: 'destination_option',
-          titleAr: `تركيز على ${insight.displayNameAr}`,
-          titleEn: `Focus on ${insight.displayNameEn}`,
-          detailAr: `نحدّث التركيز إلى ${insight.displayNameAr} مع خطة مبدئية قابلة للتعديل.`,
-          detailEn: `Focusing the plan on ${insight.displayNameEn} with a revisable preliminary direction.`,
+          titleAr: `تركيز على ${reasoning.knowledge.displayNameAr}`,
+          titleEn: `Focus on ${reasoning.knowledge.displayNameEn}`,
+          detailAr: `${reasoning.cityContrastAr || `نحدّث التركيز إلى ${reasoning.knowledge.displayNameAr} مع خطة مبدئية قابلة للتعديل.`}`,
+          detailEn: `${reasoning.cityContrastEn || `Focusing the plan on ${reasoning.knowledge.displayNameEn} with a revisable preliminary direction.`}`,
           preliminary: true,
         })
       }
 
       items.push({
-        id: `${insight.destinationKey}_season`,
+        id: `${key}_season`,
         kind: 'criteria',
-        titleAr: 'الموسم والطقس',
-        titleEn: 'Season and weather',
-        detailAr: `${insight.seasonNoteAr} ${insight.weatherNoteAr}`,
-        detailEn: `${insight.seasonNoteEn} ${insight.weatherNoteEn}`,
+        titleAr: 'الموسم والمناخ',
+        titleEn: 'Season and climate',
+        detailAr: `${reasoning.seasonAr} ${reasoning.climateAr}`,
+        detailEn: `${reasoning.seasonEn} ${reasoning.climateEn}`,
         preliminary: true,
       })
 
-      const duration = insight.typicalDurationDays.recommended
       const durationNote = readTaggedDuration(input.slots.specialRequests)
       items.push({
-        id: `${insight.destinationKey}_duration`,
+        id: `${key}_duration`,
         kind: 'estimate',
         titleAr: 'المدة المقترحة',
         titleEn: 'Suggested duration',
         detailAr: durationNote
           ? `مدة مناسبة لهذه الرحلة حوالي ${durationNote} أيام (إرشادي).`
-          : `مدة مناسبة غالباً ${insight.typicalDurationDays.min}–${insight.typicalDurationDays.max} أيام (مقترح ${duration}).`,
+          : `مدة مناسبة غالباً ${reasoning.duration.min}–${reasoning.duration.max} أيام (مقترح ${reasoning.duration.recommended}).`,
         detailEn: durationNote
           ? `About ${durationNote} days fits this trip shape (indicative).`
-          : `Typically ${insight.typicalDurationDays.min}–${insight.typicalDurationDays.max} days (suggested ${duration}).`,
+          : `Typically ${reasoning.duration.min}–${reasoning.duration.max} days (suggested ${reasoning.duration.recommended}).`,
         preliminary: true,
       })
 
       if (budget) {
         items.push({
-          id: `${insight.destinationKey}_budget`,
+          id: `${key}_budget`,
           kind: 'estimate',
           titleAr: 'تقدير ميزانية إرشادي',
           titleEn: 'Indicative budget',
@@ -101,36 +100,32 @@ export class ValueFirstPlanner {
       }
 
       items.push({
-        id: `${insight.destinationKey}_itinerary`,
+        id: `${key}_itinerary`,
         kind: 'itinerary_direction',
         titleAr: 'اتجاه خطة مبدئية',
         titleEn: 'Preliminary itinerary direction',
-        detailAr: insight.itinerarySketchAr.slice(0, 3).join(' · '),
-        detailEn: insight.itinerarySketchEn.slice(0, 3).join(' · '),
+        detailAr: reasoning.itinerarySketchAr.slice(0, 3).join(' · '),
+        detailEn: reasoning.itinerarySketchEn.slice(0, 3).join(' · '),
         preliminary: true,
       })
 
-      const styleAr = insight.styleNotesAr[style]
-      const styleEn = insight.styleNotesEn[style]
-      if (styleAr && styleEn) {
-        items.push({
-          id: `${insight.destinationKey}_style`,
-          kind: 'tip',
-          titleAr: 'ملاحظة حسب نوع الرحلة',
-          titleEn: 'Trip-style note',
-          detailAr: styleAr,
-          detailEn: styleEn,
-          preliminary: true,
-        })
-      }
+      items.push({
+        id: `${key}_style`,
+        kind: 'tip',
+        titleAr: 'ملاحظة حسب نوع الرحلة',
+        titleEn: 'Trip-style note',
+        detailAr: reasoning.styleNoteAr,
+        detailEn: reasoning.styleNoteEn,
+        preliminary: true,
+      })
 
       items.push({
-        id: `${insight.destinationKey}_logistics`,
+        id: `${key}_logistics`,
         kind: 'tip',
-        titleAr: 'طيران وتوقيت',
-        titleEn: 'Flight and timezone',
-        detailAr: `${insight.flightNoteAr} ${insight.timezoneNoteAr}`,
-        detailEn: `${insight.flightNoteEn} ${insight.timezoneNoteEn}`,
+        titleAr: 'طيران ومطارات وتأشيرة',
+        titleEn: 'Flight, airports, visa',
+        detailAr: `${reasoning.flightAr} مطارات: ${reasoning.airportSummaryAr}. ${reasoning.visaAr}`,
+        detailEn: `${reasoning.flightEn} Airports: ${reasoning.airportSummaryEn}. ${reasoning.visaEn}`,
         preliminary: true,
       })
     } else {

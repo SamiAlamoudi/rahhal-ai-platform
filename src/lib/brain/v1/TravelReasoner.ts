@@ -6,10 +6,11 @@
 
 import {
   buildDestinationReasoningLines,
-  getDestinationInsight,
+  getDestinationKnowledgeByKey,
   inferTripStyle,
   readTaggedDuration,
-} from './destinationInsights'
+  resolveKnowledgeKey,
+} from './destinationKnowledge'
 import type { TravelPlanSlots } from './planning/types'
 import type {
   BrainV1Entities,
@@ -57,9 +58,10 @@ export class TravelReasoner {
       .join(', ') || 'No preference memory loaded'
 
     const slots: TravelPlanSlots | null = input.planSlots ?? null
-    const insight = slots
-      ? getDestinationInsight(slots.destination, slots.specialRequests)
-      : getDestinationInsight(input.entities.destination, null)
+    const knowledgeKey = slots
+      ? resolveKnowledgeKey(slots.destination, slots.specialRequests)
+      : resolveKnowledgeKey(input.entities.destination, null)
+    const knowledge = knowledgeKey ? getDestinationKnowledgeByKey(knowledgeKey) : null
     const style = slots
       ? inferTripStyle({
           durationDays: readTaggedDuration(slots.specialRequests),
@@ -74,11 +76,12 @@ export class TravelReasoner {
         })
     const destinationLines = slots
       ? buildDestinationReasoningLines(slots)
-      : insight
+      : knowledge
         ? [
-            `destination=${insight.destinationKey}`,
-            `season=${insight.seasonNoteEn}`,
+            `destination=${knowledge.key}`,
+            `season=${knowledge.bestSeason.en}`,
             `style=${style}`,
+            `scores=family:${knowledge.familyScore},business:${knowledge.businessScore},culture:${knowledge.culture}`,
           ]
         : []
 

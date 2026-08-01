@@ -49,9 +49,21 @@ export {
   indicativeBudgetForSlots,
   inferTripStyle,
   resolveInsightKey,
+  reasonFromDestinationKnowledge,
   type DestinationInsight,
   type TripStyleHint,
 } from './destinationInsights'
+
+export {
+  ensureDestinationKnowledgeLoaded,
+  registerDestinationKnowledge,
+  getDestinationKnowledgeByKey,
+  listDestinationKnowledge,
+  resolveDestinationKnowledgeKey,
+  type DestinationKnowledge,
+  type DestinationReasoning,
+  type CityKnowledge,
+} from './destinationKnowledge'
 export {
   RecommendationEngine,
   createRecommendationEngine,
