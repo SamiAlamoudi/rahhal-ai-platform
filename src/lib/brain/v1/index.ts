@@ -196,6 +196,21 @@ export {
   type WorkingMemorySnapshot,
   type UserPreferenceSnapshot,
   type TripMemorySnapshot,
+  /** Sprint 88 Task 5 — shadow telemetry (not production wiring). */
+  SHADOW_TELEMETRY_CONTRACT_VERSION,
+  SHADOW_TELEMETRY_FORBIDDEN_KEYS,
+  isForbiddenTelemetryKey,
+  redactTelemetryRecord,
+  sanitizeShadowTelemetryEvent,
+  toLatencyBucket,
+  createInMemoryShadowTelemetrySink,
+  createShadowTelemetryEmitter,
+  InMemoryShadowTelemetrySink,
+  type ShadowPreviewTelemetryEvent,
+  type ShadowTelemetryEmitter,
+  type ShadowTelemetryEmitResult,
+  type ShadowLatencyBucket,
+  type ShadowResultStatus,
 } from './preview'
 
 /** Sprint 88 Task 4 — golden evaluation skeleton (test harness; not production wiring). */

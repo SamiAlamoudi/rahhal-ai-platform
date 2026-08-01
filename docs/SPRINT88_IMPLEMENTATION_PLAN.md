@@ -110,15 +110,16 @@ Establish the **minimal scaffolding** for Travel Intelligence under the existing
 
 ### Task 5 — Shadow telemetry skeleton
 **Effort:** M (relative 5)  
-**Status:** Not started
+**Status:** Complete (awaiting review; Task 6 not started)
 
 | Item | Detail |
 | --- | --- |
-| Goal | Emit comparable metrics for preview vs Current Planner **without** enabling preview for users |
-| Work | Telemetry event schema (latency, fallback, questionBudgetUsed, hasExplainability, errorClass sanitized); collector no-op / log sink behind local test flag; unit tests that no PII/secrets leak; never enable `ai.brain.v1.preview` in prod paths |
-| Out | No shadow dual-execution in production traffic in Sprint 88 (design + test harness dual-run under unit/integration only) |
-| Depends on | Task 2 contracts |
-| Unlocks | Sprint 94 SLOs |
+| Goal | Telemetry **infrastructure** for preview evaluation metadata only (no production registration) |
+| Work | `src/lib/brain/v1/preview/telemetry/*` contracts, emitter interface, in-memory sink, redaction; `npm run brain-shadow:verify`; docs |
+| Out | No runtime wiring into BrainRouter/`planTurn`; no OTel/network/persistence; no Search Handoff |
+| Depends on | Tasks 1–4 complete |
+| Unlocks | Sprint 94 SLOs / later dual-run harness |
+| Artifacts | `src/lib/brain/v1/preview/telemetry/`; `docs/SPRINT88_SHADOW_TELEMETRY.md`; `src/lib/__tests__/sprint88.shadowTelemetry.task5.test.ts` |
 
 ### Task 7 — Docs, verify scripts, freeze/regression gates
 **Effort:** S (relative 3)

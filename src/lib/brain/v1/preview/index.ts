@@ -26,6 +26,24 @@ export {
   type PreviewOrchestratorTurnContract,
 } from '../contracts/previewContracts'
 
+/** Sprint 88 Task 5 — shadow telemetry (not wired into BrainRouter/planTurn). */
+export {
+  SHADOW_TELEMETRY_CONTRACT_VERSION,
+  SHADOW_TELEMETRY_FORBIDDEN_KEYS,
+  isForbiddenTelemetryKey,
+  redactTelemetryRecord,
+  sanitizeShadowTelemetryEvent,
+  toLatencyBucket,
+  createInMemoryShadowTelemetrySink,
+  createShadowTelemetryEmitter,
+  InMemoryShadowTelemetrySink,
+  type ShadowPreviewTelemetryEvent,
+  type ShadowTelemetryEmitter,
+  type ShadowTelemetryEmitResult,
+  type ShadowLatencyBucket,
+  type ShadowResultStatus,
+} from './telemetry'
+
 /** Sprint 88 Task 3 — memory adapters (not wired into BrainRouter/planTurn). */
 export {
   MEMORY_PROVENANCE_CONTRACT_VERSION,
