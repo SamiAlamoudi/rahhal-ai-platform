@@ -39,6 +39,43 @@ function parseIsoDate(text: string): string | null {
   return m?.[1] ?? null
 }
 
+/** Digits or common EN/AR word numbers for traveler counts (no bare "a"/"an"). */
+const COUNT_TOKEN =
+  '(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|واحد|واحدة|اثنين|اثنان|اثنتين|ثلاثة|اربعة|أربعة|خمسة|ستة|سبعة|ثمانية|تسعة|عشرة)'
+
+function parseCountToken(raw: string | undefined): number | null {
+  if (!raw) return null
+  const lower = raw.toLowerCase()
+  if (/^\d+$/.test(lower)) return Number(lower)
+  const words: Record<string, number> = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+    واحد: 1,
+    واحدة: 1,
+    اثنين: 2,
+    اثنان: 2,
+    اثنتين: 2,
+    ثلاثة: 3,
+    اربعة: 4,
+    أربعة: 4,
+    خمسة: 5,
+    ستة: 6,
+    سبعة: 7,
+    ثمانية: 8,
+    تسعة: 9,
+    عشرة: 10,
+  }
+  return words[lower] ?? words[raw] ?? null
+}
+
 export class EntityExtractor {
   extract(text: string, prior?: Partial<BrainV1Entities>): BrainV1Entities {
     const entities = { ...emptyBrainV1Entities(), ...prior }
@@ -78,23 +115,37 @@ export class EntityExtractor {
     }
 
     const adults =
-      /(?:adults?|بالغ|بالغين)\s*[:=]?\s*(\d+)/i.exec(text)
-      ?? /(\d+)\s*(?:adults?|بالغ)/i.exec(text)
-    if (adults?.[1]) entities.adults = Number(adults[1])
+      new RegExp(`(?:adults?|بالغ|بالغين)\\s*[:=]?\\s*(${COUNT_TOKEN})\\b`, 'i').exec(text)
+      ?? new RegExp(`\\b(${COUNT_TOKEN})\\s*(?:adults?|بالغ|بالغين)`, 'i').exec(text)
+    {
+      const n = parseCountToken(adults?.[1])
+      if (n != null) entities.adults = n
+      else if (/\b(?:an?)\s+adults?\b/i.test(text)) entities.adults = 1
+    }
 
     const children =
-      /(?:children|child|أطفال|طفل)\s*[:=]?\s*(\d+)/i.exec(text)
-      ?? /(\d+)\s*(?:children|kids|أطفال)/i.exec(text)
-    if (children?.[1]) entities.children = Number(children[1])
+      new RegExp(`(?:children|child|kids|أطفال|طفل|طفلين)\\s*[:=]?\\s*(${COUNT_TOKEN})\\b`, 'i').exec(text)
+      ?? new RegExp(`\\b(${COUNT_TOKEN})\\s*(?:children|child|kids|أطفال|طفل|طفلين)\\b`, 'i').exec(text)
+    {
+      const n = parseCountToken(children?.[1])
+      if (n != null) entities.children = n
+    }
 
     const infants =
-      /(?:infants?|رض[يى]ع)\s*[:=]?\s*(\d+)/i.exec(text)
-      ?? /(\d+)\s*(?:infants?|رضع)/i.exec(text)
-    if (infants?.[1]) entities.infants = Number(infants[1])
+      new RegExp(`(?:infants?|رض[يى]ع)\\s*[:=]?\\s*(${COUNT_TOKEN})\\b`, 'i').exec(text)
+      ?? new RegExp(`\\b(${COUNT_TOKEN})\\s*(?:infants?|رضع)\\b`, 'i').exec(text)
+    {
+      const n = parseCountToken(infants?.[1])
+      if (n != null) entities.infants = n
+    }
 
-    const travelers = /(?:travelers?|مسافر|أشخاص|persons?)\s*[:=]?\s*(\d+)/i.exec(text)
-      ?? /(\d+)\s*(?:travelers?|أشخاص|مسافر)/i.exec(text)
-    if (travelers?.[1]) entities.travelerCount = Number(travelers[1])
+    const travelers =
+      new RegExp(`(?:travelers?|مسافر|أشخاص|persons?)\\s*[:=]?\\s*(${COUNT_TOKEN})\\b`, 'i').exec(text)
+      ?? new RegExp(`\\b(${COUNT_TOKEN})\\s*(?:travelers?|أشخاص|مسافر)\\b`, 'i').exec(text)
+    {
+      const n = parseCountToken(travelers?.[1])
+      if (n != null) entities.travelerCount = n
+    }
     if (entities.travelerCount == null && entities.adults != null) {
       entities.travelerCount =
         (entities.adults ?? 0) + (entities.children ?? 0) + (entities.infants ?? 0)

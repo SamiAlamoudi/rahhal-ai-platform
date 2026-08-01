@@ -41,6 +41,10 @@ export {
   createToolExecutionEngine,
   TOOL_EXECUTION_ENGINE_VERSION,
   type ToolExecutionResponse,
+  runConversationManagerTurn,
+  createConversationManager,
+  CONVERSATION_MANAGER_VERSION,
+  type ConversationManagerResult,
 } from './v1'
 export type {
   RahhalBrainHandle,
