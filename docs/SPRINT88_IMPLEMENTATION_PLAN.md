@@ -1,7 +1,8 @@
 # Sprint 88 — Implementation Plan
 
-**Status:** Plan only — awaiting kickoff approval before Task 1  
-**Architecture gate:** Approved (revised ADD)  
+**Status:** **COMPLETE** — closed under Architecture Gate PASS · tag `sprint88-complete`  
+**Architecture gate:** PASS (`docs/SPRINT88_ARCHITECTURE_GATE_REPORT.md`)  
+**Completion report:** `docs/SPRINT88_COMPLETION_REPORT.md`  
 **Baseline:** `brain-foundation-complete-sprint-81-87` + revised  
 `docs/ARCHITECTURE_TRAVEL_INTELLIGENCE_ENGINE_SPRINT88-95.md`  
 **Turn owner:** `travelAgentService.planTurn` (unchanged)  
@@ -133,16 +134,17 @@ Establish the **minimal scaffolding** for Travel Intelligence under the existing
 | Depends on | Tasks 1–5 complete |
 | Artifacts | `docs/SPRINT88_ARCHITECTURE_GATE_REPORT.md` |
 
-### Task 7 — Docs, verify scripts, freeze/regression gates
+### Task 7 — Final freeze & Sprint closeout
 **Effort:** S (relative 3)  
-**Status:** Not started
+**Status:** Complete — Sprint 88 CLOSED
 
 | Item | Detail |
 | --- | --- |
-| Goal | Sprint 88 doc pack + npm verify entry + recovery freeze tests still green |
-| Work | `docs/SPRINT88_*.md` completion notes; wire `brain-preview`/new verify script if needed; assert flags OFF + `RECOVERY_TURN_OWNER` unchanged |
-| Depends on | Tasks 1–6 |
-| Unlocks | Merge readiness |
+| Goal | Official Sprint 88 closeout; final audit + verification; tag `sprint88-complete` |
+| Work | Document inventory audit; re-run Sprint 88 + CI checks; `docs/SPRINT88_COMPLETION_REPORT.md`; git tag |
+| Out | No new runtime functionality |
+| Depends on | Task 6 Architecture Gate PASS |
+| Artifacts | `docs/SPRINT88_COMPLETION_REPORT.md`; tag `sprint88-complete` |
 
 ---
 
