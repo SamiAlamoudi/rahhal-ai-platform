@@ -1,6 +1,6 @@
 /**
  * Sprint 89 Phase 2 — planning facade exports.
- * T2–T6: MissingInfo, Assumptions, ConfidenceGates, ClarificationBridge, ToolDecision.
+ * T2–T7: MissingInfo → Assumptions → Confidence → Clarification → ToolDecision → PlanningHints.
  * No BrainRouter / CM wiring.
  */
 
@@ -79,3 +79,17 @@ export {
   type ToolDecisionBridgeInput,
   type ToolDecisionResult,
 } from './ToolDecisionBridge'
+
+export {
+  PLANNING_HINTS_BUILDER_VERSION,
+  PlanningHintsBuilder,
+  createPlanningHintsBuilder,
+  buildPlanningHints,
+  assertPlanningHintsInvariants,
+  type NextPlannerAction,
+  type PlanningHintsAssumption,
+  type PlanningHintsConfidence,
+  type PlanningHintsReasoning,
+  type PlanningHints,
+  type PlanningHintsBuilderInput,
+} from './PlanningHintsBuilder'
