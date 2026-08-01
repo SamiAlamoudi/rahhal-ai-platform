@@ -129,6 +129,57 @@ describe('Sprint 89 Phase 2 T10 — planReasonTurn', () => {
       expect(result.clarification.mergedFields).not.toContain('payment')
     })
 
+    it('en: Morocco next month → flexibleDates demotes dates from blocking (post-assumption missing)', () => {
+      const understanding = understandTurn({
+        text: 'I want to travel to Morocco next month.',
+        locale: 'en',
+        conversationId: 'prt-flex-dates-en',
+      })
+      expect(understanding.state.knownSlots.destination).toBe('Morocco')
+
+      const result = planReasonTurn(
+        baseInput(understanding, { goalHint: 'domain_flight' }),
+      )
+
+      // Destination remains confirmed from Phase 1.
+      expect(result.missing.confirmedFields).toContain('destination')
+      expect(result.preservedKnownSlots.destination).toBe('Morocco')
+
+      // Same-turn flexibleDates assumption is reflected in final missing SoT.
+      expect(result.assumptions.assumedFields).toContain('flexibleDates')
+      expect(
+        result.assumptions.proposed.some(
+          (a) => a.field === 'flexibleDates' && a.source === 'assumed' && a.reversible === true,
+        ),
+      ).toBe(true)
+      expect(result.missing.blocking).not.toContain('dates')
+      expect(result.missing.deferrable).toContain('dates')
+      expect(
+        result.missing.fields.some(
+          (f) => f.field === 'dates' && f.reason === 'assumed_not_confirmed',
+        ),
+      ).toBe(true)
+
+      // Downstream consumers must not retain stale pre-assumption dates blocking.
+      expect(result.planningHints.blockingFields).not.toContain('dates')
+      expect(result.decisionContract.decision.blockingFields).not.toContain('dates')
+      expect(result.clarification.mergedFields).not.toContain('dates')
+      expect(result.clarification.mergedFields).not.toContain('destination')
+
+      // No runtime execution; search is decision metadata only (SEARCH_HANDOFF iff eligible).
+      expect(result.toolDecision.executeSearch).toBe(false)
+      expect(result.toolDecision.invokeGateway).toBe(false)
+      expect(result.capabilities.executeSearch).toBe(false)
+      expect(result.capabilities.invokeGateway).toBe(false)
+      expect(result.summary.searchEligible).toBe(
+        result.summary.toolDecision === 'SEARCH_HANDOFF',
+      )
+      // Flex dates alone never authorize search handoff.
+      expect(result.summary.toolDecision).not.toBe('SEARCH_HANDOFF')
+      expect(result.summary.searchEligible).toBe(false)
+      expect(assertPlanReasonTurnInvariants(result)).toBe(true)
+    })
+
     it('ar: missing blocking does not authorize search handoff', () => {
       const understanding = understandTurn({
         text: 'أبغى أروح دبي',

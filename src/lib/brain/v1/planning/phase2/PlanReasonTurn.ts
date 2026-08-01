@@ -2,6 +2,8 @@
  * Sprint 89 Phase 2 (T10) — planReasonTurn.
  *
  * Pure sequential orchestration over Phase 1 Understanding + T2–T9 modules.
+ * Normative order: proposeAssumptions → planMissingInformation(post-assumption)
+ * → ConfidenceGates → ClarificationBridge → ToolDecisionBridge → hints/adapter/contract.
  * Returns a sealed planning decision contract. No BrainRouter / CM / Search /
  * Gateway / LLM execution. Never mutates Phase 1 memory or knownSlots.
  */
@@ -242,14 +244,8 @@ function buildAbortResult(input: PlanReasonTurnInput): PlanReasonTurnResult {
   const understanding = input.understanding
   const knownSlots = understanding.state.knownSlots
 
-  const missing = planMissingInformation({
-    understanding,
-    goalHint: input.goalHint,
-    assumedFields: collectAssumedFields(understanding, input.priorAssumedFields),
-    abort: true,
-  })
-
-  // Abort: no new assumptions (policy short-circuits).
+  // Abort: no new assumptions (policy short-circuits). Order matches runPipeline:
+  // propose assumptions first, then classify missing from that post-assumption set.
   const assumptions = proposeAssumptions({
     understanding,
     priorAssumedFields: [],
@@ -257,6 +253,13 @@ function buildAbortResult(input: PlanReasonTurnInput): PlanReasonTurnResult {
     locale,
     planId: understanding.state.activeTripId,
     updatedAt: input.updatedAt ?? new Date(0).toISOString(),
+  })
+
+  const missing = planMissingInformation({
+    understanding,
+    goalHint: input.goalHint,
+    assumedFields: assumptions.assumedFields,
+    abort: true,
   })
 
   const confidence = evaluateConfidenceGates({
@@ -380,15 +383,8 @@ function buildRecoveryResult(
   const abort = isAbort(input)
   const knownSlots = understanding.state.knownSlots
 
-  // Safe path: do not invent assumptions; preserve Phase 1 slots/provenance.
-  const missing = planMissingInformation({
-    understanding,
-    goalHint: input.goalHint ?? 'advise',
-    assumedFields: collectAssumedFields(understanding, input.priorAssumedFields),
-    abort,
-  })
-
   // Recovery never invents new assumptions (abort-style propose).
+  // Classify missing only after that empty proposal set (same ordering as runPipeline).
   const assumptions = proposeAssumptions({
     understanding,
     priorAssumedFields: [],
@@ -396,6 +392,14 @@ function buildRecoveryResult(
     locale,
     planId: understanding.state.activeTripId,
     updatedAt: input.updatedAt ?? new Date(0).toISOString(),
+  })
+
+  // Safe path: preserve Phase 1 slots/provenance; no new assumptions in missing SoT.
+  const missing = planMissingInformation({
+    understanding,
+    goalHint: input.goalHint ?? 'advise',
+    assumedFields: assumptions.assumedFields,
+    abort,
   })
 
   const confidence = evaluateConfidenceGates({
@@ -621,15 +625,8 @@ function runPipeline(input: PlanReasonTurnInput): PlanReasonTurnResult {
   const correctedFields = collectCorrected(understanding)
   const fieldConfidence = fieldConfidenceFromUnderstanding(understanding)
 
-  // 1. MissingInformationPlanner — post-correction knownSlots SoT
-  const missing = planMissingInformation({
-    understanding,
-    goalHint: input.goalHint,
-    assumedFields: priorAssumed,
-    abort,
-  })
-
-  // 2. AssumptionPolicy — reversible assumed only; never overwrite confirmed
+  // 1. AssumptionPolicy first — reversible assumed only; never overwrite confirmed.
+  //    Final missing classification MUST see these same-turn proposals.
   const assumptions = proposeAssumptions({
     understanding,
     priorAssumedFields: priorAssumed,
@@ -643,7 +640,16 @@ function runPipeline(input: PlanReasonTurnInput): PlanReasonTurnResult {
     ...new Set([...priorAssumed, ...assumptions.assumedFields]),
   ]
 
-  // 3. ConfidenceGates
+  // 2. MissingInformationPlanner — post-assumption classification (sole missing SoT
+  //    for all downstream consumers). Never use a pre-assumption missing snapshot.
+  const missing = planMissingInformation({
+    understanding,
+    goalHint: input.goalHint,
+    assumedFields,
+    abort,
+  })
+
+  // 3. ConfidenceGates — consumes post-assumption missing only
   const confidence = evaluateConfidenceGates({
     knownSlots,
     confirmedFields: missing.confirmedFields,
