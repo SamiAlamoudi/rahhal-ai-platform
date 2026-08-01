@@ -29,7 +29,7 @@ export class ConversationSummaryBuilder {
     goalLabel: string
     intentLabel?: string
     slots: TravelPlanSlots
-    remaining: TravelPlanSlotKey[]
+    remaining: Array<TravelPlanSlotKey | string>
     recommendations?: string[]
   }): ConversationSummary {
     const knownKeys: TravelPlanSlotKey[] = [
@@ -60,7 +60,7 @@ export class ConversationSummaryBuilder {
     return {
       currentGoal: input.goalLabel,
       knownInformation,
-      remainingQuestions: [...input.remaining],
+      remainingQuestions: [...input.remaining] as ConversationSummary['remainingQuestions'],
       currentRecommendations: [...recs],
       textAr: `الهدف: ${input.goalLabel}. المعروف: ${knownLine}. المتبقي: ${remainLine}. الترشيحات: ${recLine}.`,
       textEn: `Goal: ${input.goalLabel}. Known: ${knownLine}. Remaining: ${remainLine}. Recommendations: ${recLine}.`,

@@ -1,11 +1,8 @@
 /**
- * Sprint 85 — Conversation Manager.
+ * Sprint 85 — Conversation Manager (Value Before Questions).
  *
- * Sits between Brain and traveler. Maintains conversation state, slots,
- * resume/restart, plan revision hooks, natural responses — before any
- * real provider integration.
- *
- * Behind `ai.brain.v1`. No UI / Voice / providers / booking / payments.
+ * Understand → extract → assume safely → deliver value → ask ≤1 high-impact question.
+ * Behind `ai.brain.v1`. No UI / Voice / providers / booking / payments wiring.
  */
 
 import { isBrainV1Enabled } from '../feature'
@@ -13,7 +10,8 @@ import { IntentDetector } from '../IntentDetector'
 import { SlotFillingEngine } from '../planning/SlotFillingEngine'
 import { TravelPlanningEngine } from '../planning/TravelPlanningEngine'
 import { emptyTravelPlanSlots, type TravelPlanSlotKey } from '../planning/types'
-import { ClarificationPolicy } from './ClarificationPolicy'
+import { AssumptionEngine } from './AssumptionEngine'
+import { ClarificationPolicy, DEFAULT_MAX_QUESTIONS_PER_TURN } from './ClarificationPolicy'
 import { ConfidenceEngine } from './ConfidenceEngine'
 import { ConversationExplainability } from './ConversationExplainability'
 import { ConversationMemoryAdapter } from './ConversationMemoryAdapter'
@@ -21,13 +19,19 @@ import { ConversationSummaryBuilder } from './ConversationSummaryBuilder'
 import { InterruptHandler } from './InterruptHandler'
 import { QuestionGenerator } from './QuestionGenerator'
 import { ResponseGenerator } from './ResponseGenerator'
+import { pickSingleToolField } from './ToolMissingFields'
+import { ValueFirstPlanner } from './ValueFirstPlanner'
 import {
   CONVERSATION_MANAGER_VERSION,
+  type ConversationAssumption,
+  type ConversationDecisionModel,
   type ConversationLifecycleState,
   type ConversationManagerInput,
   type ConversationManagerResult,
+  type ConversationQuestion,
   type ConversationSession,
-  type ConversationTurnRecord,
+  type ConversationStage,
+  type ConversationValueItem,
 } from './types'
 
 export type ConversationManagerDeps = {
@@ -41,6 +45,8 @@ export type ConversationManagerDeps = {
   memory?: ConversationMemoryAdapter
   summary?: ConversationSummaryBuilder
   explainability?: ConversationExplainability
+  assumptions?: AssumptionEngine
+  valueFirst?: ValueFirstPlanner
   intents?: IntentDetector
   slots?: SlotFillingEngine
 }
@@ -49,7 +55,7 @@ function now(): string {
   return new Date().toISOString()
 }
 
-function newSession(locale: 'ar' | 'en'): ConversationSession {
+function newSession(locale: 'ar' | 'en', stage: ConversationStage = 'explore'): ConversationSession {
   const ts = now()
   return {
     sessionId: `conv_${ts.replace(/[^0-9]/g, '').slice(0, 14)}_${Math.random().toString(36).slice(2, 7)}`,
@@ -59,18 +65,23 @@ function newSession(locale: 'ar' | 'en'): ConversationSession {
     completedSlots: [],
     pendingSlots: [],
     answeredSlots: [],
+    assumptions: [],
     turns: [],
     pausedGoalLabel: null,
     previousGoalLabel: null,
     topicStack: [],
     locale,
+    stage,
     createdAt: ts,
     updatedAt: ts,
     restartedCount: 0,
   }
 }
 
-function completedFromSlots(keys: TravelPlanSlotKey[], slots: ReturnType<typeof emptyTravelPlanSlots>): TravelPlanSlotKey[] {
+function completedFromSlots(
+  keys: TravelPlanSlotKey[],
+  slots: ReturnType<typeof emptyTravelPlanSlots>,
+): TravelPlanSlotKey[] {
   return keys.filter((key) => {
     if (key === 'dates') return Boolean(slots.dates.start || slots.flexibleDates)
     if (key === 'activities') return slots.activities.length > 0
@@ -90,6 +101,9 @@ function disabledResult(): ConversationManagerResult {
     summary: null,
     confidence: null,
     explanation: null,
+    decision: null,
+    assumptions: [],
+    value: [],
     revisedSlots: [],
     knownSlots: null,
     intent: null,
@@ -106,6 +120,8 @@ export class ConversationManager {
   private readonly memory: ConversationMemoryAdapter
   private readonly summary: ConversationSummaryBuilder
   private readonly explainability: ConversationExplainability
+  private readonly assumptionEngine: AssumptionEngine
+  private readonly valueFirst: ValueFirstPlanner
   private readonly intents: IntentDetector
   private readonly slotsEngine: SlotFillingEngine
 
@@ -119,6 +135,8 @@ export class ConversationManager {
     this.memory = deps.memory ?? new ConversationMemoryAdapter()
     this.summary = deps.summary ?? new ConversationSummaryBuilder()
     this.explainability = deps.explainability ?? new ConversationExplainability()
+    this.assumptionEngine = deps.assumptions ?? new AssumptionEngine()
+    this.valueFirst = deps.valueFirst ?? new ValueFirstPlanner()
     this.intents = deps.intents ?? new IntentDetector()
     this.slotsEngine = deps.slots ?? new SlotFillingEngine()
   }
@@ -132,13 +150,15 @@ export class ConversationManager {
     }
 
     const locale = input.locale ?? input.priorSession?.locale ?? 'ar'
+    const stage = input.stage ?? input.priorSession?.stage ?? 'explore'
     let session = input.priorSession
       ? this.cloneSession(input.priorSession)
-      : newSession(locale)
+      : newSession(locale, stage)
     session.locale = locale
+    session.stage = stage
 
     if (input.restart || /^(restart|ابدأ من جديد|من جديد)$/i.test(input.text.trim())) {
-      const restarted = newSession(locale)
+      const restarted = newSession(locale, stage)
       restarted.restartedCount = session.restartedCount + 1
       restarted.state = 'restarted'
       session = restarted
@@ -149,18 +169,11 @@ export class ConversationManager {
       pause: input.pause,
       resume: input.resume,
     })
-
     const interruptApplied = this.interrupts.apply(session, interruptKind)
     session = interruptApplied.session
 
-    const userTurn: ConversationTurnRecord = {
-      role: 'user',
-      text: input.text,
-      at: now(),
-    }
-    session.turns = [...session.turns, userTurn].slice(-40)
+    session.turns = [...session.turns, { role: 'user' as const, text: input.text, at: now() }].slice(-40)
 
-    // Pause short-circuit (keep slots).
     if (interruptKind === 'pause') {
       const response = this.responses.generate({
         locale,
@@ -172,22 +185,23 @@ export class ConversationManager {
       })
       session.state = 'paused'
       session.updatedAt = now()
-      session.turns = [...session.turns, { role: 'assistant', text: response[locale], at: now() }]
-      return this.result(session, response, null, null, null, null, [], session.plan?.goal.intent ?? null)
+      session.turns = [...session.turns, { role: 'assistant' as const, text: response[locale], at: now() }]
+      return this.finish(session, response, null, null, null, null, null, [], [], [], null)
     }
 
-    // Planning turn (slot fill + revision via TravelPlanningEngine).
     const planResult = this.planning.planTurn(
       {
         text: input.text,
         locale,
         priorPlan: session.plan,
-        interrupted: interruptKind === 'resume' || session.state === 'paused' || session.state === 'resumed',
+        interrupted:
+          interruptKind === 'resume'
+          || session.state === 'paused'
+          || session.state === 'resumed',
       },
       { enabled: true },
     )
 
-    // Apply soft memory defaults only for empty slots.
     let knownSlots = planResult.plan?.knownSlots ?? emptyTravelPlanSlots()
     const soft = mem.softSlotDefaults
     knownSlots = this.slotsEngine.merge(knownSlots, {
@@ -219,36 +233,148 @@ export class ConversationManager {
       'flexibleDates',
       'specialRequests',
     ]
-    const completedSlots = completedFromSlots(allSlotKeys, knownSlots)
-    const answeredSlots = [...new Set([...session.answeredSlots, ...planResult.revisedSlots, ...completedSlots])]
 
-    // Required missing from planning engine; never re-ask answered.
-    const missingRequired = planResult.missing.filter((s) => !answeredSlots.includes(s))
-    let question = this.questions.next(missingRequired, knownSlots, answeredSlots)
+    // Explicit extractions / revisions become answered (confirmed facts).
+    const explicitCompleted = completedFromSlots(allSlotKeys, knownSlots).filter((key) => {
+      // Only mark as answered when coming from user text/prior confirmed — not assumptions.
+      return planResult.revisedSlots.includes(key)
+        || session.answeredSlots.includes(key)
+        || Boolean(input.priorSession && completedFromSlots([key], input.priorSession.plan?.knownSlots ?? emptyTravelPlanSlots()).length)
+        || (key === 'destination' && Boolean(knownSlots.destination))
+        || (key === 'origin' && Boolean(knownSlots.origin) && /from |من /.test(input.text.toLowerCase()))
+        || (key === 'dates' && Boolean(knownSlots.dates.start))
+        || (key === 'adults' && /adults?|بالغ/i.test(input.text))
+        || (key === 'children' && /child|children|أطفال|طفل/i.test(input.text))
+        || (key === 'budget' && /budget|ميزانية/i.test(input.text))
+    })
+
+    // Destination from first message counts as answered.
+    if (knownSlots.destination && !explicitCompleted.includes('destination')) {
+      explicitCompleted.push('destination')
+    }
+
+    let answeredSlots = [...new Set([...session.answeredSlots, ...explicitCompleted])]
+
+    // Revise assumptions when user corrects travelers/dates/budget/etc.
+    let priorAssumptions = session.assumptions
+    const markAnswered = (key: TravelPlanSlotKey) => {
+      if (!answeredSlots.includes(key)) answeredSlots = [...answeredSlots, key]
+    }
+    for (const key of planResult.revisedSlots) {
+      if (key === 'adults' && knownSlots.adults != null) {
+        priorAssumptions = this.assumptionEngine.revise(priorAssumptions, 'adults', knownSlots.adults)
+        markAnswered('adults')
+      }
+      if (key === 'children') {
+        priorAssumptions = this.assumptionEngine.revise(priorAssumptions, 'children', knownSlots.children ?? 0)
+        markAnswered('children')
+      }
+      if (key === 'dates' || key === 'flexibleDates') {
+        priorAssumptions = this.assumptionEngine.revise(priorAssumptions, 'flexibleDates', true)
+        if (knownSlots.dates.start) markAnswered('dates')
+      }
+      if (key === 'budget' && knownSlots.budget != null) {
+        priorAssumptions = this.assumptionEngine.revise(priorAssumptions, 'budgetMode', knownSlots.budget)
+        markAnswered('budget')
+      }
+      if (key === 'origin' && knownSlots.origin) {
+        markAnswered('origin')
+      }
+      if (key === 'destination' && knownSlots.destination) {
+        markAnswered('destination')
+      }
+    }
+
+    const assumptions = this.assumptionEngine.infer({
+      slots: knownSlots,
+      answered: answeredSlots,
+      priorAssumptions,
+    })
+    const workingSlots = this.assumptionEngine.applyToSlots(knownSlots, assumptions)
+    const assumedFields = assumptions.map((a) => a.field)
+
+    const completedSlots = completedFromSlots(allSlotKeys, workingSlots)
+
+    // Planning "missing" plus high-impact explore gaps (origin) even if planning deferred it.
+    const missingBase = [...planResult.missing]
+    if (
+      workingSlots.destination
+      && !workingSlots.origin
+      && !answeredSlots.includes('origin')
+      && !missingBase.includes('origin')
+    ) {
+      missingBase.push('origin')
+    }
+    if (
+      workingSlots.destination
+      && workingSlots.adults == null
+      && !assumedFields.includes('adults')
+      && !missingBase.includes('adults')
+    ) {
+      missingBase.push('adults')
+    }
+
+    const valueItems = this.valueFirst.canProvideValue(workingSlots)
+      ? this.valueFirst.build({
+          slots: workingSlots,
+          assumptions,
+          recommendations: input.recommendations,
+        })
+      : []
 
     const confidence = this.confidence.evaluate({
       intent: intentResult.intent === 'unknown' && planResult.goal
         ? { intent: planResult.goal.intent, confidence: planResult.goal.confidence, secondary: [] }
         : intentResult,
-      slots: knownSlots,
+      slots: workingSlots,
       completedSlots,
-      pendingSlots: missingRequired,
+      pendingSlots: missingBase,
       recommendations: input.recommendations,
       ambiguousText: /\b(?:maybe|perhaps|not sure|ربما|مو متأكد|غير متأكد)\b/i.test(input.text),
+      hasDestination: Boolean(workingSlots.destination),
+      unsafe: stage === 'payment' || stage === 'booking',
     })
 
-    const clarified = this.clarification.apply({
-      missing: missingRequired,
+    const blockingQuestions: ConversationQuestion[] = (input.blockingFields ?? []).map((b) => ({
+      slot: b.field,
+      tier: 'blocking' as const,
+      priority: 100,
+      questionAr: b.questionAr,
+      questionEn: b.questionEn,
+      whyAr: b.reason,
+      whyEn: b.reason,
+    }))
+
+    // Tools may report many missing fields — manager keeps at most one candidate.
+    const toolFields = input.toolMissingFields ?? []
+    const singleTool = pickSingleToolField(toolFields)
+    const toolMissing = singleTool ? [singleTool] : []
+
+    const decision = this.clarification.decide({
+      missing: missingBase,
       answered: answeredSlots,
-      question,
-      lowConfidence: confidence.needsClarification,
-      lowConfidenceSlot: confidence.needsClarification
-        ? question?.slot ?? missingRequired[0] ?? null
-        : null,
+      assumedFields,
+      stage,
+      hasValue: valueItems.length > 0,
+      valueItems,
+      confidenceBand: confidence.band,
+      forceBlockingQuestion: confidence.forceBlockingQuestion || Boolean(input.blockingFields?.length),
+      blockingQuestions,
+      toolMissingFields: toolMissing,
+      maxQuestionsPerTurn: input.maxQuestionsPerTurn ?? DEFAULT_MAX_QUESTIONS_PER_TURN,
     })
-    question = clarified.question
-    const pendingSlots = clarified.pending
 
+    let question: ConversationQuestion | null = decision.blockingQuestion
+    if (!question && decision.selectedSlot) {
+      question = this.questions.forSlot(decision.selectedSlot, workingSlots)
+    }
+
+    // Never exceed budget.
+    if ((input.maxQuestionsPerTurn ?? DEFAULT_MAX_QUESTIONS_PER_TURN) <= 0) {
+      question = null
+    }
+
+    const pendingSlots = decision.pending
     const summary = this.summary.build({
       goalLabel: planResult.goal?.label ?? 'Plan a trip',
       intentLabel: intent,
@@ -259,18 +385,30 @@ export class ConversationManager {
 
     const explanation = this.explainability.explain({
       question,
-      recommendation: input.recommendations?.[0] ?? null,
+      recommendation: valueItems[0]?.detailEn ?? input.recommendations?.[0] ?? null,
       missing: pendingSlots,
     })
+
+    const decisionModel: ConversationDecisionModel = {
+      goalUnderstanding: planResult.goal?.label ?? `Intent=${intent}`,
+      value: valueItems,
+      assumptions,
+      question,
+      questionReason: question?.whyEn ?? decision.skipReason,
+      confidence: confidence.overall,
+      requiresConfirmationBeforeAction: assumptions.some((a) => a.requiresConfirmationBeforeBooking)
+        || stage === 'booking'
+        || stage === 'payment',
+      nextBestAction: this.valueFirst.nextBestAction(Boolean(question), workingSlots.destination),
+    }
 
     const hadPriorPlan = Boolean(input.priorSession?.plan)
     let state: ConversationLifecycleState = interruptApplied.state
     if (interruptKind === 'resume') state = 'resumed'
     else if (interruptKind === 'topic_switch') state = 'topic_switch'
-    else if (hadPriorPlan && planResult.revisedSlots.length > 0 && pendingSlots.length > 0) {
-      state = 'revising'
-    } else if (pendingSlots.length > 0) state = question ? 'waiting_user' : 'collecting'
+    else if (valueItems.length > 0) state = 'value_first'
     else if (hadPriorPlan && planResult.revisedSlots.length > 0) state = 'revising'
+    else if (question) state = 'waiting_user'
     else if (input.recommendations?.length) state = 'summarizing'
     else state = 'ready'
 
@@ -282,25 +420,48 @@ export class ConversationManager {
       question,
       summary,
       revisedSlots: planResult.revisedSlots,
-      destination: knownSlots.destination,
+      destination: workingSlots.destination,
       confidence,
       resumed: interruptKind === 'resume' || state === 'resumed',
       topicSwitch: interruptKind === 'topic_switch',
       previousGoal: session.previousGoalLabel,
       recommendations: input.recommendations,
+      valueItems,
+      assumptions,
+      decision: decisionModel,
     })
 
+    // Persist confirmed slots only (not assumed values) on the plan snapshot.
     session = {
       ...session,
       state,
+      assumptions,
       plan: planResult.plan
         ? {
             ...planResult.plan,
             knownSlots,
-            missingSlots: pendingSlots,
-            nextQuestion: question
+            missingSlots: pendingSlots.filter((p): p is TravelPlanSlotKey =>
+              [
+                'origin',
+                'destination',
+                'dates',
+                'flexibleDates',
+                'adults',
+                'children',
+                'cabin',
+                'budget',
+                'hotelPreference',
+                'transportation',
+                'activities',
+                'visa',
+                'language',
+                'currency',
+                'specialRequests',
+              ].includes(String(p))
+            ),
+            nextQuestion: question && this.isPlanSlot(question.slot)
               ? {
-                  slot: question.slot,
+                  slot: question.slot as TravelPlanSlotKey,
                   priority: question.priority,
                   questionAr: question.questionAr,
                   questionEn: question.questionEn,
@@ -314,27 +475,53 @@ export class ConversationManager {
       answeredSlots,
       updatedAt: now(),
     }
-    session.turns = [...session.turns, { role: 'assistant', text: response[locale], at: now() }]
+    session.turns = [...session.turns, { role: 'assistant' as const, text: response[locale], at: now() }]
 
-    return this.result(
+    return this.finish(
       session,
       response,
       question,
       summary,
       confidence,
       explanation,
+      decisionModel,
+      assumptions,
+      valueItems,
       planResult.revisedSlots,
       intent,
     )
   }
 
-  private result(
+  private isPlanSlot(slot: TravelPlanSlotKey | string): slot is TravelPlanSlotKey {
+    return [
+      'origin',
+      'destination',
+      'dates',
+      'flexibleDates',
+      'adults',
+      'children',
+      'cabin',
+      'budget',
+      'hotelPreference',
+      'transportation',
+      'activities',
+      'visa',
+      'language',
+      'currency',
+      'specialRequests',
+    ].includes(String(slot))
+  }
+
+  private finish(
     session: ConversationSession,
     response: ConversationManagerResult['response'],
     question: ConversationManagerResult['question'],
     summary: ConversationManagerResult['summary'],
     confidence: ConversationManagerResult['confidence'],
     explanation: ConversationManagerResult['explanation'],
+    decision: ConversationDecisionModel | null,
+    assumptions: ConversationAssumption[],
+    value: ConversationValueItem[],
     revisedSlots: TravelPlanSlotKey[],
     intent: ConversationManagerResult['intent'],
   ): ConversationManagerResult {
@@ -347,6 +534,9 @@ export class ConversationManager {
       summary,
       confidence,
       explanation,
+      decision,
+      assumptions,
+      value,
       revisedSlots,
       knownSlots: session.plan?.knownSlots ?? null,
       intent,
@@ -359,6 +549,7 @@ export class ConversationManager {
       completedSlots: [...prior.completedSlots],
       pendingSlots: [...prior.pendingSlots],
       answeredSlots: [...prior.answeredSlots],
+      assumptions: prior.assumptions.map((a) => ({ ...a })),
       turns: prior.turns.map((t) => ({ ...t })),
       topicStack: [...prior.topicStack],
       plan: prior.plan

@@ -13,7 +13,7 @@ export class ConversationExplainability {
   explain(input: {
     question: ConversationQuestion | null
     recommendation?: string | null
-    missing: TravelPlanSlotKey[]
+    missing: Array<TravelPlanSlotKey | string>
   }): ConversationExplanation {
     const missingList = input.missing.length ? input.missing.join(', ') : 'none'
     return {

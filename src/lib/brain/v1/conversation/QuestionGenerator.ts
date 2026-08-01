@@ -1,102 +1,128 @@
 /**
  * Sprint 85 — Question Generator.
- * Exactly ONE next question — highest-priority missing slot.
+ * Exactly ONE next question for a selected slot (Value Before Questions).
  */
 
 import { QuestionPlanner } from '../planning/QuestionPlanner'
 import type { TravelPlanSlotKey, TravelPlanSlots } from '../planning/types'
-import type { ConversationQuestion } from './types'
+import type { ClarificationTier, ConversationQuestion } from './types'
+import { ClarificationPolicy } from './ClarificationPolicy'
 
-const WHY: Record<TravelPlanSlotKey, { ar: string; en: string }> = {
+const WHY: Record<string, { ar: string; en: string }> = {
   destination: {
-    ar: 'أحتاج الوجهة لأبني خطة السفر الصحيحة.',
-    en: 'I need the destination to build the right travel plan.',
+    ar: 'أحتاج الوجهة لأبني تصورًا أوليًا مفيدًا.',
+    en: 'I need the destination to build a useful preliminary plan.',
   },
   dates: {
-    ar: 'التواريخ تساعدني أقارن الخيارات المناسبة لوقتك.',
-    en: 'Dates help me compare options that fit your schedule.',
+    ar: 'تقريب فترة السفر يضيّق النتائج بشكل واضح.',
+    en: 'An approximate travel period materially improves options.',
   },
   origin: {
-    ar: 'مدينة المغادرة ضرورية للبحث عن الرحلات.',
-    en: 'Departure city is required to search flights.',
+    ar: 'مدينة المغادرة تغيّر خيارات الرحلات والأسعار التقديرية.',
+    en: 'Departure city materially changes flight options and indicative pricing.',
   },
   adults: {
     ar: 'عدد المسافرين يؤثر على التوفر والسعر.',
-    en: 'Traveler count affects availability and price.',
+    en: 'Traveler count affects suitability and indicative cost.',
   },
   children: {
-    ar: 'معرفة عدد الأطفال يساعدني أختار خيارات مناسبة للعائلة.',
-    en: 'Knowing children count helps me pick family-friendly options.',
+    ar: 'وجود أطفال يغيّر ملاءمة الفنادق والوتيرة.',
+    en: 'Children change hotel suitability and trip pacing.',
   },
   budget: {
-    ar: 'الميزانية توجّه الترشيحات بدون تجاوز حدودك.',
-    en: 'Budget keeps recommendations within your limits.',
+    ar: 'سقف الميزانية يوجّه الترشيحات دون تجاوز حدودك.',
+    en: 'A budget ceiling keeps recommendations within your limits.',
   },
   cabin: {
     ar: 'درجة السفر تغيّر الراحة والسعر.',
     en: 'Cabin class changes comfort and price.',
   },
   hotelPreference: {
-    ar: 'تفضيل الإقامة يضيّق نتائج الفنادق المفيدة.',
-    en: 'Hotel preference narrows useful stay options.',
+    ar: 'تفضيل الإقامة يحسّن التخصيص فقط.',
+    en: 'Hotel preference is a refinement, not a blocker.',
   },
-  transportation: {
-    ar: 'وسيلة التنقل تؤثر على جدول الأيام.',
-    en: 'Transport preference shapes the daily itinerary.',
+  passport: {
+    ar: 'بيانات المسافر مطلوبة قبل إصدار التذكرة.',
+    en: 'Traveler identity details are required before ticket issuance.',
   },
-  activities: {
-    ar: 'الأنشطة تساعدني أقترح أيام أوضح.',
-    en: 'Activities help me suggest clearer day plans.',
+  payment_consent: {
+    ar: 'أحتاج تأكيدك الصريح قبل أي عملية دفع.',
+    en: 'I need your explicit confirmation before any charge.',
   },
-  visa: {
-    ar: 'التأشيرة قد تكون شرطاً قبل الحجز.',
-    en: 'Visa needs may be required before booking.',
-  },
-  language: {
-    ar: 'اللغة تجعل الحوار أوضح لك.',
-    en: 'Language keeps the conversation clear for you.',
-  },
-  currency: {
-    ar: 'العملة تجعل الأسعار مفهومة مباشرة.',
-    en: 'Currency makes prices immediately understandable.',
-  },
-  flexibleDates: {
-    ar: 'المرونة قد تفتح أسعاراً أفضل.',
-    en: 'Flexibility can unlock better prices.',
-  },
-  specialRequests: {
-    ar: 'الطلبات الخاصة تمنع مفاجآت غير مرغوبة.',
-    en: 'Special requests avoid unwanted surprises.',
+  traveler_identity: {
+    ar: 'بيانات الهوية مطلوبة قبل إتمام الحجز.',
+    en: 'Identity details are required before completing a booking.',
   },
 }
 
-/** Priority order for core intake (destination → dates → travelers → budget → preferences). */
-const CORE_ORDER: TravelPlanSlotKey[] = [
-  'destination',
-  'dates',
-  'origin',
-  'adults',
-  'budget',
-  'cabin',
-  'hotelPreference',
-  'activities',
-  'children',
-  'transportation',
-  'flexibleDates',
-  'visa',
-  'language',
-  'currency',
-  'specialRequests',
-]
+const FALLBACK_Q: Record<string, { ar: string; en: string }> = {
+  origin: {
+    ar: 'من أي مدينة ستسافر؟',
+    en: 'Which city will you depart from?',
+  },
+  dates: {
+    ar: 'ما الفترة التقريبية التي تناسبك؟',
+    en: 'What approximate travel period works for you?',
+  },
+  adults: {
+    ar: 'كم عدد البالغين المسافرين؟',
+    en: 'How many adults are traveling?',
+  },
+  destination: {
+    ar: 'إلى أين تود السفر؟',
+    en: 'Where would you like to travel?',
+  },
+  passport: {
+    ar: 'ما الاسم الكامل للمسافر كما في جواز السفر؟',
+    en: 'What is the traveler full name as on the passport?',
+  },
+  payment_consent: {
+    ar: 'هل تؤكد المتابعة للدفع؟',
+    en: 'Do you confirm proceeding to payment?',
+  },
+  traveler_identity: {
+    ar: 'هل يمكنك تأكيد هوية المسافر للحجز؟',
+    en: 'Can you confirm traveler identity for booking?',
+  },
+}
 
 export class QuestionGenerator {
   private readonly planner: QuestionPlanner
+  private readonly tiers: ClarificationPolicy
 
   constructor(planner?: QuestionPlanner) {
     this.planner = planner ?? new QuestionPlanner()
+    this.tiers = new ClarificationPolicy()
   }
 
-  /** Return exactly one question, or null when nothing is missing. */
+  /** Build exactly one question for a selected slot. */
+  forSlot(
+    slot: TravelPlanSlotKey | string,
+    slots?: TravelPlanSlots,
+  ): ConversationQuestion {
+    const tier = this.tiers.classify(String(slot))
+    const planned =
+      typeof slot === 'string' && this.isPlanSlot(slot)
+        ? this.planner.nextQuestion([slot], slots)
+        : null
+    const fallback = FALLBACK_Q[String(slot)]
+    const why = WHY[String(slot)] ?? {
+      ar: 'هذا التوضيح يضيّق النتائج بشكل مفيد.',
+      en: 'This clarification materially improves the result.',
+    }
+
+    return {
+      slot,
+      tier,
+      priority: planned?.priority ?? (tier === 'blocking' ? 100 : 80),
+      questionAr: planned?.questionAr ?? fallback?.ar ?? 'هل يمكنك توضيح هذه النقطة؟',
+      questionEn: planned?.questionEn ?? fallback?.en ?? 'Could you clarify this point?',
+      whyAr: why.ar,
+      whyEn: why.en,
+    }
+  }
+
+  /** Legacy helper — still returns at most one question. */
   next(
     missing: TravelPlanSlotKey[],
     slots?: TravelPlanSlots,
@@ -104,38 +130,39 @@ export class QuestionGenerator {
   ): ConversationQuestion | null {
     const answeredSet = new Set(answered)
     const pending = missing.filter((m) => !answeredSet.has(m))
-    if (pending.length === 0) return null
-
-    // Prefer core intake order, then planner priority.
+    if (!pending.length) return null
+    // Prefer origin over dates for value-first explore flows.
     const ordered = [...pending].sort((a, b) => {
-      const ia = CORE_ORDER.indexOf(a)
-      const ib = CORE_ORDER.indexOf(b)
-      const pa = ia === -1 ? 999 : ia
-      const pb = ib === -1 ? 999 : ib
-      return pa - pb
+      const order = ['destination', 'origin', 'adults', 'dates', 'budget']
+      return (order.indexOf(a) === -1 ? 99 : order.indexOf(a))
+        - (order.indexOf(b) === -1 ? 99 : order.indexOf(b))
     })
+    return this.forSlot(ordered[0]!, slots)
+  }
 
-    const planned = this.planner.nextQuestion(ordered, slots)
-    const slot = planned?.slot ?? ordered[0]!
-    const base = planned ?? {
-      slot,
-      priority: 50,
-      questionAr: 'هل يمكنك توضيح هذه النقطة؟',
-      questionEn: 'Could you clarify this point?',
-    }
-    const why = WHY[slot]
-
-    return {
-      slot,
-      priority: base.priority,
-      questionAr: base.questionAr,
-      questionEn: base.questionEn,
-      whyAr: why.ar,
-      whyEn: why.en,
-    }
+  private isPlanSlot(slot: string): slot is TravelPlanSlotKey {
+    return [
+      'origin',
+      'destination',
+      'dates',
+      'flexibleDates',
+      'adults',
+      'children',
+      'cabin',
+      'budget',
+      'hotelPreference',
+      'transportation',
+      'activities',
+      'visa',
+      'language',
+      'currency',
+      'specialRequests',
+    ].includes(slot)
   }
 }
 
 export function createQuestionGenerator(planner?: QuestionPlanner): QuestionGenerator {
   return new QuestionGenerator(planner)
 }
+
+export type { ClarificationTier }

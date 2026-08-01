@@ -1,6 +1,6 @@
 /**
  * Sprint 85 — Conversation Manager & Response Generator public API.
- * Feature flag: `ai.brain.v1` (OFF by default).
+ * Value Before Questions. Feature flag: `ai.brain.v1` (OFF by default).
  */
 
 export {
@@ -15,9 +15,19 @@ export {
   type ConversationManagerInput,
   type ConversationManagerResult,
   type ConversationTurnRecord,
+  type ConversationAssumption,
+  type ConversationValueItem,
+  type ConversationDecisionModel,
+  type ConversationStage,
+  type ClarificationTier,
+  type ConfidenceBand,
 } from './types'
 
-export { ClarificationPolicy, createClarificationPolicy } from './ClarificationPolicy'
+export {
+  ClarificationPolicy,
+  createClarificationPolicy,
+  DEFAULT_MAX_QUESTIONS_PER_TURN,
+} from './ClarificationPolicy'
 export { QuestionGenerator, createQuestionGenerator } from './QuestionGenerator'
 export { ResponseGenerator, createResponseGenerator } from './ResponseGenerator'
 export { ConfidenceEngine, createConfidenceEngine } from './ConfidenceEngine'
@@ -34,6 +44,13 @@ export {
   ConversationExplainability,
   createConversationExplainability,
 } from './ConversationExplainability'
+export { AssumptionEngine, createAssumptionEngine } from './AssumptionEngine'
+export { ValueFirstPlanner, createValueFirstPlanner } from './ValueFirstPlanner'
+export {
+  normalizeToolMissingFields,
+  pickSingleToolField,
+  type ToolMissingField,
+} from './ToolMissingFields'
 export {
   ConversationManager,
   createConversationManager,
