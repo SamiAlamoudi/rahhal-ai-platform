@@ -198,6 +198,25 @@ export {
   type TripMemorySnapshot,
 } from './preview'
 
+/** Sprint 88 Task 4 — golden evaluation skeleton (test harness; not production wiring). */
+export {
+  GOLDEN_EVAL_CONTRACT_VERSION,
+  GOLDEN_SCENARIOS,
+  getGoldenScenario,
+  evaluateGoldenScenario,
+  evaluateGoldenSuite,
+  G01_VALUE_FIRST,
+  G02_ZERO_QUESTIONS,
+  G03_MULTI_TURN_REFINE,
+  G04_BOOKING_DEFERRAL,
+  G05_SAFE_FALLBACK,
+  type GoldenScenario,
+  type GoldenScenarioId,
+  type GoldenEvaluationResult,
+  type GoldenSuiteResult,
+  type GoldenEvaluateOptions,
+} from './eval'
+
 /** Sprint 88 Task 2 — contracts / interfaces only (no domain execute). */
 export {
   DOMAIN_INTELLIGENCE_CONTRACT_VERSION,

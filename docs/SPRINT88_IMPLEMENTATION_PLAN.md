@@ -94,19 +94,23 @@ Establish the **minimal scaffolding** for Travel Intelligence under the existing
 | Depends on | ADD §5, §13.3, §14 |
 | Unlocks | Sprint 90+ implementations |
 
-### Task 5 — Golden evaluation framework skeleton
-**Effort:** M (relative 8)
+### Task 4 — Golden evaluation framework skeleton
+> User Task 4 (was plan Task 5). Plan Task 4 interfaces remain folded into Task 2.  
+**Effort:** M (relative 8)  
+**Status:** Complete (awaiting review; do not start shadow Task 5 without approval)
 
 | Item | Detail |
 | --- | --- |
 | Goal | Runnable golden conversation harness with fixtures; CI-safe; flag OFF by default |
-| Work | Fixture format (user turns, expected: question budget ≤1, no re-ask, value-first present, early-return meta); runner script/test file; 3–5 seed goldens (Morocco refine, enough-info zero questions, booking-deferral, fallback-on-throw); docs |
-| Out | Not full domain coverage (that’s 90–94) |
-| Depends on | Tasks 2–3 for stable contracts; Task 1 for early-return expectations |
+| Work | `src/lib/brain/v1/eval/*` contracts + runner + G01–G05 fixtures; `npm run brain-eval:verify`; docs |
+| Out | Not full domain coverage (that’s 90–94); no production wiring; no Search Handoff |
+| Depends on | Tasks 1–3 complete |
 | Unlocks | Quality gate for later sprints |
+| Artifacts | `src/lib/brain/v1/eval/`; `docs/SPRINT88_GOLDEN_EVALUATIONS.md`; `src/lib/__tests__/sprint88.goldenEval.task4.test.ts` |
 
-### Task 6 — Shadow telemetry skeleton
-**Effort:** M (relative 5)
+### Task 5 — Shadow telemetry skeleton
+**Effort:** M (relative 5)  
+**Status:** Not started
 
 | Item | Detail |
 | --- | --- |
