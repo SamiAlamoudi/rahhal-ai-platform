@@ -14,8 +14,8 @@
 | IntentExtractor | `src/lib/brain/v1/understanding/IntentExtractor.ts` | Consultant intents + legacy BrainV1Intent map |
 | EntityExtractor (provenanced) | `src/lib/brain/v1/understanding/EntityExtractor.ts` | Provenance/confidence facts over foundation extractor |
 | ReferenceResolver | `src/lib/brain/v1/understanding/ReferenceResolver.ts` | Anaphora / relative refs; ambiguity without invention |
-| ConversationState | `src/lib/brain/v1/understanding/ConversationState.ts` | Brain cognitive state ↔ PreviewConversationStage |
-| MemoryManager | `src/lib/brain/v1/understanding/MemoryManager.ts` | Facade over Sprint 88 Working/Preference/Trip adapters |
+| ConversationState | `src/lib/brain/v1/understanding/ConversationState.ts` | Brain cognitive state ↔ PreviewConversationStage; `knownSlots` / `supersededFields` |
+| MemoryManager | `src/lib/brain/v1/understanding/MemoryManager.ts` | Facade over Sprint 88 adapters; `preserveOnAbort`; correction provenance |
 | understandTurn | `src/lib/brain/v1/understanding/understandTurn.ts` | Intent → Entity → Reference → State pipeline |
 | BrainRouter+ | `src/lib/brain/v1/preview/BrainRouter.ts` | Runs understanding when preview ON; populates contract meta |
 
@@ -71,9 +71,10 @@ npm run lint
 - `src/lib/brain/v1/index.ts` / `preview/index.ts` exports
 - `src/lib/agent/types.ts` (`brainV1Preview.understanding` meta)
 - `src/lib/__tests__/sprint89.phase1.understanding.test.ts`
+- `src/lib/__tests__/sprint89.phase1.corrections.test.ts`
 - `src/lib/__tests__/sprint88.previewContracts.task2.test.ts`
 - `package.json` (`sprint89-phase1:verify`)
-- Spec baseline docs (committed with Phase 1)
+- Spec baseline docs + `docs/SPRINT89_PHASE1_NOTES.md`
 
 ---
 
