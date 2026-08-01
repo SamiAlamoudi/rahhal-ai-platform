@@ -80,7 +80,7 @@ describe('Sprint 88 Task 2 — Preview + domain contracts', () => {
       expect(blocked.missingFields).toEqual(['dates'])
     })
 
-    it('BrainRouter success path unchanged: toolBatch null, no new meta required', () => {
+    it('BrainRouter success path: toolBatch null; Phase 1 may populate contract meta (still no search)', () => {
       const decision = routeBrainPreviewTurn({
         userText: 'I want to travel to Morocco.',
         locale: 'en',
@@ -93,9 +93,13 @@ describe('Sprint 88 Task 2 — Preview + domain contracts', () => {
       expect(decision.path).toBe('brain')
       if (decision.path !== 'brain') return
       expect(decision.result.toolBatch).toBeNull()
-      // Contract fields remain optional / unset — no runtime wiring in Task 2.
-      expect(decision.result.meta.brainV1Preview?.contractsVersion).toBeUndefined()
-      expect(decision.result.meta.brainV1Preview?.searchHandoffHint).toBeUndefined()
+      // Sprint 89 Phase 1 populates Preview Orchestrator meta; Search Handoff stays locked.
+      expect(decision.result.meta.brainV1Preview?.contractsVersion).toBe(
+        PREVIEW_ORCHESTRATOR_CONTRACTS_VERSION,
+      )
+      expect(decision.result.meta.brainV1Preview?.searchHandoffHint?.kind).toBe(
+        'early_return_locked',
+      )
     })
   })
 
