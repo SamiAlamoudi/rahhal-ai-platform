@@ -134,7 +134,15 @@ export class ProvenancedEntityExtractor {
       const confidence = confidenceForNewFact(field, text)
       const kind = kindForFact(confidence)
       // Hard rule: never label assumption here — AssumptionEngine is Phase 2.
-      const safeKind: EntityFactKind = kind === 'assumption' ? 'inferred' : kind
+      let safeKind: EntityFactKind = kind === 'assumption' ? 'inferred' : kind
+      // Prior non-empty value replaced → corrected (user wins).
+      if (prev != null && prev !== '' && !valuesEqual(next, prev)) {
+        safeKind = 'corrected'
+        if (confidence.level !== 'confirmed') {
+          confidence.level = 'confirmed'
+          confidence.score = Math.max(confidence.score ?? 0.9, 0.9)
+        }
+      }
       facts.push({
         field,
         value: next,
@@ -159,6 +167,23 @@ export class ProvenancedEntityExtractor {
           })
         }
       }
+    }
+
+    // Explicit clear: correction removed end date — emit a corrected null fact.
+    const prevEnd = prior?.travelDates?.end ?? null
+    if (
+      prevEnd
+      && entities.travelDates.end == null
+      && revisedFields.includes('travelDates.start')
+    ) {
+      revisedFields.push('travelDates.end')
+      facts.push({
+        field: 'travelDates.end',
+        value: null,
+        kind: 'corrected',
+        confidence: { level: 'confirmed', score: 0.95 },
+        evidence: text.trim().slice(0, 120),
+      })
     }
 
     return {

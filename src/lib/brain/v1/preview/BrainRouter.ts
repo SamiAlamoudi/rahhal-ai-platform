@@ -216,13 +216,20 @@ export function routeBrainPreviewTurn(input: BrainRouterInput): BrainRouterDecis
         },
       })
 
+      const abort = understanding.intent.primaryIntent === 'abort'
       const applied = memoryManager.applyEntityFacts(memory, understanding.entities.facts, {
         planId: memory.tripPlan?.id ?? null,
+        preserveOnAbort: abort,
       })
-      memory = applied.memory
-      provenance = applied.provenance
-      // Soft defaults only fill empty slots; never overwrite user facts.
-      memory = memoryManager.applyPreferenceDefaults(memory)
+      // Abort must not mutate confirmed trip memories.
+      if (!abort) {
+        memory = applied.memory
+        provenance = applied.provenance
+        // Soft defaults only fill empty slots; never overwrite user facts.
+        memory = memoryManager.applyPreferenceDefaults(memory)
+      } else {
+        provenance = memoryManager.getProvenance()
+      }
     }
 
     const req = memory.requirements

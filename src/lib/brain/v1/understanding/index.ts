@@ -35,6 +35,9 @@ export {
   mapPreviewStageToBrainState,
   createConversationStateSnapshot,
   advanceUnderstandingState,
+  emptyKnownSlots,
+  knownSlotsFromEntities,
+  mergeKnownSlots,
 } from './ConversationState'
 export {
   UNDERSTANDING_MEMORY_MANAGER_VERSION,

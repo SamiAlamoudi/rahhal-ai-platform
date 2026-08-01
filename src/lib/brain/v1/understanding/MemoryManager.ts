@@ -43,16 +43,17 @@ function factToSlotPatch(facts: ExtractedEntityFact[]): WorkingSlotPatch {
   for (const fact of facts) {
     switch (fact.field) {
       case 'destination':
-        patch.destination = String(fact.value)
+        if (fact.value != null) patch.destination = String(fact.value)
         break
       case 'origin':
-        patch.origin = String(fact.value)
+        if (fact.value != null) patch.origin = String(fact.value)
         break
       case 'travelDates.start':
-        patch.startDate = fact.value as string | null
+        // Allow null clears on correction.
+        patch.startDate = (fact.value as string | null) ?? null
         break
       case 'travelDates.end':
-        patch.endDate = fact.value as string | null
+        patch.endDate = (fact.value as string | null) ?? null
         break
       case 'adults':
       case 'travelerCount':
@@ -65,10 +66,10 @@ function factToSlotPatch(facts: ExtractedEntityFact[]): WorkingSlotPatch {
         if (typeof fact.value === 'number') patch.budgetAmount = fact.value
         break
       case 'currency':
-        patch.budgetCurrency = String(fact.value)
+        if (fact.value != null) patch.budgetCurrency = String(fact.value)
         break
       case 'cabinClass':
-        patch.cabinPreference = String(fact.value)
+        if (fact.value != null) patch.cabinPreference = String(fact.value)
         break
       default:
         break
@@ -120,16 +121,31 @@ export class UnderstandingMemoryManager {
   }
 
   /**
-   * Apply user/inferred entity facts into AgentMemory via WorkingMemoryAdapter.
+   * Apply user/inferred/corrected entity facts into AgentMemory via WorkingMemoryAdapter.
    * Rejects assumption→confirmed promotion and defers bare assumptions to Phase 2.
+   * Abort mode is a pure no-op that preserves confirmed memories.
    */
   applyEntityFacts(
     memory: AgentMemory,
     facts: ExtractedEntityFact[],
-    options?: { planId?: string | null; updatedAt?: string },
+    options?: {
+      planId?: string | null
+      updatedAt?: string
+      /** When true, leave memory + provenance untouched (cancel/abort intent). */
+      preserveOnAbort?: boolean
+    },
   ): UnderstandingMemoryApplyResult {
     const applied: MemoryFactProvenance[] = []
     const rejected: Array<{ field: string; reason: string }> = []
+
+    if (options?.preserveOnAbort) {
+      return {
+        memory,
+        provenance: { ...this.provenance },
+        applied,
+        rejected: facts.map((f) => ({ field: f.field, reason: 'abort_preserves_memory' })),
+      }
+    }
 
     const accepted: ExtractedEntityFact[] = []
     for (const fact of facts) {
@@ -152,7 +168,21 @@ export class UnderstandingMemoryManager {
       return { memory, provenance: { ...this.provenance }, applied, rejected }
     }
 
-    // Destination change invalidates prior trip-scoped offers/selections.
+    // Capture prior slot values before any invalidation (for correction provenance).
+    const priorSlotValues: Record<string, unknown> = {
+      destination: memory.requirements.destination,
+      origin: memory.requirements.origin,
+      startDate: memory.requirements.startDate,
+      endDate: memory.requirements.endDate,
+      travelers: memory.requirements.travelers,
+      children: memory.requirements.children,
+      budgetAmount: memory.requirements.budgetAmount,
+      budgetCurrency: memory.requirements.budgetCurrency,
+      cabinPreference: memory.requirements.cabinPreference,
+    }
+    const priorProvenanceSnapshot = { ...this.provenance }
+
+    // Destination change invalidates prior trip-scoped offers/selections (not traveler prefs).
     let base = memory
     if (
       patch.destination
@@ -163,26 +193,42 @@ export class UnderstandingMemoryManager {
         priorProvenance: this.provenance,
       })
       base = invalidated.memory
+      // Keep non-trip provenance; destination rewritten below with correction metadata.
       this.provenance = invalidated.provenance
     }
 
-    const source =
-      accepted.every((f) => f.kind === 'user_provided')
-        ? 'user_stated'
-        : accepted.some((f) => f.kind === 'user_provided')
-          ? 'user_stated'
-          : 'system'
-
     const scores = accepted.map((f) => f.confidence.score ?? 0.7)
     const confidence = scores.length ? Math.min(...scores) : 0.7
+    const updatedAt = options?.updatedAt ?? new Date().toISOString()
 
     const result = this.working.applyIncremental(base, patch, {
-      source,
+      source: 'user_stated',
       planId: options?.planId ?? base.tripPlan?.id ?? null,
       confidence,
-      updatedAt: options?.updatedAt ?? new Date().toISOString(),
+      updatedAt,
       priorProvenance: this.provenance,
     })
+
+    // Annotate corrections with previousValue for provenance integrity.
+    for (const key of Object.keys(patch) as Array<keyof typeof patch>) {
+      const nextFact = result.provenance[key]
+      if (!nextFact) continue
+      const previousValue =
+        priorProvenanceSnapshot[key]?.value ?? priorSlotValues[key] ?? undefined
+      const changed =
+        previousValue !== undefined
+        && previousValue !== null
+        && previousValue !== ''
+        && previousValue !== nextFact.value
+      result.provenance[key] = {
+        ...nextFact,
+        source: 'user_stated',
+        reversible: false,
+        updatedAt,
+        ...(changed ? { previousValue, corrected: true } : {}),
+      }
+    }
+
     this.provenance = result.provenance
     for (const key of Object.keys(patch)) {
       const fact = result.provenance[key]

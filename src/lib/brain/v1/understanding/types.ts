@@ -121,6 +121,18 @@ export type ReferenceResolverResult = {
   ambiguous: ResolvedReference[]
 }
 
+/** Compact known trip slots tracked in ConversationState (Phase 1). */
+export type ConversationKnownSlots = {
+  destination: string | null
+  origin: string | null
+  startDate: string | null
+  endDate: string | null
+  adults: number | null
+  children: number | null
+  travelerCount: number | null
+  budget: number | null
+}
+
 export type ConversationStateSnapshot = {
   contractVersion: typeof UNDERSTANDING_CONTRACT_VERSION
   brainState: BrainCognitiveState
@@ -131,6 +143,10 @@ export type ConversationStateSnapshot = {
   activeTripId: string | null
   locale: 'ar' | 'en'
   lastConsultantIntent: ConsultantIntent | null
+  /** Current known slot values after this turn’s understanding merge. */
+  knownSlots: ConversationKnownSlots
+  /** Fields whose prior values were removed/replaced this turn. */
+  supersededFields: string[]
 }
 
 export type UnderstandingTurnInput = {

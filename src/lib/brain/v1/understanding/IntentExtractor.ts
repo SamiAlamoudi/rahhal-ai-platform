@@ -37,8 +37,9 @@ const CONSULTANT_RULES: ConsultantRule[] = [
     patterns: [
       /\binstead\b/,
       /\bactually\b/,
-      /\bchange (?:it |the )?(?:to|destination|dates?|origin)\b/,
-      /بدل|صرت أبغى|صرت ابي|مو .+ بدل|غير وجهة|غيّر|ليس .+ بل|لا،?\s*مو/,
+      /\bmake it\b/,
+      /\bchange (?:it |the )?(?:to|destination|dates?|origin|travelers?|adults?)\b/,
+      /بدل|صرت أبغى|صرت ابي|مو .+ بدل|غير وجهة|غيّر|غير التاريخ|ليس .+ بل|لا،?\s*مو/,
     ],
     confidence: 0.92,
     isCorrection: true,

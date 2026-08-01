@@ -40,6 +40,7 @@
 | --- | --- |
 | Unit — Intent / Entity / Reference / State / Memory | `sprint89.phase1.understanding.test.ts` |
 | Contract — understanding pipeline + BrainRouter meta | same file |
+| Hardening — corrections / abort / stale refs / provenance | `sprint89.phase1.corrections.test.ts` |
 | Regression — Sprint 88 preview contracts | `sprint88.previewContracts.task2.test.ts` (updated expectations) |
 | Regression — Sprint 86 preview router | `brainPreview.sprint86.test.ts` via verify script |
 
@@ -51,6 +52,13 @@ npm run test:run
 npm run typecheck
 npm run lint
 ```
+
+### Correction hardening (pre-merge)
+
+- Destination / dates / traveler corrections override priors (`kind: corrected`, ConversationState `supersededFields`)
+- ReferenceResolver ignores stale `recentTexts` on correction; never re-applies conflicting refs
+- Abort/cancel proposes no memory writes; `preserveOnAbort` keeps confirmed memories
+- Provenance records `previousValue` + `corrected` after overrides
 
 ---
 

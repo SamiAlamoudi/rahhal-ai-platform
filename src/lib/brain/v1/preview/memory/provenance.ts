@@ -30,6 +30,13 @@ export type MemoryFactProvenance<T = unknown> = {
   /** Trip scope; null for preference / cross-trip facts */
   planId: string | null
   reversible: boolean
+  /**
+   * Sprint 89 Phase 1 hardening — prior value replaced by a user correction.
+   * Optional; absence means first write or non-correction update.
+   */
+  previousValue?: unknown
+  /** True when this fact superseded a different prior value in-session. */
+  corrected?: boolean
 }
 
 export type MemoryProvenanceMap = Record<string, MemoryFactProvenance>
@@ -60,6 +67,8 @@ export function createMemoryFactProvenance<T>(input: {
   planId?: string | null
   reversible?: boolean
   updatedAt?: string
+  previousValue?: unknown
+  corrected?: boolean
 }): MemoryFactProvenance<T> {
   return {
     field: input.field,
@@ -69,6 +78,8 @@ export function createMemoryFactProvenance<T>(input: {
     updatedAt: input.updatedAt ?? new Date(0).toISOString(),
     planId: input.planId ?? null,
     reversible: input.reversible ?? input.source === 'assumed',
+    ...(input.previousValue !== undefined ? { previousValue: input.previousValue } : {}),
+    ...(input.corrected ? { corrected: true } : {}),
   }
 }
 
