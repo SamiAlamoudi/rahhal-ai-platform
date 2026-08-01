@@ -136,6 +136,10 @@ npm run brain-v3:verify
 npm run typecheck && npm run lint && npm run build
 ```
 
+## Follow-on
+
+Sprint 85 adds the Tool Execution Engine — see `docs/SPRINT85_TOOL_EXECUTION.md`.
+
 ## Out of scope
 
 - Enabling `ai.brain.v1`
