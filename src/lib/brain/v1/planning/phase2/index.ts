@@ -1,7 +1,7 @@
 /**
  * Sprint 89 Phase 2 — planning facade exports.
- * T2–T7: MissingInfo → Assumptions → Confidence → Clarification → ToolDecision → PlanningHints.
- * No BrainRouter / CM wiring.
+ * T2–T8: … → PlanningHints → BrainRouterPlanningAdapter (normalize only).
+ * No BrainRouter / CM runtime wiring.
  */
 
 export {
@@ -93,3 +93,14 @@ export {
   type PlanningHints,
   type PlanningHintsBuilderInput,
 } from './PlanningHintsBuilder'
+
+export {
+  BRAIN_ROUTER_PLANNING_ADAPTER_VERSION,
+  BrainRouterPlanningAdapter,
+  createBrainRouterPlanningAdapter,
+  adaptPlanningHintsForBrainRouter,
+  assertBrainRouterPlanningInvariants,
+  type BrainRouterClarificationSlice,
+  type BrainRouterPlanningResult,
+  type BrainRouterPlanningAdapterInput,
+} from './BrainRouterPlanningAdapter'
