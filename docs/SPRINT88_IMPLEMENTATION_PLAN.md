@@ -41,15 +41,18 @@ Establish the **minimal scaffolding** for Travel Intelligence under the existing
 ## 1. Task breakdown
 
 ### Task 1 — Search Handoff ADR + early-return lock tests
-**Effort:** M (relative 5)
+**Effort:** M (relative 5)  
+**Status:** Complete (awaiting review before Task 2)
 
 | Item | Detail |
 | --- | --- |
 | Goal | Choose Option A (soft-enrich then continue) vs Option B (deferred search stage); document decision; freeze today’s early-return as normative until Sprint 90 |
-| Work | Write `docs/adr/ADR-SPRINT88-SEARCH-HANDOFF.md`; add tests asserting preview success → `toolBatch: null` and no search path entry; document constraints (reuse existing tools + `src/core/providerGateway`) |
+| Work | Write `docs/adr/ADR-SPRINT88-SEARCH-HANDOFF.md`; add tests asserting preview success → `toolBatch: null` and no search/gateway; document constraints (reuse existing tools + `src/core/providerGateway`) |
+| **Hard gate (required)** | If the conversation does not yet contain sufficient information, the planner **must ask a clarification question first** and **MUST NOT** invoke Search or any Provider Gateway |
 | Out | No handoff implementation in `planTurn` |
 | Depends on | Architecture ADD §2.5 (none code) |
 | Unlocks | Tasks 5–6 clarity; Sprint 90 |
+| Artifacts | `docs/adr/ADR-SPRINT88-SEARCH-HANDOFF.md`; `src/lib/__tests__/sprint88.searchHandoff.task1.test.ts` |
 
 ### Task 2 — Preview Orchestrator contract evolution (BrainRouter+)
 **Effort:** M (relative 5)
