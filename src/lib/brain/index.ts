@@ -32,6 +32,11 @@ export {
   createAgentOrchestrator,
   BRAIN_AGENT_ORCHESTRATOR_VERSION,
   type BrainAgentOrchestratorResult,
+  runTravelPlanningTurn,
+  createTravelPlanningEngine,
+  TRAVEL_PLANNING_ENGINE_VERSION,
+  type TravelPlanningTurnResult,
+  type TravelPlan as BrainV1TravelPlan,
 } from './v1'
 export type {
   RahhalBrainHandle,
