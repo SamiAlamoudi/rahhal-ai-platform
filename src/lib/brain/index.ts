@@ -37,6 +37,10 @@ export {
   TRAVEL_PLANNING_ENGINE_VERSION,
   type TravelPlanningTurnResult,
   type TravelPlan as BrainV1TravelPlan,
+  runToolExecution,
+  createToolExecutionEngine,
+  TOOL_EXECUTION_ENGINE_VERSION,
+  type ToolExecutionResponse,
 } from './v1'
 export type {
   RahhalBrainHandle,

@@ -93,3 +93,19 @@ export {
   type PlanningConversationState,
   type ItinerarySkeleton,
 } from './planning'
+
+export {
+  TOOL_EXECUTION_ENGINE_VERSION,
+  createToolExecutionEngine,
+  runToolExecution,
+  buildDefaultTripDecisions,
+  createToolExecutor,
+  createExecutionSimulator,
+  createDependencyResolver,
+  createResultMerger,
+  createCancellationToken,
+  type ToolDecision,
+  type ToolExecutionResponse,
+  type ExecutableToolType,
+  type UnifiedToolResult,
+} from './execution'
