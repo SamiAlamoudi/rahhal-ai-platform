@@ -128,6 +128,10 @@ npm run brain-v2:verify
 npm run typecheck && npm run lint && npm run build
 ```
 
+## Follow-on
+
+Sprint 83 adds the Agent Orchestrator on top of this island — see `docs/SPRINT83_AGENT_ORCHESTRATOR.md`.
+
 ## Out of scope
 
 - Enabling `ai.brain.v1`

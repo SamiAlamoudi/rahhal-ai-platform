@@ -147,11 +147,11 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     id: 'ai.brain.v1',
     name: 'Rahhal AI Brain Foundation v1',
     description:
-      'Sprint 81/82 — AI Travel Consultant brain foundation + reasoning engine (ConversationPlanner, IntentDetector, EntityExtractor, MemoryManager, ToolRegistry/ToolDecisionEngine, TravelReasoner, RecommendationEngine, ClarificationPlanner, ExplainabilityEngine, SafetyLayer). Default OFF. Not the production turn owner; distinct from ai.rahhal_brain and frozen brain.* flags.',
+      'Sprint 81/82/83 — AI Travel Consultant brain foundation + reasoning engine + Agent Orchestrator (registry, lifecycle, dependency graph, parallel agents, retry/telemetry/explainability). Default OFF. Not the production turn owner; distinct from ai.rahhal_brain and frozen brain.* flags.',
     lifecycle: 'experimental',
     enabled: false,
     notes:
-      'Product alias: brain_v1. Additive under src/lib/brain/v1. Sprint 82 reasoning remains behind this flag — no UI/Voice/planTurn wiring. When OFF, runBrainV1Turn returns enabled:false with no side effects.',
+      'Product alias: brain_v1. Additive under src/lib/brain/v1 (+ agents/). Sprint 83 orchestrator remains behind this flag — no UI/Voice/planTurn/provider wiring. When OFF, runBrainV1Turn / runBrainAgentOrchestrator return enabled:false with no side effects.',
   },
   {
     id: 'ai.autonomous_agent',
