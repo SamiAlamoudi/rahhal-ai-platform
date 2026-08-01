@@ -45,6 +45,7 @@ export {
   createUnderstandingMemoryManager,
   type UnderstandingMemorySnapshot,
   type UnderstandingMemoryApplyResult,
+  type AssumedMemoryWrite,
 } from './MemoryManager'
 export {
   understandTurn,
