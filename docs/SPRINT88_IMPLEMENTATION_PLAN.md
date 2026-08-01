@@ -56,8 +56,9 @@ Establish the **minimal scaffolding** for Travel Intelligence under the existing
 
 ### Task 2 — Preview contracts + Domain / Ranking / NormalizedOffer interfaces
 **Effort:** M (relative 5)  
-**Status:** In progress / complete pending review  
-**Includes plan Task 4 interface work** (combined per kickoff approval)
+**Status:** Complete (awaiting review before Task 3)  
+**Includes plan Task 4 interface work** (combined per kickoff approval)  
+**Checkpoint prior:** `sprint88-task1-complete`
 
 | Item | Detail |
 | --- | --- |

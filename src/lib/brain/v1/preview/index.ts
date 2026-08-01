@@ -25,3 +25,25 @@ export {
   type SearchHandoffHint,
   type PreviewOrchestratorTurnContract,
 } from '../contracts/previewContracts'
+
+/** Sprint 88 Task 3 — memory adapters (not wired into BrainRouter/planTurn). */
+export {
+  MEMORY_PROVENANCE_CONTRACT_VERSION,
+  WORKING_MEMORY_ADAPTER_VERSION,
+  USER_PREFERENCE_ADAPTER_VERSION,
+  TRIP_MEMORY_ADAPTER_VERSION,
+  WorkingMemoryAdapter,
+  UserPreferenceAdapter,
+  TripMemoryAdapter,
+  createWorkingMemoryAdapter,
+  createUserPreferenceAdapter,
+  createTripMemoryAdapter,
+  createMemoryFactProvenance,
+  resolveProvenanceConflict,
+  type MemoryProvenanceSource,
+  type MemoryFactProvenance,
+  type MemoryProvenanceMap,
+  type WorkingMemorySnapshot,
+  type UserPreferenceSnapshot,
+  type TripMemorySnapshot,
+} from './memory'
