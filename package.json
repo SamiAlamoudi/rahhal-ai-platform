@@ -51,6 +51,7 @@
     "brain-eval:verify": "vitest run src/lib/__tests__/sprint88.goldenEval.task4.test.ts",
     "brain-shadow:verify": "vitest run src/lib/__tests__/sprint88.shadowTelemetry.task5.test.ts",
     "sprint89-phase1:verify": "vitest run src/lib/__tests__/sprint89.phase1.understanding.test.ts src/lib/__tests__/sprint89.phase1.corrections.test.ts src/lib/__tests__/sprint88.previewContracts.task2.test.ts src/lib/__tests__/brainPreview.sprint86.test.ts",
+    "sprint89-phase2:verify": "vitest run src/lib/__tests__/sprint89.phase2.missingInformation.test.ts src/lib/__tests__/sprint89.phase1.understanding.test.ts src/lib/__tests__/sprint89.phase1.corrections.test.ts",
     "budget:verify": "vitest run src/lib/__tests__/budgetIntelligence.sprint75.test.ts",
     "personalization:verify": "vitest run src/lib/__tests__/travelerPersonalization.sprint76.test.ts",
     "optimizer:verify": "vitest run src/lib/__tests__/tripOptimizer.sprint77.test.ts",
