@@ -80,6 +80,7 @@ import { isIntegrationJourneyEnabled } from './integrationJourney/feature'
 import type { JourneyResult } from './integrationJourney/types'
 import { isConversationIntelligenceEnabled } from './conversationIntelligence/feature'
 import type { ConversationIntelligenceResult } from './conversationIntelligence'
+import { isBrainV1PreviewEnabled } from '../brain/v1/preview/feature'
 import { isTravelerPersonalizationEnabled } from './travelerPersonalization/feature'
 import type { TravelerPersonalizationResult } from './travelerPersonalization'
 import { isTripOptimizerEnabled } from './tripOptimizer/feature'
@@ -319,6 +320,13 @@ export interface TravelAgentServiceOptions {
    * Default: FeatureRegistry `ai.conversation_intelligence` (OFF).
    */
   conversationIntelligenceEnabled?: boolean
+  /**
+   * Sprint 86 — Brain v1 Preview Integration (safe pilot).
+   * Default: FeatureRegistry `ai.brain.v1.preview` (OFF). Production hard-blocked.
+   * When ON, BrainRouter may orchestrate Conversation Manager; on any failure
+   * planTurn continues with the current planner (no user-facing errors).
+   */
+  brainV1PreviewEnabled?: boolean
   /**
    * Sprint 76 — Traveler Personalization Intelligence (profile learning, ranking).
    * Default: FeatureRegistry `ai.traveler_personalization` (ON).
@@ -1826,6 +1834,34 @@ export function createTravelAgentService(
           tripPlan: memory.tripPlan,
           meta,
           toolBatch: null,
+        }
+      }
+
+      // Sprint 86 — Brain v1 Preview Integration (default OFF).
+      // Soft pilot inside planTurn (sole turn owner). Production hard-blocked.
+      // Any Brain failure → silent fallback to the current planner.
+      // RC-2: load ConversationManager graph only when the preview flag is ON.
+      if (
+        !alphaJourneyCue
+        && isBrainV1PreviewEnabled({
+          enabled: options.brainV1PreviewEnabled,
+          bypassDeployGateForTests: options.brainV1PreviewEnabled === true,
+        })
+      ) {
+        try {
+          const { tryBrainV1PreviewTurn } = await import('../brain/v1/preview/BrainRouter')
+          const brainResult = tryBrainV1PreviewTurn({
+            userText,
+            locale: memory.locale === 'en' ? 'en' : 'ar',
+            conversationId: input.conversationId,
+            messages: input.messages,
+            memory,
+            enabled: true,
+            bypassDeployGateForTests: true,
+          })
+          if (brainResult) return brainResult
+        } catch {
+          // Never surface Brain errors — continue with current planner.
         }
       }
 

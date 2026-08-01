@@ -629,6 +629,20 @@ export interface AgentProviderMeta {
     streaming: boolean
   }
   /**
+   * Sprint 86 — Brain v1 Preview Integration snapshot.
+   * Present only when `ai.brain.v1.preview` handled the turn.
+   * Session is opaque ConversationManager state for multi-turn continuity.
+   */
+  brainV1Preview?: {
+    active: boolean
+    path: 'brain' | 'fallback'
+    version: string
+    questionCount: number
+    providedValue: boolean
+    intent: string | null
+    session: unknown
+  }
+  /**
    * @deprecated Removed in Conversation-First reset — experimental Phase 5 soft-enrich deleted.
    */
   llmBrain?: never
