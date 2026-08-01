@@ -634,15 +634,18 @@ export {
   type RankedConversationHotel,
 } from './integrationHotelSearch'
 
-/** Sprint 80 P1-3 / P1-4 — unified conversational provider layer + flight pilot (flags OFF by default) */
+/** Sprint 80 P1-3 / P1-4 / P2 — unified provider layer + flight pilot + E2E validation (flags OFF by default) */
 export {
   CONVERSATIONAL_PROVIDER_UNIFY_VERSION,
   CONVERSATIONAL_PROVIDER_UNIFY_FEATURE_ID,
   isConversationalProviderUnifyEnabled,
   LIVE_FLIGHT_PROVIDER_PILOT_FEATURE_ID,
   LIVE_FLIGHT_PROVIDER_PILOT_VERSION,
+  LIVE_FLIGHT_P2_VALIDATION_VERSION,
   isLiveFlightProviderPilotEnabled,
+  isPilotDeployTargetAllowed,
   runLiveFlightProviderPilot,
+  runLiveFlightValidation,
   runConversationalProviderSearch,
   runConversationalProviderToolSearch,
   createConversationalProviderRegistry,
@@ -652,6 +655,7 @@ export {
   type ConversationalTravelProvider,
   type UnifiedProviderRequest,
   type UnifiedProviderSearchResult,
+  type LiveFlightValidationResult,
 } from './conversationalProvider'
 
 /** Integration Sprint 4 — AI Trip Orchestrator */
