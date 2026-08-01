@@ -12,6 +12,7 @@ const DESTINATIONS: Array<{ keys: string[]; value: string }> = [
   { keys: ['fes', 'fez', 'فاس'], value: 'Fes' },
   { keys: ['casablanca', 'الدار البيضاء'], value: 'Casablanca' },
   { keys: ['morocco', 'المغرب', 'مغرب'], value: 'Morocco' },
+  { keys: ['turkey', 'turkiye', 'türkiye', 'تركيا'], value: 'Turkey' },
   { keys: ['dubai', 'دبي'], value: 'Dubai' },
   { keys: ['istanbul', 'اسطنبول', 'إسطنبول'], value: 'Istanbul' },
   { keys: ['paris', 'باريس'], value: 'Paris' },
@@ -38,6 +39,50 @@ function matchFirst(text: string, table: Array<{ keys: string[]; value: string }
     if (row.keys.some((k) => lower.includes(k.toLowerCase()) || text.includes(k))) return row.value
   }
   return null
+}
+
+/** All matching destinations in table order (specific cities before countries when ordered so). */
+function matchAll(text: string, table: Array<{ keys: string[]; value: string }>): string[] {
+  const lower = text.toLowerCase()
+  const hits: string[] = []
+  for (const row of table) {
+    if (row.keys.some((k) => lower.includes(k.toLowerCase()) || text.includes(k))) {
+      if (!hits.includes(row.value)) hits.push(row.value)
+    }
+  }
+  return hits
+}
+
+/**
+ * Prefer the destination the traveler is switching *to* when a refine/instead cue is present.
+ * Example: «صرت أبغى تركيا بدل المغرب» → Turkey (not Morocco).
+ */
+function pickDestination(
+  text: string,
+  lower: string,
+  priorDestination: string | null | undefined,
+): string | null {
+  const hits = matchAll(text, DESTINATIONS)
+  if (hits.length === 0) return null
+  if (hits.length === 1) return hits[0]!
+
+  const refine = hasRefineCue(text, lower)
+  if (refine) {
+    // Prefer token after بدل / instead / make it / change to.
+    const afterInstead =
+      /(?:بدل|instead(?: of)?|change (?:it )?to|make it|صرت أبغى|صرت ابي)\s+([^\s,.!?،]+)/i.exec(
+        text,
+      )
+    if (afterInstead?.[1]) {
+      const focused = matchFirst(afterInstead[1], DESTINATIONS)
+      if (focused) return focused
+    }
+    if (priorDestination) {
+      const next = hits.find((h) => h !== priorDestination)
+      if (next) return next
+    }
+  }
+  return hits[0]!
 }
 
 function parseIsoDate(text: string): string | null {
@@ -88,7 +133,9 @@ function hasDestinationCue(text: string, lower: string): boolean {
 }
 
 function hasRefineCue(text: string, lower: string): boolean {
-  return /actually|make it|change (?:it )?to|instead|focus on|switch to|only |بدل|خلها|خليها|اجعلها|اجعله|غيّر|غير وجهة|فقط/.test(lower)
+  return /actually|make it|change (?:it |the )?(?:to|dates?|destination|travelers?|adults?)|instead|focus on|switch to|only |بدل|خلها|خليها|اجعلها|اجعله|غيّر|غير وجهة|غير التاريخ|فقط/.test(
+    lower,
+  )
     || /بدل|خلها|خليها|اجعل/.test(text)
 }
 
@@ -103,7 +150,7 @@ export class EntityExtractor {
 
     const lower = text.toLowerCase()
 
-    const destination = matchFirst(text, DESTINATIONS)
+    const destination = pickDestination(text, lower, prior?.destination ?? entities.destination)
     if (destination && destination !== entities.origin) {
       const different = destination !== entities.destination
       const cue = hasDestinationCue(text, lower) || hasRefineCue(text, lower)
@@ -128,11 +175,20 @@ export class EntityExtractor {
     }
 
     const start = parseIsoDate(text)
-    if (start) entities.travelDates.start = start
     const range = /(\d{4}-\d{2}-\d{2}).{0,20}(\d{4}-\d{2}-\d{2})/.exec(text)
     if (range) {
       entities.travelDates.start = range[1] ?? entities.travelDates.start
       entities.travelDates.end = range[2] ?? entities.travelDates.end
+    } else if (start) {
+      entities.travelDates.start = start
+      // Correction with a single new date supersedes a prior end date.
+      if (
+        hasRefineCue(text, lower)
+        && prior?.travelDates?.start
+        && start !== prior.travelDates.start
+      ) {
+        entities.travelDates.end = null
+      }
     }
 
     if (/flexible|مرن|مرنة|أي وقت|anytime/.test(lower)) {

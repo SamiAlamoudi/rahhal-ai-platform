@@ -642,9 +642,9 @@ export interface AgentProviderMeta {
     intent: string | null
     session: unknown
     /**
-     * Sprint 88 Task 2 — optional Preview Orchestrator (BrainRouter+) contract fields.
-     * Not populated by BrainRouter yet; reserved for Sprint 90 soft-enrich / handoff.
-     * Absence must not change default-OFF or current early-return behavior.
+     * Sprint 88 Task 2 / Sprint 89 Phase 1 — Preview Orchestrator contract fields.
+     * Populated by BrainRouter when preview handles a turn (still early-return; no search).
+     * Absence must not change default-OFF behavior.
      */
     contractsVersion?: string
     stage?: string
@@ -655,6 +655,19 @@ export interface AgentProviderMeta {
       mustNotInvokeSearchOrGateway?: boolean
       eligible?: boolean
     }
+    /** Sprint 89 Phase 1 — structured understanding summary (no chain-of-thought). */
+    understanding?: {
+      contractVersion: string
+      consultantIntent: string
+      legacyIntent: string
+      brainState: string
+      entityFields: string[]
+      resolvedReferenceCount: number
+      ambiguousReferenceCount: number
+      isCorrection: boolean
+      isConfirmation: boolean
+    }
+    memoryProvenanceFields?: string[]
   }
   /**
    * @deprecated Removed in Conversation-First reset — experimental Phase 5 soft-enrich deleted.

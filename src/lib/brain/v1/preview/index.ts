@@ -44,7 +44,11 @@ export {
   type ShadowResultStatus,
 } from './telemetry'
 
-/** Sprint 88 Task 3 — memory adapters (not wired into BrainRouter/planTurn). */
+/**
+ * Sprint 88 Task 3 — memory adapters.
+ * Sprint 89 Phase 1 — used by UnderstandingMemoryManager inside BrainRouter
+ * when preview is enabled (still default OFF; no search/handoff).
+ */
 export {
   MEMORY_PROVENANCE_CONTRACT_VERSION,
   WORKING_MEMORY_ADAPTER_VERSION,

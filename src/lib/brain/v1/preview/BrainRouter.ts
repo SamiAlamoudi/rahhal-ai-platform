@@ -1,24 +1,38 @@
 /**
  * Sprint 86 — Brain Router (safe pilot).
+ * Sprint 89 Phase 1 — Understanding enrichment (Intent/Entity/Reference/Memory/State).
  *
  * IF preview flag OFF → current planner
- * IF preview flag ON  → Brain v1 Conversation Manager orchestration
+ * IF preview flag ON  → Understanding core + Conversation Manager orchestration
  * IF Brain throws     → automatic fallback to current planner (no user-facing errors)
  *
- * Orchestration only — reuses AssumptionEngine / ValueFirstPlanner /
- * ClarificationPolicy / ConversationMemory / TravelReasoner via ConversationManager.
+ * Still early-returns with toolBatch: null (no Search Handoff / provider execution).
+ * Flags remain OFF by default; production hard-block unchanged.
  */
 
 import type { AgentMemory, AgentProviderMeta } from '../../../agent/types'
 import type { TravelAgentTurnResult } from '../../../agent/travelAgentService'
 import type { ChatMessage } from '../../../chat/chatTypes'
+import {
+  PREVIEW_ORCHESTRATOR_CONTRACTS_VERSION,
+  earlyReturnLockedHandoffHint,
+  type PreviewConversationStage,
+  type SearchHandoffHint,
+} from '../contracts/previewContracts'
 import { runConversationManagerTurn } from '../conversation'
 import type { ConversationSession } from '../conversation/types'
+import {
+  createUnderstandingMemoryManager,
+  understandTurn,
+  type UnderstandingMemoryManager,
+  type UnderstandingTurnResult,
+} from '../understanding'
 import {
   BRAIN_V1_PREVIEW_VERSION,
   isBrainV1PreviewEnabled,
 } from './feature'
 import { extractBrainPreviewSession } from './sessionStore'
+import type { MemoryProvenanceMap } from './memory'
 
 export type BrainRouterPath = 'current' | 'brain' | 'fallback'
 
@@ -38,6 +52,10 @@ export type BrainRouterInput = {
   bypassDeployGateForTests?: boolean
   /** Injected for unit tests to force Brain failures. */
   runBrain?: typeof runConversationManagerTurn
+  /** Optional MemoryManager injection (tests). */
+  memoryManager?: UnderstandingMemoryManager
+  /** Disable understanding enrichment (tests / emergency). Default: enabled when preview runs. */
+  skipUnderstanding?: boolean
 }
 
 function mergeSlotsIntoMemory(
@@ -76,6 +94,17 @@ function mergeSlotsIntoMemory(
   return { ...memory, requirements: req }
 }
 
+function recentUserTexts(messages: ChatMessage[], limit = 6): string[] {
+  const out: string[] = []
+  for (let i = messages.length - 1; i >= 0 && out.length < limit; i -= 1) {
+    const m = messages[i]
+    if (m?.role === 'user' && typeof m.content === 'string' && m.content.trim()) {
+      out.push(m.content)
+    }
+  }
+  return out.reverse()
+}
+
 function buildBrainResult(input: {
   memory: AgentMemory
   reply: string
@@ -83,6 +112,10 @@ function buildBrainResult(input: {
   questionCount: number
   providedValue: boolean
   intent: string | null
+  stage: PreviewConversationStage
+  searchHandoffHint: SearchHandoffHint
+  understanding?: UnderstandingTurnResult | null
+  provenance?: MemoryProvenanceMap
 }): TravelAgentTurnResult {
   const memory = input.memory
   const meta: AgentProviderMeta = {
@@ -101,6 +134,23 @@ function buildBrainResult(input: {
       providedValue: input.providedValue,
       intent: input.intent,
       session: input.session,
+      contractsVersion: PREVIEW_ORCHESTRATOR_CONTRACTS_VERSION,
+      stage: input.stage,
+      searchHandoffHint: input.searchHandoffHint,
+      understanding: input.understanding
+        ? {
+            contractVersion: input.understanding.contractVersion,
+            consultantIntent: input.understanding.summary.consultantIntent,
+            legacyIntent: input.understanding.summary.legacyIntent,
+            brainState: input.understanding.summary.brainState,
+            entityFields: input.understanding.summary.entityFields,
+            resolvedReferenceCount: input.understanding.summary.resolvedReferenceCount,
+            ambiguousReferenceCount: input.understanding.summary.ambiguousReferenceCount,
+            isCorrection: input.understanding.intent.isCorrection,
+            isConfirmation: input.understanding.intent.isConfirmation,
+          }
+        : undefined,
+      memoryProvenanceFields: input.provenance ? Object.keys(input.provenance) : undefined,
     },
   }
   return {
@@ -128,7 +178,61 @@ export function routeBrainPreviewTurn(input: BrainRouterInput): BrainRouterDecis
   try {
     const run = input.runBrain ?? runConversationManagerTurn
     const priorSession = extractBrainPreviewSession(input.messages)
-    const req = input.memory.requirements
+    const memoryManager = input.memoryManager ?? createUnderstandingMemoryManager()
+
+    let memory = input.memory
+    let understanding: UnderstandingTurnResult | null = null
+    let provenance: MemoryProvenanceMap = {}
+
+    if (!input.skipUnderstanding) {
+      understanding = understandTurn({
+        text: input.userText,
+        locale: input.locale,
+        conversationId: input.conversationId,
+        source: 'text',
+        priorEntities: {
+          destination: memory.requirements.destination,
+          origin: memory.requirements.origin,
+          travelDates: {
+            start: memory.requirements.startDate,
+            end: memory.requirements.endDate,
+          },
+          adults: memory.requirements.travelers,
+          children: memory.requirements.children,
+          budget: memory.requirements.budgetAmount,
+          currency: memory.requirements.budgetCurrency,
+          cabinClass: memory.requirements.cabinPreference,
+          preferredAirline: memory.requirements.preferredAirline,
+          flexibleDates: memory.requirements.datesFlexible,
+        },
+        memoryHints: {
+          destination: memory.requirements.destination,
+          origin: memory.requirements.origin,
+          budgetAmount: memory.requirements.budgetAmount,
+          budgetCurrency: memory.requirements.budgetCurrency,
+          hotelPreference: memory.requirements.hotelPreference,
+          preferredAirline: memory.requirements.preferredAirline,
+          recentTexts: recentUserTexts(input.messages),
+        },
+      })
+
+      const abort = understanding.intent.primaryIntent === 'abort'
+      const applied = memoryManager.applyEntityFacts(memory, understanding.entities.facts, {
+        planId: memory.tripPlan?.id ?? null,
+        preserveOnAbort: abort,
+      })
+      // Abort must not mutate confirmed trip memories.
+      if (!abort) {
+        memory = applied.memory
+        provenance = applied.provenance
+        // Soft defaults only fill empty slots; never overwrite user facts.
+        memory = memoryManager.applyPreferenceDefaults(memory)
+      } else {
+        provenance = memoryManager.getProvenance()
+      }
+    }
+
+    const req = memory.requirements
     const brain = run(
       {
         text: input.userText,
@@ -156,10 +260,22 @@ export function routeBrainPreviewTurn(input: BrainRouterInput): BrainRouterDecis
       return { path: 'fallback', reason: 'empty_reply' }
     }
 
-    let memory = input.memory
     if (brain.knownSlots) {
       memory = mergeSlotsIntoMemory(memory, brain.knownSlots)
     }
+
+    const stage: PreviewConversationStage =
+      understanding?.state.previewStage
+      ?? (brain.session.stage === 'explore'
+        ? 'exploring'
+        : brain.session.stage === 'search'
+          ? 'searching'
+          : brain.session.stage === 'booking'
+            ? 'ready_for_booking'
+            : 'exploring')
+
+    // Phase 1: Search Handoff remains decision-only / early-return locked.
+    const searchHandoffHint = earlyReturnLockedHandoffHint()
 
     return {
       path: 'brain',
@@ -169,7 +285,11 @@ export function routeBrainPreviewTurn(input: BrainRouterInput): BrainRouterDecis
         session: brain.session,
         questionCount: brain.response.questionCount,
         providedValue: brain.response.providedValue,
-        intent: brain.intent,
+        intent: understanding?.summary.consultantIntent ?? brain.intent,
+        stage,
+        searchHandoffHint,
+        understanding,
+        provenance,
       }),
     }
   } catch (error) {
