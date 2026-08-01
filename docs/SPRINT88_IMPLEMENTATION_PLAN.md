@@ -56,7 +56,7 @@ Establish the **minimal scaffolding** for Travel Intelligence under the existing
 
 ### Task 2 — Preview contracts + Domain / Ranking / NormalizedOffer interfaces
 **Effort:** M (relative 5)  
-**Status:** Complete (awaiting review before Task 3)  
+**Status:** Complete  
 **Includes plan Task 4 interface work** (combined per kickoff approval)  
 **Checkpoint prior:** `sprint88-task1-complete`
 
@@ -70,15 +70,17 @@ Establish the **minimal scaffolding** for Travel Intelligence under the existing
 | Artifacts | `src/lib/brain/v1/contracts/`; `docs/SPRINT88_PREVIEW_CONTRACTS.md`; `src/lib/__tests__/sprint88.previewContracts.task2.test.ts` |
 
 ### Task 3 — Memory adapters (working / preference / trip)
-**Effort:** M (relative 8)
+**Effort:** M (relative 8)  
+**Status:** Complete (awaiting review before next task)
 
 | Item | Detail |
 | --- | --- |
 | Goal | Adapter layer mapping logical stores → AgentMemory + provenance; trip isolation on new `planId` |
-| Work | Adapter modules under preview/memory (or brain/v1 conversation adapters); provenance read/write helpers; trip-scope invalidation rules; reuse `src/lib/brain/memory/privacy.ts` for sanitization |
-| Out | No second Memory Fabric SoT; no new DB schema required in Sprint 88 |
-| Depends on | Task 2 contract shapes for session/meta |
+| Work | `src/lib/brain/v1/preview/memory/*` — Working / UserPreference / Trip adapters + provenance; reuse `privacy.ts` sanitize; **not wired** into BrainRouter/planTurn |
+| Out | No persistence / Supabase / DB; no second Memory Fabric SoT; no Brain execution changes |
+| Depends on | Task 2 complete |
 | Unlocks | Golden evals that assert memory continuity |
+| Artifacts | `src/lib/brain/v1/preview/memory/`; `docs/SPRINT88_MEMORY_ADAPTERS.md`; `src/lib/__tests__/sprint88.memoryAdapters.task3.test.ts` |
 
 ### Task 4 — Required interfaces only
 **Effort:** S–M (relative 5)  
