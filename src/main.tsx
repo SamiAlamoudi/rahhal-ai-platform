@@ -6,6 +6,7 @@ import { AppErrorBoundary } from './components/ops/AppErrorBoundary'
 import { runStartup } from './lib/ops'
 import { AuthProvider } from './lib/auth/AuthContext.tsx'
 import { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './lib/auth/ProtectedRoute.tsx'
+import { ProductBrainRoot } from './brain-ui/ProductBrainRoot'
 import type { NormalizedTravelOption } from './utils/searchOrchestrator'
 import type { ReasoningResult } from './utils/reasoningEngine'
 import type { TravelSearchRequest } from './utils/travelSearchRequest'
@@ -38,6 +39,13 @@ const SmartItineraryPage = lazy(() => import('./pages/SmartItineraryPage.tsx'))
 const SavedTrips = lazy(() => import('./pages/SavedTrips.tsx'))
 const Settings = lazy(() => import('./pages/Settings.tsx'))
 const ChatPage = lazy(() => import('./pages/ChatPage.tsx'))
+const VoicePage = lazy(() => import('./pages/VoicePage.tsx'))
+const ConversationPage = lazy(() => import('./pages/ConversationPage.tsx'))
+const RecommendationsPage = lazy(() => import('./pages/RecommendationsPage.tsx'))
+const PlanningPage = lazy(() => import('./pages/PlanningPage.tsx'))
+const TimelinePage = lazy(() => import('./pages/TimelinePage.tsx'))
+const ContinueTripPage = lazy(() => import('./pages/ContinueTripPage.tsx'))
+const ProfileRecommendationsPage = lazy(() => import('./pages/ProfileRecommendationsPage.tsx'))
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage.tsx'))
 const CheckoutReviewPage = lazy(() => import('./pages/CheckoutReviewPage.tsx'))
 const OrderCheckoutReviewPage = lazy(() => import('./pages/OrderCheckoutReviewPage.tsx'))
@@ -45,6 +53,8 @@ const CheckoutPaymentPage = lazy(() => import('./pages/CheckoutPaymentPage.tsx')
 const CheckoutReturnPage = lazy(() => import('./pages/CheckoutReturnPage.tsx'))
 const CheckoutSuccessPage = lazy(() => import('./pages/CheckoutSuccessPage.tsx'))
 const CheckoutFailurePage = lazy(() => import('./pages/CheckoutFailurePage.tsx'))
+const DesignSystemShowcase = lazy(() => import('./pages/DesignSystemShowcase.tsx'))
+const BrainUiShowcase = lazy(() => import('./pages/BrainUiShowcase.tsx'))
 
 function RouteFallback() {
   return (
@@ -110,6 +120,7 @@ createRoot(document.getElementById('root')!).render(
     <AppErrorBoundary>
     <BrowserRouter>
       <AuthProvider>
+        <ProductBrainRoot>
         <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/" element={
@@ -117,10 +128,45 @@ createRoot(document.getElementById('root')!).render(
               <Home />
             </ProtectedRoute>
           } />
-          {/* Recovery Phase 1 — ONE Chat UI: legacy intake redirects to /chat. */}
+          {/* Legacy intake → Brain chat. */}
           <Route path="/travel-conversation" element={
             <ProtectedRoute>
               <TravelConversationRedirect />
+            </ProtectedRoute>
+          } />
+          <Route path="/conversation" element={
+            <ProtectedRoute>
+              <ConversationPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/voice" element={
+            <ProtectedRoute>
+              <VoicePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/recommendations" element={
+            <ProtectedRoute>
+              <RecommendationsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/planning" element={
+            <ProtectedRoute>
+              <PlanningPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/timeline" element={
+            <ProtectedRoute>
+              <TimelinePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/continue-trip" element={
+            <ProtectedRoute>
+              <ContinueTripPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/profile/recommendations" element={
+            <ProtectedRoute>
+              <ProfileRecommendationsPage />
             </ProtectedRoute>
           } />
           <Route path="/search" element={
@@ -303,9 +349,14 @@ createRoot(document.getElementById('root')!).render(
               <ForgotPassword />
             </PublicOnlyRoute>
           } />
+          {/* Design System gallery — UI foundation only, no auth / business logic */}
+          <Route path="/design-system" element={<DesignSystemShowcase />} />
+          {/* Brain ⇄ UI — TravelBrain mocks wired to Premium screens (no providers) */}
+          <Route path="/brain-ui" element={<BrainUiShowcase />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
+        </ProductBrainRoot>
       </AuthProvider>
     </BrowserRouter>
     </AppErrorBoundary>

@@ -47,7 +47,7 @@ describe('Sprint 88 Task 5 — Shadow telemetry', () => {
   it('keeps Brain flags OFF and recovery owner unchanged', () => {
     expect(getFeatureRegistry().isEnabled(BRAIN_V1_FEATURE_ID)).toBe(false)
     expect(getFeatureRegistry().isEnabled(BRAIN_V1_PREVIEW_FEATURE_ID)).toBe(false)
-    expect(RECOVERY_TURN_OWNER).toBe('travelAgentService.planTurn')
+    expect(RECOVERY_TURN_OWNER).toBe('TravelBrain.processTurn')
     expect(getFeatureRegistry().list().map((f) => f.id)).not.toContain('ai.tie.v1')
     expect(SHADOW_TELEMETRY_CONTRACT_VERSION).toMatch(/shadow-telemetry/)
   })
