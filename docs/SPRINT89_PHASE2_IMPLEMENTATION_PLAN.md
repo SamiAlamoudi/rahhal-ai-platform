@@ -1,7 +1,7 @@
 # Sprint 89 Phase 2 — Planning & Reasoning Implementation Plan
 
 **Document type:** Implementation plan (synced to shipped T2–T10 compile stack)  
-**Status:** T2–T10 shipped on `cursor/sprint89-phase2-planning-71ec` (PR #328); T11 not started  
+**Status:** T2–T10 shipped; T11 goldens G06–G10 on `cursor/sprint89-phase2-planning-71ec` (PR #328); BrainRouter runtime wire still separate  
 **Branch:** `cursor/sprint89-phase2-planning-71ec`  
 **Baseline:** `main` @ Phase 1 merge (`d945c38` / `#327`)  
 **Review disposition:** Terminology synced to shipped ToolDecision (`SEARCH_HANDOFF`/`ABORT`) and task map (T6 ToolDecisionBridge … T10 PlanReasonTurn). BrainRouter runtime wire is **not** part of T2–T10.
@@ -758,7 +758,7 @@ npm run typecheck && npm run lint
 
 See §27 for checkpoints. Summary:
 
-T1 types (deferred/in-module) → T2 MissingInformationPlanner → T3 AssumptionPolicy → T4 ConfidenceGates → T5 ClarificationBridge → T6 ToolDecisionBridge → T7 PlanningHintsBuilder → T8 BrainRouterPlanningAdapter → T9 BrainRouterDecisionContract → T10 PlanReasonTurn (+ recovery) → T11 Goldens/regressions (not started) → T12 Notes/DoD. BrainRouter runtime wire is **out of T2–T10** (separate authorization).
+T1 types (deferred/in-module) → T2 MissingInformationPlanner → T3 AssumptionPolicy → T4 ConfidenceGates → T5 ClarificationBridge → T6 ToolDecisionBridge → T7 PlanningHintsBuilder → T8 BrainRouterPlanningAdapter → T9 BrainRouterDecisionContract → T10 PlanReasonTurn (+ recovery) → T11 Goldens G06–G10 (shipped; `sprint89.phase2.goldens.test.ts`) → T12 Notes/DoD. BrainRouter runtime wire remains **separate authorization** (not part of T11).
 
 ### 20.2 Compatibility
 
@@ -912,7 +912,7 @@ No Search execute. No flag enablement. No Phase 3 start.
 | **T8** | BrainRouterPlanningAdapter (normalize only) | Review | Preserves planner decisions; no BrainRouter runtime |
 | **T9** | BrainRouterDecisionContract (sealed) | Review | Immutable decision contract; capabilities all false |
 | **T10** | PlanReasonTurn pure orchestration + recovery | Review | assume→missing order; abort/correction/recovery; memory preserved; **no BrainRouter wire** |
-| **T11** | Goldens G06–G10 + ar/en + phase1 corrections in verify | Review | phase2+phase1 verify + test:run green — **not started** |
+| **T11** | Goldens G06–G10 + ar/en + phase1 corrections in verify | Review | `sprint89.phase2.goldens.test.ts` in `sprint89-phase2:verify`; phase1 corrections retained — **shipped** |
 | **T12** | SPRINT89_PHASE2_NOTES + checklist | Merge gate | Phase 2 DoD §24 complete |
 
 ---
