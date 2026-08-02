@@ -1,59 +1,13 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { chatEngine } from '../chat/chatEngine'
-import { chatService, resetChatProviderForTests, setChatProviderForTests } from '../chat/chatService'
-import { createDeterministicMockChatProvider } from '../chat/mockChatProvider'
-import { conversationRepository } from '../repositories/conversationRepository'
-import { messageRepository } from '../repositories/messageRepository'
-import type { ConversationRow, MessageRow } from '../types'
-import * as chatAuthGate from '../chat/chatAuthGate'
+import { resetProductBrainController } from '../../brain-ui/productBrain'
 
-function conversationRow(overrides: Partial<ConversationRow> = {}): ConversationRow {
-  return {
-    id: 'conv-1',
-    user_id: 'user-1',
-    title: 'محادثة',
-    modality_default: 'text',
-    travel_session_id: null,
-    last_message_preview: 'آخر رسالة',
-    created_at: '2026-07-15T10:00:00.000Z',
-    updated_at: '2026-07-15T10:00:00.000Z',
-    ...overrides,
-  }
-}
-
-function messageRow(overrides: Partial<MessageRow> = {}): MessageRow {
-  return {
-    id: 'msg-1',
-    conversation_id: 'conv-1',
-    user_id: 'user-1',
-    role: 'user',
-    modality: 'text',
-    content: 'hello',
-    audio_url: null,
-    image_url: null,
-    attachments: [],
-    status: 'complete',
-    error: null,
-    provider_meta: {},
-    created_at: '2026-07-15T10:00:00.000Z',
-    updated_at: '2026-07-15T10:00:00.000Z',
-    ...overrides,
-  }
-}
-
-describe('chatEngine shared text/voice entrypoint', () => {
+describe('chatEngine TravelBrain adapter', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
-    vi.spyOn(chatAuthGate, 'assertChatDatabaseAuth').mockResolvedValue({ userId: 'user-1' })
-    setChatProviderForTests(createDeterministicMockChatProvider('voice-ready-reply', 0))
+    resetProductBrainController()
   })
 
-  afterEach(() => {
-    resetChatProviderForTests()
-    vi.restoreAllMocks()
-  })
-
-  it('searches conversations via shared engine', async () => {
+  it('searches conversations and supports modalities', () => {
     const listed = [
       {
         id: '1',
@@ -69,63 +23,32 @@ describe('chatEngine shared text/voice entrypoint', () => {
     expect(chatEngine.supportsModality('audio')).toBe(true)
   })
 
-  it('sendMessage supports audio modality options for future Voice', async () => {
-    vi.spyOn(messageRepository, 'listByConversation').mockResolvedValue([])
-    const createSpy = vi.spyOn(messageRepository, 'create')
-      .mockResolvedValueOnce(messageRow({
-        id: 'u1',
-        role: 'user',
+  it('sendMessage routes to TravelBrain (not planTurn)', async () => {
+    const result = await chatEngine.sendMessage(
+      {
+        conversationId: 'conv-1',
+        content: 'Book a flight from Riyadh to Istanbul budget 5000 SAR',
         modality: 'audio',
-        content: 'أريد رحلة صوتية',
-        audio_url: 'https://example.com/a.webm',
-      }))
-      .mockResolvedValueOnce(messageRow({
-        id: 'a1',
-        role: 'assistant',
-        content: '',
-        status: 'streaming',
-      }))
-    vi.spyOn(messageRepository, 'update').mockImplementation(async (id, updates) =>
-      messageRow({
-        id,
-        role: 'assistant',
-        content: updates.content ?? '',
-        status: updates.status ?? 'complete',
-      }),
+        audioUrl: 'https://example.com/a.webm',
+      },
+      { signal: new AbortController().signal },
     )
-    vi.spyOn(conversationRepository, 'update').mockResolvedValue(conversationRow())
-    vi.spyOn(conversationRepository, 'touch').mockResolvedValue()
-
-    const result = await chatEngine.sendMessage({
-      conversationId: 'conv-1',
-      content: 'أريد رحلة صوتية',
-      modality: 'audio',
-      audioUrl: 'https://example.com/a.webm',
-    }, { signal: new AbortController().signal })
 
     expect(result.user.modality).toBe('audio')
     expect(result.user.audioUrl).toBe('https://example.com/a.webm')
     expect(result.assistant.status).toBe('complete')
-    expect(createSpy).toHaveBeenCalledWith(expect.objectContaining({
-      modality: 'audio',
-      audio_url: 'https://example.com/a.webm',
-    }))
+    expect(result.assistant.content.length).toBeGreaterThan(0)
+    expect(result.assistant.providerMeta.engine).toBe('TravelBrain')
   })
 
-  it('delegates list/create to chatService (same storage)', async () => {
-    const listSpy = vi.spyOn(chatService, 'listConversations').mockResolvedValue([])
-    const createSpy = vi.spyOn(chatService, 'createConversation').mockResolvedValue({
-      id: 'c1',
-      title: 'جديدة',
-      modalityDefault: 'text',
-      travelSessionId: null,
-      lastMessagePreview: '',
-      createdAt: '2026-07-15T00:00:00.000Z',
-      updatedAt: '2026-07-15T00:00:00.000Z',
-    })
-    await chatEngine.listConversations()
-    await chatEngine.createConversation('جديدة')
-    expect(listSpy).toHaveBeenCalled()
-    expect(createSpy).toHaveBeenCalledWith('جديدة')
+  it('list/create use in-memory TravelBrain session summaries', async () => {
+    await chatEngine.sendMessage(
+      { conversationId: 'c', content: 'Recommend a hotel in Dubai' },
+      { signal: new AbortController().signal },
+    )
+    const listed = await chatEngine.listConversations()
+    expect(Array.isArray(listed)).toBe(true)
+    const created = await chatEngine.createConversation('جديدة')
+    expect(created.title).toBe('جديدة')
   })
 })

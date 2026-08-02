@@ -62,7 +62,7 @@ export function BrainUiApp() {
           </div>
         </header>
 
-        <BrainProvider locale={dir === 'rtl' ? 'ar' : 'en'}>
+        <BrainProvider shared={false} locale={dir === 'rtl' ? 'ar' : 'en'}>
           <main style={{ display: 'grid', justifyItems: 'center' }}>
             <DsPhoneShell title="Rahhal Brain">
               {tab === 'home' ? (

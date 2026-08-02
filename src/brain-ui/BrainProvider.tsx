@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import { BrainSessionController } from './BrainSessionController'
+import { getProductBrainController } from './productBrain'
 import type { BrainUiState } from './types'
 import type { LocaleCode } from '../brain/types'
 
@@ -19,23 +20,31 @@ export type TravelBrainApi = {
   getRecommendations: () => ReturnType<BrainSessionController['getRecommendations']>
   getConversation: () => ReturnType<BrainSessionController['getConversation']>
   getTimeline: () => ReturnType<BrainSessionController['getTimeline']>
+  getPlan: () => ReturnType<BrainSessionController['getPlan']>
   setLocale: (locale: LocaleCode) => void
+  controller: BrainSessionController
 }
 
 export const TravelBrainContext = createContext<TravelBrainApi | null>(null)
 
 export function BrainProvider({
   children,
-  userId = 'brain-ui-user',
+  userId = 'rahhal-user',
   locale = 'ar',
   autoStart = true,
+  /** Production default: one shared controller across routes. */
+  shared = true,
 }: {
   children: ReactNode
   userId?: string
   locale?: LocaleCode
   autoStart?: boolean
+  shared?: boolean
 }) {
-  const controller = useMemo(() => new BrainSessionController(), [])
+  const controller = useMemo(
+    () => (shared ? getProductBrainController() : new BrainSessionController()),
+    [shared],
+  )
   const [state, setState] = useState<BrainUiState>(() => controller.getState())
 
   const onState = useEffectEvent((next: BrainUiState) => {
@@ -44,12 +53,16 @@ export function BrainProvider({
 
   useEffect(() => {
     const unsub = controller.subscribe(onState)
-    if (autoStart) void controller.start(userId, locale)
+    if (autoStart && !controller.getState().ready) {
+      void controller.start(userId, locale)
+    } else if (autoStart) {
+      controller.setLocale(locale)
+    }
     return () => {
       unsub()
-      controller.dispose()
+      if (!shared) controller.dispose()
     }
-  }, [controller, autoStart, userId, locale])
+  }, [controller, autoStart, userId, locale, shared])
 
   const api = useMemo<TravelBrainApi>(
     () => ({
@@ -61,7 +74,9 @@ export function BrainProvider({
       getRecommendations: () => controller.getRecommendations(),
       getConversation: () => controller.getConversation(),
       getTimeline: () => controller.getTimeline(),
+      getPlan: () => controller.getPlan(),
       setLocale: (l) => controller.setLocale(l),
+      controller,
     }),
     [controller, state],
   )

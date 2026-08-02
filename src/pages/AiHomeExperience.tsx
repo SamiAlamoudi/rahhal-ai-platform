@@ -21,7 +21,8 @@ import {
 } from '../components/home'
 
 /**
- * Conversation-first / voice-first home.
+ * @deprecated QUARANTINED — not mounted by product Home.
+ * Production home is TravelBrain (`pages/Home.tsx` → BrainHomeScreen).
  * Mic and replies stay on this screen — no navigation into text chat required.
  */
 export default function AiHomeExperience() {

@@ -35,7 +35,7 @@ describe('Sprint 85 — Value Before Questions', () => {
       expect(result.session).toBeNull()
       expect(result.response).toBeNull()
       expect(runBrainV1Turn({ text: 'hi' }).enabled).toBe(false)
-      expect(RECOVERY_TURN_OWNER).toBe('travelAgentService.planTurn')
+      expect(RECOVERY_TURN_OWNER).toBe('TravelBrain.processTurn')
     })
   })
 

@@ -84,7 +84,7 @@ describe('Sprint 88 Task 1 — Search Handoff ADR + early-return lock', () => {
       expect(getFeatureRegistry().isEnabled(BRAIN_V1_FEATURE_ID)).toBe(false)
       expect(getFeatureRegistry().isEnabled(BRAIN_V1_PREVIEW_FEATURE_ID)).toBe(false)
       expect(RECOVERY_FROZEN_OFF_FLAGS).toContain('ai.brain.v1')
-      expect(RECOVERY_TURN_OWNER).toBe('travelAgentService.planTurn')
+      expect(RECOVERY_TURN_OWNER).toBe('TravelBrain.processTurn')
       const registryIds = getFeatureRegistry()
         .list()
         .map((f) => f.id)

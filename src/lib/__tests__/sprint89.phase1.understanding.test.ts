@@ -57,11 +57,11 @@ describe('Sprint 89 Phase 1 — Understanding core', () => {
   })
 
   describe('flags / freeze / contracts', () => {
-    it('keeps Brain flags OFF and planTurn as sole turn owner', () => {
+    it('keeps Brain flags OFF and TravelBrain as sole turn owner', () => {
       expect(getFeatureRegistry().isEnabled(BRAIN_V1_FEATURE_ID)).toBe(false)
       expect(getFeatureRegistry().isEnabled(BRAIN_V1_PREVIEW_FEATURE_ID)).toBe(false)
       expect(RECOVERY_FROZEN_OFF_FLAGS).toContain('ai.brain.v1')
-      expect(RECOVERY_TURN_OWNER).toBe('travelAgentService.planTurn')
+      expect(RECOVERY_TURN_OWNER).toBe('TravelBrain.processTurn')
       expect(getFeatureRegistry().list().map((f) => f.id)).not.toContain('ai.tie.v1')
       expect(UNDERSTANDING_CONTRACT_VERSION).toMatch(/sprint89-phase1/)
       expect(UNDERSTANDING_MEMORY_MANAGER_VERSION).toMatch(/sprint89-phase1/)

@@ -68,19 +68,16 @@ describe('Brain ⇄ UI controller', () => {
   it('isDeveloperMode reads query and localStorage', () => {
     expect(typeof isDeveloperMode()).toBe('boolean')
     const prev = globalThis.window
-    // @ts-expect-error test stub
     globalThis.window = {
       location: { search: '?debug=1' },
       localStorage: { getItem: () => null },
-    }
+    } as unknown as Window & typeof globalThis
     expect(isDeveloperMode()).toBe(true)
-    // @ts-expect-error test stub
     globalThis.window = {
       location: { search: '' },
       localStorage: { getItem: (k: string) => (k === 'rahhal_brain_debug' ? '1' : null) },
-    }
+    } as unknown as Window & typeof globalThis
     expect(isDeveloperMode()).toBe(true)
-    // @ts-expect-error test stub
     globalThis.window = {
       location: { search: '' },
       localStorage: {
@@ -88,7 +85,7 @@ describe('Brain ⇄ UI controller', () => {
           throw new Error('blocked')
         },
       },
-    }
+    } as unknown as Window & typeof globalThis
     expect(isDeveloperMode()).toBe(false)
     globalThis.window = prev
   })

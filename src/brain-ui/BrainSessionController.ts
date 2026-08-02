@@ -188,8 +188,18 @@ export class BrainSessionController {
     return this.state.timeline
   }
 
+  getPlan() {
+    return this.state.lastTrace?.plan ?? null
+  }
+
   setLocale(locale: LocaleCode): void {
     this.patch({ locale })
+  }
+
+  /** Seed a first user turn (e.g. Home → Chat initialPrompt). */
+  async seedAndSend(text: string): Promise<void> {
+    if (!text.trim()) return
+    await this.sendMessage(text)
   }
 
   dispose(): void {
