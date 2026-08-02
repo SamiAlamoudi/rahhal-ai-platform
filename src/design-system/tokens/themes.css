@@ -1,0 +1,393 @@
+/**
+ * Rahhal Design System — Theme Tokens
+ * Scoped under [data-rahhal-ds] so product runtime stays untouched.
+ * 8pt spacing · Light + Dark · WCAG AA targets
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+[data-rahhal-ds] {
+  /* —— Color: Primary Deep Ocean Blue —— */
+  --ds-ocean-50: #eaf3f9;
+  --ds-ocean-100: #d4e6f2;
+  --ds-ocean-200: #a9cde5;
+  --ds-ocean-300: #7ab0d4;
+  --ds-ocean-400: #4a90bc;
+  --ds-ocean-500: #256fa0;
+  --ds-ocean-600: #0f4c75;
+  --ds-ocean-700: #0b3a5a;
+  --ds-ocean-800: #082a42;
+  --ds-ocean-900: #041c2e;
+
+  /* —— Color: Secondary Elegant Turquoise —— */
+  --ds-tide-50: #e8f7f5;
+  --ds-tide-100: #cfeedf;
+  --ds-tide-200: #9edccf;
+  --ds-tide-300: #66c4b3;
+  --ds-tide-400: #3aad9a;
+  --ds-tide-500: #2a9d8f;
+  --ds-tide-600: #1f7a70;
+  --ds-tide-700: #185e57;
+  --ds-tide-800: #124640;
+  --ds-tide-900: #0c2f2b;
+
+  /* —— Neutrals 50→900 —— */
+  --ds-neutral-50: #faf9f7;
+  --ds-neutral-100: #f3f1ed;
+  --ds-neutral-200: #e6e2db;
+  --ds-neutral-300: #cfc8bd;
+  --ds-neutral-400: #a89f92;
+  --ds-neutral-500: #7d7468;
+  --ds-neutral-600: #5c554c;
+  --ds-neutral-700: #403b35;
+  --ds-neutral-800: #2a2622;
+  --ds-neutral-900: #171513;
+
+  /* —— Semantic —— */
+  --ds-success-50: #ecf8f1;
+  --ds-success-500: #1f8a5b;
+  --ds-success-700: #146344;
+  --ds-warning-50: #fff8eb;
+  --ds-warning-500: #d4920a;
+  --ds-warning-700: #9a6800;
+  --ds-error-50: #fdf1f1;
+  --ds-error-500: #c23b3b;
+  --ds-error-700: #8f2424;
+
+  /* —— Light theme surfaces —— */
+  --ds-bg: #f7f5f2;
+  --ds-bg-elevated: #fffcf8;
+  --ds-surface: #ffffff;
+  --ds-surface-muted: #f3f1ed;
+  --ds-surface-glass: rgba(255, 255, 255, 0.72);
+  --ds-ink: #171513;
+  --ds-ink-secondary: #5c554c;
+  --ds-ink-tertiary: #7d7468;
+  --ds-ink-inverse: #fffcf8;
+  --ds-border: rgba(23, 21, 19, 0.08);
+  --ds-border-strong: rgba(23, 21, 19, 0.16);
+  --ds-focus: #256fa0;
+  --ds-overlay: rgba(4, 28, 46, 0.48);
+  --ds-primary: var(--ds-ocean-600);
+  --ds-primary-hover: var(--ds-ocean-700);
+  --ds-primary-soft: var(--ds-ocean-50);
+  --ds-secondary: var(--ds-tide-500);
+  --ds-secondary-soft: var(--ds-tide-50);
+  --ds-brand-wash: radial-gradient(120% 80% at 100% 0%, rgba(42, 157, 143, 0.12), transparent 55%),
+    radial-gradient(90% 70% at 0% 100%, rgba(15, 76, 117, 0.1), transparent 50%),
+    var(--ds-bg);
+
+  /* —— Spacing (8pt) —— */
+  --ds-space-0: 0px;
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-5: 20px;
+  --ds-space-6: 24px;
+  --ds-space-7: 32px;
+  --ds-space-8: 40px;
+  --ds-space-9: 48px;
+  --ds-space-10: 64px;
+  --ds-space-11: 80px;
+  --ds-space-12: 96px;
+
+  /* —— Radius —— */
+  --ds-radius-xs: 6px;
+  --ds-radius-sm: 10px;
+  --ds-radius-md: 14px;
+  --ds-radius-lg: 20px;
+  --ds-radius-xl: 28px;
+  --ds-radius-2xl: 36px;
+  --ds-radius-full: 9999px;
+
+  /* —— Elevation V2 (layered, soft, never harsh) —— */
+  --ds-shadow-xs: 0 1px 2px rgba(4, 28, 46, 0.035), 0 0 0 1px rgba(4, 28, 46, 0.02);
+  --ds-shadow-sm: 0 2px 6px rgba(4, 28, 46, 0.05), 0 8px 20px rgba(4, 28, 46, 0.04);
+  --ds-shadow-md: 0 4px 12px rgba(4, 28, 46, 0.06), 0 16px 36px rgba(4, 28, 46, 0.08);
+  --ds-shadow-lg: 0 8px 20px rgba(4, 28, 46, 0.08), 0 28px 56px rgba(4, 28, 46, 0.12);
+  --ds-shadow-float: 0 12px 40px rgba(15, 76, 117, 0.14), 0 2px 8px rgba(4, 28, 46, 0.06);
+  --ds-shadow-glow: 0 0 0 6px rgba(37, 111, 160, 0.14);
+  --ds-shadow-voice: 0 0 0 0 rgba(42, 157, 143, 0.35), 0 12px 40px rgba(15, 76, 117, 0.28);
+
+  /* —— Typography —— */
+  --ds-font-display: 'Plus Jakarta Sans', 'Cairo', ui-sans-serif, sans-serif;
+  --ds-font-body: 'Cairo', 'Plus Jakarta Sans', ui-sans-serif, sans-serif;
+  --ds-font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --ds-text-hero: clamp(2.25rem, 5vw, 3rem);
+  --ds-text-display: clamp(1.75rem, 3.5vw, 2.25rem);
+  --ds-text-title: 1.375rem;
+  --ds-text-heading: 1.125rem;
+  --ds-text-body: 1rem;
+  --ds-text-callout: 0.9375rem;
+  --ds-text-caption: 0.8125rem;
+  --ds-text-micro: 0.75rem;
+
+  --ds-leading-tight: 1.2;
+  --ds-leading-snug: 1.35;
+  --ds-leading-normal: 1.55;
+  --ds-tracking-tight: -0.02em;
+  --ds-tracking-normal: 0;
+
+  /* —— Motion V2 (nothing exceeds 350ms) —— */
+  --ds-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --ds-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --ds-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ds-ease-breathe: cubic-bezier(0.45, 0, 0.55, 1);
+  --ds-duration-1: 120ms;
+  --ds-duration-2: 200ms;
+  --ds-duration-3: 280ms;
+  --ds-duration-4: 350ms;
+  --ds-blur-glass: 22px;
+  --ds-blur-soft: 12px;
+
+  /* —— Opacity —— */
+  --ds-opacity-disabled: 0.4;
+  --ds-opacity-muted: 0.64;
+  --ds-opacity-hover: 0.08;
+  --ds-opacity-pressed: 0.12;
+
+  /* —— Borders / Icons —— */
+  --ds-border-width: 1px;
+  --ds-icon-stroke: 1.75;
+  --ds-icon-size-sm: 16px;
+  --ds-icon-size-md: 20px;
+  --ds-icon-size-lg: 24px;
+  --ds-icon-size-xl: 32px;
+
+  /* —— Layout —— */
+  --ds-phone-width: 390px;
+  --ds-content-max: 720px;
+  --ds-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --ds-nav-height: 64px;
+
+  color: var(--ds-ink);
+  background: var(--ds-bg);
+  font-family: var(--ds-font-body);
+  font-size: var(--ds-text-body);
+  line-height: var(--ds-leading-normal);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-rahhal-ds][data-theme='dark'] {
+  color-scheme: dark;
+  --ds-bg: #0a1520;
+  --ds-bg-elevated: #102033;
+  --ds-surface: #13263a;
+  --ds-surface-muted: #1a3048;
+  --ds-surface-glass: rgba(19, 38, 58, 0.78);
+  --ds-ink: #f3f1ed;
+  --ds-ink-secondary: #cfc8bd;
+  --ds-ink-tertiary: #a89f92;
+  --ds-ink-inverse: #041c2e;
+  --ds-border: rgba(243, 241, 237, 0.1);
+  --ds-border-strong: rgba(243, 241, 237, 0.18);
+  --ds-focus: #7ab0d4;
+  --ds-overlay: rgba(0, 0, 0, 0.62);
+  --ds-primary: #4a90bc;
+  --ds-primary-hover: #7ab0d4;
+  --ds-primary-soft: rgba(74, 144, 188, 0.16);
+  --ds-secondary: #3aad9a;
+  --ds-secondary-soft: rgba(42, 157, 143, 0.16);
+  --ds-brand-wash: radial-gradient(120% 80% at 100% 0%, rgba(42, 157, 143, 0.18), transparent 55%),
+    radial-gradient(90% 70% at 0% 100%, rgba(74, 144, 188, 0.16), transparent 50%),
+    var(--ds-bg);
+  --ds-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --ds-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.32);
+  --ds-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.38);
+  --ds-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.48);
+  --ds-shadow-float: 0 16px 48px rgba(0, 0, 0, 0.45);
+  --ds-shadow-glow: 0 0 0 6px rgba(122, 176, 212, 0.22);
+  --ds-shadow-voice: 0 0 0 0 rgba(58, 173, 154, 0.4), 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-rahhal-ds] {
+    --ds-duration-1: 0ms;
+    --ds-duration-2: 0ms;
+    --ds-duration-3: 0ms;
+    --ds-duration-4: 0ms;
+  }
+
+  [data-rahhal-ds] *,
+  [data-rahhal-ds] *::before,
+  [data-rahhal-ds] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes ds-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ds-soft-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.18;
+  }
+}
+
+@keyframes ds-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+/* Voice — breathing orb (magical, never cheap) */
+@keyframes ds-voice-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(42, 157, 143, 0.28), 0 16px 40px rgba(15, 76, 117, 0.28);
+  }
+  50% {
+    transform: scale(1.035);
+    box-shadow: 0 0 0 14px rgba(42, 157, 143, 0), 0 20px 48px rgba(15, 76, 117, 0.34);
+  }
+}
+
+@keyframes ds-voice-ring {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.55;
+  }
+  70% {
+    opacity: 0.12;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+@keyframes ds-voice-wave {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes ds-card-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ds-stream-caret {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes ds-typing-dot {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@keyframes ds-splash-mark {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+    letter-spacing: 0.12em;
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    letter-spacing: 0.02em;
+  }
+}
+
+@keyframes ds-success-ring {
+  from {
+    transform: scale(0.85);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+}
+
+[data-rahhal-ds] .ds-animate-enter {
+  animation: ds-fade-up var(--ds-duration-3) var(--ds-ease-emphasized) both;
+}
+
+[data-rahhal-ds] .ds-animate-enter-delay-1 {
+  animation-delay: 50ms;
+}
+[data-rahhal-ds] .ds-animate-enter-delay-2 {
+  animation-delay: 100ms;
+}
+[data-rahhal-ds] .ds-animate-enter-delay-3 {
+  animation-delay: 150ms;
+}
+
+[data-rahhal-ds] .ds-animate-card {
+  animation: ds-card-float-in var(--ds-duration-4) var(--ds-ease-emphasized) both;
+}
+
+[data-rahhal-ds] .ds-glass {
+  background: var(--ds-surface-glass);
+  backdrop-filter: blur(var(--ds-blur-glass)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--ds-blur-glass)) saturate(1.2);
+}
+
+[data-rahhal-ds] .ds-float-card {
+  box-shadow: var(--ds-shadow-float);
+  transition: transform var(--ds-duration-2) var(--ds-ease-standard),
+    box-shadow var(--ds-duration-2) var(--ds-ease-standard);
+}
+
+[data-rahhal-ds] .ds-float-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ds-shadow-lg);
+}
+
+[data-rahhal-ds] .ds-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+[data-rahhal-ds] .ds-scroll-fade {
+  mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 16px), transparent);
+}
