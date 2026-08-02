@@ -1,7 +1,7 @@
 # Sprint 89 Phase 2 — Planning & Reasoning Implementation Plan
 
 **Document type:** Implementation plan (synced to shipped T2–T10 compile stack)  
-**Status:** T2–T10 shipped; T11 goldens G06–G10 on `cursor/sprint89-phase2-planning-71ec` (PR #328); BrainRouter runtime wire still separate  
+**Status:** Phase 2 T2–T12 complete on `cursor/sprint89-phase2-planning-71ec` (PR #328); BrainRouter runtime wire still separate authorization  
 **Branch:** `cursor/sprint89-phase2-planning-71ec`  
 **Baseline:** `main` @ Phase 1 merge (`d945c38` / `#327`)  
 **Review disposition:** Terminology synced to shipped ToolDecision (`SEARCH_HANDOFF`/`ABORT`) and task map (T6 ToolDecisionBridge … T10 PlanReasonTurn). BrainRouter runtime wire is **not** part of T2–T10.
@@ -758,7 +758,7 @@ npm run typecheck && npm run lint
 
 See §27 for checkpoints. Summary:
 
-T1 types (deferred/in-module) → T2 MissingInformationPlanner → T3 AssumptionPolicy → T4 ConfidenceGates → T5 ClarificationBridge → T6 ToolDecisionBridge → T7 PlanningHintsBuilder → T8 BrainRouterPlanningAdapter → T9 BrainRouterDecisionContract → T10 PlanReasonTurn (+ recovery) → T11 Goldens G06–G10 (shipped; `sprint89.phase2.goldens.test.ts`) → T12 Notes/DoD. BrainRouter runtime wire remains **separate authorization** (not part of T11).
+T1 types (deferred/in-module) → T2 MissingInformationPlanner → T3 AssumptionPolicy → T4 ConfidenceGates → T5 ClarificationBridge → T6 ToolDecisionBridge → T7 PlanningHintsBuilder → T8 BrainRouterPlanningAdapter → T9 BrainRouterDecisionContract → T10 PlanReasonTurn (+ recovery) → T11 Goldens G06–G10 (shipped) → T12 Notes/DoD (`docs/SPRINT89_PHASE2_NOTES.md` — shipped). BrainRouter runtime wire remains **separate authorization** (not part of T2–T12).
 
 ### 20.2 Compatibility
 
@@ -848,21 +848,22 @@ Re-export minimal set from `brain/v1/index.ts`.
 
 ## 24. Definition of Done — Phase 2 (updated)
 
-- [ ] Sequential BrainRouter: understand → memory → planReason → CM  
-- [ ] Single planning authority = planReasonTurn; CM reply-only with hints  
-- [ ] Consumes Phase 1 UnderstandingTurnResult / knownSlots / provenance; **no re-extract**  
-- [ ] MissingInformationPlanner: genuinely missing only; bookingNeverBlocking  
-- [ ] Clarification ≤1; value-before-question mandatory; no re-ask known  
-- [ ] Corrections/abort/recovery preserve Phase 1 guarantees  
-- [ ] Assumptions `source: assumed` only; no silent confirm  
-- [ ] TravelReasoner structured + explainability without CoT  
-- [ ] ToolDecision exactly five-way; blocking ⇒ ¬SEARCH_HANDOFF  
-- [ ] SearchHandoff decision-only; `toolBatch: null`; no gateway/search/provider execute  
-- [ ] No Phase 3 execute / no DK expansion DoD / no parallel fabric  
-- [ ] Flags OFF; freeze green  
-- [ ] Acceptance: ar+en, multi-turn corrections, missing-data, ambiguity, abort, safe fallback, Phase 1 correction regressions  
-- [ ] `sprint89-phase2:verify` + full `test:run` green  
-- [ ] Phase 2 notes published; PR mergeable  
+- [x] Single planning authority = planReasonTurn; no parallel Phase 2 brain / reply path  
+- [x] Consumes Phase 1 UnderstandingTurnResult / knownSlots / provenance; **no re-extract**  
+- [x] MissingInformationPlanner: genuinely missing only; bookingNeverBlocking  
+- [x] Clarification ≤1; value-before-question meta; no re-ask known (CM formats later)  
+- [x] Corrections/abort/recovery preserve Phase 1 guarantees  
+- [x] Assumptions `source: assumed` only; no silent confirm  
+- [x] ToolDecision exactly five-way (`ANSWER|CLARIFY|SEARCH_HANDOFF|ABORT|HANDOFF`); blocking ⇒ ¬SEARCH_HANDOFF  
+- [x] SearchHandoff decision-only; no gateway/search/provider execute (`executeSearch`/`invokeGateway` always false)  
+- [x] No Phase 3 execute / no DK expansion DoD / no parallel fabric  
+- [x] Flags OFF; freeze green  
+- [x] Acceptance: G06–G10 ar+en + Phase 1 correction regressions in `sprint89-phase2:verify`  
+- [x] `sprint89-phase2:verify` + full `test:run` green  
+- [x] Phase 2 notes published (`docs/SPRINT89_PHASE2_NOTES.md`); PR mergeable  
+- [ ] Sequential BrainRouter soft-wire: understand → memory → planReason → CM — **deferred (separate authorization)**  
+- [ ] CM runtime consumes `planningHints` (reply-only) — **deferred (T5 design-only; no CM code in Phase 2)**  
+- [ ] TravelReasoner structured bridge as separate module — **not shipped**; no CoT in Phase 2 outputs (recovery/hints stay machine-readable)  
 
 ---
 
@@ -913,7 +914,7 @@ No Search execute. No flag enablement. No Phase 3 start.
 | **T9** | BrainRouterDecisionContract (sealed) | Review | Immutable decision contract; capabilities all false |
 | **T10** | PlanReasonTurn pure orchestration + recovery | Review | assume→missing order; abort/correction/recovery; memory preserved; **no BrainRouter wire** |
 | **T11** | Goldens G06–G10 + ar/en + phase1 corrections in verify | Review | `sprint89.phase2.goldens.test.ts` in `sprint89-phase2:verify`; phase1 corrections retained — **shipped** |
-| **T12** | SPRINT89_PHASE2_NOTES + checklist | Merge gate | Phase 2 DoD §24 complete |
+| **T12** | SPRINT89_PHASE2_NOTES + checklist | Merge gate | `docs/SPRINT89_PHASE2_NOTES.md` + §24 closeout — **shipped** |
 
 ---
 
