@@ -46,6 +46,7 @@ const CheckoutReturnPage = lazy(() => import('./pages/CheckoutReturnPage.tsx'))
 const CheckoutSuccessPage = lazy(() => import('./pages/CheckoutSuccessPage.tsx'))
 const CheckoutFailurePage = lazy(() => import('./pages/CheckoutFailurePage.tsx'))
 const DesignSystemShowcase = lazy(() => import('./pages/DesignSystemShowcase.tsx'))
+const BrainUiShowcase = lazy(() => import('./pages/BrainUiShowcase.tsx'))
 
 function RouteFallback() {
   return (
@@ -306,6 +307,8 @@ createRoot(document.getElementById('root')!).render(
           } />
           {/* Design System gallery — UI foundation only, no auth / business logic */}
           <Route path="/design-system" element={<DesignSystemShowcase />} />
+          {/* Brain ⇄ UI — TravelBrain mocks wired to Premium screens (no providers) */}
+          <Route path="/brain-ui" element={<BrainUiShowcase />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>

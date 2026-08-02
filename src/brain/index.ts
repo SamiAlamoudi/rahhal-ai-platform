@@ -22,3 +22,9 @@ export * from './timeline'
 export * from './safety'
 export * from './planner'
 export { TravelBrain, createTravelBrain, type FoundationTurnResult } from './TravelBrain'
+export {
+  processBrainTurn,
+  type BrainRecommendationsBundle,
+  type BrainTurnTrace,
+} from './turn'
+
