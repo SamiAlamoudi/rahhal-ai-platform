@@ -37,13 +37,14 @@ describe('Sprint 80 P1-5 — voice meter store', () => {
   })
 
   it('isolates meter ticks from ChatPage React state (no full-tree re-render owner)', () => {
+    // Production ChatPage is TravelBrain-only; voice meter is not owned by page React state.
     const chatPage = readFileSync(resolve(__dirname, '../../pages/ChatPage.tsx'), 'utf8')
-    expect(chatPage).toContain('setVoiceMeterLevel')
-    expect(chatPage).toContain('useVoiceMeterLevel')
-    expect(chatPage).not.toMatch(/\buseState\s*<[^>]*>\s*\(\s*0\s*\)/)
+    expect(chatPage).toContain('BrainChatScreen')
+    expect(chatPage).toContain('useTravelBrain')
+    expect(chatPage).not.toContain('setVoiceMeterLevel')
+    expect(chatPage).not.toContain('useVoiceMeterLevel')
     expect(chatPage).not.toMatch(/\bvoiceLevel\b/)
     expect(chatPage).not.toMatch(/\bsetVoiceLevel\b/)
-    expect(chatPage).toContain('const renderMessage = useCallback')
   })
 
   it('memoizes MessageBubble', () => {

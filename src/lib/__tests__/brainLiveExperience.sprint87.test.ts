@@ -39,7 +39,7 @@ describe('Sprint 87 — Live Brain Experience', () => {
   describe('production isolation', () => {
     it('keeps preview OFF by default and does not touch production turn owner', () => {
       expect(getFeatureRegistry().isEnabled(BRAIN_V1_PREVIEW_FEATURE_ID)).toBe(false)
-      expect(RECOVERY_TURN_OWNER).toBe('travelAgentService.planTurn')
+      expect(RECOVERY_TURN_OWNER).toBe('TravelBrain.processTurn')
       const decision = routeBrainPreviewTurn({
         userText: 'Morocco',
         locale: 'en',

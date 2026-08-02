@@ -38,7 +38,7 @@ describe('Sprint 88 Task 4 — Golden evaluations', () => {
       expect(getFeatureRegistry().isEnabled(BRAIN_V1_PREVIEW_FEATURE_ID)).toBe(false)
       expect(isBrainV1PreviewEnabled()).toBe(false)
       expect(RECOVERY_FROZEN_OFF_FLAGS).toContain('ai.brain.v1')
-      expect(RECOVERY_TURN_OWNER).toBe('travelAgentService.planTurn')
+      expect(RECOVERY_TURN_OWNER).toBe('TravelBrain.processTurn')
       expect(getFeatureRegistry().list().map((f) => f.id)).not.toContain('ai.tie.v1')
       expect(GOLDEN_EVAL_CONTRACT_VERSION).toMatch(/golden-eval/)
     })

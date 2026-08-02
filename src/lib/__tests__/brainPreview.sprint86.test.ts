@@ -64,7 +64,7 @@ describe('Sprint 86 — Brain v1 Preview Integration', () => {
       expect(isBrainV1Enabled()).toBe(false)
       expect(RECOVERY_FROZEN_OFF_FLAGS).toContain('ai.brain.v1')
       expect(RECOVERY_FROZEN_OFF_FLAGS).not.toContain('ai.brain.v1.preview')
-      expect(RECOVERY_TURN_OWNER).toBe('travelAgentService.planTurn')
+      expect(RECOVERY_TURN_OWNER).toBe('TravelBrain.processTurn')
       expect(runBrainV1Turn({ text: 'hi' }).enabled).toBe(false)
       expect(runConversationManagerTurn({ text: 'hi' }).enabled).toBe(false)
     })

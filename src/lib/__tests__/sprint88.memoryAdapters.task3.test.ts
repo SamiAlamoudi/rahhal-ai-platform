@@ -91,7 +91,7 @@ describe('Sprint 88 Task 3 — Memory adapters', () => {
   it('keeps flags OFF and recovery owner unchanged', () => {
     expect(getFeatureRegistry().isEnabled(BRAIN_V1_FEATURE_ID)).toBe(false)
     expect(getFeatureRegistry().isEnabled(BRAIN_V1_PREVIEW_FEATURE_ID)).toBe(false)
-    expect(RECOVERY_TURN_OWNER).toBe('travelAgentService.planTurn')
+    expect(RECOVERY_TURN_OWNER).toBe('TravelBrain.processTurn')
     expect(MEMORY_PROVENANCE_CONTRACT_VERSION).toMatch(/provenance/)
     expect(WORKING_MEMORY_ADAPTER_VERSION).toMatch(/working/)
     expect(USER_PREFERENCE_ADAPTER_VERSION).toMatch(/preference/)

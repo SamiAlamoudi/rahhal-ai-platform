@@ -1,46 +1,43 @@
 /**
- * Recovery Phase 1 — FREEZE & SIMPLIFY
+ * Brain UI production freeze — sole conversation owner is TravelBrain.
  *
- * Canonical product spine (do not add parallel owners):
+ * Canonical product spine:
  *
- *   /chat → LegacyChatPage → chatEngine → travel-agent → travelAgentService.planTurn
+ *   App → BrainProvider → useTravelBrain → BrainSessionController
+ *       → TravelBrain.processTurn → RecommendationEngine → UI
  *
- * Voice = STT → chatEngine → OpenAI Conversation Brain → TTS (same spine).
- * Post-#311: after assistant reply/playback, mic is IDLE (no auto-relisten);
- * Realtime `interrupt_response` stays false (no soft duplex barge-in).
- *
- * @see docs/ARCHITECTURE_CONVERSATION_FIRST.md
- * @see docs/MIGRATION_CONVERSATION_FIRST.md
+ * Voice = mock STT → TravelBrain (no live STT/TTS).
+ * No parallel chatEngine / planTurn conversation owner for product traffic.
  */
 
 /** Sole conversation system for product traffic. */
-export const RECOVERY_CONVERSATION = 'chatEngine+travel-agent' as const
+export const RECOVERY_CONVERSATION =
+  'BrainProvider+BrainSessionController+TravelBrain' as const
 
-/** Sole turn owner: user message → planning → execution → response. */
-export const RECOVERY_TURN_OWNER = 'travelAgentService.planTurn' as const
+/** Sole turn owner: user message → TravelBrain → recommendations → UI. */
+export const RECOVERY_TURN_OWNER = 'TravelBrain.processTurn' as const
 
 /** Sole chat UI shell. */
-export const RECOVERY_CHAT_UI = 'LegacyChatPage' as const
+export const RECOVERY_CHAT_UI = 'BrainChatPage' as const
 
 /** Sole hosted payment implementation. */
 export const RECOVERY_PAYMENT = 'lib/payment' as const
 
 /**
- * Sole conversation persistence path.
- * `localChatStore` is the explicit degraded/demo fallback of the same path — not a second product.
+ * Sole conversation persistence path for product UI.
+ * In-memory TravelBrain short-term memory (mock foundation).
  */
-export const RECOVERY_CONVERSATION_STORE = 'chatService+repositories(+localChatStore fallback)' as const
+export const RECOVERY_CONVERSATION_STORE = 'BrainSessionController+TravelBrain.memory' as const
 
 /**
  * Sole memory pipeline on the default turn.
- * PreferenceEngine (`ai.persistent_memory`) seeds preferences into the same turn — not a parallel store.
  */
-export const RECOVERY_MEMORY = 'agent/memory.ts (rebuildMemoryFromMessages)' as const
+export const RECOVERY_MEMORY = 'src/brain preferences+shortTerm memory' as const
 
 /**
  * Feature flags frozen OFF for product traffic.
  * Tests may still `setEnabled` these for isolated suite coverage.
- * Product wiring must not branch on them (see ChatPage / chatProviderFactory / Home).
+ * Product wiring must not branch on them for conversation ownership.
  */
 export const RECOVERY_FROZEN_OFF_FLAGS = [
   'ui.production_integration',
@@ -67,13 +64,12 @@ export const RECOVERY_FROZEN_OFF_FLAGS = [
 export type RecoveryFrozenOffFlag = (typeof RECOVERY_FROZEN_OFF_FLAGS)[number]
 
 /**
- * Sprint 80 / post-#311 — microphone state after a completed assistant turn.
- * Next listen requires an explicit user mic press.
+ * Microphone state after a completed assistant turn.
+ * Next listen requires an explicit user action (mock voice orb).
  */
 export const RECOVERY_VOICE_MIC_AFTER_REPLY = 'idle' as const
 
 /**
- * Sprint 80 / post-#311 — Realtime turn-detection barge-in flag.
- * Must stay false (speakerphone echo would otherwise cancel responses).
+ * Realtime turn-detection barge-in flag — unused (no live realtime voice).
  */
 export const RECOVERY_VOICE_INTERRUPT_RESPONSE = false as const

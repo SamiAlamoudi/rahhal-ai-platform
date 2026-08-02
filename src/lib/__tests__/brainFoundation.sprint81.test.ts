@@ -35,7 +35,7 @@ describe('Sprint 81 — Brain Foundation v1', () => {
       expect(getFeatureRegistry().isEnabled(BRAIN_V1_FEATURE_ID)).toBe(false)
       expect(isBrainV1Enabled()).toBe(false)
       expect(RECOVERY_FROZEN_OFF_FLAGS).toContain('ai.brain.v1')
-      expect(RECOVERY_TURN_OWNER).toBe('travelAgentService.planTurn')
+      expect(RECOVERY_TURN_OWNER).toBe('TravelBrain.processTurn')
       expect(BRAIN_V1_VERSION).toMatch(/brain-v2-reasoning|brain-v1/)
     })
 
