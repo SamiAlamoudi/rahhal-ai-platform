@@ -2,8 +2,11 @@
 
 **Route:** `/design-system` (public showcase)  
 **Code:** `src/design-system/`  
+**Edition:** Premium Experience **V2** (polish layer on the foundation)  
 **Scope:** UX · UI · tokens · components · motion · accessibility · screen shells  
-**Out of scope:** backend · APIs · business logic · live search · payments
+**Out of scope:** backend · APIs · business logic · live search · payments  
+
+See `BEFORE_AFTER_V2.md` for the refinement summary.
 
 ---
 

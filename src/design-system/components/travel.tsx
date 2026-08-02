@@ -3,7 +3,7 @@
  */
 
 import type { ReactNode } from 'react'
-import { IconHeart, IconMap, IconMic, IconPlane, IconSearch, IconSpark } from '../icons/OutlinedIcons'
+import { IconHeart, IconMap, IconPlane, IconSearch, IconSpark } from '../icons/OutlinedIcons'
 import { DsButton, DsSurface, DsText } from './primitives'
 
 export function DsSearchField({
@@ -47,48 +47,7 @@ export function DsSearchField({
   )
 }
 
-export function DsVoiceButton({
-  listening,
-  label = 'Speak with Rahhal',
-}: {
-  listening?: boolean
-  label?: string
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={listening}
-      aria-label={label}
-      style={{
-        position: 'relative',
-        width: 84,
-        height: 84,
-        borderRadius: 'var(--ds-radius-full)',
-        border: 0,
-        background: 'linear-gradient(160deg, var(--ds-ocean-500), var(--ds-ocean-700))',
-        color: 'var(--ds-ink-inverse)',
-        display: 'grid',
-        placeItems: 'center',
-        boxShadow: 'var(--ds-shadow-md)',
-        cursor: 'pointer',
-      }}
-    >
-      {listening ? (
-        <span
-          aria-hidden
-          style={{
-            position: 'absolute',
-            inset: -10,
-            borderRadius: 'inherit',
-            border: '1px solid var(--ds-tide-400)',
-            animation: 'ds-soft-pulse 1.6s var(--ds-ease-standard) infinite',
-          }}
-        />
-      ) : null}
-      <IconMic size={28} />
-    </button>
-  )
-}
+export { DsVoiceOrb as DsVoiceButton } from './premium'
 
 export function DsFlightCard({
   from = 'RUH',
@@ -104,7 +63,12 @@ export function DsFlightCard({
   meta?: string
 }) {
   return (
-    <DsSurface elevated padding={18} aria-label={`Flight ${from} to ${to}`}>
+    <DsSurface
+      elevated
+      padding={18}
+      className="ds-animate-card ds-float-card"
+      aria-label={`Flight ${from} to ${to}`}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <span
@@ -150,7 +114,7 @@ export function DsHotelCard({
   price?: string
 }) {
   return (
-    <DsSurface elevated padding={0} style={{ overflow: 'hidden' }}>
+    <DsSurface elevated padding={0} className="ds-animate-card ds-float-card" style={{ overflow: 'hidden' }}>
       <div
         aria-hidden
         style={{
@@ -325,19 +289,41 @@ export function DsTimeline({
   )
 }
 
-export function DsAiBubble({ children, meta }: { children: ReactNode; meta?: string }) {
+export function DsAiBubble({
+  children,
+  meta,
+  rich,
+}: {
+  children: ReactNode
+  meta?: string
+  rich?: boolean
+}) {
   return (
-    <div style={{ display: 'grid', gap: 6, justifyItems: 'start', maxWidth: '92%' }}>
+    <div
+      className="ds-animate-enter"
+      style={{ display: 'grid', gap: 8, justifyItems: 'start', maxWidth: rich ? '100%' : '92%' }}
+    >
       <div
         style={{
-          padding: '14px 16px',
-          borderRadius: '18px 18px 18px 6px',
-          background: 'var(--ds-surface)',
-          border: 'var(--ds-border-width) solid var(--ds-border)',
-          boxShadow: 'var(--ds-shadow-xs)',
+          padding: rich ? 0 : '14px 16px',
+          borderRadius: '20px 20px 20px 8px',
+          background: rich
+            ? 'transparent'
+            : 'linear-gradient(180deg, var(--ds-surface), var(--ds-bg-elevated))',
+          border: rich ? 'none' : 'var(--ds-border-width) solid var(--ds-border)',
+          boxShadow: rich ? undefined : 'var(--ds-shadow-sm)',
+          width: '100%',
+          display: 'grid',
+          gap: 10,
         }}
       >
-        <DsText variant="callout">{children}</DsText>
+        {typeof children === 'string' || !rich ? (
+          <div style={rich ? undefined : undefined}>
+            {typeof children === 'string' ? <DsText variant="callout">{children}</DsText> : children}
+          </div>
+        ) : (
+          children
+        )}
       </div>
       {meta ? (
         <DsText variant="micro" tone="tertiary">
@@ -350,14 +336,16 @@ export function DsAiBubble({ children, meta }: { children: ReactNode; meta?: str
 
 export function DsUserBubble({ children }: { children: ReactNode }) {
   return (
-    <div style={{ display: 'grid', justifyItems: 'end' }}>
+    <div className="ds-animate-enter" style={{ display: 'grid', justifyItems: 'end' }}>
       <div
         style={{
           maxWidth: '86%',
           padding: '14px 16px',
-          borderRadius: '18px 18px 6px 18px',
-          background: 'var(--ds-primary)',
+          borderRadius: '20px 20px 8px 20px',
+          background:
+            'linear-gradient(160deg, var(--ds-ocean-500), var(--ds-ocean-700))',
           color: 'var(--ds-ink-inverse)',
+          boxShadow: 'var(--ds-shadow-sm)',
         }}
       >
         <DsText variant="callout" tone="inverse">

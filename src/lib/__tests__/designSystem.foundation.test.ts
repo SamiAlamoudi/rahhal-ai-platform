@@ -12,6 +12,12 @@ describe('Rahhal Design System foundation', () => {
     expect(DS_SPACING[7]).toBe(32)
   })
 
+  it('caps motion duration at 350ms (Premium V2)', async () => {
+    const { DS_DURATION } = await import('../../design-system/tokens')
+    expect(DS_DURATION[4]).toBe(350)
+    expect(Math.max(...Object.values(DS_DURATION))).toBeLessThanOrEqual(350)
+  })
+
   it('defines typography roles', () => {
     expect(DS_TYPOGRAPHY_SCALE).toContain('hero')
     expect(DS_TYPOGRAPHY_SCALE).toContain('body')

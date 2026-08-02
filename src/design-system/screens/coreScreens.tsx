@@ -21,13 +21,13 @@ import {
   DsChip,
   DsInput,
   DsProgress,
+  DsSurface,
   DsText,
 } from '../components/primitives'
 import {
   DsAiBubble,
   DsFlightCard,
   DsHotelCard,
-  DsMapPlaceholder,
   DsPackageCard,
   DsQuickAction,
   DsRecommendationCard,
@@ -36,6 +36,15 @@ import {
   DsUserBubble,
   DsVoiceButton,
 } from '../components/travel'
+import {
+  DsAiThinkingRail,
+  DsMapExperience,
+  DsPriceInsight,
+  DsStreamingLine,
+  DsTravelIllustration,
+  DsTypingIndicator,
+  DsVoiceOrb,
+} from '../components/premium'
 import { ScreenFrame } from './ScreenFrame'
 
 export function SplashScreen() {
@@ -48,15 +57,27 @@ export function SplashScreen() {
           placeItems: 'center',
           padding: 32,
           background:
-            'radial-gradient(80% 60% at 50% 30%, rgba(42,157,143,0.22), transparent), var(--ds-ocean-900)',
+            'radial-gradient(90% 70% at 50% 28%, rgba(42,157,143,0.28), transparent 55%), radial-gradient(70% 50% at 80% 80%, rgba(74,144,188,0.2), transparent), var(--ds-ocean-900)',
           color: 'var(--ds-ink-inverse)',
         }}
       >
-        <div className="ds-animate-enter" style={{ textAlign: 'center', display: 'grid', gap: 12 }}>
-          <DsText as="h1" variant="hero" tone="inverse" style={{ fontFamily: 'var(--ds-font-display)' }}>
+        <div style={{ textAlign: 'center', display: 'grid', gap: 14, justifyItems: 'center' }}>
+          <DsText
+            as="h1"
+            variant="hero"
+            tone="inverse"
+            style={{
+              fontFamily: 'var(--ds-font-display)',
+              animation: 'ds-splash-mark var(--ds-duration-4) var(--ds-ease-emphasized) both',
+            }}
+          >
             رحّال
           </DsText>
-          <DsText variant="callout" style={{ color: 'rgba(255,252,248,0.78)' }}>
+          <DsText
+            variant="callout"
+            className="ds-animate-enter ds-animate-enter-delay-2"
+            style={{ color: 'rgba(255,252,248,0.78)' }}
+          >
             Your calm AI travel companion
           </DsText>
         </div>
@@ -142,6 +163,7 @@ export function AuthenticationScreen() {
 export function HomeScreen() {
   return (
     <ScreenFrame
+      pad={false}
       footer={
         <DsBottomNav
           activeId="home"
@@ -154,77 +176,144 @@ export function HomeScreen() {
         />
       }
     >
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <DsText variant="caption" tone="tertiary">
-            Good evening
-          </DsText>
-          <DsText as="h1" variant="title">
-            رحّال
-          </DsText>
-        </div>
-        <button
-          type="button"
-          aria-label="Notifications"
-          style={{ border: 0, background: 'transparent', color: 'var(--ds-ink-secondary)', cursor: 'pointer' }}
+      <div style={{ padding: '10px 20px 28px', display: 'grid', gap: 22 }}>
+        <header
+          className="ds-animate-enter"
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
         >
-          <IconBell />
-        </button>
-      </header>
+          <div>
+            <DsText variant="caption" tone="tertiary">
+              Good evening
+            </DsText>
+            <DsText as="h1" variant="display" style={{ letterSpacing: '-0.03em' }}>
+              رحّال
+            </DsText>
+          </div>
+          <button
+            type="button"
+            aria-label="Notifications"
+            className="ds-glass"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              border: 'var(--ds-border-width) solid var(--ds-border)',
+              color: 'var(--ds-ink-secondary)',
+              cursor: 'pointer',
+              display: 'grid',
+              placeItems: 'center',
+            }}
+          >
+            <IconBell />
+          </button>
+        </header>
 
-      <section
-        className="ds-animate-enter"
-        style={{
-          marginTop: 8,
-          padding: 22,
-          borderRadius: 'var(--ds-radius-xl)',
-          background: 'linear-gradient(165deg, var(--ds-ocean-700), var(--ds-ocean-900))',
-          color: 'var(--ds-ink-inverse)',
-          display: 'grid',
-          gap: 18,
-          justifyItems: 'center',
-          textAlign: 'center',
-          boxShadow: 'var(--ds-shadow-lg)',
-        }}
-      >
-        <DsText variant="caption" style={{ color: 'rgba(255,252,248,0.72)', letterSpacing: '0.06em' }}>
-          AI COMPANION
-        </DsText>
-        <DsText as="h2" variant="display" tone="inverse">
-          Where shall we go?
-        </DsText>
-        <DsText variant="callout" style={{ color: 'rgba(255,252,248,0.78)', maxWidth: 280 }}>
-          Speak freely. Rahhal listens, plans, and keeps every detail calm.
-        </DsText>
-        <DsVoiceButton listening />
-        <DsText variant="micro" style={{ color: 'rgba(255,252,248,0.6)' }}>
-          Hold to talk · Tap for chat
-        </DsText>
-      </section>
-
-      <section style={{ display: 'grid', gap: 12 }}>
-        <DsSearchField placeholder="Or type a destination…" />
-        <div
+        {/* Living companion hero — voice is the centerpiece */}
+        <section
+          className="ds-animate-enter ds-animate-enter-delay-1"
           style={{
+            position: 'relative',
+            padding: '28px 22px 26px',
+            borderRadius: 'var(--ds-radius-2xl)',
+            overflow: 'hidden',
+            background:
+              'radial-gradient(120% 90% at 50% 0%, rgba(42,157,143,0.35), transparent 50%), linear-gradient(165deg, var(--ds-ocean-600), var(--ds-ocean-900))',
+            color: 'var(--ds-ink-inverse)',
             display: 'grid',
-            gridTemplateColumns: 'repeat(5, 1fr)',
-            gap: 8,
+            gap: 16,
+            justifyItems: 'center',
+            textAlign: 'center',
+            boxShadow: 'var(--ds-shadow-float)',
+            minHeight: 340,
           }}
         >
-          <DsQuickAction icon={<IconPlane />} label="Flights" />
-          <DsQuickAction icon={<IconHotel />} label="Hotels" />
-          <DsQuickAction icon={<IconPackage />} label="Packages" />
-          <DsQuickAction icon={<IconCar />} label="Cars" />
-          <DsQuickAction icon={<IconCompass />} label="Discover" />
-        </div>
-      </section>
+          <span
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'radial-gradient(circle at 20% 80%, rgba(255,255,255,0.08), transparent 35%)',
+            }}
+          />
+          <DsText
+            variant="micro"
+            style={{ color: 'rgba(255,252,248,0.7)', letterSpacing: '0.14em', zIndex: 1 }}
+          >
+            LIVE COMPANION
+          </DsText>
+          <DsText as="h2" variant="display" tone="inverse" style={{ zIndex: 1, maxWidth: 280 }}>
+            Where shall we go?
+          </DsText>
+          <DsText
+            variant="callout"
+            style={{ color: 'rgba(255,252,248,0.78)', maxWidth: 260, zIndex: 1 }}
+          >
+            Speak. Rahhal listens — then plans with quiet confidence.
+          </DsText>
+          <div style={{ zIndex: 1, marginTop: 4, marginBottom: 18 }}>
+            <DsVoiceOrb listening size={108} />
+          </div>
+          <DsText variant="micro" style={{ color: 'rgba(255,252,248,0.58)', zIndex: 1 }}>
+            Hold to talk · Tap to open chat
+          </DsText>
+        </section>
 
-      <section style={{ display: 'grid', gap: 10 }}>
-        <DsText as="h2" variant="heading">
-          Recent trips
-        </DsText>
-        <DsPackageCard title="Jeddah weekend" nights="2 nights" price="SAR 2,100" />
-      </section>
+        <section className="ds-animate-enter ds-animate-enter-delay-2" style={{ display: 'grid', gap: 14 }}>
+          <DsSearchField placeholder="Or whisper a destination in text…" />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+            <DsQuickAction icon={<IconPlane />} label="Flights" />
+            <DsQuickAction icon={<IconHotel />} label="Hotels" />
+            <DsQuickAction icon={<IconPackage />} label="Packages" />
+            <DsQuickAction icon={<IconCar />} label="Cars" />
+            <DsQuickAction icon={<IconCompass />} label="Discover" />
+          </div>
+        </section>
+
+        <section className="ds-animate-enter ds-animate-enter-delay-3" style={{ display: 'grid', gap: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <DsText as="h2" variant="heading">
+              Soft inspiration
+            </DsText>
+            <DsText variant="micro" tone="primary">
+              For you
+            </DsText>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 10 }}>
+            <DsSurface
+              className="ds-float-card"
+              padding={16}
+              style={{
+                minHeight: 140,
+                background:
+                  'linear-gradient(160deg, rgba(15,76,117,0.9), rgba(42,157,143,0.55)), #6f9db8',
+                color: 'var(--ds-ink-inverse)',
+                border: 'none',
+              }}
+            >
+              <DsText variant="micro" tone="inverse" style={{ opacity: 0.75 }}>
+                Morocco
+              </DsText>
+              <DsText variant="heading" tone="inverse" style={{ marginTop: 8 }}>
+                Courtyard light & slow mornings
+              </DsText>
+            </DsSurface>
+            <DsSurface className="ds-float-card" padding={16} elevated>
+              <DsTravelIllustration kind="journey" size={72} />
+              <DsText variant="caption" tone="secondary" style={{ marginTop: 8 }}>
+                Quiet coasts this month
+              </DsText>
+            </DsSurface>
+          </div>
+        </section>
+
+        <section style={{ display: 'grid', gap: 12 }}>
+          <DsText as="h2" variant="heading">
+            Recent journeys
+          </DsText>
+          <DsPackageCard title="Jeddah weekend" nights="2 nights" price="SAR 2,100" />
+        </section>
+      </div>
     </ScreenFrame>
   )
 }
@@ -235,11 +324,10 @@ export function AiConversationScreen() {
       pad={false}
       footer={
         <div
+          className="ds-glass"
           style={{
             padding: '12px 16px calc(16px + var(--ds-safe-bottom))',
             borderTop: 'var(--ds-border-width) solid var(--ds-border)',
-            background: 'var(--ds-surface-glass)',
-            backdropFilter: 'blur(16px)',
             display: 'grid',
             gap: 10,
           }}
@@ -253,32 +341,66 @@ export function AiConversationScreen() {
             <div style={{ flex: 1 }}>
               <DsSearchField placeholder="Tell Rahhal what you need…" />
             </div>
-            <DsVoiceButton />
+            <DsVoiceButton size={56} />
+            <button
+              type="button"
+              aria-label="Play last reply"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                border: 'var(--ds-border-width) solid var(--ds-border)',
+                background: 'var(--ds-surface)',
+                color: 'var(--ds-primary)',
+                cursor: 'pointer',
+              }}
+            >
+              <IconSpark />
+            </button>
           </div>
         </div>
       }
     >
-      <div style={{ padding: '12px 20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <DsText as="h1" variant="heading">
-          Consultant
-        </DsText>
+      <div
+        style={{
+          padding: '12px 20px 0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <div>
+          <DsText as="h1" variant="heading">
+            Consultant
+          </DsText>
+          <DsText variant="micro" tone="tertiary">
+            Premium travel conversation
+          </DsText>
+        </div>
         <DsAvatar initials="AI" size={36} alt="Rahhal AI" />
       </div>
-      <div style={{ padding: '8px 20px 20px', display: 'grid', gap: 14 }}>
+      <div className="ds-scroll-fade" style={{ padding: '12px 20px 24px', display: 'grid', gap: 16 }}>
+        <DsAiThinkingRail />
         <DsAiBubble meta="Rahhal · just now">
           I can shape a Morocco week that feels unhurried — flights, a calm riad, and a soft landing day.
         </DsAiBubble>
         <DsUserBubble>Morocco next month, two adults, quiet stay.</DsUserBubble>
-        <DsAiBubble>
-          Here is a composed start. We can refine dates after you glance at these options.
+        <DsAiBubble rich meta="Composed for you">
+          <DsSurface elevated padding={14} className="ds-float-card">
+            <DsStreamingLine text="Here is a composed start — refine anytime." />
+          </DsSurface>
+          <DsFlightCard />
+          <DsHotelCard />
+          <DsMapExperience />
+          <DsPriceInsight />
+          <DsRecommendationCard />
+          <DsPackageCard title="Courtyard week" nights="5 nights" price="SAR 5,400" />
         </DsAiBubble>
-        <DsFlightCard />
-        <DsHotelCard />
-        <DsMapPlaceholder />
-        <DsRecommendationCard />
+        <DsTypingIndicator />
         <div style={{ display: 'grid', gap: 8 }}>
           <DsSuggestionCard label="Show me softer evening arrivals" />
           <DsSuggestionCard label="Compare two riads near the medina" />
+          <DsSuggestionCard label="Add a quiet transfer from the airport" />
         </div>
       </div>
     </ScreenFrame>
@@ -287,38 +409,28 @@ export function AiConversationScreen() {
 
 export function VoiceConversationScreen() {
   return (
-    <ScreenFrame>
+    <ScreenFrame pad={false}>
       <div
         style={{
           flex: 1,
           display: 'grid',
           placeItems: 'center',
           textAlign: 'center',
-          gap: 20,
-          padding: '40px 12px',
+          gap: 22,
+          padding: '48px 24px',
+          background:
+            'radial-gradient(80% 60% at 50% 40%, rgba(42,157,143,0.14), transparent), var(--ds-brand-wash)',
         }}
       >
-        <DsText variant="caption" tone="tertiary">
-          Listening
+        <DsText variant="caption" tone="primary" style={{ letterSpacing: '0.12em' }}>
+          LISTENING
         </DsText>
-        <DsText as="h1" variant="display">
+        <DsText as="h1" variant="display" style={{ maxWidth: 300 }}>
           “A calm week in Morocco…”
         </DsText>
-        <div style={{ position: 'relative', width: 160, height: 160, display: 'grid', placeItems: 'center' }}>
-          <span
-            aria-hidden
-            style={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: '50%',
-              background: 'var(--ds-primary-soft)',
-              animation: 'ds-soft-pulse 2s var(--ds-ease-standard) infinite',
-            }}
-          />
-          <DsVoiceButton listening />
-        </div>
+        <DsVoiceOrb listening size={128} />
         <DsText variant="callout" tone="secondary" style={{ maxWidth: 280 }}>
-          Rahhal is composing a reply. You can interrupt anytime.
+          Soft breath. Natural waves. Interrupt anytime — Rahhal never rushes you.
         </DsText>
         <DsButton variant="ghost">Switch to text</DsButton>
       </div>

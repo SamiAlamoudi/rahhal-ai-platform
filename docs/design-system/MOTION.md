@@ -6,7 +6,7 @@ Rahhal motion is **micro and intentional**. Animation explains hierarchy — nev
 
 1. Prefer opacity + small translation (≤12px).  
 2. Use shared easing: `--ds-ease-emphasized` for entrances, `--ds-ease-standard` for UI, `--ds-ease-exit` for dismissals.  
-3. Durations: 120 / 200 / 320 / 480ms.  
+3. Durations: 120 / 200 / 280 / **350ms max**. No animation exceeds 350ms.  
 4. Stagger related items by 60ms max (three steps).  
 5. Voice listening pulse is the only continuous ambient motion — keep soft and slow.
 

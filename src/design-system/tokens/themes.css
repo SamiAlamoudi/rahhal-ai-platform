@@ -101,12 +101,14 @@
   --ds-radius-2xl: 36px;
   --ds-radius-full: 9999px;
 
-  /* —— Elevation (soft) —— */
-  --ds-shadow-xs: 0 1px 2px rgba(4, 28, 46, 0.04);
-  --ds-shadow-sm: 0 2px 8px rgba(4, 28, 46, 0.06);
-  --ds-shadow-md: 0 8px 24px rgba(4, 28, 46, 0.08);
-  --ds-shadow-lg: 0 16px 40px rgba(4, 28, 46, 0.12);
-  --ds-shadow-glow: 0 0 0 4px rgba(37, 111, 160, 0.18);
+  /* —— Elevation V2 (layered, soft, never harsh) —— */
+  --ds-shadow-xs: 0 1px 2px rgba(4, 28, 46, 0.035), 0 0 0 1px rgba(4, 28, 46, 0.02);
+  --ds-shadow-sm: 0 2px 6px rgba(4, 28, 46, 0.05), 0 8px 20px rgba(4, 28, 46, 0.04);
+  --ds-shadow-md: 0 4px 12px rgba(4, 28, 46, 0.06), 0 16px 36px rgba(4, 28, 46, 0.08);
+  --ds-shadow-lg: 0 8px 20px rgba(4, 28, 46, 0.08), 0 28px 56px rgba(4, 28, 46, 0.12);
+  --ds-shadow-float: 0 12px 40px rgba(15, 76, 117, 0.14), 0 2px 8px rgba(4, 28, 46, 0.06);
+  --ds-shadow-glow: 0 0 0 6px rgba(37, 111, 160, 0.14);
+  --ds-shadow-voice: 0 0 0 0 rgba(42, 157, 143, 0.35), 0 12px 40px rgba(15, 76, 117, 0.28);
 
   /* —— Typography —— */
   --ds-font-display: 'Plus Jakarta Sans', 'Cairo', ui-sans-serif, sans-serif;
@@ -128,14 +130,17 @@
   --ds-tracking-tight: -0.02em;
   --ds-tracking-normal: 0;
 
-  /* —— Motion —— */
+  /* —— Motion V2 (nothing exceeds 350ms) —— */
   --ds-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
   --ds-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
   --ds-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ds-ease-breathe: cubic-bezier(0.45, 0, 0.55, 1);
   --ds-duration-1: 120ms;
   --ds-duration-2: 200ms;
-  --ds-duration-3: 320ms;
-  --ds-duration-4: 480ms;
+  --ds-duration-3: 280ms;
+  --ds-duration-4: 350ms;
+  --ds-blur-glass: 22px;
+  --ds-blur-soft: 12px;
 
   /* —— Opacity —— */
   --ds-opacity-disabled: 0.4;
@@ -190,11 +195,13 @@
   --ds-brand-wash: radial-gradient(120% 80% at 100% 0%, rgba(42, 157, 143, 0.18), transparent 55%),
     radial-gradient(90% 70% at 0% 100%, rgba(74, 144, 188, 0.16), transparent 50%),
     var(--ds-bg);
-  --ds-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --ds-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
-  --ds-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --ds-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.5);
-  --ds-shadow-glow: 0 0 0 4px rgba(122, 176, 212, 0.28);
+  --ds-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --ds-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.32);
+  --ds-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.38);
+  --ds-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.48);
+  --ds-shadow-float: 0 16px 48px rgba(0, 0, 0, 0.45);
+  --ds-shadow-glow: 0 0 0 6px rgba(122, 176, 212, 0.22);
+  --ds-shadow-voice: 0 0 0 0 rgba(58, 173, 154, 0.4), 0 16px 48px rgba(0, 0, 0, 0.45);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -218,7 +225,7 @@
 @keyframes ds-fade-up {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -230,11 +237,11 @@
   0%,
   100% {
     transform: scale(1);
-    opacity: 0.55;
+    opacity: 0.45;
   }
   50% {
-    transform: scale(1.08);
-    opacity: 0.2;
+    transform: scale(1.06);
+    opacity: 0.18;
   }
 }
 
@@ -247,16 +254,140 @@
   }
 }
 
+/* Voice — breathing orb (magical, never cheap) */
+@keyframes ds-voice-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(42, 157, 143, 0.28), 0 16px 40px rgba(15, 76, 117, 0.28);
+  }
+  50% {
+    transform: scale(1.035);
+    box-shadow: 0 0 0 14px rgba(42, 157, 143, 0), 0 20px 48px rgba(15, 76, 117, 0.34);
+  }
+}
+
+@keyframes ds-voice-ring {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.55;
+  }
+  70% {
+    opacity: 0.12;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+@keyframes ds-voice-wave {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes ds-card-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ds-stream-caret {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes ds-typing-dot {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@keyframes ds-splash-mark {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+    letter-spacing: 0.12em;
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    letter-spacing: 0.02em;
+  }
+}
+
+@keyframes ds-success-ring {
+  from {
+    transform: scale(0.85);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+}
+
 [data-rahhal-ds] .ds-animate-enter {
   animation: ds-fade-up var(--ds-duration-3) var(--ds-ease-emphasized) both;
 }
 
 [data-rahhal-ds] .ds-animate-enter-delay-1 {
-  animation-delay: 60ms;
+  animation-delay: 50ms;
 }
 [data-rahhal-ds] .ds-animate-enter-delay-2 {
-  animation-delay: 120ms;
+  animation-delay: 100ms;
 }
 [data-rahhal-ds] .ds-animate-enter-delay-3 {
-  animation-delay: 180ms;
+  animation-delay: 150ms;
+}
+
+[data-rahhal-ds] .ds-animate-card {
+  animation: ds-card-float-in var(--ds-duration-4) var(--ds-ease-emphasized) both;
+}
+
+[data-rahhal-ds] .ds-glass {
+  background: var(--ds-surface-glass);
+  backdrop-filter: blur(var(--ds-blur-glass)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--ds-blur-glass)) saturate(1.2);
+}
+
+[data-rahhal-ds] .ds-float-card {
+  box-shadow: var(--ds-shadow-float);
+  transition: transform var(--ds-duration-2) var(--ds-ease-standard),
+    box-shadow var(--ds-duration-2) var(--ds-ease-standard);
+}
+
+[data-rahhal-ds] .ds-float-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ds-shadow-lg);
+}
+
+[data-rahhal-ds] .ds-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+[data-rahhal-ds] .ds-scroll-fade {
+  mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 16px), transparent);
 }

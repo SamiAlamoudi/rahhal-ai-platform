@@ -4,7 +4,6 @@
 
 import {
   IconBell,
-  IconCheck,
   IconClock,
   IconHeart,
   IconHome,
@@ -13,7 +12,6 @@ import {
   IconSettings,
   IconUser,
   IconWallet,
-  IconWifiOff,
 } from '../icons/OutlinedIcons'
 import {
   DsAvatar,
@@ -23,7 +21,6 @@ import {
   DsInput,
   DsSkeleton,
   DsSnackbar,
-  DsSpinner,
   DsSurface,
   DsTabs,
   DsText,
@@ -35,9 +32,15 @@ import {
   DsMetaRow,
   DsPackageCard,
   DsPriceCard,
-  DsStatePanel,
   DsTimeline,
 } from '../components/travel'
+import {
+  DsBookingProgress,
+  DsMapExperience,
+  DsPremiumEmpty,
+  DsTravelIllustration,
+  DsTrustStrip,
+} from '../components/premium'
 import { ScreenFrame } from './ScreenFrame'
 
 export function FlightDetailsScreen() {
@@ -87,7 +90,7 @@ export function HotelDetailsScreen() {
       <div
         aria-hidden
         style={{
-          height: 180,
+          height: 160,
           margin: '0 -20px',
           background:
             'linear-gradient(145deg, rgba(15,76,117,0.75), rgba(42,157,143,0.5)), #8eb6cc',
@@ -104,6 +107,7 @@ export function HotelDetailsScreen() {
         <DsChip>Breakfast</DsChip>
         <DsChip>Pool</DsChip>
       </div>
+      <DsMapExperience />
       <DsPriceCard amount="SAR 620 / night" note="Free cancellation until Wed" />
     </ScreenFrame>
   )
@@ -137,24 +141,29 @@ export function BookingReviewScreen() {
   return (
     <ScreenFrame
       footer={
-        <div style={{ padding: '16px 20px calc(20px + var(--ds-safe-bottom))' }}>
+        <div style={{ padding: '16px 20px calc(20px + var(--ds-safe-bottom))', display: 'grid', gap: 12 }}>
+          <DsTrustStrip />
           <DsButton fullWidth size="lg">
             Continue to payment
           </DsButton>
         </div>
       }
     >
+      <DsBookingProgress step={1} steps={['Review', 'Pay', 'Confirm']} />
       <DsText as="h1" variant="title">
-        Review
+        Review with confidence
+      </DsText>
+      <DsText variant="callout" tone="secondary">
+        Every line is clear before you commit — no surprises.
       </DsText>
       <DsPackageCard />
-      <DsSurface padding={16}>
+      <DsSurface padding={16} className="ds-float-card">
         <DsText variant="heading">Travelers</DsText>
         <DsText variant="caption" tone="secondary" style={{ marginTop: 6 }}>
           2 adults · details confirmed
         </DsText>
       </DsSurface>
-      <DsPriceCard />
+      <DsPriceCard note="Transparent total · taxes included · hold available" />
     </ScreenFrame>
   )
 }
@@ -163,18 +172,20 @@ export function PaymentScreen() {
   return (
     <ScreenFrame
       footer={
-        <div style={{ padding: '16px 20px calc(20px + var(--ds-safe-bottom))' }}>
+        <div style={{ padding: '16px 20px calc(20px + var(--ds-safe-bottom))', display: 'grid', gap: 12 }}>
+          <DsTrustStrip />
           <DsButton fullWidth size="lg" leadingIcon={<IconWallet />}>
             Pay SAR 6,420
           </DsButton>
         </div>
       }
     >
+      <DsBookingProgress step={2} steps={['Review', 'Pay', 'Confirm']} />
       <DsText as="h1" variant="title">
-        Payment
+        Secure payment
       </DsText>
       <DsText variant="callout" tone="secondary">
-        Secure checkout shell — no live payment logic in this foundation.
+        Encrypted checkout shell — reassuring, never technical.
       </DsText>
       <DsInput label="Name on card" placeholder="Placeholder" name="card-name" />
       <DsInput label="Card number" placeholder="•••• •••• •••• ••••" name="card-number" />
@@ -286,10 +297,10 @@ export function NotificationsScreen() {
 export function ProfileScreen() {
   return (
     <ScreenFrame>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <DsAvatar initials="س" size={64} alt="Profile" />
+      <div className="ds-animate-enter" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <DsAvatar initials="س" size={72} alt="Profile" />
         <div>
-          <DsText as="h1" variant="title">
+          <DsText as="h1" variant="display">
             سامي
           </DsText>
           <DsText variant="caption" tone="secondary">
@@ -297,6 +308,45 @@ export function ProfileScreen() {
           </DsText>
         </div>
       </div>
+
+      <div
+        className="ds-animate-card"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 10,
+        }}
+      >
+        {[
+          ['12', 'Trips'],
+          ['8', 'Countries'],
+          ['Gold', 'Loyalty'],
+        ].map(([value, label]) => (
+          <DsSurface key={label} className="ds-float-card" padding={14} style={{ textAlign: 'center' }}>
+            <DsText variant="title">{value}</DsText>
+            <DsText variant="micro" tone="tertiary">
+              {label}
+            </DsText>
+          </DsSurface>
+        ))}
+      </div>
+
+      <DsSurface elevated padding={16} className="ds-float-card">
+        <DsText variant="heading">Upcoming</DsText>
+        <DsText variant="caption" tone="secondary" style={{ marginTop: 6 }}>
+          Marrakech · 12 Oct · courtyard week
+        </DsText>
+      </DsSurface>
+
+      <DsSurface padding={16}>
+        <DsText variant="heading">Achievements</DsText>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          {['First journey', 'Night owl', 'Coast collector'].map((a) => (
+            <DsChip key={a}>{a}</DsChip>
+          ))}
+        </div>
+      </DsSurface>
+
       <DsSurface padding={16}>
         <DsText variant="heading">Preferences</DsText>
         <DsText variant="caption" tone="secondary" style={{ marginTop: 6 }}>
@@ -336,15 +386,15 @@ export function SettingsScreen() {
 export function ErrorStateScreen() {
   return (
     <ScreenFrame>
-      <DsStatePanel
-        icon={<IconWifiOff />}
+      <DsPremiumEmpty
+        kind="offline"
         title="Something went quiet"
-        body="Rahhal could not finish that step. Your trip details are safe — try again when ready."
+        body="We couldn’t finish that step. Your trip details are safe — take a breath and try again when you’re ready."
         action={<DsButton>Try again</DsButton>}
       />
       <DsDialog
-        title="Need a different path?"
-        body="You can continue in text while we recover voice."
+        title="Prefer another path?"
+        body="Continue in text while voice settles. Nothing is lost."
         primaryLabel="Continue in chat"
       />
     </ScreenFrame>
@@ -354,13 +404,13 @@ export function ErrorStateScreen() {
 export function OfflineStateScreen() {
   return (
     <ScreenFrame>
-      <DsStatePanel
-        icon={<IconWifiOff />}
+      <DsPremiumEmpty
+        kind="offline"
         title="You’re offline"
-        body="Browse saved trips and recent plans. Live search resumes with connection."
+        body="Saved journeys stay with you. Live search returns the moment you’re connected."
         action={<DsButton variant="soft">View saved</DsButton>}
       />
-      <DsSnackbar tone="warning">Waiting for network…</DsSnackbar>
+      <DsSnackbar tone="warning">Waiting for network — calmly</DsSnackbar>
     </ScreenFrame>
   )
 }
@@ -368,10 +418,10 @@ export function OfflineStateScreen() {
 export function EmptyStateScreen() {
   return (
     <ScreenFrame>
-      <DsStatePanel
-        icon={<IconPackage />}
-        title="No trips yet"
-        body="When you’re ready, speak to Rahhal — your first journey will appear here."
+      <DsPremiumEmpty
+        kind="empty"
+        title="Your atlas is waiting"
+        body="Speak to Rahhal when inspiration arrives — your first journey will live here with quiet elegance."
         action={<DsButton>Start a conversation</DsButton>}
       />
     </ScreenFrame>
@@ -381,16 +431,19 @@ export function EmptyStateScreen() {
 export function LoadingStateScreen() {
   return (
     <ScreenFrame>
-      <div style={{ display: 'grid', gap: 16, paddingTop: 24 }}>
+      <div style={{ display: 'grid', gap: 16, paddingTop: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <DsSpinner label="Loading trip ideas" />
-          <DsText variant="callout" tone="secondary">
-            Composing calm options…
-          </DsText>
+          <DsTravelIllustration kind="journey" size={48} />
+          <div>
+            <DsText variant="heading">Composing calm options</DsText>
+            <DsText variant="caption" tone="secondary">
+              Intelligent skeletons — not restless spinners
+            </DsText>
+          </div>
         </div>
-        <DsSkeleton height={88} radius="var(--ds-radius-lg)" />
-        <DsSkeleton height={88} radius="var(--ds-radius-lg)" />
-        <DsSkeleton height={140} radius="var(--ds-radius-lg)" />
+        <DsSkeleton height={96} radius="var(--ds-radius-lg)" />
+        <DsSkeleton height={96} radius="var(--ds-radius-lg)" />
+        <DsSkeleton height={160} radius="var(--ds-radius-xl)" />
       </div>
     </ScreenFrame>
   )
@@ -407,12 +460,12 @@ export function SuccessStateScreen() {
         </div>
       }
     >
-      <DsStatePanel
-        icon={<IconCheck />}
+      <DsPremiumEmpty
+        kind="success"
         title="You’re set"
-        body="Your Marrakech escape is confirmed. Rahhal will keep the timeline clear and quiet."
+        body="Your Marrakech escape is confirmed. The timeline stays clear — celebration, quietly."
       />
-      <DsSnackbar tone="success">Confirmation saved to My Trips</DsSnackbar>
+      <DsSnackbar tone="success">Saved to My Trips</DsSnackbar>
     </ScreenFrame>
   )
 }

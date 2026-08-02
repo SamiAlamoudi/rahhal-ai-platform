@@ -29,11 +29,12 @@ export const DS_RADIUS = {
   full: 9999,
 } as const
 
+/** V2: no motion step exceeds 350ms */
 export const DS_DURATION = {
   1: 120,
   2: 200,
-  3: 320,
-  4: 480,
+  3: 280,
+  4: 350,
 } as const
 
 export const DS_EASE = {

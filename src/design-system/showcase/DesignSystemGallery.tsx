@@ -101,10 +101,10 @@ export function DesignSystemGallery() {
         <aside style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
           <div>
             <DsText as="h1" variant="display">
-              رحّال Design System
+              رحّال · Premium V2
             </DsText>
             <DsText variant="callout" tone="secondary" style={{ marginTop: 8 }}>
-              Premium UI foundation — tokens, components, and production-ready screen shells. No business logic.
+              Apple-award caliber polish — living voice, consultant chat, floating depth. UI only. No business logic.
             </DsText>
           </div>
 
