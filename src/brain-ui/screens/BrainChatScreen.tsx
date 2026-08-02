@@ -5,17 +5,24 @@ import { DsAvatar, DsChip, DsText } from '../../design-system/components/primiti
 import { DsAiBubble, DsSuggestionCard, DsUserBubble } from '../../design-system/components/travel'
 import { DsStreamingLine, DsTypingIndicator } from '../../design-system/components/premium'
 import { ScreenFrame } from '../../design-system/screens/ScreenFrame'
+import {
+  DecisionTimelineBoard,
+  ExplainedRecommendationCards,
+  FollowUpChips,
+  LuxuryEmptyState,
+  MemoryRibbon,
+} from '../../concierge'
 import { useTravelBrain } from '../useTravelBrain'
 import { BrainLoadingExperience } from '../components/BrainLoadingExperience'
 import { BrainErrorBanner } from '../components/BrainErrorBanner'
 import { ConversationTimeline } from '../components/ConversationTimeline'
 import { MemoryDebugPanel } from '../components/MemoryDebugPanel'
-import { RecommendationDeck } from '../components/RecommendationDeck'
 import { BrainComposer } from '../components/BrainComposer'
 
 export function BrainChatScreen() {
-  const { state, sendMessage, startVoice, resetConversation } = useTravelBrain()
+  const { state, sendMessage, startVoice, resetConversation, restoreDecision } = useTravelBrain()
   const [draft, setDraft] = useState('')
+  const concierge = state.concierge
 
   const onSend = async () => {
     const text = draft
@@ -97,10 +104,10 @@ export function BrainChatScreen() {
       >
         <div>
           <DsText as="h1" variant="heading">
-            Consultant
+            Concierge
           </DsText>
           <DsText variant="micro" tone="tertiary">
-            TravelBrain · conversation-driven
+            TravelBrain · luxury memory
           </DsText>
         </div>
         <DsAvatar initials="AI" size={36} alt="Rahhal AI" />
@@ -111,9 +118,21 @@ export function BrainChatScreen() {
         <BrainErrorBanner error={state.error} />
 
         {state.messages.length === 0 ? (
-          <DsAiBubble meta="Rahhal · ready">
-            Speak or type — I will plan with calm confidence using the mock TravelBrain.
-          </DsAiBubble>
+          <LuxuryEmptyState
+            copy={
+              concierge?.emptyInspiration ?? {
+                title: 'A quiet room for planning',
+                body: 'Tell me what you’re dreaming of — I’ll remember your taste and compose options with care.',
+                cta: 'Begin gently',
+                illustration: 'horizon',
+              }
+            }
+            onAction={() => void sendMessage('Plan a calm week in Istanbul')}
+          />
+        ) : null}
+
+        {concierge ? (
+          <MemoryRibbon facts={concierge.memoryFacts} narration={concierge.memoryNarration} />
         ) : null}
 
         {state.messages.map((m) =>
@@ -128,7 +147,20 @@ export function BrainChatScreen() {
 
         {state.thinking ? <DsTypingIndicator label="Rahhal is thinking" /> : null}
 
-        <RecommendationDeck recommendations={state.recommendations} timeline={state.timeline} />
+        {concierge ? (
+          <>
+            <ExplainedRecommendationCards items={concierge.recommendations} />
+            <FollowUpChips
+              questions={concierge.followUps}
+              onAsk={(text) => void sendMessage(text)}
+            />
+            <DecisionTimelineBoard
+              entries={concierge.decisionTimeline}
+              onRestore={(id) => restoreDecision(id)}
+            />
+          </>
+        ) : null}
+
         <ConversationTimeline steps={state.conversationTimeline} />
         <MemoryDebugPanel enabled={state.developerMode} trace={state.lastTrace} />
 

@@ -51,6 +51,9 @@ describe('Brain ⇄ UI controller', () => {
     expect(c.getTimeline().length).toBeGreaterThan(0)
     expect(state.conversationTimeline.some((s) => s.kind === 'decision')).toBe(true)
     expect(state.loading).toBe(false)
+    expect(state.concierge).toBeTruthy()
+    expect(c.getConcierge()?.tripIntel).toHaveLength(14)
+    expect(c.getConcierge()?.recommendations[0]?.why).toBeTruthy()
     c.dispose()
   })
 

@@ -21,6 +21,8 @@ export type TravelBrainApi = {
   getConversation: () => ReturnType<BrainSessionController['getConversation']>
   getTimeline: () => ReturnType<BrainSessionController['getTimeline']>
   getPlan: () => ReturnType<BrainSessionController['getPlan']>
+  getConcierge: () => ReturnType<BrainSessionController['getConcierge']>
+  restoreDecision: (id: string) => void
   setLocale: (locale: LocaleCode) => void
   controller: BrainSessionController
 }
@@ -75,6 +77,8 @@ export function BrainProvider({
       getConversation: () => controller.getConversation(),
       getTimeline: () => controller.getTimeline(),
       getPlan: () => controller.getPlan(),
+      getConcierge: () => controller.getConcierge(),
+      restoreDecision: (id) => controller.restoreDecision(id),
       setLocale: (l) => controller.setLocale(l),
       controller,
     }),

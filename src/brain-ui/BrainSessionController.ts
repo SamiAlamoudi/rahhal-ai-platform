@@ -5,6 +5,15 @@ import {
   type TravelBrain,
 } from '../brain'
 import type { LocaleCode } from '../brain/types'
+import {
+  appendDecision,
+  buildConciergeBundle,
+  inferMemoryHints,
+  restoreDecision,
+  type ConciergeBundle,
+  type DecisionTimelineEntry,
+  type ExtendedMemoryHints,
+} from '../concierge'
 import { BRAIN_LOADING_SEQUENCE } from './loadingPhases'
 import { mapTraceToError } from './mapError'
 import { isDeveloperMode, mockTranscribe } from './mockVoice'
@@ -54,6 +63,9 @@ export class BrainSessionController {
   private voiceSample = 0
   private phaseTimer: ReturnType<typeof setTimeout> | null = null
   private streamTimer: ReturnType<typeof setTimeout> | null = null
+  private memoryHints: ExtendedMemoryHints = inferMemoryHints('')
+  private decisionHistory: DecisionTimelineEntry[] = []
+  private askedFollowUps = new Set<string>()
   private state: BrainUiState = this.initialState()
 
   private initialState(): BrainUiState {
@@ -78,6 +90,7 @@ export class BrainSessionController {
       recentConversations: [],
       suggestedJourneys: SUGGESTED,
       developerMode: isDeveloperMode(),
+      concierge: null,
     }
   }
 
@@ -130,6 +143,16 @@ export class BrainSessionController {
     const error = mapTraceToError(trace)
     const steps = buildConversationTimeline(trace)
     const assistantId = `a-${Date.now()}`
+    this.memoryHints = inferMemoryHints(trimmed, this.memoryHints)
+    this.decisionHistory = appendDecision(this.decisionHistory, trace, this.state.locale)
+    const concierge = this.buildConcierge(trace)
+    for (const fu of concierge.followUps) {
+      this.askedFollowUps.add(fu.key)
+    }
+
+    const memoryLine = concierge.memoryNarration
+    const follow = concierge.followUps[0]?.text
+    const enrichedReply = [trace.reply, memoryLine, follow].filter(Boolean).join('\n\n')
 
     this.patch({
       thinking: false,
@@ -144,14 +167,21 @@ export class BrainSessionController {
       conversationTimeline: steps,
       preferences: trace.preferences,
       error,
-      recentConversations: pushRecent(this.state.recentConversations, trimmed, trace.reply),
+      concierge,
+      recentConversations: pushRecent(this.state.recentConversations, trimmed, enrichedReply),
       messages: [
         ...this.state.messages,
-        { id: assistantId, role: 'assistant', text: '', at: new Date().toISOString(), streaming: true },
+        {
+          id: assistantId,
+          role: 'assistant',
+          text: '',
+          at: new Date().toISOString(),
+          streaming: true,
+        },
       ],
     })
 
-    await this.streamReply(assistantId, trace.reply)
+    await this.streamReply(assistantId, enrichedReply)
     this.patch({ loading: false, loadingPhase: 'idle', thinking: false })
   }
 
@@ -170,10 +200,44 @@ export class BrainSessionController {
   async resetConversation(): Promise<void> {
     this.clearTimers()
     this.brain = createTravelBrain()
+    this.memoryHints = inferMemoryHints('')
+    this.decisionHistory = []
+    this.askedFollowUps = new Set()
     const locale = this.state.locale
     this.state = this.initialState()
     this.emit()
     await this.start('brain-ui-user', locale)
+  }
+
+  getConcierge(): ConciergeBundle | null {
+    return this.state.concierge
+  }
+
+  restoreDecision(id: string): void {
+    this.decisionHistory = restoreDecision(this.decisionHistory, id)
+    if (this.state.lastTrace) {
+      this.patch({ concierge: this.buildConcierge(this.state.lastTrace) })
+    }
+  }
+
+  markFollowUpAsked(key: string): void {
+    this.askedFollowUps.add(key)
+  }
+
+  private buildConcierge(trace: BrainTurnTrace): ConciergeBundle {
+    const texts = this.state.messages.map((m) => m.text)
+    texts.push(trace.userText)
+    return buildConciergeBundle({
+      draft: trace.draft,
+      preferences: trace.preferences,
+      recommendations: trace.recommendations,
+      trace: null,
+      recentTexts: texts,
+      locale: this.state.locale,
+      memoryHints: this.memoryHints,
+      decisionHistory: this.decisionHistory,
+      askedFollowUpKeys: this.askedFollowUps,
+    })
   }
 
   getRecommendations(): BrainRecommendationsBundle {

@@ -55,6 +55,7 @@ const CheckoutSuccessPage = lazy(() => import('./pages/CheckoutSuccessPage.tsx')
 const CheckoutFailurePage = lazy(() => import('./pages/CheckoutFailurePage.tsx'))
 const DesignSystemShowcase = lazy(() => import('./pages/DesignSystemShowcase.tsx'))
 const BrainUiShowcase = lazy(() => import('./pages/BrainUiShowcase.tsx'))
+const ConciergePage = lazy(() => import('./pages/ConciergePage.tsx'))
 
 function RouteFallback() {
   return (
@@ -142,6 +143,11 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/voice" element={
             <ProtectedRoute>
               <VoicePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/concierge" element={
+            <ProtectedRoute>
+              <ConciergePage />
             </ProtectedRoute>
           } />
           <Route path="/recommendations" element={

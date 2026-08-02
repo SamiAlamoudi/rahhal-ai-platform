@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth'
 const NAV = [
   { to: '/', label: 'الرئيسية' },
   { to: '/chat', label: 'المحادثة' },
+  { to: '/concierge', label: 'كونسيرج' },
   { to: '/voice', label: 'الصوت' },
   { to: '/search', label: 'بحث' },
   { to: '/recommendations', label: 'توصيات' },

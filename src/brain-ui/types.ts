@@ -6,6 +6,7 @@ import type { TimelineItem } from '../brain/timeline/TimelineBuilder'
 import type { ReasonerReport } from '../brain/reasoner/TravelReasoner'
 import type { BrainDecision } from '../brain/decision/DecisionEngine'
 import type { ShortTermMemory } from '../brain/memory/types'
+import type { ConciergeBundle } from '../concierge'
 
 export type BrainLoadingPhase =
   | 'idle'
@@ -72,4 +73,6 @@ export type BrainUiState = {
   recentConversations: RecentConversationSummary[]
   suggestedJourneys: SuggestedJourney[]
   developerMode: boolean
+  /** Luxury concierge intelligence snapshot (mock). */
+  concierge: ConciergeBundle | null
 }
