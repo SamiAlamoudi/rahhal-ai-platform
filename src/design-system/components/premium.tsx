@@ -4,107 +4,25 @@
  */
 
 import type { CSSProperties, ReactNode } from 'react'
-import { IconCheck, IconMic, IconSpark, IconWifiOff } from '../icons/OutlinedIcons'
+import { RahhalOrb, type RahhalOrbState } from '../brand/RahhalOrb'
+import { IconCheck, IconSpark, IconWifiOff } from '../icons/OutlinedIcons'
 import { DsButton, DsText } from './primitives'
 
+/** Voice CTA — signature Rahhal Orb brand asset. */
 export function DsVoiceOrb({
   listening = false,
   size = 96,
   label = 'Speak with Rahhal',
+  state,
 }: {
   listening?: boolean
   size?: number
   label?: string
+  /** Optional explicit brand state; defaults from listening. */
+  state?: RahhalOrbState
 }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={listening}
-      aria-label={label}
-      className={listening ? undefined : 'ds-animate-enter'}
-      style={{
-        position: 'relative',
-        width: size,
-        height: size,
-        border: 0,
-        padding: 0,
-        borderRadius: '50%',
-        background: 'transparent',
-        cursor: 'pointer',
-        display: 'grid',
-        placeItems: 'center',
-      }}
-    >
-      {listening ? (
-        <>
-          <span
-            aria-hidden
-            style={{
-              position: 'absolute',
-              inset: -8,
-              borderRadius: '50%',
-              border: '1px solid rgba(42, 157, 143, 0.45)',
-              animation: 'ds-voice-ring 2.2s var(--ds-ease-breathe) infinite',
-            }}
-          />
-          <span
-            aria-hidden
-            style={{
-              position: 'absolute',
-              inset: -20,
-              borderRadius: '50%',
-              border: '1px solid rgba(74, 144, 188, 0.28)',
-              animation: 'ds-voice-ring 2.2s var(--ds-ease-breathe) 0.35s infinite',
-            }}
-          />
-        </>
-      ) : null}
-      <span
-        style={{
-          width: size,
-          height: size,
-          borderRadius: '50%',
-          display: 'grid',
-          placeItems: 'center',
-          color: 'var(--ds-ink-inverse)',
-          background:
-            'radial-gradient(circle at 30% 28%, rgba(255,255,255,0.28), transparent 42%), linear-gradient(160deg, var(--ds-ocean-400), var(--ds-ocean-700) 55%, var(--ds-tide-600))',
-          boxShadow: 'var(--ds-shadow-voice)',
-          animation: listening ? 'ds-voice-breathe 2.4s var(--ds-ease-breathe) infinite' : undefined,
-          transition: `transform var(--ds-duration-2) var(--ds-ease-standard)`,
-        }}
-      >
-        <IconMic size={size * 0.32} />
-      </span>
-      {listening ? (
-        <span
-          aria-hidden
-          style={{
-            position: 'absolute',
-            bottom: -28,
-            display: 'flex',
-            gap: 3,
-            alignItems: 'flex-end',
-            height: 16,
-          }}
-        >
-          {[0, 1, 2, 3, 4].map((i) => (
-            <span
-              key={i}
-              style={{
-                width: 3,
-                height: 14,
-                borderRadius: 99,
-                background: 'var(--ds-tide-400)',
-                transformOrigin: 'center bottom',
-                animation: `ds-voice-wave 0.9s var(--ds-ease-breathe) ${i * 0.08}s infinite`,
-              }}
-            />
-          ))}
-        </span>
-      ) : null}
-    </button>
-  )
+  const resolved: RahhalOrbState = state ?? (listening ? 'listening' : 'idle')
+  return <RahhalOrb state={resolved} size={size} label={label} interactive />
 }
 
 export function DsTypingIndicator({ label = 'Rahhal is thinking' }: { label?: string }) {

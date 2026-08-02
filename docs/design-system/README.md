@@ -1,12 +1,12 @@
-# Rahhal Design System — Premium UI Foundation
+# Rahhal Design System — Signature Brand Experience
 
-**Route:** `/design-system` (public showcase)  
-**Code:** `src/design-system/`  
-**Edition:** Premium Experience **V2** (polish layer on the foundation)  
-**Scope:** UX · UI · tokens · components · motion · accessibility · screen shells  
-**Out of scope:** backend · APIs · business logic · live search · payments  
+**Route:** `/design-system` (public showcase — default **Brand** tab)  
+**Code:** `src/design-system/` (+ `src/design-system/brand/`)  
+**Edition:** **Signature Brand** on Premium Experience V2  
+**Scope:** UX · UI · tokens · components · motion · accessibility · screen shells · brand DNA  
+**Out of scope:** backend · APIs · business logic · live search · payments · AI engine  
 
-See `BEFORE_AFTER_V2.md` for the refinement summary.
+See `brand/README.md` for the brand book · `BEFORE_AFTER_V2.md` for V2 polish.
 
 ---
 
@@ -30,13 +30,15 @@ Visual pillars: calm · luxury · trust · elegance · intelligence.
 ```text
 src/design-system/
   tokens/           # themes.css + typed token map
+  brand/            # Signature DNA — Orb, Travel DNA, illustrations, CSS
   icons/            # outlined SVG icon set
   components/       # primitives, travel cards, overlays
   screens/          # 24 production-ready UI shells
-  showcase/         # gallery chrome
+  showcase/         # gallery chrome (Brand | Screens)
   docs/             # motion / a11y / responsive notes
   index.ts          # public facade
-docs/design-system/ # product-facing design documentation
+docs/design-system/       # product-facing design documentation
+docs/design-system/brand/ # brand book (principles → expansion)
 ```
 
 ---
@@ -53,6 +55,11 @@ docs/design-system/ # product-facing design documentation
 | Accessibility | `docs/ACCESSIBILITY.md` |
 | Responsive rules | `docs/RESPONSIVE.md` |
 | Showcase | `/design-system` |
+| Signature Brand system | `src/design-system/brand/` |
+| Brand book | `docs/design-system/brand/` |
+| Rahhal Orb (7 states) | `brand/RahhalOrb.tsx` |
+| AI personality visuals | `brand/AiPersonality.tsx` |
+| Travel DNA (14 categories) | `brand/TravelDna.tsx` |
 
 ---
 
