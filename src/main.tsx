@@ -45,6 +45,7 @@ const CheckoutPaymentPage = lazy(() => import('./pages/CheckoutPaymentPage.tsx')
 const CheckoutReturnPage = lazy(() => import('./pages/CheckoutReturnPage.tsx'))
 const CheckoutSuccessPage = lazy(() => import('./pages/CheckoutSuccessPage.tsx'))
 const CheckoutFailurePage = lazy(() => import('./pages/CheckoutFailurePage.tsx'))
+const DesignSystemShowcase = lazy(() => import('./pages/DesignSystemShowcase.tsx'))
 
 function RouteFallback() {
   return (
@@ -303,6 +304,8 @@ createRoot(document.getElementById('root')!).render(
               <ForgotPassword />
             </PublicOnlyRoute>
           } />
+          {/* Design System gallery — UI foundation only, no auth / business logic */}
+          <Route path="/design-system" element={<DesignSystemShowcase />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
