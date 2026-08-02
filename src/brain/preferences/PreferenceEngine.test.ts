@@ -1,0 +1,78 @@
+import { describe, expect, it } from 'vitest'
+import { PreferenceEngine } from './PreferenceEngine'
+import { emptyPreferenceProfile } from './types'
+
+describe('PreferenceEngine', () => {
+  it('starts empty without hardcoded favorites', () => {
+    const p = emptyPreferenceProfile()
+    expect(p.favoriteAirlines).toEqual([])
+    expect(p.budgetLevel).toBe('unknown')
+  })
+
+  it('learns from explicit signals', () => {
+    const eng = new PreferenceEngine()
+    eng.learn({ key: 'airline', value: 'Emirates' })
+    eng.learn({ key: 'hotel', value: 'Pera Palace' })
+    eng.learn({ key: 'seat', value: 'window' })
+    eng.learn({ key: 'budget_level', value: 'high' })
+    eng.learn({ key: 'luxury_level', value: 'premium' })
+    eng.learn({ key: 'travel_style', value: 'business' })
+    eng.learn({ key: 'currency', value: 'USD' })
+    eng.learn({ key: 'other', value: 'x' })
+    eng.learn({ key: '', value: '' })
+    const p = eng.getProfile()
+    expect(p.favoriteAirlines[0]).toBe('Emirates')
+    expect(p.favoriteHotels[0]).toBe('Pera Palace')
+    expect(p.preferredSeat).toBe('window')
+    expect(p.budgetLevel).toBe('high')
+    expect(p.luxuryLevel).toBe('premium')
+    expect(p.travelStyle).toBe('business')
+    expect(p.preferredCurrency).toBe('USD')
+    expect(p.signalWeights.airline).toBeGreaterThan(0)
+  })
+
+  it('observes AR/EN free text', () => {
+    const eng = new PreferenceEngine()
+    const signals = eng.observeText('I want luxury family trip aisle seat on Saudia رخيص')
+    expect(signals.length).toBeGreaterThan(0)
+    const p = eng.getProfile()
+    expect(p.favoriteAirlines.some((a) => /saudia/i.test(a))).toBe(true)
+    expect(p.preferredSeat).toBe('aisle')
+  })
+
+  it('observes business and alias signal keys', () => {
+    const eng = new PreferenceEngine()
+    eng.observeText('business trip عمل')
+    eng.observeText('window seat نافذة')
+    eng.learn({ key: 'favorite_airline', value: 'flynas' })
+    eng.learn({ key: 'favorite_airline', value: 'flynas' })
+    eng.learn({ key: 'favorite_hotel', value: 'Creek View' })
+    eng.learn({ key: 'seat', value: 'extra_legroom' })
+    eng.learn({ key: 'seat', value: 'any' })
+    eng.learn({ key: 'travel_style', value: 'adventure' })
+    eng.learn({ key: 'travel_style', value: 'leisure' })
+    eng.learn({ key: 'budget_level', value: 'mid' })
+    eng.learn({ key: 'luxury_level', value: 'essential' })
+    eng.learn({ key: 'luxury_level', value: 'comfort' })
+    eng.learn({ key: 'luxury_level', value: 'ultra' })
+    eng.learn({ key: 'luxury_level', value: 'nope' })
+    eng.learn({ key: 'seat', value: 'sofa' })
+    eng.learn({ key: 'currency', value: 'SAR' })
+    eng.learn({ key: 'currency', value: 'EUR' })
+    eng.learn({ key: 'currency', value: 'AED' })
+    eng.learn({ key: 'currency', value: 'GBP' })
+    eng.learn({ key: 'currency', value: 'XXX' })
+    eng.learn({ key: 'budget_level', value: 'nope' })
+    eng.learn({ key: 'travel_style', value: 'nope' })
+    const p = eng.getProfile()
+    expect(p.travelStyle).toBe('leisure')
+    expect(p.favoriteAirlines).toContain('flynas')
+    expect(p.favoriteHotels).toContain('Creek View')
+    expect(p.preferredSeat).toBe('any')
+    expect(p.luxuryLevel).toBe('ultra')
+    expect(p.budgetLevel).toBe('mid')
+    expect(p.preferredCurrency).toBe('GBP')
+  })
+})
+
+
