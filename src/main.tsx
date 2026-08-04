@@ -6,6 +6,7 @@ import { AppErrorBoundary } from './components/ops/AppErrorBoundary'
 import { runStartup } from './lib/ops'
 import { AuthProvider } from './lib/auth/AuthContext.tsx'
 import { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './lib/auth/ProtectedRoute.tsx'
+import { ThemeProvider, ToastProvider } from './design-system'
 import type { NormalizedTravelOption } from './utils/searchOrchestrator'
 import type { ReasoningResult } from './utils/reasoningEngine'
 import type { TravelSearchRequest } from './utils/travelSearchRequest'
@@ -37,7 +38,7 @@ const BookingConfirmationPage = lazy(() => import('./pages/BookingConfirmationPa
 const SmartItineraryPage = lazy(() => import('./pages/SmartItineraryPage.tsx'))
 const SavedTrips = lazy(() => import('./pages/SavedTrips.tsx'))
 const Settings = lazy(() => import('./pages/Settings.tsx'))
-const ChatPage = lazy(() => import('./pages/ChatPage.tsx'))
+const ChatPage = lazy(() => import('./pages/BilamoChat.tsx'))
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage.tsx'))
 const CheckoutReviewPage = lazy(() => import('./pages/CheckoutReviewPage.tsx'))
 const OrderCheckoutReviewPage = lazy(() => import('./pages/OrderCheckoutReviewPage.tsx'))
@@ -49,12 +50,11 @@ const CheckoutFailurePage = lazy(() => import('./pages/CheckoutFailurePage.tsx')
 function RouteFallback() {
   return (
     <div
-      dir="rtl"
-      className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500"
+      className="bilamo-root flex min-h-screen items-center justify-center text-sm text-[var(--bilamo-muted)]"
       role="status"
       aria-live="polite"
     >
-      جاري التحميل...
+      Loading…
     </div>
   )
 }
@@ -108,6 +108,8 @@ runStartup({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppErrorBoundary>
+    <ThemeProvider>
+    <ToastProvider>
     <BrowserRouter>
       <AuthProvider>
         <Suspense fallback={<RouteFallback />}>
@@ -308,6 +310,8 @@ createRoot(document.getElementById('root')!).render(
         </Suspense>
       </AuthProvider>
     </BrowserRouter>
+    </ToastProvider>
+    </ThemeProvider>
     </AppErrorBoundary>
   </StrictMode>,
 )
