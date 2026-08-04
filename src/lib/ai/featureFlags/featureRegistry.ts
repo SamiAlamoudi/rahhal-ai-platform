@@ -84,6 +84,36 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: travel_reasoning',
   },
   {
+    id: 'ai.consultant_reasoning',
+    name: 'Consultant Reasoning Layer (Evolution Sprint 1)',
+    description:
+      'Additive offline consultant reasoning (intent, profile, constraints, destination/budget/risk/value, recommendation, explanation). Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.concierge'],
+    notes: 'Product alias: consultant_reasoning. Default OFF until a later wiring sprint.',
+  },
+  {
+    id: 'ai.consultant_reflection',
+    name: 'Consultant Reflection Layer (Evolution Sprint 2)',
+    description:
+      'Additive offline reflection: conversation memory, confidence evolution, incremental node refresh, recommendation revision. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_reasoning'],
+    notes: 'Product alias: consultant_reflection. Default OFF. Zero production impact until wired.',
+  },
+  {
+    id: 'ai.planning_graph',
+    name: 'Planning Graph Layer (Evolution Sprint 4)',
+    description:
+      'Additive offline multi-plan DAG: branch, merge, compare, reject, restore, clone, score. Not wired into planTurn.',
+    lifecycle: 'experimental',
+    enabled: false,
+    dependsOn: ['ai.consultant_reflection'],
+    notes: 'Product alias: planning_graph. Default OFF. Zero production impact until wired.',
+  },
+  {
     id: 'ai.smart_clarification',
     name: 'Smart Clarification / Never-Ask-Twice',
     description:
