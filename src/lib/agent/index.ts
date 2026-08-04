@@ -457,11 +457,19 @@ export {
   learnPreferencesFromRequirements,
   isTravelReasoningEnabled,
   DESTINATION_CATALOG,
+  runConsultantReasoningPipeline,
+  tryRunConsultantReasoningPipeline,
+  isConsultantReasoningEnabled,
+  CONSULTANT_REASONING_FEATURE_ID,
+  ReasoningPipeline,
 } from './reasoning'
 export type {
   TravelReasoningResult,
   DestinationCandidate,
   TravelReasoningSnapshot,
+  ConsultantReasoningPipelineResult,
+  ConsultantReasoningInput,
+  ReasoningSlice,
 } from './reasoning'
 export {
   createAgentLlmProvider,

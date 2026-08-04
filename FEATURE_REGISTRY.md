@@ -27,6 +27,7 @@ This registry is **distinct** from Phase W `ProviderFeatureFlags` (provider live
 | `ai.analytics` | experimental | yes | Privacy-gated anonymous metrics |
 | `ai.concierge` | experimental | yes | Provider-agnostic consultant dialogue above the agent |
 | `ai.travel_reasoning` | beta | yes | Sprint 45 open-ended destination reasoning + preference bridge (alias: travel_reasoning) |
+| `ai.consultant_reasoning` | experimental | **no** | Evolution Sprint 1 consultant reasoning layer — offline, not wired to planTurn (alias: consultant_reasoning) |
 | `ai.smart_clarification` | beta | yes | Sprint 46 never-ask-twice soft preference inference (alias: smart_clarification) |
 | `ai.persistent_memory` | beta | yes | Sprint 48 durable preference profiles via localStorage (alias: persistent_memory) |
 | `ai.rahhal_brain` | beta | yes | Sprint 50 Rahhal Brain Core orchestration on production agent path (alias: rahhal_brain) |
