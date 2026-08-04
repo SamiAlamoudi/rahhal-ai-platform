@@ -37,20 +37,20 @@ export type ProductCopyKey =
 
 const COPY: Record<ProductCopyKey, { ar: string; en: string }> = {
   tagline: {
-    ar: 'مستشار السفر الذكي',
-    en: 'AI travel concierge',
+    ar: 'ذكاء في محادثة',
+    en: 'Intelligence, in conversation.',
   },
   promise: {
-    ar: 'خطّط رحلتك بمحادثة طبيعية — بالعربية أولاً.',
-    en: 'Plan your trip in a natural conversation — Arabic first.',
+    ar: 'تحدث بشكل طبيعي — Bilamo يستخرج ما يهم.',
+    en: 'Speak naturally — Bilamo extracts what matters.',
   },
   homeHeadline: {
-    ar: 'إلى أين تود أن تسافر؟',
-    en: 'Where would you like to travel?',
+    ar: 'ماذا تحتاج؟',
+    en: 'What do you need?',
   },
   homeValue: {
-    ar: 'أخبر رحّال بخطتك بكلماتك — يستخرج الوجهة والتواريخ والميزانية دون نماذج حجز تقليدية.',
-    en: 'Tell Rahhal your plan in your words — destination, dates, and budget without traditional booking forms.',
+    ar: 'أخبر Bilamo بخطتك بكلماتك — يستخرج الوجهة والتواريخ والميزانية دون نماذج حجز تقليدية.',
+    en: 'Tell Bilamo your plan in your words — destination, dates, and budget without traditional booking forms.',
   },
   homeTrust: {
     ar: 'محادثة آمنة · توصيات موضّحة · تأكيد قبل أي حجز',
@@ -61,20 +61,20 @@ const COPY: Record<ProductCopyKey, { ar: string; en: string }> = {
     en: 'Start conversation',
   },
   authLoginTitle: {
-    ar: 'أهلاً بك في رحّال',
-    en: 'Welcome to Rahhal',
+    ar: 'أهلاً بك في Bilamo',
+    en: 'Welcome to Bilamo',
   },
   authLoginSubtitle: {
-    ar: 'سجّل الدخول لمتابعة محادثاتك ورحلاتك',
-    en: 'Sign in to continue your conversations and trips',
+    ar: 'سجّل الدخول لمتابعة محادثاتك',
+    en: 'Sign in to continue your conversations',
   },
   authSignupTitle: {
-    ar: 'ابدأ مع رحّال',
-    en: 'Start with Rahhal',
+    ar: 'ابدأ مع Bilamo',
+    en: 'Start with Bilamo',
   },
   authSignupSubtitle: {
-    ar: 'أنشئ حسابك وابدأ تخطيط رحلتك الأولى',
-    en: 'Create your account and plan your first trip',
+    ar: 'أنشئ مساحتك وابدأ المحادثة',
+    en: 'Create your space and begin the conversation',
   },
   authForgotTitle: {
     ar: 'استعادة الوصول',
@@ -85,12 +85,12 @@ const COPY: Record<ProductCopyKey, { ar: string; en: string }> = {
     en: 'Enter your email and we will send a reset link',
   },
   chatTitle: {
-    ar: 'محادثة رحّال',
-    en: 'Rahhal chat',
+    ar: 'محادثة Bilamo',
+    en: 'Bilamo chat',
   },
   chatSubtitle: {
-    ar: 'محادثة طبيعية · تخطيط · حجز داخل نفس الجلسة',
-    en: 'Natural chat · planning · booking in one session',
+    ar: 'محادثة طبيعية · تخطيط · نتائج أنيقة',
+    en: 'Natural chat · planning · elegant results',
   },
   tripsTitle: {
     ar: 'رحلاتي',
@@ -113,8 +113,8 @@ const COPY: Record<ProductCopyKey, { ar: string; en: string }> = {
     en: 'Travel preferences',
   },
   profileSubtitle: {
-    ar: 'يساعد رحّال على اقتراح خيارات أقرب لأسلوبك',
-    en: 'Helps Rahhal suggest options closer to your style',
+    ar: 'يساعد Bilamo على اقتراح خيارات أقرب لأسلوبك',
+    en: 'Helps Bilamo suggest options closer to your style',
   },
   navHome: { ar: 'الرئيسية', en: 'Home' },
   navChat: { ar: 'محادثة', en: 'Chat' },
