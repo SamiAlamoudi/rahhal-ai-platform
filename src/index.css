@@ -1,30 +1,33 @@
 @import "tailwindcss";
+@import "@fontsource-variable/geist/wght.css";
+@import "./design-system/styles/bilamo.css";
 
+/* Legacy palette retained for quarantined admin / checkout surfaces still on old tokens */
 @theme {
-  --font-sans: "Cairo", "Tajawal", system-ui, sans-serif;
+  --font-sans: "Geist Variable", Geist, ui-sans-serif, system-ui, sans-serif;
 
-  --color-primary-50: #eef9ff;
-  --color-primary-100: #d9f0ff;
-  --color-primary-200: #bce5ff;
-  --color-primary-300: #8ed5ff;
-  --color-primary-400: #59bdff;
-  --color-primary-500: #339efb;
-  --color-primary-600: #1c80f0;
-  --color-primary-700: #1569de;
-  --color-primary-800: #1755b4;
-  --color-primary-900: #184a8e;
-  --color-primary-950: #122e57;
+  --color-primary-50: #f5f3ff;
+  --color-primary-100: #ede9fe;
+  --color-primary-200: #ddd6fe;
+  --color-primary-300: #c4b5fd;
+  --color-primary-400: #a78bfa;
+  --color-primary-500: #8b5cf6;
+  --color-primary-600: #7c3aed;
+  --color-primary-700: #6d28d9;
+  --color-primary-800: #5b21b6;
+  --color-primary-900: #4c1d95;
+  --color-primary-950: #2e1065;
 
-  --color-accent-50: #fffbeb;
-  --color-accent-100: #fff4c6;
-  --color-accent-200: #ffe988;
-  --color-accent-300: #ffd84d;
-  --color-accent-400: #ffc021;
-  --color-accent-500: #fab40e;
-  --color-accent-600: #de9106;
-  --color-accent-700: #b76808;
-  --color-accent-800: #94500e;
-  --color-accent-900: #79410f;
+  --color-accent-50: #ecfeff;
+  --color-accent-100: #cffafe;
+  --color-accent-200: #a5f3fc;
+  --color-accent-300: #67e8f9;
+  --color-accent-400: #22d3ee;
+  --color-accent-500: #06b6d4;
+  --color-accent-600: #0891b2;
+  --color-accent-700: #0e7490;
+  --color-accent-800: #155e75;
+  --color-accent-900: #164e63;
 
   --color-success-50: #ecfdf5;
   --color-success-100: #d1fae5;
@@ -60,169 +63,42 @@
   --color-error-900: #7f1d1d;
 }
 
-@keyframes voice-mic-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.35);
-  }
-  50% {
-    box-shadow: 0 0 0 10px rgba(225, 29, 72, 0);
-  }
-}
-
-/* Sprint 121 — Premium Home lightweight enter motion */
-@keyframes ui-home-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  @keyframes ui-home-fade-in {
-    from {
-      opacity: 1;
-      transform: none;
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-}
-
-.voice-mic-pulse {
-  animation: voice-mic-pulse 1.4s ease-out infinite;
-}
-
 html {
   font-family: var(--font-sans);
 }
 
 body {
   margin: 0;
-  background-color: #f4f7fb;
+  background-color: var(--bilamo-bg);
+  color: var(--bilamo-text);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 :root {
-  color-scheme: light;
-  --rahhal-surface: #ffffff;
-  --rahhal-ink: #0f172a;
-  --rahhal-muted: #64748b;
-  --rahhal-glow: rgba(28, 128, 240, 0.18);
+  color-scheme: dark;
+  --rahhal-surface: var(--bilamo-surface);
+  --rahhal-ink: var(--bilamo-text);
+  --rahhal-muted: var(--bilamo-muted);
+  --rahhal-glow: var(--bilamo-glow-primary);
   --rahhal-radius-xl: 1.75rem;
-  /* Product Sprint A — UX foundation tokens (CSS bridge) */
-  --product-ink: #0f172a;
-  --product-muted: #64748b;
-  --product-surface: #ffffff;
-  --product-brand: #1c80f0;
-  --product-brand-deep: #122e57;
+  --product-ink: var(--bilamo-text);
+  --product-muted: var(--bilamo-muted);
+  --product-surface: var(--bilamo-surface);
+  --product-brand: var(--bilamo-primary);
+  --product-brand-deep: #2e1065;
   --product-radius-panel: 1.35rem;
-  --product-elev-md: 0 4px 14px rgba(15, 23, 42, 0.08);
-}
-
-@keyframes product-atmosphere-drift {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(12px, -10px, 0);
-  }
-}
-
-.product-atmosphere-drift {
-  animation: product-atmosphere-drift 14s ease-in-out infinite;
-}
-
-.product-atmosphere-drift-delayed {
-  animation-delay: -6s;
+  --product-elev-md: 0 8px 32px rgba(0, 0, 0, 0.18);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .product-atmosphere-drift,
-  .product-atmosphere-drift-delayed {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
-}
-
-/* Recovery Phase 2 — premium chat surfaces */
-.premium-thinking-rail {
-  margin-block: 0.25rem;
-}
-
-/* Phase 3 — voice panel glow (GPU-friendly opacity pulses) */
-@keyframes voice-panel-breathe {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.15);
-  }
-  50% {
-    box-shadow: 0 0 28px 2px rgba(56, 189, 248, 0.28);
-  }
-}
-
-.voice-panel-idle {
-  animation: voice-panel-breathe 2.8s ease-in-out infinite;
-}
-
-.voice-panel-listening {
-  animation: voice-panel-breathe 1.4s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .voice-mic-pulse,
-  .voice-panel-idle,
-  .voice-panel-listening {
-    animation: none;
-  }
-}
-
-/* Sprint 42 — conversation experience themes */
-.chat-theme-light {
-  color-scheme: light;
-}
-
-.chat-theme-dark {
-  color-scheme: dark;
-  background: linear-gradient(to bottom, #0f172a, #020617);
-  color: #e2e8f0;
-}
-
-.chat-theme-dark .bg-white,
-.chat-theme-dark .bg-white\/80,
-.chat-theme-dark .bg-white\/90 {
-  background-color: rgb(15 23 42 / 0.92) !important;
-}
-
-.chat-theme-contrast {
-  color-scheme: light;
-  --color-primary-600: #0000ee;
-  background: #ffffff;
-  color: #000000;
-}
-
-.chat-theme-contrast button,
-.chat-theme-contrast a {
-  outline-offset: 2px;
-}
-
-.chat-theme-contrast :focus-visible {
-  outline: 3px solid #000000;
-}
-
-html[data-chat-theme='dark'] {
-  color-scheme: dark;
-}
-
-html[data-chat-theme='high_contrast'] {
-  color-scheme: light;
 }
 
 @media print {
