@@ -457,12 +457,89 @@ export {
   learnPreferencesFromRequirements,
   isTravelReasoningEnabled,
   DESTINATION_CATALOG,
+  runConsultantReasoningPipeline,
+  tryRunConsultantReasoningPipeline,
+  isConsultantReasoningEnabled,
+  CONSULTANT_REASONING_FEATURE_ID,
+  ReasoningPipeline,
 } from './reasoning'
 export type {
   TravelReasoningResult,
   DestinationCandidate,
   TravelReasoningSnapshot,
+  ConsultantReasoningPipelineResult,
+  ConsultantReasoningInput,
+  ReasoningSlice,
 } from './reasoning'
+export {
+  createReflectionSession,
+  reflectTurn,
+  tryReflectTurn,
+  isConsultantReflectionEnabled,
+  CONSULTANT_REFLECTION_FEATURE_ID,
+  ReflectionPipeline,
+} from './reflection'
+export type {
+  ReflectionSession,
+  ReflectionPipelineResult,
+  RecommendationRecord,
+  ReflectionTurnInput,
+} from './reflection'
+export {
+  createPlanningGraph,
+  tryCreatePlanningGraph,
+  isPlanningGraphEnabled,
+  PLANNING_GRAPH_FEATURE_ID,
+  PlanningGraph,
+} from './planningGraph'
+export type {
+  PlanningGraphState,
+  PlanNodeData,
+  CreatePlanInput,
+  PlanComparisonResult,
+} from './planningGraph'
+export {
+  createTravelerModel,
+  tryCreateTravelerModel,
+  observeTraveler,
+  tryObserveTraveler,
+  isTravelerIntelligenceEnabled,
+  TRAVELER_INTELLIGENCE_FEATURE_ID,
+  TravelerModel,
+} from './traveler'
+export type {
+  TravelerModelState,
+  TravelerSnapshot,
+  TravelerObserveInput,
+  StoredPreference,
+} from './traveler'
+export {
+  runRecommendationEngine,
+  tryRunRecommendationEngine,
+  isRecommendationIntelligenceEnabled,
+  RECOMMENDATION_INTELLIGENCE_FEATURE_ID,
+  RecommendationEngine as ConsultantRecommendationEngine,
+} from './recommendation'
+export type {
+  RecommendationPackage,
+  RecommendationEngineResult,
+  RecommendationEngineInput,
+  RecommendationCandidate as ConsultantRecommendationCandidate,
+} from './recommendation'
+export {
+  runDestinationIntelligence,
+  tryRunDestinationIntelligence,
+  isDestinationIntelligenceEnabled,
+  DESTINATION_INTELLIGENCE_FEATURE_ID,
+  DestinationIntelligence,
+  compareDestinations,
+} from './destination'
+export type {
+  DestinationSnapshot,
+  DestinationComparisonResult,
+  DestinationEngineInput,
+  DestinationKnowledgeRecord,
+} from './destination'
 export {
   createAgentLlmProvider,
   createAgentLlmRegistry,
