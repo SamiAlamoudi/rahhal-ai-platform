@@ -50,11 +50,22 @@ const CheckoutFailurePage = lazy(() => import('./pages/CheckoutFailurePage.tsx')
 function RouteFallback() {
   return (
     <div
-      className="bilamo-root flex min-h-screen items-center justify-center text-sm text-[var(--bilamo-muted)]"
+      className="bilamo-root relative flex min-h-screen items-center justify-center"
       role="status"
       aria-live="polite"
+      aria-label="Loading"
     >
-      Loading…
+      <div className="bilamo-atmosphere" aria-hidden />
+      <div
+        className="relative h-10 w-10 rounded-full"
+        style={{
+          background:
+            'radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), transparent 42%), linear-gradient(145deg, #7c3aed, #22d3ee)',
+          boxShadow: '0 0 40px rgba(124,58,237,0.35)',
+          animation: 'bilamo-breath 2.8s ease-in-out infinite',
+        }}
+      />
+      <style>{`@keyframes bilamo-breath{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.06);opacity:1}}`}</style>
     </div>
   )
 }

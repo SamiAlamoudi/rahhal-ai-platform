@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion'
-import { ArrowUp, Keyboard } from 'lucide-react'
+import { ArrowUp } from 'lucide-react'
 import {
   BilamoShell,
   Button,
@@ -28,19 +28,11 @@ export interface BilamoConversationExperienceProps {
   autoListen?: boolean
 }
 
-interface RecentConversation {
-  id: string
-  title: string
-  preview: string
+const DEMO_RECENT = {
+  id: 'recent-1',
+  title: 'Weekend in Lisbon',
+  preview: 'Quiet stay near Chiado',
 }
-
-const DEMO_RECENT: RecentConversation[] = [
-  {
-    id: 'recent-1',
-    title: 'Weekend in Lisbon',
-    preview: 'Quiet stay near Chiado · flexible Friday',
-  },
-]
 
 const DEMO_FLIGHTS = [
   {
@@ -122,26 +114,14 @@ function makeLocalUserMessage(conversationId: string, content: string): ChatMess
   }
 }
 
-/** Presence copy — never instruct, never narrate software. */
 function presenceLine(state: OrbState, partial: string): string | null {
   if (state === 'listening' && partial.trim()) return partial.trim()
   return null
 }
 
-function StreamingCaret() {
-  return (
-    <motion.span
-      aria-hidden
-      className="ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[0.12em] rounded-full bg-[var(--bilamo-text)]/70 align-middle"
-      animate={{ opacity: [0.15, 0.85, 0.15] }}
-      transition={{ duration: 1.05, repeat: Infinity, ease: 'easeInOut' }}
-    />
-  )
-}
-
 /**
- * Living Bilamo surface — polish pass.
- * Brand · Greeting · Orb · Conversation · Recent.
+ * Investor-demo living surface.
+ * Recognizable by Orb + silence + typography — not by chat chrome.
  */
 export function BilamoConversationExperience({
   initialPrompt = null,
@@ -404,7 +384,8 @@ export function BilamoConversationExperience({
   return (
     <BilamoShell>
       <LayoutGroup>
-        <div className="mx-auto flex min-h-[100dvh] w-full max-w-[26rem] flex-col px-7 pb-8 pt-12 sm:max-w-md sm:px-8">
+        <div className="mx-auto flex min-h-[100dvh] w-full max-w-[24rem] flex-col px-8 pb-10 pt-14 sm:max-w-md">
+          {/* Wordmark — quiet. Orb carries identity. */}
           <header className="relative z-10 text-center">
             <Logo size={inConversation ? 'sm' : 'md'} className="justify-center" />
             <AnimatePresence mode="wait">
@@ -415,7 +396,7 @@ export function BilamoConversationExperience({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
                   transition={springs.gentle}
-                  className="mt-7 text-[1.85rem] font-medium leading-[1.15] tracking-[-0.04em] text-[var(--bilamo-text)] sm:text-[2.05rem]"
+                  className="mt-8 text-[1.9rem] font-medium leading-[1.12] tracking-[-0.045em] text-[var(--bilamo-text)] sm:text-[2.15rem]"
                 >
                   {greeting}
                 </motion.h1>
@@ -423,9 +404,10 @@ export function BilamoConversationExperience({
             </AnimatePresence>
           </header>
 
+          {/* Orb — the product */}
           <section
             className={`relative z-10 flex flex-col items-center ${
-              inConversation ? 'py-7' : 'flex-1 justify-center py-14'
+              inConversation ? 'py-8' : 'flex-1 justify-center py-16'
             }`}
           >
             <motion.div layout transition={springs.soft}>
@@ -433,22 +415,22 @@ export function BilamoConversationExperience({
                 state={orbState}
                 level={level}
                 bands={bands}
-                size={inConversation ? 152 : 236}
+                size={inConversation ? 140 : 248}
                 onClick={toggleOrb}
                 label={orbState === 'listening' ? 'Stop' : 'Speak'}
               />
             </motion.div>
 
-            <div className="mt-7 flex min-h-[1.5rem] items-center justify-center px-5">
+            <div className="mt-8 flex min-h-[1.4rem] items-center justify-center px-4">
               <AnimatePresence mode="wait">
                 {transcript ? (
                   <motion.p
-                    key={transcript.slice(0, 48)}
-                    initial={{ opacity: 0, y: 4 }}
+                    key={transcript.slice(0, 40)}
+                    initial={{ opacity: 0, y: 3 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     transition={springs.soft}
-                    className="max-w-xs text-center text-[14.5px] leading-relaxed tracking-[-0.01em] text-[var(--bilamo-muted)]"
+                    className="max-w-[18rem] text-center text-[14px] leading-relaxed tracking-[-0.01em] text-[var(--bilamo-muted)]"
                   >
                     {transcript}
                   </motion.p>
@@ -462,7 +444,7 @@ export function BilamoConversationExperience({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="mt-4 max-w-xs text-center text-[13px] leading-relaxed text-[var(--bilamo-danger)]/90"
+                  className="mt-5 max-w-[18rem] text-center text-[13px] leading-relaxed text-[var(--bilamo-danger)]/85"
                   role="alert"
                 >
                   {error ?? micError ?? speechError}
@@ -471,60 +453,65 @@ export function BilamoConversationExperience({
             </AnimatePresence>
           </section>
 
+          {/* Dialogue — journal of intelligence, not a chat thread */}
           <AnimatePresence>
             {messages.length > 0 && (
               <motion.section
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={springs.soft}
-                className="relative z-10 mb-4 flex-1 space-y-6 overflow-y-auto"
+                className="relative z-10 mb-2 flex-1 space-y-7 overflow-y-auto"
                 aria-live="polite"
               >
-                {messages.map((msg) => (
-                  <motion.div
-                    key={msg.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={springs.soft}
-                    className={
-                      msg.role === 'user'
-                        ? 'ml-auto max-w-[86%] rounded-[1.25rem] bg-white/[0.06] px-4 py-3'
-                        : 'mr-auto max-w-[96%]'
-                    }
-                  >
-                    {msg.content ? (
-                      <p
-                        className={
-                          msg.role === 'assistant'
-                            ? 'text-[16px] leading-[1.7] tracking-[-0.015em] whitespace-pre-wrap text-[var(--bilamo-text)]/92'
-                            : 'text-[15px] leading-[1.55] tracking-[-0.01em] whitespace-pre-wrap text-[var(--bilamo-text)]/90'
-                        }
-                      >
-                        {msg.content}
-                        {busy && msg.role === 'assistant' && msg === messages[messages.length - 1] ? (
-                          <StreamingCaret />
-                        ) : null}
-                      </p>
-                    ) : busy && msg.role === 'assistant' ? (
-                      <StreamingCaret />
-                    ) : null}
-                  </motion.div>
-                ))}
+                {messages.map((msg) => {
+                  const isLastAssistant =
+                    busy && msg.role === 'assistant' && msg === messages[messages.length - 1]
+                  return (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={springs.soft}
+                      className={msg.role === 'user' ? 'text-end' : 'text-start'}
+                    >
+                      {msg.role === 'user' ? (
+                        <p className="inline-block max-w-[90%] text-[14px] leading-relaxed tracking-[-0.01em] text-[var(--bilamo-muted)]">
+                          {msg.content}
+                        </p>
+                      ) : (
+                        <p className="max-w-[98%] text-[16.5px] leading-[1.72] tracking-[-0.02em] whitespace-pre-wrap text-[var(--bilamo-text)]/93">
+                          {msg.content || (isLastAssistant ? '' : '')}
+                          {isLastAssistant ? (
+                            <motion.span
+                              aria-hidden
+                              className="ml-1 inline-block h-1.5 w-1.5 translate-y-[-0.1em] rounded-full bg-[var(--bilamo-secondary)] align-middle"
+                              animate={{ opacity: [0.2, 0.9, 0.2], scale: [0.85, 1.05, 0.85] }}
+                              transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+                            />
+                          ) : null}
+                        </p>
+                      )}
+                    </motion.div>
+                  )
+                })}
 
                 {showResults && (
                   <motion.div
-                    initial={{ opacity: 0, y: 12 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ ...springs.soft, delay: 0.06 }}
-                    className="space-y-3 pt-1"
+                    transition={{ ...springs.soft, delay: 0.05 }}
+                    className="space-y-2 pt-2"
                   >
+                    <p className="px-1 pb-2 text-[13.5px] leading-relaxed text-[var(--bilamo-muted)]">
+                      Here is what I would choose for you.
+                    </p>
                     {DEMO_FLIGHTS.map((flight, i) => (
                       <FlightCard key={flight.id} {...flight} highlighted={i === 0} />
                     ))}
                     {DEMO_HOTELS.map((hotel, i) => (
                       <HotelCard key={hotel.id} {...hotel} highlighted={i === 0} />
                     ))}
-                    <div className="bilamo-glass rounded-[1.5rem] px-6 py-5">
+                    <div className="px-5 py-4">
                       <TripTimeline items={DEMO_TIMELINE} />
                     </div>
                   </motion.div>
@@ -534,62 +521,58 @@ export function BilamoConversationExperience({
             )}
           </AnimatePresence>
 
+          {/* Recent — a memory, not a widget */}
           {!inConversation && (
             <motion.section
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ ...springs.gentle, delay: 0.2 }}
-              className="relative z-10 mt-auto pb-1"
+              transition={{ ...springs.gentle, delay: 0.25 }}
+              className="relative z-10 mt-auto"
             >
-              {DEMO_RECENT.map((item) => (
-                <motion.button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    bilamoHaptic(5)
-                    void send(`Continue: ${item.title}`)
-                  }}
-                  whileTap={{ scale: 0.99 }}
-                  transition={springs.press}
-                  className="bilamo-glass-subtle w-full rounded-[1.25rem] px-5 py-4 text-start"
-                >
-                  <p className="text-[14.5px] font-medium tracking-[-0.02em] text-[var(--bilamo-text)]/90">
-                    {item.title}
-                  </p>
-                  <p className="mt-1 text-[13px] text-[var(--bilamo-muted)]/85">{item.preview}</p>
-                </motion.button>
-              ))}
+              <motion.button
+                type="button"
+                onClick={() => {
+                  bilamoHaptic(5)
+                  void send(`Continue: ${DEMO_RECENT.title}`)
+                }}
+                whileTap={{ scale: 0.99 }}
+                transition={springs.press}
+                className="w-full border-t border-[var(--bilamo-border)] px-1 py-5 text-start"
+              >
+                <p className="text-[14px] font-medium tracking-[-0.02em] text-[var(--bilamo-text)]/88">
+                  {DEMO_RECENT.title}
+                </p>
+                <p className="mt-1 text-[12.5px] text-[var(--bilamo-muted)]/80">
+                  {DEMO_RECENT.preview}
+                </p>
+              </motion.button>
             </motion.section>
           )}
 
-          <div className="relative z-10 mt-8 flex flex-col items-center">
+          {/* Type — almost invisible until needed */}
+          <div className="relative z-10 mt-6 flex flex-col items-center">
             <AnimatePresence mode="wait">
               {!composerOpen ? (
-                <motion.div
-                  key="affordance"
+                <motion.button
+                  key="type"
+                  type="button"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
+                  onClick={() => setComposerOpen(true)}
+                  className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-muted)]/40 transition-colors hover:text-[var(--bilamo-muted)]/75"
                 >
-                  <Button
-                    variant="ghost"
-                    size="iconSm"
-                    aria-label="Type"
-                    onClick={() => setComposerOpen(true)}
-                    className="opacity-45 hover:opacity-80"
-                  >
-                    <Keyboard className="h-[18px] w-[18px]" strokeWidth={1.6} />
-                  </Button>
-                </motion.div>
+                  Type
+                </motion.button>
               ) : (
                 <motion.form
                   key="composer"
                   onSubmit={onSubmit}
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 6 }}
+                  exit={{ opacity: 0, y: 4 }}
                   transition={springs.soft}
-                  className="bilamo-glass flex w-full items-end gap-2 rounded-full p-2 pl-5"
+                  className="bilamo-glass flex w-full items-end gap-2 rounded-full p-1.5 pl-5"
                 >
                   <textarea
                     autoFocus
@@ -603,10 +586,10 @@ export function BilamoConversationExperience({
                       }
                       if (e.key === 'Escape') setComposerOpen(false)
                     }}
-                    placeholder="Message"
+                    placeholder=""
                     aria-label="Message"
                     disabled={busy}
-                    className="max-h-28 min-h-[40px] min-w-0 flex-1 resize-none bg-transparent py-2.5 text-[15px] leading-snug tracking-[-0.01em] text-[var(--bilamo-text)] outline-none placeholder:text-[var(--bilamo-muted)]/45"
+                    className="max-h-28 min-h-[40px] min-w-0 flex-1 resize-none bg-transparent py-2.5 text-[15px] leading-snug tracking-[-0.01em] text-[var(--bilamo-text)] outline-none"
                   />
                   <Button
                     type="submit"

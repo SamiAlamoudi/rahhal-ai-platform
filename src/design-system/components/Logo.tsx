@@ -4,60 +4,37 @@ import { brand, springs } from '../tokens'
 
 export interface LogoProps {
   className?: string
+  /** @deprecated Mark competes with the Orb — wordmark is the brand signal. */
   markOnly?: boolean
   size?: 'sm' | 'md' | 'lg'
 }
 
 const SIZES = {
-  sm: { mark: 22, text: 'text-[1.05rem]', gap: 'gap-2.5' },
-  md: { mark: 26, text: 'text-[1.35rem]', gap: 'gap-3' },
-  lg: { mark: 30, text: 'text-[1.65rem]', gap: 'gap-3.5' },
+  sm: 'text-[1.125rem]',
+  md: 'text-[1.5rem]',
+  lg: 'text-[1.75rem]',
 } as const
 
-/** Quiet wordmark — brand presence without app-icon energy. */
-export function Logo({ className, markOnly = false, size = 'md' }: LogoProps) {
-  const s = SIZES[size]
+/**
+ * Wordmark only.
+ * The Orb is Bilamo’s identity — a mark would dilute it.
+ */
+export function Logo({ className, size = 'md' }: LogoProps) {
   return (
     <motion.div
-      className={cn('inline-flex items-center', s.gap, className)}
+      className={cn('inline-flex items-center justify-center', className)}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ ...springs.gentle, delay: 0.04 }}
+      transition={{ ...springs.gentle, delay: 0.05 }}
     >
       <span
-        className="relative inline-flex shrink-0 items-center justify-center rounded-full"
-        style={{ width: s.mark, height: s.mark }}
-        aria-hidden
+        className={cn(
+          'font-medium tracking-[-0.045em] text-[var(--bilamo-text)]',
+          SIZES[size],
+        )}
       >
-        <span
-          className="absolute inset-[-20%] rounded-full opacity-70"
-          style={{
-            background:
-              'radial-gradient(circle, var(--bilamo-glow-primary), transparent 70%)',
-          }}
-        />
-        <span
-          className="relative h-full w-full rounded-full"
-          style={{
-            background:
-              'radial-gradient(circle at 35% 30%, rgba(255,255,255,0.55), transparent 42%), linear-gradient(145deg, color-mix(in srgb, var(--bilamo-primary) 85%, white), var(--bilamo-primary) 55%, color-mix(in srgb, var(--bilamo-primary) 70%, #22d3ee))',
-            boxShadow:
-              'inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 18px var(--bilamo-glow-primary)',
-          }}
-        />
+        {brand.name}
       </span>
-      {!markOnly ? (
-        <span
-          className={cn(
-            'font-medium tracking-[-0.035em] text-[var(--bilamo-text)]',
-            s.text,
-          )}
-        >
-          {brand.name}
-        </span>
-      ) : (
-        <span className="sr-only">{brand.name}</span>
-      )}
     </motion.div>
   )
 }
