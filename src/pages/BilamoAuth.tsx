@@ -29,10 +29,10 @@ function AuthFrame({
           transition={springs.gentle}
           className="mb-10 space-y-6 text-center"
         >
-          <Logo size="md" className="justify-center" />
-          <h1 className="text-[1.55rem] font-medium tracking-[-0.04em] text-[var(--bilamo-text)]">
+          <Logo as="h1" size="md" className="justify-center" />
+          <p className="text-[1.05rem] font-normal tracking-[-0.02em] text-[var(--bilamo-muted)]">
             {title}
-          </h1>
+          </p>
         </motion.div>
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -140,6 +140,7 @@ export function BilamoLogin() {
             size="lg"
             disabled={loading}
             onClick={handleDemoSignIn}
+            data-testid="login-demo"
           >
             Demo
           </Button>

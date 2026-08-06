@@ -22,7 +22,7 @@ export class AccountingEngine {
       amount: breakdown.rahhalRevenue,
       currency: c,
       ref,
-      note: 'Recognize Rahhal revenue',
+      note: 'Recognize Bilamo revenue',
     })
     if (breakdown.tax > 0) {
       this.ledger.postPair({

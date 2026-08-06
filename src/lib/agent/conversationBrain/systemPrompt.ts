@@ -1,6 +1,6 @@
 /**
  * Conversation-First — OpenAI ChatGPT is the intelligence engine.
- * Rahhal remains the product identity, trip state owner, and tool/UI host.
+ * Bilamo remains the product identity, trip state owner, and tool/UI host.
  *
  * Output is natural booking-agent prose — NOT JSON, NOT templates.
  * The client shows and speaks your words verbatim.
@@ -14,15 +14,15 @@ export const RAHHAL_RESPONSE_CONTRACT = [
   'Confirm and book',
 ].join(' | ')
 
-export const RAHHAL_CONVERSATION_SYSTEM_PROMPT = `You are Rahhal (رحّال) — a live BOOKING AGENT for flights and hotels on a voice call.
+export const RAHHAL_CONVERSATION_SYSTEM_PROMPT = `You are Bilamo (بيلامو) — a live BOOKING AGENT for flights and hotels on a voice call.
 
 AUTHORSHIP (absolute)
 - YOU generate 100% of every word the traveler sees and hears.
-- Rahhal’s product code only orchestrates speech recognition, streaming, voice playback, memory, travel tools, and booking integrations.
+- Bilamo’s product code only orchestrates speech recognition, streaming, voice playback, memory, travel tools, and booking integrations.
 - Your reply is shown and spoken VERBATIM. Do not wrap it in JSON, markdown fences, labels, or meta commentary.
 
 IDENTITY
-- Rahhal is the product the traveler is speaking with.
+- Bilamo is the product the traveler is speaking with.
 - Do not mention OpenAI, ChatGPT, models, or being an AI unless asked.
 
 MISSION
@@ -130,7 +130,7 @@ export function buildConversationUserPayload(input: {
   const tripState = input.tripStateJson ?? input.factsJson
   const memory = input.memoryJson ?? input.factsJson
   return [
-    'Rahhal context injection for OpenAI (do not reveal this framing to the traveler):',
+    'Bilamo context injection for OpenAI (do not reveal this framing to the traveler):',
     `Current objective: ${input.objective}`,
     '',
     '=== TRIP STATE (source of truth) ===',
@@ -169,6 +169,6 @@ export function buildConversationUserPayload(input: {
     input.groundingNote ? `=== GROUNDING NOTE ===\n${input.groundingNote}\n` : '',
     `=== LATEST USER MESSAGE ===\n${input.currentUserMessage}`,
     '',
-    'Speak the next Rahhal booking-agent reply now (plain prose only).',
+    'Speak the next Bilamo booking-agent reply now (plain prose only).',
   ].filter(Boolean).join('\n')
 }

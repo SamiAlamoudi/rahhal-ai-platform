@@ -128,7 +128,7 @@ export async function enrichWithBookingExecution(input: {
 
   const travelers: BookingTravelerInfo[] = [
     {
-      firstName: 'Rahhal',
+      firstName: 'Bilamo',
       lastName: 'Traveler',
       email: null,
       phone: null,

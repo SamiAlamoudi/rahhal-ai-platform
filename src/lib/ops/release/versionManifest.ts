@@ -49,11 +49,11 @@ export function buildVersionManifest(input?: {
 
 export function formatVersionManifest(manifest: VersionManifest): string {
   return [
-    '# Rahhal Version Manifest',
+    '# Bilamo Version Manifest',
     '',
     `| Field | Value |`,
     `| --- | --- |`,
-    `| Rahhal Version | ${manifest.rahhalVersion} |`,
+    `| Bilamo Version | ${manifest.rahhalVersion} |`,
     `| Package Version | ${manifest.packageVersion} |`,
     `| Release Type | ${manifest.releaseType} |`,
     `| Build Number | ${manifest.buildNumber} |`,

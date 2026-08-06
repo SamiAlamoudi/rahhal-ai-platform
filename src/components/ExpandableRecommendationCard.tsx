@@ -238,10 +238,10 @@ function ExpandableRecommendationCardImpl({
           aria-label={`تفاصيل ${option.title}`}
         >
           <div className="space-y-4">
-            {/* Why Rahhal recommends it */}
+            {/* Why Bilamo recommends it */}
             <div className="rounded-xl border border-primary-100 bg-primary-50/40 p-3">
               <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-primary-700">
-                <span aria-hidden>🤖</span> لماذا يوصي به رحّال
+                <span aria-hidden>🤖</span> لماذا يوصي به بيلامو
               </p>
               <ul className="space-y-1">
                 {whyRecommends.map((text, i) => (

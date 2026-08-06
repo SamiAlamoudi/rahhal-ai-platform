@@ -25,8 +25,8 @@ export function buildConsultantReply(input: ConsultantVoiceInput): string {
     case 'greet':
       return joinBlocks([
         line(locale, {
-          ar: 'أهلاً بك — أنا معك كمستشار سفر في رحّال. خلّنا نبني رحلة تحس إنها لك.',
-          en: 'Welcome — I am here as your Rahhal travel advisor. Let’s shape a trip that feels like you.',
+          ar: 'أهلاً بك — أنا معك كمستشار سفر في بيلامو. خلّنا نبني رحلة تحس إنها لك.',
+          en: 'Welcome — I am here as your Bilamo travel advisor. Let’s shape a trip that feels like you.',
         }),
         askBlock(locale, decision.askFields, requirements),
       ])

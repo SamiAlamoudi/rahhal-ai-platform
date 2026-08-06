@@ -110,7 +110,7 @@ export async function runProvidersCheck(
   const probed = false
 
   const lines: string[] = []
-  lines.push('Rahhal provider readiness check')
+  lines.push('Bilamo provider readiness check')
   lines.push(`paymentProvider=${paymentProvider}`)
   lines.push(`masterLive=${flags.liveIntegrationEnabled}`)
   lines.push(`mockFallback=${flags.mockFallbackEnabled}`)

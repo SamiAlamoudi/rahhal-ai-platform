@@ -1,7 +1,7 @@
 /**
  * Conversation-First — Conversation Brain.
  * OpenAI authors 100% of traveler-facing language when remote is active.
- * Rahhal only orchestrates: stream tokens, strip markdown for TTS, inject facts/tools.
+ * Bilamo only orchestrates: stream tokens, strip markdown for TTS, inject facts/tools.
  * Local generative model is offline / explicit-local only — never used in the browser
  * traveler path (ChatGPT Voice parity).
  */

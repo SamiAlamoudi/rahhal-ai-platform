@@ -1,5 +1,5 @@
 /**
- * Sprint 38 — Universal Rahhal Points wallet.
+ * Sprint 38 — Universal Bilamo Points wallet.
  * earn / redeem / expire / reverse / bonus / promotions / campaigns / transfer / adjustment
  */
 
@@ -111,7 +111,7 @@ export class PointsWallet {
       serviceKind: input.serviceKind,
       providerId: input.providerId,
       bookingRef: input.bookingRef,
-      note: input.note ?? `Redeemed ${points} Rahhal Points`,
+      note: input.note ?? `Redeemed ${points} Bilamo Points`,
       metadata: {},
     })
     state.lifetimeRedeemed += points

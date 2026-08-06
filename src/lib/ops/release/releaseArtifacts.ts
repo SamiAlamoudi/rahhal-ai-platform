@@ -31,7 +31,7 @@ export function generateGAReleaseArtifacts(input?: {
   const releaseNotes = generateGAReleaseNotes(manifest)
 
   const changelogV1 = [
-    `# CHANGELOG — Rahhal V1`,
+    `# CHANGELOG — Bilamo V1`,
     '',
     `## [${RAHHAL_GA_VERSION}] — GA`,
     '',
@@ -50,7 +50,7 @@ export function generateGAReleaseArtifacts(input?: {
     '',
     formatVersionManifest(manifest),
     '',
-    'This document certifies Rahhal General Availability.',
+    'This document certifies Bilamo General Availability.',
     '',
   ].join('\n')
 
@@ -65,7 +65,7 @@ export function generateGAReleaseArtifacts(input?: {
     `# SYSTEM STATUS`,
     '',
     `Overall: **${overall}**`,
-    `Rahhal: ${RAHHAL_GA_VERSION} GA`,
+    `Bilamo: ${RAHHAL_GA_VERSION} GA`,
     `Package: ${manifest.packageVersion}`,
     '',
     'Subsystems: Conversation, Search, Ranking, Booking, Trips, Documents,',
@@ -87,7 +87,7 @@ export function generateGAReleaseArtifacts(input?: {
   ].join('\n')
 
   const knownLimitations = [
-    `# KNOWN LIMITATIONS — Rahhal ${RAHHAL_GA_VERSION}`,
+    `# KNOWN LIMITATIONS — Bilamo ${RAHHAL_GA_VERSION}`,
     '',
     '- Live payments frozen (`VITE_PAYMENT_PROVIDER=mock`).',
     '- Live travel providers default OFF; require Edge secrets + ops approval.',

@@ -296,7 +296,7 @@ describe('Phase T TicketOrchestrator', () => {
     expect(doc.roomDetails.length).toBe(2)
     expect(doc.paymentSummary.customerEmailMasked).toBe('a***@example.com')
     expect(doc.qrCodeData.format).toBe('rahhal-ticket-v1')
-    expect(doc.supportContact).toMatch(/support@rahhal.example/)
+    expect(doc.supportContact).toMatch(/support@bilamo.example/)
     expect(result.session!.audit.length).toBeGreaterThan(3)
     expect(JSON.stringify(result.session!.audit)).not.toMatch(/A12345678|ahmed@example.com/)
   })

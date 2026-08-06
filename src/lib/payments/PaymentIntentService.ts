@@ -62,7 +62,7 @@ export class PaymentIntentService {
       currency: input.currency,
       description:
         input.description
-        ?? `Rahhal trip payment (${input.currency} ${pricing.total})`,
+        ?? `Bilamo trip payment (${input.currency} ${pricing.total})`,
       providerId: null,
       status: 'created',
       idempotencyKey,

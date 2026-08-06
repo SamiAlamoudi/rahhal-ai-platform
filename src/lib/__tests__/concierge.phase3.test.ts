@@ -26,7 +26,7 @@ describe('Concierge Phase 3 — consultant voice', () => {
       decision,
       requirements: memory.requirements,
     })
-    expect(reply).toMatch(/consultant|Rahhal/i)
+    expect(reply).toMatch(/consultant|Bilamo/i)
     expect(reply.toLowerCase()).not.toMatch(/fill (out )?the form|required field/)
     expect(reply.toLowerCase()).not.toMatch(/amadeus|duffel|travelport|sabre|expedia|booking\.com/)
   })
@@ -48,7 +48,7 @@ describe('Concierge Phase 3 — consultant voice', () => {
       decision,
       requirements: memory.requirements,
     })
-    expect(reply).toMatch(/مستشار|رحّال/)
+    expect(reply).toMatch(/مستشار|بيلامو/)
     expect(reply).not.toMatch(/Amadeus|Duffel/)
   })
 

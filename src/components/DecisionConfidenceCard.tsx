@@ -85,7 +85,7 @@ function DecisionConfidenceCardImpl({ rankedOptions, reasoningResults: _reasonin
       {/* Confidence gauge */}
       <div className="mb-4 flex items-center justify-between rounded-xl bg-slate-50/60 px-4 py-4">
         <div>
-          <p className="text-[10px] font-medium text-slate-400">مستوى ثقة رحّال</p>
+          <p className="text-[10px] font-medium text-slate-400">مستوى ثقة بيلامو</p>
           <p className={`text-2xl font-bold ${confidenceColor(data.avgConfidence)}`} dir="ltr">
             {data.avgConfidence}%
           </p>
@@ -174,10 +174,10 @@ function DecisionConfidenceCardImpl({ rankedOptions, reasoningResults: _reasonin
         <p className="text-[10px] font-bold text-primary-600">تفسير الثقة</p>
         <p className="mt-1 text-xs leading-relaxed text-slate-600">
           {data.avgConfidence >= 75
-            ? 'رحّال واثق من هذه التوصيات بناءً على البيانات المتوفرة. كلما زادت الثقة، قلّت المخاطر في الاختيار.'
+            ? 'بيلامو واثق من هذه التوصيات بناءً على البيانات المتوفرة. كلما زادت الثقة، قلّت المخاطر في الاختيار.'
             : data.avgConfidence >= 50
-              ? 'رحّال لديه ثقة متوسطة. بعض المعلومات غير مؤكدة، لذا يُنصح بمراجعة التفاصيل قبل القرار.'
-              : 'رحّال لديه ثقة منخفضة بسبب نقص المعلومات. إكمال الملف يتحسن دقة التوصيات.'}
+              ? 'بيلامو لديه ثقة متوسطة. بعض المعلومات غير مؤكدة، لذا يُنصح بمراجعة التفاصيل قبل القرار.'
+              : 'بيلامو لديه ثقة منخفضة بسبب نقص المعلومات. إكمال الملف يتحسن دقة التوصيات.'}
         </p>
       </div>
     </section>

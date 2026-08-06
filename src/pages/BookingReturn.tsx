@@ -238,7 +238,7 @@ export default function BookingReturn() {
 
         <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/40 p-4">
           <p className="text-xs text-slate-500">
-            رحّال لا يعتبر الحجز مؤكداً بمجرد العودة من المزود. التأكيد يتطلب تحققاً موثوقاً من المزود.
+            بيلامو لا يعتبر الحجز مؤكداً بمجرد العودة من المزود. التأكيد يتطلب تحققاً موثوقاً من المزود.
           </p>
         </div>
       </main>

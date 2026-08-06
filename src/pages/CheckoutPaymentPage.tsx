@@ -101,7 +101,7 @@ export default function CheckoutPaymentPage() {
         paymentSessionId: sessionResult.paymentSession.id,
       })
 
-      // Hosted checkout — leave Rahhal; Moyasar (or mock returnUrl) collects payment.
+      // Hosted checkout — leave Bilamo; Moyasar (or mock returnUrl) collects payment.
       window.location.assign(redirectUrl)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Payment processing failed')
@@ -168,7 +168,7 @@ export default function CheckoutPaymentPage() {
             سيتم تحويلك إلى صفحة الدفع الآمنة لدى Moyasar لإدخال بيانات البطاقة.
           </p>
           <p className="mt-3 text-[10px] text-slate-400">
-            الدفع الآمن عبر بوابة Moyasar. لا يتم تخزين بيانات البطاقة في رحّال.
+            الدفع الآمن عبر بوابة Moyasar. لا يتم تخزين بيانات البطاقة في بيلامو.
           </p>
         </div>
 

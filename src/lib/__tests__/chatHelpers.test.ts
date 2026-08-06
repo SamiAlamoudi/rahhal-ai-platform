@@ -39,7 +39,7 @@ function message(partial: Partial<ChatMessage> & Pick<ChatMessage, 'id' | 'role'
 
 describe('chatHelpers', () => {
   it('builds titles and validates inputs', () => {
-    expect(titleFromFirstMessage('هذه رسالة طويلة جداً لاختبار قص عنوان المحادثة من أول رسالة للمستخدم في رحّال')).toContain('…')
+    expect(titleFromFirstMessage('هذه رسالة طويلة جداً لاختبار قص عنوان المحادثة من أول رسالة للمستخدم في بيلامو')).toContain('…')
     expect(validateConversationTitle('')).not.toBeNull()
     expect(validateConversationTitle('رحلة طوكيو')).toBeNull()
     expect(validateUserMessage('  ')).not.toBeNull()

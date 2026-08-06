@@ -22,7 +22,7 @@ const TIERS: MembershipDefinition[] = [
     earnMultiplier: 1.15,
     benefits: [
       benefit('extra_discounts', 'Silver discount', '2% member discount', 2, 'percent'),
-      benefit('bonus_points', 'Silver bonus', '15% more Rahhal Points', 15, 'percent'),
+      benefit('bonus_points', 'Silver bonus', '15% more Bilamo Points', 15, 'percent'),
       benefit('priority_support', 'Priority chat support', 'Faster support routing', 1, 'boolean'),
     ],
   },
@@ -65,7 +65,7 @@ const TIERS: MembershipDefinition[] = [
       benefit('airport_lounge_credits', 'Lounge credits', '6 lounge credits', 6, 'credits'),
       benefit('late_checkout', 'Late checkout credits', 'Unlimited late checkout attempts', 99, 'credits'),
       benefit('free_cancellation_credits', 'Free cancel credits', '6 free cancel credits', 6, 'credits'),
-      benefit('bonus_points', 'Diamond bonus', '100% more Rahhal Points', 100, 'percent'),
+      benefit('bonus_points', 'Diamond bonus', '100% more Bilamo Points', 100, 'percent'),
       benefit('priority_support', 'Concierge support', 'Dedicated priority support', 1, 'boolean'),
       benefit('priority_ai_processing', 'Priority AI', 'Highest AI priority', 1, 'boolean'),
       benefit('exclusive_offers', 'Diamond exclusives', 'Invitation-only offers', 1, 'boolean'),

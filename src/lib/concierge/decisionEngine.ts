@@ -219,7 +219,7 @@ function cityBrief(destKey: string, locale: AgentLocale): string[] | null {
 }
 
 /**
- * Core intelligence: given what we already know, can Rahhal help now?
+ * Core intelligence: given what we already know, can Bilamo help now?
  */
 export function evaluateConciergeValueOpportunity(input: {
   requirements: TripRequirements

@@ -1,5 +1,5 @@
 /**
- * Sprint 119 — Rahhal Experience Phase 1 (UI Foundation) barrel.
+ * Sprint 119 — Bilamo Experience Phase 1 (UI Foundation) barrel.
  * Presentation architecture only — no engines, APIs, or business logic.
  */
 

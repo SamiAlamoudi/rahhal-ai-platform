@@ -292,7 +292,7 @@ function RahhalRecommendationPanel({ bestOption, report, allOptions }: RahhalPan
       <div className="flex items-center gap-2">
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-100 text-base">ر</span>
         <div>
-          <h2 className="text-sm font-bold text-slate-900">توصية رحّال</h2>
+          <h2 className="text-sm font-bold text-slate-900">توصية بيلامو</h2>
           <p className="text-[10px] text-slate-400">تحليل مبني على درجة القرار</p>
         </div>
       </div>
@@ -327,7 +327,7 @@ function RahhalRecommendationPanel({ bestOption, report, allOptions }: RahhalPan
       {/* Why selected */}
       {report.whyRahhalRecommends.length > 0 && (
         <div className="mt-3">
-          <h4 className="mb-1.5 text-xs font-bold text-slate-700">لماذا اختار رحّال هذا الخيار؟</h4>
+          <h4 className="mb-1.5 text-xs font-bold text-slate-700">لماذا اختار بيلامو هذا الخيار؟</h4>
           <div className="space-y-1">
             {report.whyRahhalRecommends.slice(0, 3).map((text, i) => (
               <p key={i} className="text-xs leading-relaxed text-slate-600">• {text}</p>
@@ -556,7 +556,7 @@ export default function ResultsExperience({ rankedOptions, reasoningResults }: P
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <span className="text-lg">🏆</span>
-        <h2 className="text-base font-bold text-slate-900">نتائج رحّال</h2>
+        <h2 className="text-base font-bold text-slate-900">نتائج بيلامو</h2>
       </div>
 
       <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-2.5">
@@ -565,7 +565,7 @@ export default function ResultsExperience({ rankedOptions, reasoningResults }: P
         </p>
       </div>
 
-      {/* Rahhal Recommendation Panel */}
+      {/* Bilamo Recommendation Panel */}
       <RahhalRecommendationPanel bestOption={bestOption} report={bestReport} allOptions={rankedOptions} />
 
       {/* Sort bar */}

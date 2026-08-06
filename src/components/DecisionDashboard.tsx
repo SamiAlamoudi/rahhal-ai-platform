@@ -322,7 +322,7 @@ export default function DecisionDashboard({ rankedOptions, reasoningResults, sea
       {/* Section title */}
       <div className="flex items-center gap-2">
         <span className="text-lg">🎯</span>
-        <h2 className="text-base font-bold text-slate-900">لوحة قرار رحّال</h2>
+        <h2 className="text-base font-bold text-slate-900">لوحة قرار بيلامو</h2>
       </div>
 
       {/* AI Decision Summary + Score Wheel */}
@@ -351,7 +351,7 @@ export default function DecisionDashboard({ rankedOptions, reasoningResults, sea
           {/* Why chosen */}
           {bestReport.whyRahhalRecommends.length > 0 && (
             <div className="mt-3">
-              <h5 className="mb-1.5 text-xs font-bold text-slate-700">لماذا اختار رحّال هذا الخيار؟</h5>
+              <h5 className="mb-1.5 text-xs font-bold text-slate-700">لماذا اختار بيلامو هذا الخيار؟</h5>
               <div className="space-y-1">
                 {bestReport.whyRahhalRecommends.slice(0, 3).map((text, i) => (
                   <p key={i} className="text-xs leading-relaxed text-slate-600">• {text}</p>
@@ -409,7 +409,7 @@ export default function DecisionDashboard({ rankedOptions, reasoningResults, sea
       <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center gap-2">
           <span className="text-sm">💡</span>
-          <h3 className="text-sm font-bold text-slate-900">نصائح رحّال</h3>
+          <h3 className="text-sm font-bold text-slate-900">نصائح بيلامو</h3>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {advice.map((card, i) => (

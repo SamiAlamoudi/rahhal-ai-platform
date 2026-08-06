@@ -25,7 +25,7 @@ function buildMockReply(userText: string): string {
   const destination = inferDemoDestination(trimmed)
 
   return [
-    `## اقتراح رحّال`,
+    `## اقتراح بيلامو`,
     ``,
     `فهمت طلبك حول **${topic}**.`,
     ``,

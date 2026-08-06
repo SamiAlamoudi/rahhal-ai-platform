@@ -178,7 +178,7 @@ export function ConversationComposer({
             </span>
           ) : (
             <span className="hidden text-xs text-slate-400 sm:inline">
-              {t('تحدث أو اكتب — رحّال يستمع', 'Speak or type — Rahhal is ready')}
+              {t('تحدث أو اكتب — بيلامو يستمع', 'Speak or type — Bilamo is ready')}
             </span>
           )}
         </div>

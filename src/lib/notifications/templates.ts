@@ -146,11 +146,11 @@ const TEMPLATE_COPY: Record<
   },
   generic: {
     en: {
-      subject: 'Rahhal update',
+      subject: 'Bilamo update',
       body: 'Hi {{userName}}, {{extraNote}}',
     },
     ar: {
-      subject: 'تحديث من رحّال',
+      subject: 'تحديث من بيلامو',
       body: 'مرحباً {{userName}}، {{extraNote}}',
     },
   },

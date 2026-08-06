@@ -12,13 +12,13 @@ export class LoyaltyExplainer {
   explainWallet(wallet: PointsWalletSnapshot, locale: 'en' | 'ar' = 'en'): string {
     if (locale === 'ar') {
       return [
-        `رصيد نقاط رحّال: ${wallet.balance}.`,
+        `رصيد نقاط بيلامو: ${wallet.balance}.`,
         `النقاط المعلّقة: ${wallet.pendingPoints}.`,
         `مستوى العضوية: ${wallet.membershipTier}.`,
       ].join('\n')
     }
     return [
-      `Your Rahhal Points balance is ${wallet.balance}.`,
+      `Your Bilamo Points balance is ${wallet.balance}.`,
       `Pending points: ${wallet.pendingPoints}.`,
       `Membership tier: ${capitalize(wallet.membershipTier)}.`,
       wallet.expirations[0]
@@ -31,16 +31,16 @@ export class LoyaltyExplainer {
 
   explainEarn(points: number, serviceKind: string, tier: MembershipTier, locale: 'en' | 'ar' = 'en'): string {
     if (locale === 'ar') {
-      return `ستكسب حوالي ${points} نقطة رحّال على هذا الـ ${serviceKind} (مستوى ${tier}).`
+      return `ستكسب حوالي ${points} نقطة بيلامو على هذا الـ ${serviceKind} (مستوى ${tier}).`
     }
-    return `You will earn about ${points} Rahhal Points on this ${serviceKind} booking as a ${capitalize(tier)} member.`
+    return `You will earn about ${points} Bilamo Points on this ${serviceKind} booking as a ${capitalize(tier)} member.`
   }
 
   explainRedeem(points: number, balanceAfter: number, locale: 'en' | 'ar' = 'en'): string {
     if (locale === 'ar') {
       return `تم استخدام ${points} نقطة. الرصيد المتبقي: ${balanceAfter}.`
     }
-    return `I will use ${points} Rahhal Points. Remaining balance: ${balanceAfter}.`
+    return `I will use ${points} Bilamo Points. Remaining balance: ${balanceAfter}.`
   }
 
   explainRecommendation(
@@ -57,7 +57,7 @@ export class LoyaltyExplainer {
     return [
       `Best rewards pick: ${top.candidate.title}.`,
       `Net cost ${top.netCashCost} ${top.candidate.currency}.`,
-      `Estimated Rahhal Points: ${top.pointsEarned}.`,
+      `Estimated Bilamo Points: ${top.pointsEarned}.`,
       top.pointsRedeemed > 0 ? `Points applied: ${top.pointsRedeemed}.` : null,
       ...top.reasons.slice(0, 2),
     ]

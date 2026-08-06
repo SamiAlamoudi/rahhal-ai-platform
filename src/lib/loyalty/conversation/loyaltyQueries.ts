@@ -8,7 +8,7 @@ import { isLoyaltyPlatformResult } from '../LoyaltyPlatform'
 import type { LoyaltyCandidate, LoyaltyRecommendationContext } from '../types'
 
 export type LoyaltyConversationQueryKind =
-  | 'use_rahhal_points'
+  | 'use_bilamo_points'
   | 'most_rewards_hotel'
   | 'upgrade_with_points'
   | 'points_earn_estimate'
@@ -21,10 +21,10 @@ export function detectLoyaltyConversationQuery(
   const lower = userText.toLowerCase().trim()
 
   if (
-    /use (my )?(rahhal )?points|redeem (my )?points|pay with points/.test(lower)
-    || /استخدم نقاطي|استخدم نقاط رحّال/.test(lower)
+    /use (my )?((rahhal|bilamo) )?points|redeem (my )?points|pay with points/.test(lower)
+    || /استخدم نقاطي|استخدم نقاط بيلامو/.test(lower)
   ) {
-    return 'use_rahhal_points'
+    return 'use_bilamo_points'
   }
   if (
     /which hotel (gives|has) (me )?the most rewards|most rewards|best (hotel )?rewards|most (hotel )?points/.test(
@@ -80,7 +80,7 @@ export function answerLoyaltyQuery(input: {
     preferredHotels: input.context?.preferredHotels,
     travelerPreferences: input.context?.travelerPreferences,
     previousHistory: input.context?.previousHistory,
-    wantToRedeemPoints: input.kind === 'use_rahhal_points',
+    wantToRedeemPoints: input.kind === 'use_bilamo_points',
     redeemPointsAmount: input.redeemPoints,
   }
 
@@ -97,7 +97,7 @@ export function answerLoyaltyQuery(input: {
       }
       return result.explanation
     }
-    case 'use_rahhal_points': {
+    case 'use_bilamo_points': {
       const wallet = input.platform.getWallet(input.userId, locale)
       if (!isLoyaltyPlatformResult(wallet)) return wallet.message
       const points = Math.min(
@@ -107,7 +107,7 @@ export function answerLoyaltyQuery(input: {
       if (points <= 0) {
         return locale === 'ar'
           ? 'لا توجد نقاط كافية للاستخدام حالياً.'
-          : 'You do not have enough Rahhal Points to redeem right now.'
+          : 'You do not have enough Bilamo Points to redeem right now.'
       }
       const redeemed = input.platform.redeem(
         {
@@ -137,9 +137,9 @@ export function answerLoyaltyQuery(input: {
       const wallet = input.platform.getWallet(input.userId, locale)
       const tier = isLoyaltyPlatformResult(wallet) ? wallet.membershipTier : 'explorer'
       if (locale === 'ar') {
-        return `ستكسب حوالي ${points} نقطة رحّال على حجز ${service} بقيمة ${amount} (مستوى ${tier}).`
+        return `ستكسب حوالي ${points} نقطة بيلامو على حجز ${service} بقيمة ${amount} (مستوى ${tier}).`
       }
-      return `You will earn about ${points} Rahhal Points on a ${service} booking of ${amount} as a ${tier} member.`
+      return `You will earn about ${points} Bilamo Points on a ${service} booking of ${amount} as a ${tier} member.`
     }
   }
 }

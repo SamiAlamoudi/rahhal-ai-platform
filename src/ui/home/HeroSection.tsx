@@ -17,7 +17,7 @@ export interface HeroSectionProps {
 }
 
 export function HeroSection({
-  brandName = 'رحّال',
+  brandName = 'بيلامو',
   greeting,
   insight,
   primaryAction,

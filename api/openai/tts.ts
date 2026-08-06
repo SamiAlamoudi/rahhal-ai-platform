@@ -38,7 +38,7 @@ function defaultArabicInstructions(dialect?: string): string {
   })()
 
   return [
-    'Speak naturally and conversationally as Rahhal, an experienced travel consultant on a live voice call.',
+    'Speak naturally and conversationally as Bilamo, an experienced travel consultant on a live voice call.',
     'Warm, confident, calm, concise. Avoid announcer-style delivery and exaggerated emotion.',
     'Use natural pauses. Keep volume, tone, and pace consistent throughout.',
     'Do not sound like a navigation system or text reader.',

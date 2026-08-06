@@ -147,7 +147,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
   },
   {
     id: 'ai.rahhal_brain',
-    name: 'Rahhal Brain Core',
+    name: 'Bilamo Brain Core',
     description:
       'Sprint 50 — central AI orchestration: conversation understanding, multi-intent detection, internal planning, reflection, and response composition on the production agent path.',
     lifecycle: 'beta',
@@ -157,7 +157,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
   },
   {
     id: 'ai.brain.v1',
-    name: 'Rahhal AI Brain Foundation v1',
+    name: 'Bilamo AI Brain Foundation v1',
     description:
       'Sprint 81–85 — AI Travel Consultant brain foundation + reasoning + Agent Orchestrator + Travel Planning + Tool Execution + Conversation Manager/Response Generator. Default OFF. Not the production turn owner; distinct from ai.rahhal_brain and frozen brain.* flags.',
     lifecycle: 'experimental',
@@ -318,7 +318,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
   },
   {
     id: 'ai.constitution',
-    name: 'Rahhal AI Constitution',
+    name: 'Bilamo AI Constitution',
     description:
       'Sprint 87 — governing behavioral principles for all AI components (never end with no results, mission before destination, explainability, alternatives, recovery, intent respect). Governance validators only; no engine redesign.',
     lifecycle: 'stable',
@@ -1237,7 +1237,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     id: 'brain.loyalty_platform',
     name: 'Universal Loyalty, Rewards & Membership Platform',
     description:
-      'Sprint 38 loyalty platform — Rahhal Points wallet, membership tiers/benefits, airline & hotel loyalty adapters, and smart rewards recommendations across travel services. Default OFF.',
+      'Sprint 38 loyalty platform — Bilamo Points wallet, membership tiers/benefits, airline & hotel loyalty adapters, and smart rewards recommendations across travel services. Default OFF.',
     lifecycle: 'experimental',
     enabled: false,
     dependsOn: ['brain.travel_disruption_engine'],
@@ -1318,7 +1318,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
   },
   {
     id: 'brain.ai_orchestrator',
-    name: 'Rahhal AI Orchestrator',
+    name: 'Bilamo AI Orchestrator',
     description:
       'Sprint 43 central AI tool routing, planning, parallel execution, ranking, and conversational synthesis. Default OFF.',
     lifecycle: 'deprecated',
@@ -1343,7 +1343,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
   },
   {
     id: 'ui.experience_v1',
-    name: 'Rahhal Experience Phase 1 (UI Foundation)',
+    name: 'Bilamo Experience Phase 1 (UI Foundation)',
     description:
       'Sprint 119 — presentation-layer foundation under src/ui (home shell, conversation UI, cards, timeline, loading, design tokens). Default OFF.',
     lifecycle: 'deprecated',

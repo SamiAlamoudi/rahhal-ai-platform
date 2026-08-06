@@ -123,7 +123,7 @@ export class PaymentOrchestrator {
       couponCode: extras?.couponCode ?? null,
       preferredProviderId: extras?.preferredProviderId,
       locale: extras?.locale ?? result.session.context.locale,
-      description: `Rahhal booking ${result.summary.references.bookingReference}`,
+      description: `Bilamo booking ${result.summary.references.bookingReference}`,
     })
   }
 

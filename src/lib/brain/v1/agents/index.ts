@@ -1,5 +1,5 @@
 /**
- * Sprint 83 — Rahhal Agent Orchestrator public API.
+ * Sprint 83 — Bilamo Agent Orchestrator public API.
  * Feature flag: `ai.brain.v1` (OFF by default).
  */
 

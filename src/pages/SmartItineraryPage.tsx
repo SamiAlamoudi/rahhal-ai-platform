@@ -112,7 +112,7 @@ export default function SmartItineraryPage() {
                 {t('الجدول الذكي', 'Smart itinerary')}
               </h1>
               <p className="text-[10px] text-slate-400">
-                {t('رفيق رحّال بعد التأكيد', 'Rahhal companion after confirmation')}
+                {t('رفيق بيلامو بعد التأكيد', 'Bilamo companion after confirmation')}
               </p>
             </div>
           </div>

@@ -911,7 +911,7 @@ export function HomeVoiceConsultant({
         return sessionReady
           ? (preferRealtimeRef.current
             ? t('اضغط الميكروفون — صوت مباشر (Realtime)', 'Tap the mic — live Realtime voice')
-            : t('اضغط الميكروفون للتحدث مع رحّال', 'Tap the mic to talk with Rahhal'))
+            : t('اضغط الميكروفون للتحدث مع بيلامو', 'Tap the mic to talk with Bilamo'))
           : t('تجهيز الصوت…', 'Preparing voice…')
     }
   })()
@@ -980,7 +980,7 @@ export function HomeVoiceConsultant({
               data-testid="home-voice-reply"
             >
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary-700">
-                {t('رحّال', 'Rahhal')}
+                {t('بيلامو', 'Bilamo')}
               </p>
               <div className="mt-2 space-y-3 text-[1.05rem] leading-8 text-slate-900">
                 {assistantText.split(/\n\s*\n/).map((paragraph, index) => (
@@ -991,7 +991,7 @@ export function HomeVoiceConsultant({
               </div>
             </motion.div>
           ) : busy && voiceStatus !== 'listening' ? (
-            <p className="mt-4 text-sm text-slate-500">{t('رحّال يرد…', 'Rahhal is answering…')}</p>
+            <p className="mt-4 text-sm text-slate-500">{t('بيلامو يرد…', 'Bilamo is answering…')}</p>
           ) : null}
         </AnimatePresence>
 

@@ -1,6 +1,6 @@
 # System Overview
 
-Rahhal (رحّال) is an Arabic RTL travel decision SPA. Conversation and scoring are **rule-based** by default; optional AI/brain layers are feature-flagged.
+Bilamo (بيلامو) is an Arabic RTL travel decision SPA. Conversation and scoring are **rule-based** by default; optional AI/brain layers are feature-flagged.
 
 ## Runtime surfaces
 

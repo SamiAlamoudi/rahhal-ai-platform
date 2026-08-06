@@ -1,4 +1,4 @@
-# رحّال (Rahhal) — AI Travel Decision Platform
+# بيلامو (Bilamo) — AI Travel Decision Platform
 
 Arabic RTL travel planning SPA: conversation-driven requirements → live flight/hotel search → booking session → (optional) in-app checkout.
 

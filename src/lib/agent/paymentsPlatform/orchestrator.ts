@@ -310,7 +310,7 @@ export function createPaymentsPlatformEngine(options?: {
           method: session.method,
           customerId: input.userId,
           idempotencyKey: `${session.idempotencyKey}:auth`,
-          description: 'Rahhal booking payment',
+          description: 'Bilamo booking payment',
           signal: input.signal,
         })
         session = {

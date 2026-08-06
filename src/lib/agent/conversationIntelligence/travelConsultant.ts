@@ -99,7 +99,7 @@ export function buildConsultantNotes(
   } else if (intent === 'travel_inspiration') {
     notes.push('خلّنا نبدأ من ذوقك في السفر، وأقترح عليك وجهات تناسبك.')
   } else {
-    notes.push('أنا رحّال، مستشارك للسفر. أخبرني بما يدور في بالك وسأستخرج التفاصيل بنفسي.')
+    notes.push('أنا بيلامو، مستشارك للسفر. أخبرني بما يدور في بالك وسأستخرج التفاصيل بنفسي.')
   }
 
   for (const tip of insights) {

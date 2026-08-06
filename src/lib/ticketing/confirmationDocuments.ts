@@ -4,7 +4,7 @@
 
 import type { ConfirmationDocument, TicketSession } from './types'
 
-const SUPPORT_CONTACT = 'support@rahhal.example (placeholder)'
+const SUPPORT_CONTACT = 'support@bilamo.example (placeholder)'
 
 export function buildConfirmationDocument(session: TicketSession): ConfirmationDocument {
   const issuedLines = session.lines.filter((l) => l.status === 'issued')
@@ -32,7 +32,7 @@ export function buildConfirmationDocument(session: TicketSession): ConfirmationD
 
   const cancellationNotes = [
     'Cancellation and change policies follow the issuing provider rules.',
-    'Contact Rahhal support before voiding issued tickets.',
+    'Contact Bilamo support before voiding issued tickets.',
   ]
 
   return {

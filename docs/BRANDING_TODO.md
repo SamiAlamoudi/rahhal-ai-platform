@@ -1,22 +1,20 @@
-# Branding TODO — project rename (deferred)
+# Branding — Bilamo (complete for user-facing surfaces)
 
-Keep the current temporary project name (**رحّال / Rahhal / `rahhal-app`**) until the final branding phase.
+Product brand is **Bilamo / بيلامو**. User-facing UI, voice prompts, payment copy, and Playwright expectations use Bilamo.
 
-## Do not rename yet
+## Technical identifiers intentionally kept as `rahhal` / `Rahhal*`
 
-- Package name, repository name, UI brand strings, and domain references stay as-is for now.
-- Voice Conversation and later features must not introduce a new product name.
-- Do not rename in Cursor Cloud / agent environments or external tools prematurely.
+Do **not** rename these without a dedicated migration (would break storage, feature flags, CORS, and APIs):
 
-## Before the project-wide rename
+- Feature flag ids such as `ai.rahhal_brain` and related TypeScript APIs (`RahhalBrain`, `RahhalOrder`, …)
+- localStorage / session keys prefixed `rahhal.`
+- CSS compatibility aliases `--rahhal-*`
+- Webhook / response headers (`x-rahhal-webhook-secret`, `X-Rahhal-*`)
+- Deployed origin allow-list entries (`rahhal-ai-platform.vercel.app`)
+- Vite plugin internal names, migration filenames, and historical sprint docs
 
-1. Verify target domain availability
-2. Verify social media / handle availability
-3. Confirm final Arabic + English brand strings
-4. Run a single coordinated rename pass across:
-   - Package name and repository metadata
-   - Docs, env headers, and UI copy
-   - **Curious** (project metadata, linked boards, and any Curious-side brand strings — must be updated to the same final brand name in the same rename pass)
+## Remaining product polish (optional)
 
-Until then: continue shipping features under the current temporary project name.
-The Travel AI Agent MVP must not introduce a second product name.
+1. Domain / social handles if still on legacy names
+2. Package-lock historical `rahhal-app` name sync (package.json is `bilamo-app`)
+3. Curious / external boards metadata

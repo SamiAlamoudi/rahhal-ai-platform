@@ -111,7 +111,7 @@ export async function generateDeploymentLaunchReport(input?: {
     && readinessScore >= 80
 
   const summary = productionReady
-    ? `Rahhal V1 ${RAHHAL_V1_RELEASE_VERSION} production ready (score=${readinessScore})`
+    ? `Bilamo V1 ${RAHHAL_V1_RELEASE_VERSION} production ready (score=${readinessScore})`
     : `Not production ready (score=${readinessScore}) — review failing gates`
 
   return {

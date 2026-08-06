@@ -6,7 +6,7 @@ import { emptyRequirements } from '../agent/types'
 import { toSpokenDialogue } from '../chat/voice/spokenDialoguePostProcessor'
 
 describe('booking-agent conversation design', () => {
-  it('Realtime instructions identify Rahhal as a booking agent, not a blogger/consultant lecturer', () => {
+  it('Realtime instructions identify Bilamo as a booking agent, not a blogger/consultant lecturer', () => {
     const instructions = buildConsultantConversationalInstructions({
       language: 'ar',
       utterance: 'أريد السفر إلى تايلند لمدة أسبوع',

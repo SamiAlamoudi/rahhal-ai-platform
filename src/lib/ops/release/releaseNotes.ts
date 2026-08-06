@@ -8,7 +8,7 @@ import type { VersionManifest } from './types'
 
 export function generateGAReleaseNotes(manifest: VersionManifest): string {
   return [
-    `# Rahhal ${RAHHAL_GA_VERSION} — General Availability`,
+    `# Bilamo ${RAHHAL_GA_VERSION} — General Availability`,
     '',
     `**Release type:** ${manifest.releaseType}`,
     `**Package version:** ${manifest.packageVersion || PLATFORM_PACKAGE_VERSION}`,

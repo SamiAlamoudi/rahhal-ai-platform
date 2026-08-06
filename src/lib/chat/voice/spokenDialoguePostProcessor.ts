@@ -112,7 +112,7 @@ const UNSOLICITED_ADVICE_EN = [
   /\bBefore we book\b[^.?!]*[.?!]?\s*/gi,
 ]
 
-/** Never send the traveler to another booking website — Rahhal is the agent. */
+/** Never send the traveler to another booking website — Bilamo is the agent. */
 const WEBSITE_REFERRAL = [
   /\b(?:use|try|check|visit|go to|book (?:on|via|through))\s+(?:Booking\.com|Kayak|Google Flights|Expedia|Skyscanner|Momondo)\b[^.?!]*[.?!]?\s*/gi,
   /\b(?:Booking\.com|Kayak|Google Flights|Expedia|Skyscanner|Momondo)\b[^.?!]*[.?!]?\s*/gi,

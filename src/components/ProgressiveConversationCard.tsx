@@ -153,7 +153,7 @@ function ProgressiveConversationCardImpl({ session }: Props) {
       {profileReady && !optionalQuestion && (
         <div className="rounded-xl border border-success-200 bg-success-50 p-4 text-center">
           <p className="text-sm font-bold text-success-700">
-            اكتملت كل المعلومات الأساسية! رحّال جاهز للبحث.
+            اكتملت كل المعلومات الأساسية! بيلامو جاهز للبحث.
           </p>
         </div>
       )}

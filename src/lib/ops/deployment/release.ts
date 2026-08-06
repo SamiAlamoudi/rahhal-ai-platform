@@ -106,7 +106,7 @@ export function generateReleaseArtifacts(input?: {
   const checklist = buildGoLiveChecklist(input)
 
   const releaseNotes = [
-    `# Rahhal V1 — ${version}`,
+    `# Bilamo V1 — ${version}`,
     '',
     `**Release candidate:** ${RAHHAL_V1_RC_VERSION}`,
     `**Package version:** ${PLATFORM_PACKAGE_VERSION}`,
@@ -130,7 +130,7 @@ export function generateReleaseArtifacts(input?: {
   ].join('\n')
 
   const deploymentReport = [
-    `# Deployment Report — Rahhal ${version}`,
+    `# Deployment Report — Bilamo ${version}`,
     '',
     `Profile: ${input?.profile ?? 'production'}`,
     `CI/CD: ${input?.cicdOk === false ? 'FAIL' : 'PASS'}`,
@@ -141,7 +141,7 @@ export function generateReleaseArtifacts(input?: {
   ].join('\n')
 
   const environmentReport = [
-    `# Environment Report — Rahhal ${version}`,
+    `# Environment Report — Bilamo ${version}`,
     '',
     'Profiles: development, staging, beta, production',
     'Env target mapping uses existing DeployTarget + VITE_DEPLOY_TARGET',
@@ -150,7 +150,7 @@ export function generateReleaseArtifacts(input?: {
   ].join('\n')
 
   const rollbackGuide = [
-    `# Rollback Guide — Rahhal ${version}`,
+    `# Rollback Guide — Bilamo ${version}`,
     '',
     '1. Trigger safe mode (mock payments, live providers OFF)',
     '2. Disable risky feature flags',
@@ -166,7 +166,7 @@ export function generateReleaseArtifacts(input?: {
   const versionReport = [
     `# Version Report`,
     '',
-    `Rahhal V1 release: ${version}`,
+    `Bilamo V1 release: ${version}`,
     `RC: ${RAHHAL_V1_RC_VERSION}`,
     `Package: ${PLATFORM_PACKAGE_VERSION}`,
     `Deployment module: ${SPRINT68_DEPLOYMENT_VERSION}`,

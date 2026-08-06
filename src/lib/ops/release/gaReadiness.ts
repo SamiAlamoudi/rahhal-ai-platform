@@ -135,7 +135,7 @@ export function buildGAReadinessReport(input?: {
     && scores.overall >= 85
 
   const recommendation = gaReady
-    ? `Rahhal ${RAHHAL_GA_VERSION} GA Ready — ship General Availability`
+    ? `Bilamo ${RAHHAL_GA_VERSION} GA Ready — ship General Availability`
     : `Not GA ready (score=${scores.overall}) — resolve failing verification gates`
 
   return {

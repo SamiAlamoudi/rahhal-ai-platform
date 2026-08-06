@@ -1,5 +1,5 @@
 /**
- * Rahhal Alpha — journey CTAs on assistant messages (book / pay / documents).
+ * Bilamo Alpha — journey CTAs on assistant messages (book / pay / documents).
  * Surfaces Booking Execution + Payments meta without exposing internals.
  * Sprint 103 — also links Booking Assistant → review when ready (integration only).
  */

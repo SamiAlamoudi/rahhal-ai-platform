@@ -2,7 +2,7 @@
 
 ## Cursor Cloud specific instructions
 
-Rahhal (رحّال) is a single-page React 19 + Vite 8 + TypeScript app (Arabic RTL) for AI-style travel planning. Backend is Supabase (Auth + Postgres + RLS). The conversation/scoring/search engine is rule-based and runs client-side against **mock** provider adapters by default (no external API keys needed).
+Bilamo (بيلامو) is a single-page React 19 + Vite 8 + TypeScript app (Arabic RTL) for AI-style travel planning. Backend is Supabase (Auth + Postgres + RLS). The conversation/scoring/search engine is rule-based and runs client-side against **mock** provider adapters by default (no external API keys needed).
 
 Standard scripts live in `package.json` (`dev`, `build`, `lint`, `test:run`, `typecheck`, `providers:check`). CI steps are in `.github/workflows/ci.yml`. The update script already runs `npm ci`.
 

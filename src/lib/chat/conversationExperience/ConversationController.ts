@@ -111,7 +111,7 @@ export type ConversationControllerOptions = {
   supplierMarketplace?: SupplierMarketplace
   /** Sprint 41 finance platform (tests). */
   financePlatform?: FinancePlatform
-  /** Sprint 43 Rahhal AI Orchestrator (tests). */
+  /** Sprint 43 Bilamo AI Orchestrator (tests). */
   aiOrchestrator?: RahhalAiOrchestratorHandle
   plannerOptions?: UnifiedTravelPlannerOptions
   events?: ConversationEvents
@@ -307,7 +307,7 @@ export function ConversationController(
       || commandKind === 'strike'
       || commandKind === 'visa_rejection'
       || commandKind === 'border_restriction'
-      || commandKind === 'use_rahhal_points'
+      || commandKind === 'use_bilamo_points'
       || commandKind === 'most_rewards_hotel'
       || commandKind === 'upgrade_with_points'
       || commandKind === 'points_earn_estimate'
@@ -397,7 +397,7 @@ export function ConversationController(
       }
     }
 
-    // Sprint 43 — Rahhal AI Orchestrator (multi-tool routing / parallel execution).
+    // Sprint 43 — Bilamo AI Orchestrator (multi-tool routing / parallel execution).
     if (orchestratorWillHandle) {
       events.emit(createConversationEvent('planning_started', input.conversationId, {
         aiOrchestrator: true,
@@ -727,7 +727,7 @@ export function ConversationController(
 
     // Sprint 38 — loyalty / rewards / membership (LoyaltyPlatform).
     const loyaltyQueryKinds = new Set<LoyaltyConversationQueryKind>([
-      'use_rahhal_points',
+      'use_bilamo_points',
       'most_rewards_hotel',
       'upgrade_with_points',
       'points_earn_estimate',

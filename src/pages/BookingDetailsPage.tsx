@@ -109,7 +109,7 @@ export default function BookingDetailsPage() {
       <main className="mx-auto max-w-3xl space-y-4 px-4 py-6">
         <section className="rounded-2xl border border-sky-100 bg-gradient-to-l from-sky-50 via-white to-amber-50 p-4 shadow-sm">
           <p className="text-[10px] font-bold uppercase tracking-wide text-sky-700/80">
-            {t('مستشار رحّال', 'Rahhal concierge')}
+            {t('مستشار بيلامو', 'Bilamo concierge')}
           </p>
           <div className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-800">
             {conciergeText}
@@ -196,7 +196,7 @@ export default function BookingDetailsPage() {
           <h2 className="text-sm font-bold text-slate-900">{t('المرجع والحالة', 'Reference & status')}</h2>
           <dl className="mt-3 grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
             <div>
-              <dt className="font-semibold text-slate-400">{t('مرجع رحّال', 'Rahhal reference')}</dt>
+              <dt className="font-semibold text-slate-400">{t('مرجع بيلامو', 'Bilamo reference')}</dt>
               <dd className="font-mono">{record.bookingReference}</dd>
             </div>
             <div>

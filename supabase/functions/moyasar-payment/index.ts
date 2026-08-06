@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
       }
 
       const currency = (createBody.currency || 'SAR').toUpperCase()
-      const description = createBody.description || 'Rahhal payment'
+      const description = createBody.description || 'Bilamo payment'
       // SPA return URL — used as invoice success_url / back_url (browser redirect).
       const successUrl =
         createBody.successUrl

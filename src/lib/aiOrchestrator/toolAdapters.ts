@@ -452,7 +452,7 @@ export function createToolAdapters(deps: ToolAdapterDeps = {}): ToolAdaptersHand
 
   function runLoyalty(ctx: ToolAdapterContext): Omit<ToolExecutionResult, 'durationMs'> {
     const summary = answerLoyaltyQuery({
-      kind: ctx.intent === 'cheapest_option' ? 'use_rahhal_points' : 'points_earn_estimate',
+      kind: ctx.intent === 'cheapest_option' ? 'use_bilamo_points' : 'points_earn_estimate',
       platform: loyaltyPlatform,
       userId: ctx.userId,
       locale: ctx.locale,
@@ -482,7 +482,7 @@ export function createToolAdapters(deps: ToolAdapterDeps = {}): ToolAdaptersHand
           preferenceMatch: ctx.memory.loyaltyMemberships.length ? 0.85 : 0.4,
           reasons: ctx.memory.loyaltyMemberships.length
             ? [`Memberships: ${ctx.memory.loyaltyMemberships.join(', ')}`]
-            : ['Rahhal points estimate'],
+            : ['Bilamo points estimate'],
         },
       ],
     }
