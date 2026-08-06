@@ -62,6 +62,15 @@ async function searchFlights(req: TripRequirements): Promise<BilamoFlightOption[
   const dep = req.startDate || '2026-09-12'
   const cabin = (req.cabinPreference as 'economy' | 'business' | undefined) || 'economy'
   const preferred = (req.preferredAirline || '').toLowerCase()
+  const preferredAirlineName = preferred.includes('qatar') || preferred === 'qr'
+    ? 'Qatar Airways'
+    : preferred.includes('emirate') || preferred === 'ek'
+      ? 'Emirates'
+      : preferred.includes('saud') || preferred === 'sv'
+        ? 'Saudia'
+        : preferred.includes('turkish') || preferred === 'tk'
+          ? 'Turkish Airlines'
+          : 'Saudia'
 
   const raw = [
     enrichMockFlight({
@@ -69,7 +78,7 @@ async function searchFlights(req: TripRequirements): Promise<BilamoFlightOption[
       destination: airport.code,
       currency,
       cabin,
-      airline: preferred.includes('qatar') ? 'Qatar Airways' : 'Saudia',
+      airline: preferredAirlineName,
       price: cabin === 'business' ? 9200 : 2890,
       stops: 0,
       duration: 620,
@@ -81,7 +90,7 @@ async function searchFlights(req: TripRequirements): Promise<BilamoFlightOption[
       destination: airport.code,
       currency,
       cabin,
-      airline: 'Turkish Airlines',
+      airline: preferredAirlineName === 'Turkish Airlines' ? 'Saudia' : 'Turkish Airlines',
       price: cabin === 'business' ? 8800 : 3140,
       stops: 0,
       duration: 640,
@@ -93,7 +102,7 @@ async function searchFlights(req: TripRequirements): Promise<BilamoFlightOption[
       destination: airport.code,
       currency,
       cabin,
-      airline: 'Emirates',
+      airline: preferredAirlineName === 'Emirates' ? 'Qatar Airways' : 'Emirates',
       price: cabin === 'business' ? 10500 : 3420,
       stops: 1,
       duration: 780,
