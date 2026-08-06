@@ -1888,6 +1888,24 @@ export function createTravelAgentService(
                         | 'business'
                         | null) ?? null,
                     },
+                    arabicDialect: (meta.bilamo.arabicDialect as
+                      | 'msa'
+                      | 'saudi'
+                      | 'gulf'
+                      | 'emirati'
+                      | 'kuwaiti'
+                      | 'qatari'
+                      | 'bahraini'
+                      | 'omani'
+                      | 'yemeni'
+                      | 'egyptian'
+                      | 'levantine'
+                      | 'iraqi'
+                      | 'moroccan'
+                      | 'algerian'
+                      | 'tunisian'
+                      | 'sudanese'
+                      | null) ?? null,
                   }
                 }
               }

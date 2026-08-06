@@ -266,6 +266,14 @@ export function bilamoResultToTravelAgentTurn(result: BilamoTurnResult): {
       search: result.search,
       preferences: { ...result.memory.preferences },
       askedSlots: [...result.memory.askedSlots],
+      arabicDialect: result.memory.arabicDialect,
+      arabic: result.arabic
+        ? {
+            dialect: result.arabic.detection.dialect,
+            confidence: result.arabic.detection.confidence,
+            normalizedText: result.arabic.normalizedText,
+          }
+        : null,
     } as NonNullable<AgentProviderMeta['bilamo']>,
   }
 
@@ -316,6 +324,7 @@ export async function runBilamoIntelligenceTurn(
   memory = {
     ...memory,
     locale: extraction.locale,
+    arabicDialect: extraction.arabic.detection.dialect,
     agent: {
       ...(memory.agent.locale ? memory.agent : emptyMemory(extraction.locale)),
       locale: extraction.locale,
@@ -326,8 +335,10 @@ export async function runBilamoIntelligenceTurn(
   memory = syncPreferencesFromRequirements(memory, requirements)
 
   const locale = memory.locale === 'en' ? 'en' : 'ar'
+  const arabic = extraction.arabic
 
   // Pure greeting with no travel signal → consultant welcome.
+  // Responses stay clear modern Arabic — dialect is detected, not imitated.
   if (
     isGreetingOnly(input.userText)
     && !requirements.destination
@@ -350,6 +361,7 @@ export async function runBilamoIntelligenceTurn(
       search: null,
       askedSlot: 'destination',
       requirements,
+      arabic,
     }
   }
 
@@ -384,6 +396,7 @@ export async function runBilamoIntelligenceTurn(
       search: null,
       askedSlot: slot,
       requirements,
+      arabic,
     }
   }
 
@@ -424,6 +437,7 @@ export async function runBilamoIntelligenceTurn(
     search,
     askedSlot: null,
     requirements,
+    arabic,
   }
 }
 

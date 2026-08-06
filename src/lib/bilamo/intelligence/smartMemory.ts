@@ -22,6 +22,7 @@ export function emptyBilamoMemory(locale: AgentLocale = 'en'): BilamoConsultantM
       budgetRange: null,
       partyStyle: null,
     },
+    arabicDialect: null,
   }
 }
 
@@ -45,6 +46,14 @@ export function hydrateBilamoMemory(input: {
   }
 
   const req = agent.requirements
+  const metaDialect = (() => {
+    for (let i = input.messages.length - 1; i >= 0; i -= 1) {
+      const bilamo = (input.messages[i]?.providerMeta as { bilamo?: { arabicDialect?: string } } | undefined)?.bilamo
+      if (bilamo?.arabicDialect) return bilamo.arabicDialect
+    }
+    return null
+  })()
+
   return {
     locale: agent.locale || locale,
     phase: mapPhase(agent.phase, req),
@@ -64,6 +73,7 @@ export function hydrateBilamoMemory(input: {
           : base.preferences.budgetRange,
       partyStyle: req.travelerType ?? base.preferences.partyStyle,
     },
+    arabicDialect: (metaDialect as BilamoConsultantMemory['arabicDialect']) ?? base.arabicDialect ?? null,
   }
 }
 
