@@ -1,5 +1,6 @@
 import { ArrowRight } from 'lucide-react'
 import { SearchResult } from './SearchResult'
+import { cn } from '../lib/cn'
 
 export interface FlightCardProps {
   airline: string
@@ -12,7 +13,14 @@ export interface FlightCardProps {
   priceLabel: string
   highlighted?: boolean
   reason?: string
+  /** Quiet role label: Best overall / Lowest price / Fastest */
+  kindLabel?: string | null
+  /** Bilamo Score 0–100 */
+  score?: number | null
+  baggageSummary?: string | null
   onSelect?: () => void
+  onCompare?: () => void
+  onViewDetails?: () => void
   className?: string
 }
 
@@ -27,25 +35,75 @@ export function FlightCard({
   priceLabel,
   highlighted,
   reason,
+  kindLabel,
+  score,
+  baggageSummary,
   onSelect,
+  onCompare,
+  onViewDetails,
   className,
 }: FlightCardProps) {
+  const metaParts = [
+    duration,
+    stopsLabel,
+    baggageSummary ? `Bag ${baggageSummary}` : null,
+    score != null && highlighted ? `Score ${score}` : null,
+  ].filter(Boolean)
+
+  const showActions = Boolean(onSelect || onCompare || onViewDetails)
+
   return (
-    <SearchResult
-      title={`${origin} → ${destination}`}
-      subtitle={airline}
-      priceLabel={priceLabel}
-      highlighted={highlighted}
-      reason={reason}
-      onSelect={onSelect}
-      className={className}
-      meta={`${duration} · ${stopsLabel}`}
-    >
-      <div className="mt-2 flex items-center gap-2 text-[12.5px] text-[var(--bilamo-muted)]">
-        <span className="tabular-nums">{departTime}</span>
-        <ArrowRight className="h-3 w-3 opacity-50" strokeWidth={1.5} />
-        <span className="tabular-nums">{arriveTime}</span>
-      </div>
-    </SearchResult>
+    <div className={cn('space-y-0.5', className)}>
+      <SearchResult
+        title={kindLabel && highlighted ? kindLabel : `${origin} → ${destination}`}
+        subtitle={kindLabel && highlighted ? `${airline} · ${origin} → ${destination}` : airline}
+        priceLabel={priceLabel}
+        highlighted={highlighted}
+        reason={reason}
+        onSelect={onSelect}
+        meta={metaParts.join(' · ')}
+      >
+        <div className="mt-2 flex items-center gap-2 text-[12.5px] text-[var(--bilamo-muted)]">
+          <span className="tabular-nums">{departTime}</span>
+          <ArrowRight className="h-3 w-3 opacity-50" strokeWidth={1.5} aria-hidden />
+          <span className="tabular-nums">{arriveTime}</span>
+        </div>
+      </SearchResult>
+      {showActions ? (
+        <div
+          className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 pb-2"
+          role="group"
+          aria-label={`${airline} flight actions`}
+        >
+          {onSelect ? (
+            <button
+              type="button"
+              onClick={onSelect}
+              className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-text)]/75 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)]"
+            >
+              Select
+            </button>
+          ) : null}
+          {onCompare ? (
+            <button
+              type="button"
+              onClick={onCompare}
+              className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-muted)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)]"
+            >
+              Compare
+            </button>
+          ) : null}
+          {onViewDetails ? (
+            <button
+              type="button"
+              onClick={onViewDetails}
+              className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-muted)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)]"
+            >
+              View details
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   )
 }

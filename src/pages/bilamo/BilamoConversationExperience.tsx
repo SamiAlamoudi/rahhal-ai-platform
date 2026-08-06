@@ -45,6 +45,9 @@ type BilamoFlightCard = {
   stopsLabel: string
   priceLabel: string
   reason?: string
+  kindLabel?: string | null
+  score?: number | null
+  baggageSummary?: string | null
 }
 
 type BilamoHotelCard = {
@@ -57,10 +60,18 @@ type BilamoHotelCard = {
   reason?: string
 }
 
+type BilamoFlightsStatus = {
+  mode: 'demo' | 'live'
+  error: string | null
+  stale: boolean
+  empty: boolean
+}
+
 type BilamoResultsView = {
   flights: BilamoFlightCard[]
   hotels: BilamoHotelCard[]
   timeline: TripTimelineItem[]
+  flightsStatus: BilamoFlightsStatus | null
 }
 
 function moneyLabel(amount: unknown, currency: unknown): string {
@@ -77,12 +88,20 @@ function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefin
       flights?: Array<Record<string, unknown>>
       hotels?: Array<Record<string, unknown>>
       timeline?: Array<Record<string, unknown>>
+      flightsMeta?: {
+        mode?: string
+        error?: string | null
+        stale?: boolean
+        bestScore?: number | null
+      }
     } | null
   } | undefined
   const search = bilamo?.search
-  if (!search?.flights?.length && !search?.hotels?.length) return null
+  const flightsMeta = search?.flightsMeta
+  const hasFlightIssue = Boolean(flightsMeta?.error || flightsMeta?.stale)
+  if (!search?.flights?.length && !search?.hotels?.length && !hasFlightIssue) return null
 
-  const flights: BilamoFlightCard[] = (search.flights || []).slice(0, 3).map((f, i) => ({
+  const flights: BilamoFlightCard[] = (search?.flights || []).slice(0, 3).map((f, i) => ({
     id: String(f.id ?? `f-${i}`),
     airline: String(f.airline ?? 'Flight'),
     origin: String(f.origin ?? '—'),
@@ -93,9 +112,12 @@ function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefin
     stopsLabel: String(f.stopsLabel ?? 'Nonstop'),
     priceLabel: moneyLabel(f.price, f.currency),
     reason: typeof f.reason === 'string' ? f.reason : undefined,
+    kindLabel: typeof f.kindLabel === 'string' ? f.kindLabel : null,
+    score: typeof f.score === 'number' ? f.score : null,
+    baggageSummary: typeof f.baggageSummary === 'string' ? f.baggageSummary : null,
   }))
 
-  const hotels: BilamoHotelCard[] = (search.hotels || []).slice(0, 2).map((h, i) => ({
+  const hotels: BilamoHotelCard[] = (search?.hotels || []).slice(0, 2).map((h, i) => ({
     id: String(h.id ?? `h-${i}`),
     name: String(h.name ?? 'Stay'),
     area: String(h.area ?? 'City center'),
@@ -105,7 +127,7 @@ function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefin
     reason: typeof h.reason === 'string' ? h.reason : undefined,
   }))
 
-  const timeline: TripTimelineItem[] = (search.timeline || []).map((t, i) => ({
+  const timeline: TripTimelineItem[] = (search?.timeline || []).map((t, i) => ({
     id: String(t.id ?? `t-${i}`),
     time: String(t.time ?? ''),
     title: String(t.title ?? ''),
@@ -113,7 +135,16 @@ function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefin
     kind: (t.kind as TripTimelineItem['kind']) || 'note',
   }))
 
-  return { flights, hotels, timeline }
+  const flightsStatus: BilamoFlightsStatus | null = flightsMeta
+    ? {
+        mode: flightsMeta.mode === 'live' ? 'live' : 'demo',
+        error: typeof flightsMeta.error === 'string' ? flightsMeta.error : null,
+        stale: flightsMeta.stale === true,
+        empty: flights.length === 0,
+      }
+    : (flights.length === 0 ? { mode: 'demo', error: null, stale: false, empty: true } : null)
+
+  return { flights, hotels, timeline, flightsStatus }
 }
 
 function makeLocalUserMessage(conversationId: string, content: string): ChatMessage {
@@ -526,11 +557,54 @@ export function BilamoConversationExperience({
                     transition={{ ...springs.soft, delay: 0.05 }}
                     className="space-y-2 pt-2"
                   >
-                    <p className="px-1 pb-2 text-[13.5px] leading-relaxed text-[var(--bilamo-muted)]">
-                      Here is what I would choose for you.
-                    </p>
+                    {results.flightsStatus?.empty && !results.flights.length ? (
+                      <div className="space-y-3 px-1 py-2">
+                        <p className="text-[13.5px] leading-relaxed text-[var(--bilamo-muted)]">
+                          I could not find a strong flight match for those dates yet.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void send('Please search flights again with flexible dates')}
+                          className="text-[13px] text-[var(--bilamo-text)]/80 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)]"
+                        >
+                          Try again
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="px-1 pb-2 text-[13.5px] leading-relaxed text-[var(--bilamo-muted)]">
+                        Here is what I would choose for you.
+                      </p>
+                    )}
+                    {results.flightsStatus?.stale ? (
+                      <p className="px-1 text-[12.5px] text-[var(--bilamo-muted)]/90">
+                        Prices may have shifted — say if you want me to refresh.
+                      </p>
+                    ) : null}
+                    {results.flightsStatus?.error && results.flights.length > 0 ? (
+                      <p className="px-1 text-[12.5px] text-[var(--bilamo-muted)]/90">
+                        I used a reliable backup inventory after a brief availability hiccup.
+                      </p>
+                    ) : null}
                     {results.flights.map((flight, i) => (
-                      <FlightCard key={flight.id} {...flight} highlighted={i === 0} />
+                      <FlightCard
+                        key={flight.id}
+                        airline={flight.airline}
+                        origin={flight.origin}
+                        destination={flight.destination}
+                        departTime={flight.departTime}
+                        arriveTime={flight.arriveTime}
+                        duration={flight.duration}
+                        stopsLabel={flight.stopsLabel}
+                        priceLabel={flight.priceLabel}
+                        reason={flight.reason}
+                        kindLabel={flight.kindLabel}
+                        score={flight.score}
+                        baggageSummary={flight.baggageSummary}
+                        highlighted={i === 0}
+                        onSelect={() => void send(`Select the ${flight.airline} flight at ${flight.departTime}`)}
+                        onCompare={() => void send(`Compare these flight options for me`)}
+                        onViewDetails={() => void send(`Tell me more about the ${flight.airline} option at ${flight.departTime}`)}
+                      />
                     ))}
                     {results.hotels.map((hotel, i) => (
                       <HotelCard key={hotel.id} {...hotel} highlighted={i === 0} />
