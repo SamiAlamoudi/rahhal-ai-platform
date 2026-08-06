@@ -1,12 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
-import { supabase } from '../supabaseClient'
+import { supabase } from '../supabase'
+import { supabase as supabaseCompat } from '../supabaseClient'
 
 describe('Supabase Client: initialization', () => {
   it('creates a valid Supabase client instance', () => {
     expect(supabase).toBeDefined()
     expect(supabase.auth).toBeDefined()
     expect(supabase.from).toBeDefined()
+  })
+
+  it('re-exports the same client from supabaseClient', () => {
+    expect(supabaseCompat).toBe(supabase)
   })
 
   it('is configured with persistent sessions', () => {
@@ -26,5 +31,11 @@ describe('Supabase Client: env vars', () => {
   it('VITE_SUPABASE_ANON_KEY is defined', () => {
     expect(import.meta.env.VITE_SUPABASE_ANON_KEY).toBeDefined()
     expect(typeof import.meta.env.VITE_SUPABASE_ANON_KEY).toBe('string')
+  })
+
+  it('createClient receives non-empty url and key from env', () => {
+    expect(import.meta.env.VITE_SUPABASE_URL.length).toBeGreaterThan(0)
+    expect(import.meta.env.VITE_SUPABASE_ANON_KEY.length).toBeGreaterThan(0)
+    expect(supabase).toBeDefined()
   })
 })

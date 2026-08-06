@@ -32,7 +32,7 @@ Canonical map of Rahhal modules after the DDD façade pass. Implementations may 
 | **notifications** | `src/domains/notifications` | `lib/notifications` |
 | **shared** | `src/domains/shared` | `utils/contracts`, `lib/types` |
 | **core** | `src/domains/core` | `utils/searchOrchestrator`, `liveSearchOrchestrator`, scoring/reasoning, `lib/trips`, `lib/execution` |
-| **infrastructure** | `src/domains/infrastructure` | `integrations`, `lib/ops`, `lib/repositories`, `supabaseClient` |
+| **infrastructure** | `src/domains/infrastructure` | `integrations`, `lib/ops`, `lib/repositories`, `supabase` |
 
 ## AI sub-modules
 
