@@ -49,13 +49,18 @@ export function composeRecommendation(input: {
     return { displayText: lines.join('\n\n'), spokenText }
   }
 
+  const third = input.search.flights[2]
+  const scoreBit = flight?.score != null ? ` Bilamo Score ${flight.score}/100.` : ''
   const lines = [
     `Here is what I would choose for ${dest}.`,
     flight
-      ? `Option one — ${flight.airline}, ${flight.stopsLabel}, ${money(flight.price, flight.currency)}. ${flight.reason}`
+      ? `${flight.kindLabel || 'Best overall'} — ${flight.airline}, ${flight.stopsLabel}, ${money(flight.price, flight.currency)}.${scoreBit} ${flight.reason}`
       : null,
     altFlight
-      ? `A strong alternative: ${altFlight.airline} at ${altFlight.departTime} — ${money(altFlight.price, altFlight.currency)}.`
+      ? `${altFlight.kindLabel || 'Alternative'} — ${altFlight.airline} at ${altFlight.departTime}, ${money(altFlight.price, altFlight.currency)}. ${altFlight.reason}`
+      : null,
+    third
+      ? `${third.kindLabel || 'Alternative'} — ${third.airline}, ${third.stopsLabel}, ${money(third.price, third.currency)}. ${third.reason}`
       : null,
     hotel
       ? `For the stay, ${hotel.name} in ${hotel.area} (${hotel.nightsLabel}) — ${money(hotel.price, hotel.currency)}. ${hotel.reason}`
@@ -69,8 +74,8 @@ export function composeRecommendation(input: {
     'Shall we proceed with this, or adjust lightly?',
   ].filter(Boolean) as string[]
 
-  const spokenText = flight && hotel
-    ? `I'd take ${flight.airline} and ${hotel.name} for ${dest}. Does that feel right?`
+  const spokenText = flight
+    ? `I'd take the ${flight.airline} ${flight.stopsLabel.toLowerCase()} for ${dest}. ${flight.reason.split('.')[0]}.`
     : `I've shaped options for ${dest}. Want the details?`
 
   return { displayText: lines.join('\n\n'), spokenText }

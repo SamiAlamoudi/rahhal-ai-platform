@@ -340,6 +340,12 @@ export interface AgentProviderMeta {
       hotels: Array<Record<string, unknown>>
       context: Record<string, unknown>
       timeline: Array<Record<string, unknown>>
+      flightsMeta?: {
+        mode: 'demo' | 'live'
+        error: string | null
+        stale: boolean
+        bestScore: number | null
+      }
     } | null
   }
   /**

@@ -52,7 +52,24 @@ function enrichConsultantPatch(
 
   // Party-size phrasing the base extractor misses.
   if (next.travelers == null) {
-    if (
+    const familyOf = lower.match(
+      /\b(?:family|party|group)\s+of\s+(\d{1,2})\b|\b(\d{1,2})\s+(?:travelers?|adults?|people|persons?)\b/,
+    )
+    const arabicFamily = text.match(/(?:عائلة|أسرة|اسرة)\s*(?:من\s*)?(\d{1,2})|ل(?:ـ)?(\d{1,2})\s*أشخاص/)
+    if (familyOf) {
+      const n = Number(familyOf[1] || familyOf[2])
+      if (n > 0) {
+        next.travelers = n
+        next.travelerType = next.travelerType ?? (n >= 3 ? 'family' : n === 2 ? 'couple' : 'solo')
+        if (n >= 3) next.children = next.children ?? Math.max(0, n - 2)
+      }
+    } else if (arabicFamily) {
+      const n = Number(arabicFamily[1] || arabicFamily[2])
+      if (n > 0) {
+        next.travelers = n
+        next.travelerType = next.travelerType ?? (n >= 3 ? 'family' : n === 2 ? 'couple' : 'solo')
+      }
+    } else if (
       /\b(?:just|only)\s+me\b|\bby myself\b|\bon my own\b|\bmyself\b/.test(lower)
       || /لحالي|بنفس[يى]|أنا\s*وحدي|انا\s*وحدي/.test(text)
     ) {
@@ -64,6 +81,10 @@ function enrichConsultantPatch(
     ) {
       next.travelers = 2
       next.travelerType = next.travelerType ?? 'couple'
+    } else if (/\bfamily\b|عائلة|أسرة|اسرة/.test(lower) || /عائلة|أسرة|اسرة/.test(text)) {
+      next.travelers = next.travelers ?? 4
+      next.travelerType = next.travelerType ?? 'family'
+      next.children = next.children ?? 2
     }
   }
 
@@ -76,6 +97,12 @@ function enrichConsultantPatch(
     } else if (/\bqatar\b|\bqr\b/.test(lower) || /القطرية/.test(text)) {
       next.preferredAirline = 'QR'
     }
+  }
+
+  // Direct / nonstop preference — stored in notes for the flight orchestrator.
+  if (/\bdirect\b|\bnon[-\s]?stop\b|بدون\s*توقف|مباشر/.test(lower) || /بدون\s*توقف|رحلة\s*مباشرة/.test(text)) {
+    const note = 'prefer_direct_flights'
+    next.notes = next.notes ? `${next.notes}; ${note}` : note
   }
 
   // Arabic / loose destination recovery when base extractor missed clitics (لليابان).
