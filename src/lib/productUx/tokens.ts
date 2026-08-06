@@ -8,16 +8,16 @@ export const PRODUCT_UX_VERSION = '1.0.0-foundation' as const
 export const UI_NEW_EXPERIENCE_FEATURE_ID = 'ui.new_experience' as const
 
 export const productBrand = {
-  nameAr: 'رحّال',
-  nameEn: 'Rahhal',
+  nameAr: 'Bilamo',
+  nameEn: 'Bilamo',
   markPath:
-    'M12 2l2.5 6.5L21 9l-5 4.5L17.5 21 12 17l-5.5 4L8 13.5 3 9l6.5-.5z',
+    'M12 2a10 10 0 100 20 10 10 0 000-20zm0 3.5a6.5 6.5 0 110 13 6.5 6.5 0 010-13z',
 } as const
 
 export const productTypography = {
   family: {
-    display: 'Cairo, Tajawal, system-ui, sans-serif',
-    body: 'Cairo, Tajawal, system-ui, sans-serif',
+    display: '"Geist Variable", Geist, ui-sans-serif, system-ui, sans-serif',
+    body: '"Geist Variable", Geist, ui-sans-serif, system-ui, sans-serif',
     mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
   },
   size: {
@@ -83,16 +83,16 @@ export const productBorders = {
 } as const
 
 export const productColors = {
-  ink: '#0f172a',
-  muted: '#64748b',
-  surface: '#ffffff',
-  surfaceMuted: '#f4f7fb',
-  brand: '#1c80f0',
-  brandDeep: '#122e57',
-  success: '#059669',
+  ink: '#F8FAFC',
+  muted: '#94A3B8',
+  surface: '#0D1327',
+  surfaceMuted: '#050816',
+  brand: '#7C3AED',
+  brandDeep: '#2e1065',
+  success: '#34D399',
   warning: '#d97706',
-  danger: '#e11d48',
-  info: '#0284c7',
+  danger: '#F43F5E',
+  info: '#22D3EE',
 } as const
 
 export const productStatus = {
@@ -106,14 +106,14 @@ export const productStatus = {
   ready: { labelAr: 'جاهز', labelEn: 'Ready', color: '#059669' },
 } as const
 
-/** Horizon / deep-sea travel atmosphere — cool blues already in `@theme`. */
+/** Bilamo liquid-glass atmosphere — deep navy + violet/cyan bloom. */
 export const productAtmosphere = {
   hero:
-    'radial-gradient(120% 90% at 50% -15%, #339efb 0%, #1755b4 38%, #122e57 72%, #0b1628 100%)',
+    'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(124,58,237,0.45), transparent 55%), radial-gradient(ellipse 60% 40% at 90% 80%, rgba(34,211,238,0.28), transparent 50%), #050816',
   page:
-    'linear-gradient(180deg, #eef6ff 0%, #f4f7fb 42%, #eef2f7 100%)',
-  authSurface: 'rgba(11, 22, 40, 0.92)',
-  glow: 'rgba(28, 128, 240, 0.22)',
+    'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(124,58,237,0.28), transparent 55%), radial-gradient(ellipse 50% 35% at 10% 70%, rgba(34,211,238,0.12), transparent 45%), #050816',
+  authSurface: 'rgba(13, 19, 39, 0.72)',
+  glow: 'rgba(124, 58, 237, 0.35)',
 } as const
 
 export const productMotion = {

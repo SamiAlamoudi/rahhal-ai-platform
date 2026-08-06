@@ -506,6 +506,8 @@ describe('Sprint 54 — Autonomous Travel Agent', () => {
       const provider = createTravelAgentProvider({
         concierge: false,
         autonomousAgentEnabled: true,
+        // Exercise legacy autonomous progress streaming, not Bilamo short-circuit.
+        bilamoIntelligenceEnabled: false,
       })
       const phases: string[] = []
       for await (const chunk of provider.streamReply({

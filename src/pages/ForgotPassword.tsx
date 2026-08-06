@@ -1,15 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { BilamoShell, Button, Input, Logo, springs } from '../design-system'
+import { motion } from 'framer-motion'
 import { authService, validateEmail, mapAuthErrorMessage } from '../lib/auth'
-import { productCopy } from '../lib/productUx'
-import { AuthExperience, Atmosphere, SurfacePanel } from '../components/productUx'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
-  const locale = 'ar' as const
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -29,64 +28,55 @@ export default function ForgotPassword() {
     setSent(true)
   }
 
-  if (sent) {
-    return (
-      <Atmosphere variant="auth" className="min-h-screen">
-        <div className="mx-auto flex min-h-screen max-w-md items-center px-4 py-10">
-          <SurfacePanel className="w-full p-8 text-center">
-            <h2 className="text-lg font-bold text-slate-900">تحقق من بريدك</h2>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              أرسلنا رابط إعادة تعيين كلمة المرور إلى {email}.
-            </p>
+  return (
+    <BilamoShell>
+      <div className="mx-auto flex min-h-[100dvh] max-w-sm flex-col justify-center px-8 py-16">
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={springs.gentle}
+          className="mb-10 space-y-6 text-center"
+        >
+          <Logo size="md" className="justify-center" />
+          <h1 className="text-[1.55rem] font-medium tracking-[-0.04em] text-[var(--bilamo-text)]">
+            {sent ? 'Check your email' : 'Recover access'}
+          </h1>
+          <p className="text-[14px] leading-relaxed text-[var(--bilamo-muted)]/85">
+            {sent
+              ? `A reset link was sent to ${email}.`
+              : 'Enter your email and we will send a reset link.'}
+          </p>
+        </motion.div>
+        <div className="space-y-5">
+          {sent ? (
             <Link
               to="/login"
-              className="mt-5 inline-block text-sm font-medium text-primary-600 hover:text-primary-700"
+              className="block text-center text-[14px] text-[var(--bilamo-text)]/80"
             >
-              العودة لتسجيل الدخول
+              Back
             </Link>
-          </SurfacePanel>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Input
+                label="Email"
+                type="email"
+                name="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              {error ? (
+                <p className="text-[13px] text-[var(--bilamo-danger)]/90" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                {loading ? 'Sending…' : 'Continue'}
+              </Button>
+            </form>
+          )}
         </div>
-      </Atmosphere>
-    )
-  }
-
-  return (
-    <AuthExperience
-      locale={locale}
-      title={productCopy(locale, 'authForgotTitle')}
-      subtitle={productCopy(locale, 'authForgotSubtitle')}
-      footer={
-        <p className="text-center text-xs text-slate-500">
-          تذكرت كلمة المرور؟{' '}
-          <Link to="/login" className="font-medium text-primary-600 hover:text-primary-700">
-            سجّل الدخول
-          </Link>
-        </p>
-      }
-    >
-      <form onSubmit={handleSubmit} className="space-y-4" data-testid="forgot-password-form">
-        {error && <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</div>}
-
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">البريد الإلكتروني</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 transition focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400/20"
-            placeholder="example@email.com"
-            autoComplete="email"
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-xl bg-primary-600 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:bg-primary-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-50"
-        >
-          {loading ? 'جاري الإرسال...' : 'إرسال رابط الاستعادة'}
-        </button>
-      </form>
-    </AuthExperience>
+      </div>
+    </BilamoShell>
   )
 }

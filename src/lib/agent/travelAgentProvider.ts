@@ -38,6 +38,8 @@ export function createTravelAgentProvider(
     conciergeEnabled: options.conciergeEnabled,
     autonomousAgentEnabled: options.autonomousAgentEnabled,
     listBookingRecords: options.listBookingRecords,
+    // Bilamo product brain — ON for the shared chat provider unless overridden.
+    bilamoIntelligenceEnabled: options.bilamoIntelligenceEnabled ?? true,
   })
 
   return {

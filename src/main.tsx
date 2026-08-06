@@ -6,6 +6,7 @@ import { AppErrorBoundary } from './components/ops/AppErrorBoundary'
 import { runStartup } from './lib/ops'
 import { AuthProvider } from './lib/auth/AuthContext.tsx'
 import { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './lib/auth/ProtectedRoute.tsx'
+import { ThemeProvider, ToastProvider } from './design-system'
 import type { NormalizedTravelOption } from './utils/searchOrchestrator'
 import type { ReasoningResult } from './utils/reasoningEngine'
 import type { TravelSearchRequest } from './utils/travelSearchRequest'
@@ -37,7 +38,7 @@ const BookingConfirmationPage = lazy(() => import('./pages/BookingConfirmationPa
 const SmartItineraryPage = lazy(() => import('./pages/SmartItineraryPage.tsx'))
 const SavedTrips = lazy(() => import('./pages/SavedTrips.tsx'))
 const Settings = lazy(() => import('./pages/Settings.tsx'))
-const ChatPage = lazy(() => import('./pages/ChatPage.tsx'))
+const ChatPage = lazy(() => import('./pages/BilamoChat.tsx'))
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage.tsx'))
 const CheckoutReviewPage = lazy(() => import('./pages/CheckoutReviewPage.tsx'))
 const OrderCheckoutReviewPage = lazy(() => import('./pages/OrderCheckoutReviewPage.tsx'))
@@ -49,12 +50,22 @@ const CheckoutFailurePage = lazy(() => import('./pages/CheckoutFailurePage.tsx')
 function RouteFallback() {
   return (
     <div
-      dir="rtl"
-      className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500"
+      className="bilamo-root relative flex min-h-screen items-center justify-center"
       role="status"
       aria-live="polite"
+      aria-label="Loading"
     >
-      جاري التحميل...
+      <div className="bilamo-atmosphere" aria-hidden />
+      <div
+        className="relative h-10 w-10 rounded-full"
+        style={{
+          background:
+            'radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), transparent 42%), linear-gradient(145deg, #7c3aed, #22d3ee)',
+          boxShadow: '0 0 40px rgba(124,58,237,0.35)',
+          animation: 'bilamo-breath 2.8s ease-in-out infinite',
+        }}
+      />
+      <style>{`@keyframes bilamo-breath{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.06);opacity:1}}`}</style>
     </div>
   )
 }
@@ -108,6 +119,8 @@ runStartup({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppErrorBoundary>
+    <ThemeProvider>
+    <ToastProvider>
     <BrowserRouter>
       <AuthProvider>
         <Suspense fallback={<RouteFallback />}>
@@ -308,6 +321,8 @@ createRoot(document.getElementById('root')!).render(
         </Suspense>
       </AuthProvider>
     </BrowserRouter>
+    </ToastProvider>
+    </ThemeProvider>
     </AppErrorBoundary>
   </StrictMode>,
 )

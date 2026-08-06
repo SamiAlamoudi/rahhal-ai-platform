@@ -325,6 +325,24 @@ export interface AgentProviderMeta {
   /** Card id acknowledged on the latest selection turn. */
   selectedBookingOptionId?: string | null
   /**
+   * Bilamo Intelligence Layer — consultant memory + parallel search bundle.
+   * Additive; UI may render FlightCard / HotelCard / timeline from `search`.
+   */
+  bilamo?: {
+    version: string
+    featureVersion: string
+    phase: string
+    askedSlot: string | null
+    askedSlots: string[]
+    preferences: Record<string, unknown>
+    search: {
+      flights: Array<Record<string, unknown>>
+      hotels: Array<Record<string, unknown>>
+      context: Record<string, unknown>
+      timeline: Array<Record<string, unknown>>
+    } | null
+  }
+  /**
    * Sprint 9 — Concierge dialogue state (additive, optional).
    * Opaque to the provider layer; Concierge remains supplier-agnostic.
    */

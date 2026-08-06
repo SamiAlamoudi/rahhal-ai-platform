@@ -8,7 +8,7 @@ export interface ProductPageShellProps extends ProductAppBarProps {
   maxWidthClassName?: string
 }
 
-/** Shared Arabic-first product page frame for secondary surfaces. */
+/** Quiet Bilamo frame for secondary surfaces — no dashboard nav chrome. */
 export function ProductPageShell({
   children,
   mainClassName = '',
@@ -16,7 +16,7 @@ export function ProductPageShell({
   ...bar
 }: ProductPageShellProps) {
   return (
-    <div data-testid="product-page-shell">
+    <div data-testid="product-page-shell" className="bilamo-root text-[var(--bilamo-text)]">
       <Atmosphere variant="page" className="min-h-screen">
         <ProductAppBar {...bar} maxWidthClassName={maxWidthClassName} />
         <main

@@ -1,0 +1,113 @@
+/* Bilamo — investor-demo surfaces. Identity through atmosphere + Orb. */
+
+:root,
+[data-theme='dark'] {
+  --bilamo-bg: #050816;
+  --bilamo-surface: #0d1327;
+  --bilamo-surface-elevated: #141b33;
+  --bilamo-primary: #7c3aed;
+  --bilamo-secondary: #22d3ee;
+  --bilamo-text: #f8fafc;
+  --bilamo-muted: #94a3b8;
+  --bilamo-border: rgba(255, 255, 255, 0.06);
+  --bilamo-glass: rgba(13, 19, 39, 0.42);
+  --bilamo-glass-border: rgba(255, 255, 255, 0.07);
+  --bilamo-glow-primary: rgba(124, 58, 237, 0.28);
+  --bilamo-glow-secondary: rgba(34, 211, 238, 0.18);
+  --bilamo-danger: #f43f5e;
+  --bilamo-success: #34d399;
+  --bilamo-scrim: rgba(5, 8, 22, 0.64);
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --bilamo-bg: #f5f6fa;
+  --bilamo-surface: #ffffff;
+  --bilamo-surface-elevated: #ffffff;
+  --bilamo-primary: #6d28d9;
+  --bilamo-secondary: #0891b2;
+  --bilamo-text: #0b1220;
+  --bilamo-muted: #5b677a;
+  --bilamo-border: rgba(15, 23, 42, 0.06);
+  --bilamo-glass: rgba(255, 255, 255, 0.62);
+  --bilamo-glass-border: rgba(15, 23, 42, 0.06);
+  --bilamo-glow-primary: rgba(109, 40, 217, 0.14);
+  --bilamo-glow-secondary: rgba(8, 145, 178, 0.1);
+  --bilamo-danger: #e11d48;
+  --bilamo-success: #059669;
+  --bilamo-scrim: rgba(15, 23, 42, 0.36);
+  color-scheme: light;
+}
+
+@theme {
+  --font-sans: 'Geist Variable', Geist, ui-sans-serif, system-ui, sans-serif;
+  --color-bilamo-bg: var(--bilamo-bg);
+  --color-bilamo-surface: var(--bilamo-surface);
+  --color-bilamo-surface-elevated: var(--bilamo-surface-elevated);
+  --color-bilamo-primary: var(--bilamo-primary);
+  --color-bilamo-secondary: var(--bilamo-secondary);
+  --color-bilamo-text: var(--bilamo-text);
+  --color-bilamo-muted: var(--bilamo-muted);
+  --color-bilamo-border: var(--bilamo-border);
+  --color-bilamo-glass: var(--bilamo-glass);
+  --color-bilamo-danger: var(--bilamo-danger);
+  --color-bilamo-success: var(--bilamo-success);
+}
+
+.bilamo-root {
+  min-height: 100dvh;
+  background: var(--bilamo-bg);
+  color: var(--bilamo-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'ss01' on, 'cv11' on;
+}
+
+/* Signature field — deep, asymmetric, calm. */
+.bilamo-atmosphere {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 58% 40% at 50% 18%, var(--bilamo-glow-primary), transparent 62%),
+    radial-gradient(ellipse 40% 28% at 78% 92%, var(--bilamo-glow-secondary), transparent 55%),
+    radial-gradient(ellipse 30% 22% at 12% 78%, rgba(124, 58, 237, 0.08), transparent 50%),
+    var(--bilamo-bg);
+}
+
+.bilamo-glass {
+  background: var(--bilamo-glass);
+  border: 1px solid var(--bilamo-glass-border);
+  backdrop-filter: blur(36px) saturate(1.25);
+  -webkit-backdrop-filter: blur(36px) saturate(1.25);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.035) inset,
+    0 10px 36px rgba(0, 0, 0, 0.16);
+}
+
+.bilamo-glass-subtle {
+  background: color-mix(in srgb, var(--bilamo-glass) 40%, transparent);
+  border: 1px solid var(--bilamo-border);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+}
+
+.bilamo-root ::selection {
+  background: color-mix(in srgb, var(--bilamo-primary) 32%, transparent);
+  color: var(--bilamo-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bilamo-root *,
+  .bilamo-root *::before,
+  .bilamo-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

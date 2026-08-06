@@ -85,15 +85,15 @@ describe('Product Sprint A — UX foundation', () => {
   it('exposes centralized tokens and sprint metadata', () => {
     expect(PRODUCT_UX_SPRINT).toBe('product-sprint-a')
     expect(PRODUCT_UX_VERSION).toMatch(/foundation/)
-    expect(productTypography.family.display).toMatch(/Cairo/)
+    expect(productTypography.family.display).toMatch(/Geist/)
     expect(productSpacing.lg).toBe(16)
     expect(PRODUCT_HOME_SUGGESTIONS.length).toBeGreaterThanOrEqual(5)
   })
 
   it('provides Arabic and English copy', () => {
-    expect(productCopy('ar', 'homeHeadline')).toContain('تسافر')
-    expect(productCopy('en', 'homeHeadline').toLowerCase()).toContain('travel')
-    expect(productCopy('ar', 'chatTitle')).toContain('رحّال')
+    expect(productCopy('ar', 'homeHeadline')).toContain('تحتاج')
+    expect(productCopy('en', 'homeHeadline').toLowerCase()).toContain('need')
+    expect(productCopy('ar', 'chatTitle')).toContain('Bilamo')
   })
 
   it('maps flight/hotel models with progressive disclosure fields', () => {

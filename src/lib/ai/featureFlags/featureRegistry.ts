@@ -94,6 +94,18 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     notes: 'Product alias: smart_clarification',
   },
   {
+    id: 'ai.bilamo_intelligence',
+    name: 'Bilamo Intelligence Layer',
+    description:
+      'Bilamo Conversation Manager — entity extraction, smart memory, minimum follow-ups, parallel search orchestration, and consultant-style recommendation composition.',
+    lifecycle: 'beta',
+    // Product path enables via createTravelAgentProvider (bilamoIntelligenceEnabled: true).
+    // Registry default OFF keeps legacy planTurn unit tests stable.
+    enabled: false,
+    dependsOn: ['ai.smart_clarification'],
+    notes: 'Product alias: bilamo_intelligence — ON for Bilamo product provider',
+  },
+  {
     id: 'ai.real_world_intelligence',
     name: 'Real World Intelligence Layer (Sprint 53)',
     description:
