@@ -2,7 +2,7 @@ export { BILAMO_DESIGN_SYSTEM_VERSION, brand, colorRoles, darkPalette, lightPale
 export type { OrbState } from './tokens'
 
 export { cn } from './lib/cn'
-export { bilamoSprings, fadeUp, scaleIn, glassReveal } from './motion/springs'
+export { bilamoSprings, fadeUp, scaleIn, glassReveal, bilamoHaptic } from './motion/springs'
 export { ThemeProvider, useTheme } from './theme/ThemeProvider'
 export type { BilamoTheme } from './theme/ThemeProvider'
 

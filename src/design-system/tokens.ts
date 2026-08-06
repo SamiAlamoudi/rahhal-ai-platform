@@ -120,12 +120,13 @@ export const elevation = {
   orb: '0 0 80px var(--bilamo-glow-primary)',
 } as const
 
-/** Framer Motion spring presets — no hard transitions. */
+/** Framer Motion spring presets — Apple-soft, no hard edges. */
 export const springs = {
-  gentle: { type: 'spring' as const, stiffness: 120, damping: 20, mass: 1 },
-  soft: { type: 'spring' as const, stiffness: 220, damping: 24, mass: 0.9 },
-  snappy: { type: 'spring' as const, stiffness: 380, damping: 28, mass: 0.7 },
-  orb: { type: 'spring' as const, stiffness: 90, damping: 16, mass: 1.1 },
+  gentle: { type: 'spring' as const, stiffness: 100, damping: 22, mass: 1 },
+  soft: { type: 'spring' as const, stiffness: 180, damping: 26, mass: 0.95 },
+  snappy: { type: 'spring' as const, stiffness: 320, damping: 32, mass: 0.75 },
+  orb: { type: 'spring' as const, stiffness: 70, damping: 18, mass: 1.15 },
+  press: { type: 'spring' as const, stiffness: 480, damping: 34, mass: 0.6 },
 }
 
 export type OrbState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'completed'

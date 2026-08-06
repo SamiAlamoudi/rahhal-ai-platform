@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { Keyboard, X } from 'lucide-react'
+import { AnimatePresence, LayoutGroup, motion } from 'framer-motion'
+import { ArrowUp, Keyboard } from 'lucide-react'
 import {
   BilamoShell,
   Button,
   FlightCard,
   HotelCard,
   Logo,
-  Textarea,
   TripTimeline,
   VoiceOrb,
+  bilamoHaptic,
   springs,
   type OrbState,
   type TripTimelineItem,
@@ -24,7 +24,6 @@ import { validateUserMessage } from '../../lib/chat/chatHelpers'
 import { isBenignChatError, logChatError } from '../../lib/chat/chatLogger'
 
 export interface BilamoConversationExperienceProps {
-  /** Optional seed prompt from navigation */
   initialPrompt?: string | null
   autoListen?: boolean
 }
@@ -123,20 +122,26 @@ function makeLocalUserMessage(conversationId: string, content: string): ChatMess
   }
 }
 
-function statusLabel(state: OrbState, partial: string): string {
-  if (state === 'listening') {
-    return partial ? partial : 'Listening…'
-  }
-  if (state === 'thinking') return 'Thinking…'
-  if (state === 'speaking') return 'Bilamo is speaking…'
-  if (state === 'completed') return 'Done'
-  return 'Tap the orb to speak'
+/** Presence copy — never instruct, never narrate software. */
+function presenceLine(state: OrbState, partial: string): string | null {
+  if (state === 'listening' && partial.trim()) return partial.trim()
+  return null
+}
+
+function StreamingCaret() {
+  return (
+    <motion.span
+      aria-hidden
+      className="ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[0.12em] rounded-full bg-[var(--bilamo-text)]/70 align-middle"
+      animate={{ opacity: [0.15, 0.85, 0.15] }}
+      transition={{ duration: 1.05, repeat: Infinity, ease: 'easeInOut' }}
+    />
+  )
 }
 
 /**
- * Single living Bilamo surface.
+ * Living Bilamo surface — polish pass.
  * Brand · Greeting · Orb · Conversation · Recent.
- * No dashboard. No chrome.
  */
 export function BilamoConversationExperience({
   initialPrompt = null,
@@ -165,6 +170,7 @@ export function BilamoConversationExperience({
   const [composerOpen, setComposerOpen] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [speakPulse, setSpeakPulse] = useState(0)
 
   conversationIdRef.current = conversationId
 
@@ -229,7 +235,7 @@ export function BilamoConversationExperience({
               upsertMessage(msg)
               setOrbState('completed')
               if (looksLikeSearchIntent(content)) setShowResults(true)
-              window.setTimeout(() => setOrbState('idle'), 1100)
+              window.setTimeout(() => setOrbState('idle'), 900)
             },
             onError: (msg, err) => {
               upsertMessage(msg)
@@ -259,14 +265,17 @@ export function BilamoConversationExperience({
 
   sendRef.current = send
 
-  const handleSpeechFinal = useCallback((transcript: string) => {
-    stopMic()
-    if (silenceTimer.current != null) {
-      window.clearTimeout(silenceTimer.current)
-      silenceTimer.current = null
-    }
-    void sendRef.current(transcript)
-  }, [stopMic])
+  const handleSpeechFinal = useCallback(
+    (transcript: string) => {
+      stopMic()
+      if (silenceTimer.current != null) {
+        window.clearTimeout(silenceTimer.current)
+        silenceTimer.current = null
+      }
+      void sendRef.current(transcript)
+    },
+    [stopMic],
+  )
 
   const {
     partial,
@@ -290,22 +299,24 @@ export function BilamoConversationExperience({
     setShowResults(false)
     const ok = await startMic()
     if (!ok) {
-      setError('Microphone unavailable')
+      setError('Microphone needs permission')
       setComposerOpen(true)
       return
     }
     setOrbState('listening')
+    bilamoHaptic(6)
     const started = startSpeech(
       typeof navigator !== 'undefined' && navigator.language?.startsWith('ar')
         ? 'ar-SA'
         : 'en-US',
     )
     if (!started) {
-      setError('Speak, then tap the orb again to finish')
+      setError('Tap again when you finish speaking')
     }
   }, [startMic, startSpeech])
 
   const toggleOrb = useCallback(() => {
+    bilamoHaptic(orbState === 'listening' ? 4 : 8)
     if (orbState === 'listening') {
       if (partial.trim()) {
         stopSpeech()
@@ -327,7 +338,6 @@ export function BilamoConversationExperience({
     stopSpeech,
   ])
 
-  // Auto-end listen after sustained silence once speech was detected.
   useEffect(() => {
     if (orbState !== 'listening') return
     if (silenceTimer.current != null) {
@@ -359,255 +369,261 @@ export function BilamoConversationExperience({
       void sendRef.current(initialPrompt)
       return
     }
-    if (autoListen) {
-      void startListening()
-    }
-    // Intentionally once on mount for navigation seeds.
+    if (autoListen) void startListening()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const onSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    if (!draft.trim() || busy) return
-    void send(draft)
-  }
-
-  const [speakPulse, setSpeakPulse] = useState(0)
   useEffect(() => {
     if (orbState !== 'speaking') {
       setSpeakPulse(0)
       return
     }
-    const id = window.setInterval(() => {
-      setSpeakPulse((n) => n + 1)
-    }, 80)
+    const id = window.setInterval(() => setSpeakPulse((n) => n + 1), 90)
     return () => window.clearInterval(id)
   }, [orbState])
 
   const speakingBands = useMemo(() => {
     if (orbState !== 'speaking') return undefined
     return Array.from({ length: 32 }, (_, i) => {
-      const t = speakPulse * 0.35 + i * 0.4
-      return 0.22 + 0.55 * Math.abs(Math.sin(t)) * (0.55 + 0.45 * Math.abs(Math.cos(t * 0.7)))
+      const t = speakPulse * 0.28 + i * 0.38
+      return 0.18 + 0.48 * Math.abs(Math.sin(t)) * (0.6 + 0.4 * Math.abs(Math.cos(t * 0.65)))
     })
   }, [orbState, speakPulse])
 
-  const level = orbState === 'listening' ? micLevel : orbState === 'speaking' ? 0.55 : 0
+  const level = orbState === 'listening' ? micLevel : orbState === 'speaking' ? 0.42 : 0
   const bands = orbState === 'listening' ? micBands : speakingBands
+  const transcript = presenceLine(orbState, partial)
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!draft.trim() || busy) return
+    bilamoHaptic(6)
+    void send(draft)
+  }
 
   return (
     <BilamoShell>
-      <div className="mx-auto flex min-h-[100dvh] w-full max-w-xl flex-col px-6 pb-10 pt-10 sm:px-8">
-        {/* Brand + greeting — generous Apple-level air */}
-        <header className="relative z-10 space-y-5 text-center">
-          <Logo size="md" className="justify-center" />
-          <AnimatePresence mode="wait">
-            {!inConversation ? (
-              <motion.h1
-                key="greeting"
+      <LayoutGroup>
+        <div className="mx-auto flex min-h-[100dvh] w-full max-w-[26rem] flex-col px-7 pb-8 pt-12 sm:max-w-md sm:px-8">
+          <header className="relative z-10 text-center">
+            <Logo size={inConversation ? 'sm' : 'md'} className="justify-center" />
+            <AnimatePresence mode="wait">
+              {!inConversation ? (
+                <motion.h1
+                  key="greeting"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={springs.gentle}
+                  className="mt-7 text-[1.85rem] font-medium leading-[1.15] tracking-[-0.04em] text-[var(--bilamo-text)] sm:text-[2.05rem]"
+                >
+                  {greeting}
+                </motion.h1>
+              ) : null}
+            </AnimatePresence>
+          </header>
+
+          <section
+            className={`relative z-10 flex flex-col items-center ${
+              inConversation ? 'py-7' : 'flex-1 justify-center py-14'
+            }`}
+          >
+            <motion.div layout transition={springs.soft}>
+              <VoiceOrb
+                state={orbState}
+                level={level}
+                bands={bands}
+                size={inConversation ? 152 : 236}
+                onClick={toggleOrb}
+                label={orbState === 'listening' ? 'Stop' : 'Speak'}
+              />
+            </motion.div>
+
+            <div className="mt-7 flex min-h-[1.5rem] items-center justify-center px-5">
+              <AnimatePresence mode="wait">
+                {transcript ? (
+                  <motion.p
+                    key={transcript.slice(0, 48)}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={springs.soft}
+                    className="max-w-xs text-center text-[14.5px] leading-relaxed tracking-[-0.01em] text-[var(--bilamo-muted)]"
+                  >
+                    {transcript}
+                  </motion.p>
+                ) : null}
+              </AnimatePresence>
+            </div>
+
+            <AnimatePresence>
+              {(micError || speechError || error) && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="mt-4 max-w-xs text-center text-[13px] leading-relaxed text-[var(--bilamo-danger)]/90"
+                  role="alert"
+                >
+                  {error ?? micError ?? speechError}
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </section>
+
+          <AnimatePresence>
+            {messages.length > 0 && (
+              <motion.section
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={springs.gentle}
-                className="text-[1.75rem] font-medium tracking-[-0.03em] text-[var(--bilamo-text)] sm:text-[2.15rem]"
-              >
-                {greeting}
-              </motion.h1>
-            ) : (
-              <motion.p
-                key="presence"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
                 transition={springs.soft}
-                className="text-sm font-medium tracking-wide text-[var(--bilamo-muted)]"
+                className="relative z-10 mb-4 flex-1 space-y-6 overflow-y-auto"
+                aria-live="polite"
               >
-                Bilamo
-              </motion.p>
+                {messages.map((msg) => (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={springs.soft}
+                    className={
+                      msg.role === 'user'
+                        ? 'ml-auto max-w-[86%] rounded-[1.25rem] bg-white/[0.06] px-4 py-3'
+                        : 'mr-auto max-w-[96%]'
+                    }
+                  >
+                    {msg.content ? (
+                      <p
+                        className={
+                          msg.role === 'assistant'
+                            ? 'text-[16px] leading-[1.7] tracking-[-0.015em] whitespace-pre-wrap text-[var(--bilamo-text)]/92'
+                            : 'text-[15px] leading-[1.55] tracking-[-0.01em] whitespace-pre-wrap text-[var(--bilamo-text)]/90'
+                        }
+                      >
+                        {msg.content}
+                        {busy && msg.role === 'assistant' && msg === messages[messages.length - 1] ? (
+                          <StreamingCaret />
+                        ) : null}
+                      </p>
+                    ) : busy && msg.role === 'assistant' ? (
+                      <StreamingCaret />
+                    ) : null}
+                  </motion.div>
+                ))}
+
+                {showResults && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ ...springs.soft, delay: 0.06 }}
+                    className="space-y-3 pt-1"
+                  >
+                    {DEMO_FLIGHTS.map((flight, i) => (
+                      <FlightCard key={flight.id} {...flight} highlighted={i === 0} />
+                    ))}
+                    {DEMO_HOTELS.map((hotel, i) => (
+                      <HotelCard key={hotel.id} {...hotel} highlighted={i === 0} />
+                    ))}
+                    <div className="bilamo-glass rounded-[1.5rem] px-6 py-5">
+                      <TripTimeline items={DEMO_TIMELINE} />
+                    </div>
+                  </motion.div>
+                )}
+                <div ref={bottomRef} />
+              </motion.section>
             )}
           </AnimatePresence>
-        </header>
 
-        {/* Orb — identity */}
-        <section
-          className={`relative z-10 flex flex-col items-center ${
-            inConversation ? 'py-8' : 'flex-1 justify-center py-12'
-          }`}
-        >
-          <VoiceOrb
-            state={orbState}
-            level={level}
-            bands={bands}
-            size={inConversation ? 168 : 248}
-            onClick={toggleOrb}
-            label={orbState === 'listening' ? 'Stop listening' : 'Start talking'}
-          />
-
-          <AnimatePresence mode="wait">
-            <motion.p
-              key={`${orbState}-${partial.slice(0, 24)}`}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={springs.soft}
-              className="mt-8 max-w-sm px-4 text-center text-[15px] leading-relaxed text-[var(--bilamo-muted)]"
-            >
-              {statusLabel(orbState, partial)}
-            </motion.p>
-          </AnimatePresence>
-
-          {(micError || speechError || error) && (
-            <motion.p
+          {!inConversation && (
+            <motion.section
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="mt-3 max-w-sm text-center text-sm text-[var(--bilamo-danger)]"
-              role="alert"
+              transition={{ ...springs.gentle, delay: 0.2 }}
+              className="relative z-10 mt-auto pb-1"
             >
-              {error ?? micError ?? speechError}
-            </motion.p>
-          )}
-        </section>
-
-        {/* Conversation stream */}
-        <AnimatePresence>
-          {messages.length > 0 && (
-            <motion.section
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={springs.soft}
-              className="relative z-10 mb-6 flex-1 space-y-5 overflow-y-auto"
-              aria-live="polite"
-            >
-              {messages.map((msg) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 12, filter: 'blur(4px)' }}
-                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                  transition={springs.soft}
-                  className={
-                    msg.role === 'user'
-                      ? 'ml-auto max-w-[88%] rounded-[1.35rem] rounded-br-md bg-[color-mix(in_srgb,var(--bilamo-primary)_24%,transparent)] px-5 py-3.5 shadow-[0_10px_40px_rgba(0,0,0,0.18)]'
-                      : 'mr-auto max-w-[94%]'
-                  }
+              {DEMO_RECENT.map((item) => (
+                <motion.button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    bilamoHaptic(5)
+                    void send(`Continue: ${item.title}`)
+                  }}
+                  whileTap={{ scale: 0.99 }}
+                  transition={springs.press}
+                  className="bilamo-glass-subtle w-full rounded-[1.25rem] px-5 py-4 text-start"
                 >
-                  {msg.content ? (
-                    <p className="text-[15.5px] leading-[1.65] tracking-[-0.01em] whitespace-pre-wrap text-[var(--bilamo-text)]">
-                      {msg.content}
-                    </p>
-                  ) : busy && msg.role === 'assistant' ? (
-                    <span className="inline-flex gap-1 px-1 py-2" aria-label="Streaming">
-                      {[0, 1, 2].map((i) => (
-                        <motion.span
-                          key={i}
-                          className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--bilamo-muted)]"
-                          animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }}
-                          transition={{
-                            duration: 0.9,
-                            repeat: Infinity,
-                            delay: i * 0.12,
-                          }}
-                        />
-                      ))}
-                    </span>
-                  ) : null}
-                </motion.div>
+                  <p className="text-[14.5px] font-medium tracking-[-0.02em] text-[var(--bilamo-text)]/90">
+                    {item.title}
+                  </p>
+                  <p className="mt-1 text-[13px] text-[var(--bilamo-muted)]/85">{item.preview}</p>
+                </motion.button>
               ))}
-
-              {showResults && (
-                <motion.div
-                  initial={{ opacity: 0, y: 18 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ ...springs.soft, delay: 0.08 }}
-                  className="space-y-4 pt-2"
-                >
-                  {DEMO_FLIGHTS.map((flight, i) => (
-                    <FlightCard key={flight.id} {...flight} highlighted={i === 0} />
-                  ))}
-                  {DEMO_HOTELS.map((hotel, i) => (
-                    <HotelCard key={hotel.id} {...hotel} highlighted={i === 0} />
-                  ))}
-                  <div className="bilamo-glass rounded-[1.75rem] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
-                    <TripTimeline items={DEMO_TIMELINE} />
-                  </div>
-                </motion.div>
-              )}
-              <div ref={bottomRef} />
             </motion.section>
           )}
-        </AnimatePresence>
 
-        {/* Recent — only when idle and empty */}
-        {!inConversation && (
-          <motion.section
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...springs.gentle, delay: 0.12 }}
-            className="relative z-10 mt-auto space-y-3 pb-2"
-          >
-            <p className="text-center text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--bilamo-muted)]">
-              Recent conversation
-            </p>
-            {DEMO_RECENT.map((item) => (
-              <motion.button
-                key={item.id}
-                type="button"
-                onClick={() => void send(`Continue: ${item.title}`)}
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.985 }}
-                transition={springs.snappy}
-                className="bilamo-glass w-full rounded-[1.35rem] px-5 py-4 text-start shadow-[0_16px_48px_rgba(0,0,0,0.22)]"
-              >
-                <p className="text-[15px] font-medium tracking-tight text-[var(--bilamo-text)]">
-                  {item.title}
-                </p>
-                <p className="mt-1 text-sm text-[var(--bilamo-muted)]">{item.preview}</p>
-              </motion.button>
-            ))}
-          </motion.section>
-        )}
-
-        {/* Minimal composer affordance — not a toolbar */}
-        <div className="relative z-10 mt-6 flex items-center justify-center gap-3">
-          <Button
-            variant="ghost"
-            size="iconSm"
-            aria-label={composerOpen ? 'Close keyboard' : 'Type a message'}
-            onClick={() => setComposerOpen((v) => !v)}
-          >
-            {composerOpen ? <X className="h-5 w-5" /> : <Keyboard className="h-5 w-5" />}
-          </Button>
+          <div className="relative z-10 mt-8 flex flex-col items-center">
+            <AnimatePresence mode="wait">
+              {!composerOpen ? (
+                <motion.div
+                  key="affordance"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <Button
+                    variant="ghost"
+                    size="iconSm"
+                    aria-label="Type"
+                    onClick={() => setComposerOpen(true)}
+                    className="opacity-45 hover:opacity-80"
+                  >
+                    <Keyboard className="h-[18px] w-[18px]" strokeWidth={1.6} />
+                  </Button>
+                </motion.div>
+              ) : (
+                <motion.form
+                  key="composer"
+                  onSubmit={onSubmit}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 6 }}
+                  transition={springs.soft}
+                  className="bilamo-glass flex w-full items-end gap-2 rounded-full p-2 pl-5"
+                >
+                  <textarea
+                    autoFocus
+                    rows={1}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        if (draft.trim() && !busy) void send(draft)
+                      }
+                      if (e.key === 'Escape') setComposerOpen(false)
+                    }}
+                    placeholder="Message"
+                    aria-label="Message"
+                    disabled={busy}
+                    className="max-h-28 min-h-[40px] min-w-0 flex-1 resize-none bg-transparent py-2.5 text-[15px] leading-snug tracking-[-0.01em] text-[var(--bilamo-text)] outline-none placeholder:text-[var(--bilamo-muted)]/45"
+                  />
+                  <Button
+                    type="submit"
+                    size="iconSm"
+                    variant="primary"
+                    disabled={busy || !draft.trim()}
+                    aria-label="Send"
+                    className="shrink-0"
+                  >
+                    <ArrowUp className="h-4 w-4" strokeWidth={2.2} />
+                  </Button>
+                </motion.form>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
-
-        <AnimatePresence>
-          {composerOpen && (
-            <motion.form
-              onSubmit={onSubmit}
-              initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, y: 12, filter: 'blur(4px)' }}
-              transition={springs.soft}
-              className="bilamo-glass relative z-10 mt-3 space-y-3 rounded-[1.75rem] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.32)]"
-            >
-              <Textarea
-                autoFocus
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="Speak with Bilamo…"
-                aria-label="Message Bilamo"
-                className="min-h-[96px] border-0 bg-transparent shadow-none focus:shadow-none"
-              />
-              <Button
-                type="submit"
-                className="w-full"
-                size="lg"
-                disabled={busy || !draft.trim()}
-              >
-                Send
-              </Button>
-            </motion.form>
-          )}
-        </AnimatePresence>
-      </div>
+      </LayoutGroup>
     </BilamoShell>
   )
 }

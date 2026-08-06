@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { motion } from 'framer-motion'
-import { Sparkles } from 'lucide-react'
 import { cn } from '../lib/cn'
 import { springs } from '../tokens'
 import { Card } from './Card'
@@ -32,42 +31,43 @@ export function SearchResult({
     <motion.button
       type="button"
       onClick={onSelect}
-      whileTap={{ scale: 0.985 }}
-      transition={springs.snappy}
+      whileTap={{ scale: 0.99 }}
+      transition={springs.press}
       className={cn('w-full text-start', className)}
     >
       <Card
         variant={highlighted ? 'highlight' : 'glass'}
-        padding="md"
+        padding="lg"
         interactive
         className="w-full"
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 space-y-1">
+        <div className="flex items-start justify-between gap-5">
+          <div className="min-w-0 space-y-1.5">
             {highlighted ? (
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--bilamo-secondary)]">
-                <Sparkles className="h-3.5 w-3.5" />
-                Top recommendation
-              </span>
+              <p className="text-[11px] font-medium tracking-[0.04em] text-[var(--bilamo-secondary)]">
+                Suggested
+              </p>
             ) : null}
-            <h3 className="truncate text-lg font-semibold tracking-tight text-[var(--bilamo-text)]">
+            <h3 className="text-[1.05rem] font-medium tracking-[-0.025em] text-[var(--bilamo-text)]">
               {title}
             </h3>
             {subtitle ? (
-              <p className="text-sm text-[var(--bilamo-muted)]">{subtitle}</p>
+              <p className="text-[13.5px] text-[var(--bilamo-muted)]">{subtitle}</p>
             ) : null}
-            {meta ? <p className="text-xs text-[var(--bilamo-muted)]">{meta}</p> : null}
+            {meta ? (
+              <p className="text-[12.5px] text-[var(--bilamo-muted)]/90">{meta}</p>
+            ) : null}
             {reason ? (
-              <p className="pt-2 text-sm leading-relaxed text-[var(--bilamo-text)]/80">{reason}</p>
+              <p className="pt-1.5 text-[13.5px] leading-relaxed text-[var(--bilamo-text)]/75">
+                {reason}
+              </p>
             ) : null}
             {children}
           </div>
           {priceLabel ? (
-            <div className="shrink-0 text-end">
-              <p className="text-lg font-semibold tracking-tight text-[var(--bilamo-text)]">
-                {priceLabel}
-              </p>
-            </div>
+            <p className="shrink-0 text-[1.05rem] font-medium tracking-[-0.02em] text-[var(--bilamo-text)]">
+              {priceLabel}
+            </p>
           ) : null}
         </div>
       </Card>

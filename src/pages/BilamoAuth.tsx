@@ -25,29 +25,33 @@ function AuthFrame({
 }) {
   return (
     <BilamoShell>
-      <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col justify-center px-6 py-12">
+      <div className="mx-auto flex min-h-[100dvh] max-w-sm flex-col justify-center px-7 py-14">
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={springs.gentle}
-          className="mb-10 space-y-4 text-center"
+          className="mb-9 space-y-3 text-center"
         >
-          <Logo size="lg" className="justify-center" />
-          <p className="text-sm text-[var(--bilamo-muted)]">{brand.tagline}</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--bilamo-text)]">
+          <Logo size="md" className="justify-center" />
+          <p className="text-[13px] tracking-[-0.01em] text-[var(--bilamo-muted)]/85">
+            {brand.tagline}
+          </p>
+          <h1 className="pt-2 text-[1.65rem] font-medium tracking-[-0.035em] text-[var(--bilamo-text)]">
             {title}
           </h1>
-          <p className="text-sm leading-relaxed text-[var(--bilamo-muted)]">{subtitle}</p>
+          <p className="text-[14px] leading-relaxed text-[var(--bilamo-muted)]/90">{subtitle}</p>
         </motion.div>
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ ...springs.soft, delay: 0.05 }}
-          className="bilamo-glass rounded-[1.75rem] p-6"
+          transition={{ ...springs.soft, delay: 0.04 }}
+          className="bilamo-glass rounded-[1.5rem] p-5 sm:p-6"
         >
           {children}
         </motion.div>
-        {footer ? <div className="mt-6 text-center text-sm text-[var(--bilamo-muted)]">{footer}</div> : null}
+        {footer ? (
+          <div className="mt-7 text-center text-[13px] text-[var(--bilamo-muted)]/85">{footer}</div>
+        ) : null}
       </div>
     </BilamoShell>
   )

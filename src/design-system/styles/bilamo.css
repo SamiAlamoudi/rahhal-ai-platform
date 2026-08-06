@@ -1,4 +1,4 @@
-/* Bilamo Design System — theme surfaces & liquid glass */
+/* Bilamo — quiet surfaces. Presence over chrome. */
 
 :root,
 [data-theme='dark'] {
@@ -9,33 +9,33 @@
   --bilamo-secondary: #22d3ee;
   --bilamo-text: #f8fafc;
   --bilamo-muted: #94a3b8;
-  --bilamo-border: rgba(255, 255, 255, 0.08);
-  --bilamo-glass: rgba(13, 19, 39, 0.55);
-  --bilamo-glass-border: rgba(255, 255, 255, 0.1);
-  --bilamo-glow-primary: rgba(124, 58, 237, 0.45);
-  --bilamo-glow-secondary: rgba(34, 211, 238, 0.35);
+  --bilamo-border: rgba(255, 255, 255, 0.07);
+  --bilamo-glass: rgba(13, 19, 39, 0.48);
+  --bilamo-glass-border: rgba(255, 255, 255, 0.08);
+  --bilamo-glow-primary: rgba(124, 58, 237, 0.32);
+  --bilamo-glow-secondary: rgba(34, 211, 238, 0.24);
   --bilamo-danger: #f43f5e;
   --bilamo-success: #34d399;
-  --bilamo-scrim: rgba(5, 8, 22, 0.72);
+  --bilamo-scrim: rgba(5, 8, 22, 0.64);
   color-scheme: dark;
 }
 
 [data-theme='light'] {
-  --bilamo-bg: #f8fafc;
+  --bilamo-bg: #f7f8fb;
   --bilamo-surface: #ffffff;
   --bilamo-surface-elevated: #ffffff;
   --bilamo-primary: #6d28d9;
   --bilamo-secondary: #0891b2;
   --bilamo-text: #0f172a;
   --bilamo-muted: #64748b;
-  --bilamo-border: rgba(15, 23, 42, 0.08);
-  --bilamo-glass: rgba(255, 255, 255, 0.72);
-  --bilamo-glass-border: rgba(15, 23, 42, 0.08);
-  --bilamo-glow-primary: rgba(109, 40, 217, 0.22);
-  --bilamo-glow-secondary: rgba(8, 145, 178, 0.18);
+  --bilamo-border: rgba(15, 23, 42, 0.07);
+  --bilamo-glass: rgba(255, 255, 255, 0.66);
+  --bilamo-glass-border: rgba(15, 23, 42, 0.07);
+  --bilamo-glow-primary: rgba(109, 40, 217, 0.16);
+  --bilamo-glow-secondary: rgba(8, 145, 178, 0.12);
   --bilamo-danger: #e11d48;
   --bilamo-success: #059669;
-  --bilamo-scrim: rgba(15, 23, 42, 0.4);
+  --bilamo-scrim: rgba(15, 23, 42, 0.36);
   color-scheme: light;
 }
 
@@ -60,7 +60,9 @@
   color: var(--bilamo-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  font-feature-settings: 'ss01' on, 'cv11' on;
 }
 
 .bilamo-atmosphere {
@@ -70,29 +72,33 @@
   z-index: 0;
   overflow: hidden;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, var(--bilamo-glow-primary), transparent 55%),
-    radial-gradient(ellipse 60% 40% at 90% 80%, var(--bilamo-glow-secondary), transparent 50%),
-    radial-gradient(ellipse 50% 35% at 10% 70%, rgba(124, 58, 237, 0.12), transparent 45%),
+    radial-gradient(ellipse 70% 42% at 50% -8%, var(--bilamo-glow-primary), transparent 58%),
+    radial-gradient(ellipse 48% 32% at 88% 88%, var(--bilamo-glow-secondary), transparent 52%),
     var(--bilamo-bg);
 }
 
 .bilamo-glass {
   background: var(--bilamo-glass);
   border: 1px solid var(--bilamo-glass-border);
-  backdrop-filter: blur(28px) saturate(1.45);
-  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  backdrop-filter: blur(32px) saturate(1.3);
+  -webkit-backdrop-filter: blur(32px) saturate(1.3);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 18px 50px rgba(0, 0, 0, 0.28),
-    0 4px 16px rgba(0, 0, 0, 0.12);
+    0 1px 0 rgba(255, 255, 255, 0.045) inset,
+    0 12px 40px rgba(0, 0, 0, 0.18);
 }
 
 .bilamo-glass-subtle {
-  background: color-mix(in srgb, var(--bilamo-glass) 70%, transparent);
+  background: color-mix(in srgb, var(--bilamo-glass) 55%, transparent);
   border: 1px solid var(--bilamo-border);
-  backdrop-filter: blur(18px) saturate(1.25);
-  -webkit-backdrop-filter: blur(18px) saturate(1.25);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(20px) saturate(1.15);
+  -webkit-backdrop-filter: blur(20px) saturate(1.15);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+}
+
+/* Selection should feel like the product, not the browser default. */
+.bilamo-root ::selection {
+  background: color-mix(in srgb, var(--bilamo-primary) 36%, transparent);
+  color: var(--bilamo-text);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -102,5 +108,6 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

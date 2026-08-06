@@ -7,19 +7,19 @@ import { springs } from '../tokens'
 const cardVariants = cva('relative overflow-hidden', {
   variants: {
     variant: {
-      glass: 'bilamo-glass rounded-3xl',
-      surface: 'rounded-3xl border border-[var(--bilamo-border)] bg-[var(--bilamo-surface)]',
+      glass: 'bilamo-glass rounded-[1.5rem]',
+      surface: 'rounded-[1.5rem] border border-[var(--bilamo-border)] bg-[var(--bilamo-surface)]',
       elevated:
-        'rounded-3xl border border-[var(--bilamo-border)] bg-[var(--bilamo-surface-elevated)] shadow-[0_16px_48px_rgba(0,0,0,0.2)]',
+        'rounded-[1.5rem] border border-[var(--bilamo-border)] bg-[var(--bilamo-surface-elevated)] shadow-[0_14px_40px_rgba(0,0,0,0.16)]',
       highlight:
-        'rounded-3xl border border-[color-mix(in_srgb,var(--bilamo-primary)_45%,transparent)] bg-[color-mix(in_srgb,var(--bilamo-primary)_12%,var(--bilamo-surface))] shadow-[0_0_48px_var(--bilamo-glow-primary)]',
+        'rounded-[1.5rem] border border-[color-mix(in_srgb,var(--bilamo-primary)_28%,transparent)] bg-[color-mix(in_srgb,var(--bilamo-primary)_8%,var(--bilamo-surface))] shadow-[0_0_36px_var(--bilamo-glow-primary)]',
       bare: 'rounded-none border-0 bg-transparent shadow-none',
     },
     padding: {
       none: 'p-0',
       sm: 'p-4',
       md: 'p-5',
-      lg: 'p-7',
+      lg: 'px-6 py-5',
     },
   },
   defaultVariants: {
@@ -45,10 +45,10 @@ export function Card({
 }: CardProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={springs.soft}
-      whileHover={interactive ? { y: -2, scale: 1.01 } : undefined}
+      whileHover={interactive ? { y: -1 } : undefined}
       className={cn(cardVariants({ variant, padding }), className)}
       {...props}
     >

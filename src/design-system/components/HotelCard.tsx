@@ -34,13 +34,13 @@ export function HotelCard({
       className={className}
       meta={nightsLabel}
     >
-      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-[var(--bilamo-muted)]">
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-[13px] text-[var(--bilamo-muted)]/90">
         <span className="inline-flex items-center gap-1">
-          <MapPin className="h-3.5 w-3.5" />
+          <MapPin className="h-3 w-3" strokeWidth={1.75} />
           {area}
         </span>
         <span className="inline-flex items-center gap-1">
-          <Star className="h-3.5 w-3.5 text-[var(--bilamo-secondary)]" />
+          <Star className="h-3 w-3 text-[var(--bilamo-secondary)]" strokeWidth={1.75} />
           {rating.toFixed(1)}
         </span>
       </div>

@@ -3,23 +3,35 @@ import { springs } from '../tokens'
 
 export const bilamoSprings = springs
 
+/** Quiet enter — no blur gimmick. */
 export const fadeUp = {
-  initial: { opacity: 0, y: 12 },
+  initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: 8 },
+  exit: { opacity: 0, y: 4 },
   transition: springs.soft as Transition,
 }
 
 export const scaleIn = {
-  initial: { opacity: 0, scale: 0.96 },
+  initial: { opacity: 0, scale: 0.98 },
   animate: { opacity: 1, scale: 1 },
-  exit: { opacity: 0, scale: 0.98 },
+  exit: { opacity: 0, scale: 0.99 },
   transition: springs.gentle as Transition,
 }
 
 export const glassReveal = {
-  initial: { opacity: 0, y: 16, filter: 'blur(6px)' },
-  animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
-  exit: { opacity: 0, y: 8, filter: 'blur(4px)' },
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: 6 },
   transition: springs.soft as Transition,
+}
+
+/** Optional micro-haptic on supported devices. Never required. */
+export function bilamoHaptic(ms = 8) {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(ms)
+    }
+  } catch {
+    /* ignore */
+  }
 }

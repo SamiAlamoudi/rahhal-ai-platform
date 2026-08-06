@@ -30,27 +30,32 @@ export default function ForgotPassword() {
 
   return (
     <BilamoShell>
-      <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col justify-center px-6 py-12">
+      <div className="mx-auto flex min-h-[100dvh] max-w-sm flex-col justify-center px-7 py-14">
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={springs.gentle}
-          className="mb-10 space-y-4 text-center"
+          className="mb-9 space-y-3 text-center"
         >
-          <Logo size="lg" className="justify-center" />
-          <p className="text-sm text-[var(--bilamo-muted)]">{brand.tagline}</p>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <Logo size="md" className="justify-center" />
+          <p className="text-[13px] tracking-[-0.01em] text-[var(--bilamo-muted)]/85">
+            {brand.tagline}
+          </p>
+          <h1 className="pt-2 text-[1.65rem] font-medium tracking-[-0.035em] text-[var(--bilamo-text)]">
             {sent ? 'Check your email' : 'Recover access'}
           </h1>
-          <p className="text-sm text-[var(--bilamo-muted)]">
+          <p className="text-[14px] leading-relaxed text-[var(--bilamo-muted)]/90">
             {sent
               ? `We sent a reset link to ${email}.`
               : 'Enter your email and we will send a reset link.'}
           </p>
         </motion.div>
-        <div className="bilamo-glass rounded-[1.75rem] p-6">
+        <div className="bilamo-glass rounded-[1.5rem] p-5 sm:p-6">
           {sent ? (
-            <Link to="/login" className="block text-center text-sm text-[var(--bilamo-secondary)]">
+            <Link
+              to="/login"
+              className="block text-center text-[14px] text-[var(--bilamo-secondary)]"
+            >
               Back to sign in
             </Link>
           ) : (
@@ -64,7 +69,7 @@ export default function ForgotPassword() {
                 onChange={(e) => setEmail(e.target.value)}
               />
               {error ? (
-                <p className="text-sm text-[var(--bilamo-danger)]" role="alert">
+                <p className="text-[13px] text-[var(--bilamo-danger)]/90" role="alert">
                   {error}
                 </p>
               ) : null}

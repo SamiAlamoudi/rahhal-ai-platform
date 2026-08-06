@@ -41,10 +41,10 @@ export function FlightCard({
       className={className}
       meta={`${duration} · ${stopsLabel}`}
     >
-      <div className="mt-3 flex items-center gap-3 text-sm text-[var(--bilamo-text)]">
-        <span className="font-medium tabular-nums">{departTime}</span>
-        <ArrowRight className="h-3.5 w-3.5 text-[var(--bilamo-muted)]" />
-        <span className="font-medium tabular-nums">{arriveTime}</span>
+      <div className="mt-2.5 flex items-center gap-2.5 text-[13.5px] text-[var(--bilamo-text)]/85">
+        <span className="tabular-nums tracking-[-0.01em]">{departTime}</span>
+        <ArrowRight className="h-3 w-3 text-[var(--bilamo-muted)]/70" strokeWidth={1.75} />
+        <span className="tabular-nums tracking-[-0.01em]">{arriveTime}</span>
       </div>
     </SearchResult>
   )

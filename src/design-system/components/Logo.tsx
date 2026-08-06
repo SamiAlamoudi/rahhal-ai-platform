@@ -9,48 +9,47 @@ export interface LogoProps {
 }
 
 const SIZES = {
-  sm: { mark: 28, text: 'text-lg' },
-  md: { mark: 36, text: 'text-2xl' },
-  lg: { mark: 44, text: 'text-3xl' },
+  sm: { mark: 22, text: 'text-[1.05rem]', gap: 'gap-2.5' },
+  md: { mark: 26, text: 'text-[1.35rem]', gap: 'gap-3' },
+  lg: { mark: 30, text: 'text-[1.65rem]', gap: 'gap-3.5' },
 } as const
 
+/** Quiet wordmark — brand presence without app-icon energy. */
 export function Logo({ className, markOnly = false, size = 'md' }: LogoProps) {
   const s = SIZES[size]
   return (
     <motion.div
-      className={cn('inline-flex items-center gap-3', className)}
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={springs.gentle}
+      className={cn('inline-flex items-center', s.gap, className)}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ ...springs.gentle, delay: 0.04 }}
     >
       <span
-        className="relative inline-flex items-center justify-center rounded-2xl"
+        className="relative inline-flex shrink-0 items-center justify-center rounded-full"
         style={{ width: s.mark, height: s.mark }}
         aria-hidden
       >
         <span
-          className="absolute inset-0 rounded-2xl opacity-80"
+          className="absolute inset-[-20%] rounded-full opacity-70"
           style={{
             background:
-              'linear-gradient(135deg, var(--bilamo-primary), var(--bilamo-secondary))',
-            filter: 'blur(8px)',
+              'radial-gradient(circle, var(--bilamo-glow-primary), transparent 70%)',
           }}
         />
         <span
-          className="relative flex h-full w-full items-center justify-center rounded-2xl text-sm font-semibold text-white"
+          className="relative h-full w-full rounded-full"
           style={{
             background:
-              'linear-gradient(145deg, color-mix(in srgb, var(--bilamo-primary) 90%, white), var(--bilamo-primary))',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35)',
+              'radial-gradient(circle at 35% 30%, rgba(255,255,255,0.55), transparent 42%), linear-gradient(145deg, color-mix(in srgb, var(--bilamo-primary) 85%, white), var(--bilamo-primary) 55%, color-mix(in srgb, var(--bilamo-primary) 70%, #22d3ee))',
+            boxShadow:
+              'inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 18px var(--bilamo-glow-primary)',
           }}
-        >
-          B
-        </span>
+        />
       </span>
       {!markOnly ? (
         <span
           className={cn(
-            'font-semibold tracking-tight text-[var(--bilamo-text)]',
+            'font-medium tracking-[-0.035em] text-[var(--bilamo-text)]',
             s.text,
           )}
         >
