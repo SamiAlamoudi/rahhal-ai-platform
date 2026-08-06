@@ -158,8 +158,11 @@ describe('Lebanon booking flow acceptance A→B→C', () => {
     })
     merged = mergeRequirements(merged, extractFromUserText('شخص واحد').patch)
     const turnC = extractFromUserText('من 3 أغسطس إلى 10 أغسطس')
-    expect(turnC.patch.startDate).toBe('2026-08-03')
-    expect(turnC.patch.endDate).toBe('2026-08-10')
+    // Year rolls forward once Aug 3 of the current year is in the past.
+    expect(turnC.patch.startDate).toMatch(/^\d{4}-08-03$/)
+    expect(turnC.patch.endDate).toMatch(/^\d{4}-08-10$/)
+    const startDate = turnC.patch.startDate!
+    const endDate = turnC.patch.endDate!
 
     merged = mergeRequirements(merged, turnC.patch)
     const provenance = buildRequirementsProvenance({
@@ -171,17 +174,17 @@ describe('Lebanon booking flow acceptance A→B→C', () => {
 
     expect(merged.destination).toBe('لبنان')
     expect(merged.travelers).toBe(1)
-    expect(merged.startDate).toBe('2026-08-03')
-    expect(merged.endDate).toBe('2026-08-10')
+    expect(merged.startDate).toBe(startDate)
+    expect(merged.endDate).toBe(endDate)
     expect(merged.destinations.join(' ')).not.toMatch(/Tokyo|Jordan|Dubai|طوكيو|الأردن|دبي/i)
     expect(provenance.startDate).toMatchObject({
-      value: '2026-08-03',
+      value: startDate,
       source: 'current_turn',
       confirmed: true,
       currentTurnPriority: true,
     })
     expect(provenance.endDate).toMatchObject({
-      value: '2026-08-10',
+      value: endDate,
       source: 'current_turn',
       confirmed: true,
       currentTurnPriority: true,

@@ -25,14 +25,17 @@ export function resolveTripSessionState(input: {
 
   const start = parseDate(plan.startDate)
   const end = parseDate(plan.endDate)
-  if (end && now.getTime() > end.getTime() + 12 * 60 * 60 * 1000) return 'completed'
 
+  // Explicit traveler/disruption signals outrank calendar completion so live
+  // companion cues ("in transit", "checked in") stay meaningful on trip-end day.
   const disruption = (input.disruption ?? '').toLowerCase()
   if (/return|عودة|راجع/.test(disruption)) return 'returning'
   if (input.meetingMode || /meeting|اجتماع/.test(disruption)) return 'meeting_mode'
   if (/in transit|في الطريق|boarding|صعود/.test(disruption)) return 'in_transit'
   if (/checked.?in|تسجيل وصول/.test(disruption)) return 'checked_in'
   if (/explor|جولة|أتجول/.test(disruption)) return 'exploring'
+
+  if (end && now.getTime() > end.getTime() + 12 * 60 * 60 * 1000) return 'completed'
 
   if (start) {
     const startDay = new Date(start)
