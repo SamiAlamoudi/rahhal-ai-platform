@@ -15,6 +15,10 @@ import {
   probeAmadeusConnection,
   readAmadeusCredentials,
 } from '../../api/_lib/amadeusEnv.js'
+import {
+  parseBilamoFlightSearchBody,
+  runBilamoFlightSearch,
+} from '../../api/_lib/bilamoFlightSearch.js'
 import { buildAmadeusEnvBag } from './viteNodeEnv.js'
 
 function sendJson(res: { statusCode?: number; setHeader: (k: string, v: string) => void; end: (b: string) => void }, status: number, body: unknown) {
@@ -157,6 +161,72 @@ export function amadeusApiPlugin(): Plugin {
               error: err instanceof Error ? err.message : 'Token exchange failed',
               code: 'AMADEUS_AUTH_NETWORK',
             })
+          }
+          return
+        }
+
+        if (url === '/api/bilamo-flights-search') {
+          if (req.method === 'OPTIONS') {
+            res.statusCode = 204
+            res.setHeader('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:5173')
+            res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type, x-client-info, apikey')
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            res.end('ok')
+            return
+          }
+
+          const envBag = buildAmadeusEnvBag() as Record<string, string | undefined>
+
+          if (req.method === 'GET') {
+            const creds = readAmadeusCredentials(envBag)
+            sendJson(res, 200, {
+              ok: true,
+              provider: creds.hasCredentials ? 'amadeus' : 'demo',
+              detail: creds.hasCredentials
+                ? 'Amadeus credentials configured'
+                : 'Demo mode — Amadeus credentials not configured',
+            })
+            return
+          }
+
+          if (req.method !== 'POST') {
+            sendJson(res, 405, { error: 'Method not allowed', code: 'METHOD_NOT_ALLOWED' })
+            return
+          }
+
+          const rawBody = await new Promise<string>((resolve, reject) => {
+            const chunks: Buffer[] = []
+            req.on('data', (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)))
+            req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
+            req.on('error', reject)
+          })
+          let raw: Record<string, unknown> = {}
+          try {
+            raw = JSON.parse(rawBody || '{}') as Record<string, unknown>
+          } catch {
+            sendJson(res, 400, { ok: false, error: 'invalid_json', offers: [] })
+            return
+          }
+
+          const body = parseBilamoFlightSearchBody(raw)
+          if (!body) {
+            sendJson(res, 400, { ok: false, error: 'invalid_search_request', offers: [] })
+            return
+          }
+
+          const controller = new AbortController()
+          const timer = setTimeout(() => controller.abort(), 12_000)
+          try {
+            const result = await runBilamoFlightSearch({
+              body,
+              env: envBag,
+              signal: controller.signal,
+              clientKey: readHeader(req, 'authorization')?.slice(-24) || 'vite-dev',
+              fallbackToDemo: true,
+            })
+            sendJson(res, 200, result)
+          } finally {
+            clearTimeout(timer)
           }
           return
         }
