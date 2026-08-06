@@ -1,12 +1,18 @@
 /**
  * Parallel Search Orchestrator — one request → multi-domain bundle.
  * Flights ∥ Hotels ∥ Transfer ∥ Weather ∥ Visa ∥ Currency ∥ Time difference.
- * Mock-friendly by default (no live provider keys required).
+ * Flights go through Bilamo FlightSearchProvider (demo by default, live via server API).
  */
 
-import { enrichMockFlight } from '../../agent/flightSearchEngine/normalize'
 import { enrichMockHotel } from '../../agent/hotelSearchEngine/normalize'
 import type { TripRequirements } from '../../agent/types'
+import {
+  createBilamoFlightSearchProvider,
+  recommendFlights,
+  scoredOfferToBilamoFlight,
+  type BilamoFlightSearchRequest,
+  type FlightSearchProvider,
+} from '../flights'
 import type {
   BilamoContextIntel,
   BilamoFlightOption,
@@ -41,94 +47,119 @@ function airportFor(destination: string | null): { code: string; originDefault: 
   return { code: (destination || 'XXX').slice(0, 3).toUpperCase(), originDefault: 'RUH' }
 }
 
-function formatDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m ? `${h}h ${m}m` : `${h}h`
+function originAirportCode(origin: string | null, fallback: string): string {
+  if (!origin) return fallback
+  const raw = origin.trim()
+  if (/^[A-Za-z]{3}$/.test(raw)) return raw.toUpperCase()
+  const key = raw.toLowerCase()
+  if (key.includes('riyadh') || key.includes('رياض')) return 'RUH'
+  if (key.includes('jeddah') || key.includes('جدة') || key.includes('جده')) return 'JED'
+  if (key.includes('dammam') || key.includes('دمام')) return 'DMM'
+  if (key.includes('dubai') || key.includes('دبي')) return 'DXB'
+  if (key.includes('london') || key.includes('لندن')) return 'LHR'
+  return fallback
 }
 
-function clock(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toISOString().slice(11, 16)
-}
-
-async function searchFlights(req: TripRequirements): Promise<BilamoFlightOption[]> {
+function toFlightSearchRequest(
+  req: TripRequirements,
+  signal?: AbortSignal,
+): BilamoFlightSearchRequest | null {
   const dest = req.destination || req.destinations[0] || null
-  if (!dest) return []
+  if (!dest) return null
   const airport = airportFor(dest)
-  const origin = (req.origin || airport.originDefault).toUpperCase().slice(0, 3)
-  const currency = req.budgetCurrency || 'SAR'
-  const dep = req.startDate || '2026-09-12'
-  const cabin = (req.cabinPreference as 'economy' | 'business' | undefined) || 'economy'
-  const preferred = (req.preferredAirline || '').toLowerCase()
-  const preferredAirlineName = preferred.includes('qatar') || preferred === 'qr'
-    ? 'Qatar Airways'
-    : preferred.includes('emirate') || preferred === 'ek'
-      ? 'Emirates'
-      : preferred.includes('saud') || preferred === 'sv'
-        ? 'Saudia'
-        : preferred.includes('turkish') || preferred === 'tk'
-          ? 'Turkish Airlines'
-          : 'Saudia'
+  const origin = originAirportCode(req.origin, airport.originDefault)
 
-  const raw = [
-    enrichMockFlight({
-      origin,
-      destination: airport.code,
-      currency,
-      cabin,
-      airline: preferredAirlineName,
-      price: cabin === 'business' ? 9200 : 2890,
-      stops: 0,
-      duration: 620,
-      departureTime: `${dep}T08:40:00Z`,
-      arrivalTime: `${dep}T18:55:00Z`,
-    }, 0),
-    enrichMockFlight({
-      origin,
-      destination: airport.code,
-      currency,
-      cabin,
-      airline: preferredAirlineName === 'Turkish Airlines' ? 'Saudia' : 'Turkish Airlines',
-      price: cabin === 'business' ? 8800 : 3140,
-      stops: 0,
-      duration: 640,
-      departureTime: `${dep}T14:10:00Z`,
-      arrivalTime: `${dep}T23:50:00Z`,
-    }, 1),
-    enrichMockFlight({
-      origin,
-      destination: airport.code,
-      currency,
-      cabin,
-      airline: preferredAirlineName === 'Emirates' ? 'Qatar Airways' : 'Emirates',
-      price: cabin === 'business' ? 10500 : 3420,
-      stops: 1,
-      duration: 780,
-      departureTime: `${dep}T01:20:00Z`,
-      arrivalTime: `${dep}T14:20:00Z`,
-    }, 2),
-  ]
+  const preferred = req.preferredAirline ? [req.preferredAirline] : []
+  const cabinRaw = (req.cabinPreference || 'economy').toLowerCase()
+  const cabin = cabinRaw.includes('business')
+    ? 'business' as const
+    : cabinRaw.includes('first')
+      ? 'first' as const
+      : cabinRaw.includes('premium')
+        ? 'premium_economy' as const
+        : 'economy' as const
 
-  return raw.map((f, i) => ({
-    id: f.id || `bilamo-f-${i}`,
-    airline: f.airline,
-    origin: f.origin,
-    destination: f.destination,
-    departTime: clock(f.departureTime),
-    arriveTime: clock(f.arrivalTime),
-    duration: formatDuration(f.duration || 600),
-    stopsLabel: (f.stops ?? 0) === 0 ? 'Nonstop' : `${f.stops} stop`,
-    price: f.price,
-    currency: f.currency || currency,
-    reason: i === 0
-      ? 'Best balance of schedule, comfort, and total cost.'
-      : i === 1
-        ? 'Strong afternoon alternative with excellent connections.'
-        : 'Premium carrier — useful if you prefer a hub stop.',
-    score: 100 - i * 8,
-  }))
+  const directOnly = /prefer_direct|direct|nonstop|non-stop|مباشر|بدون\s*توقف/i.test(req.notes || '')
+
+  return {
+    origin,
+    destination: airport.code,
+    departureDate: req.startDate || '2026-09-12',
+    returnDate: req.endDate,
+    adults: Math.max(1, (req.travelers ?? 1) - Math.max(0, req.children ?? 0)),
+    children: Math.max(0, req.children ?? 0),
+    infants: /\binfant|baby|رضيع|رضع/i.test(req.notes || '') ? 1 : 0,
+    cabin,
+    directOnly,
+    preferredAirlines: preferred,
+    maxStops: directOnly ? 0 : null,
+    currency: req.budgetCurrency || 'SAR',
+    signal,
+  }
+}
+
+async function searchFlights(
+  req: TripRequirements,
+  options?: {
+    signal?: AbortSignal
+    provider?: FlightSearchProvider
+    onProgress?: (message: string) => void
+  },
+): Promise<{
+  flights: BilamoFlightOption[]
+  meta: NonNullable<BilamoSearchBundle['flightsMeta']>
+}> {
+  const request = toFlightSearchRequest(req, options?.signal)
+  if (!request) {
+    return {
+      flights: [],
+      meta: { mode: 'demo', error: null, stale: false, bestScore: null },
+    }
+  }
+
+  options?.onProgress?.('I have enough information to search.')
+  const provider = options?.provider ?? createBilamoFlightSearchProvider()
+  options?.onProgress?.(
+    request.directOnly
+      ? 'Comparing direct options first.'
+      : 'Comparing direct and one-stop options.',
+  )
+
+  const result = await provider.searchFlights(request)
+  const recommendation = recommendFlights(result.offers, request, {
+    mode: result.mode,
+    error: result.error,
+    stale: Boolean(result.error && result.ok),
+  })
+
+  if (!recommendation) {
+    return {
+      flights: [],
+      meta: {
+        mode: result.mode,
+        error: result.error || 'no_offers',
+        stale: false,
+        bestScore: null,
+      },
+    }
+  }
+
+  options?.onProgress?.(
+    `I found ${recommendation.display.length} strong choice${recommendation.display.length === 1 ? '' : 's'}.`,
+  )
+  if (recommendation.best.kind === 'best') {
+    options?.onProgress?.(recommendation.best.reason)
+  }
+
+  return {
+    flights: recommendation.display.map(scoredOfferToBilamoFlight),
+    meta: {
+      mode: recommendation.mode,
+      error: recommendation.error,
+      stale: recommendation.stale,
+      bestScore: recommendation.best.score,
+    },
+  }
 }
 
 async function searchHotels(req: TripRequirements): Promise<BilamoHotelOption[]> {
@@ -267,10 +298,12 @@ function buildTimeline(
 export async function runBilamoSearchOrchestrator(input: {
   requirements: TripRequirements
   signal?: AbortSignal
+  flightProvider?: FlightSearchProvider
+  onFlightProgress?: (message: string) => void
 }): Promise<BilamoSearchBundle> {
   const req = input.requirements
   const [
-    flights,
+    flightPack,
     hotels,
     transfer,
     weather,
@@ -278,7 +311,11 @@ export async function runBilamoSearchOrchestrator(input: {
     currency,
     timeDifference,
   ] = await Promise.all([
-    searchFlights(req),
+    searchFlights(req, {
+      signal: input.signal,
+      provider: input.flightProvider,
+      onProgress: input.onFlightProgress,
+    }),
     searchHotels(req),
     searchTransfer(req),
     searchWeather(req),
@@ -291,6 +328,7 @@ export async function runBilamoSearchOrchestrator(input: {
     throw new DOMException('Aborted', 'AbortError')
   }
 
+  const flights = flightPack.flights
   const context: BilamoContextIntel = {
     weather,
     visa,
@@ -304,5 +342,6 @@ export async function runBilamoSearchOrchestrator(input: {
     hotels,
     context,
     timeline: buildTimeline(req, flights[0] ?? null, hotels[0] ?? null),
+    flightsMeta: flightPack.meta,
   }
 }

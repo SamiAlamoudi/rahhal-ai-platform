@@ -387,16 +387,30 @@ export async function runBilamoIntelligenceTurn(
     }
   }
 
-  // Ready to search — parallel orchestrator.
+  // Ready to search — parallel orchestrator with consultant progress stream.
   memory = { ...memory, phase: 'searching' }
-  input.onDelta?.({
-    displayText: locale === 'ar' ? 'أرتّب لك الخيارات الآن…' : 'I’m shaping the options now…',
-    spokenText: locale === 'ar' ? 'لحظة…' : 'One moment…',
-  })
+  const progressLines: string[] = []
+  const pushProgress = (message: string) => {
+    if (!message || progressLines[progressLines.length - 1] === message) return
+    progressLines.push(message)
+    const displayText = progressLines.join('\n')
+    input.onDelta?.({
+      displayText,
+      spokenText: message,
+    })
+  }
+  pushProgress(
+    locale === 'ar' ? 'لديّ ما يكفي للبحث.' : 'I have enough information to search.',
+  )
 
   const search = await runBilamoSearchOrchestrator({
     requirements,
     signal: input.signal,
+    onFlightProgress: (message) => {
+      // Avoid duplicating the opening line from the orchestrator.
+      if (/enough information to search/i.test(message)) return
+      pushProgress(message)
+    },
   })
 
   const copy = composeRecommendation({ requirements, search, locale })

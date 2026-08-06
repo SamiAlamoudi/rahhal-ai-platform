@@ -48,6 +48,14 @@ export interface BilamoFlightOption {
   currency: string
   reason: string
   score: number
+  /** Recommendation Engine V1 role. */
+  kind?: 'best' | 'cheapest' | 'fastest' | null
+  kindLabel?: string | null
+  flightNumber?: string | null
+  cabin?: string | null
+  baggageSummary?: string | null
+  refundable?: boolean | null
+  fetchedAt?: string | null
 }
 
 export interface BilamoHotelOption {
@@ -81,6 +89,13 @@ export interface BilamoSearchBundle {
     detail?: string
     kind?: 'flight' | 'hotel' | 'activity' | 'transfer' | 'note'
   }>
+  /** Flights vertical slice metadata. */
+  flightsMeta?: {
+    mode: 'demo' | 'live'
+    error: string | null
+    stale: boolean
+    bestScore: number | null
+  }
 }
 
 export interface BilamoTurnResult {
