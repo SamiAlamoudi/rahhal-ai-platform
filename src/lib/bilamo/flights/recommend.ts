@@ -45,14 +45,25 @@ function scheduleConvenience(hour: number | null): number {
 
 function airlineMatch(offer: NormalizedFlightOffer, prefs: string[]): number {
   if (!prefs.length) return 0.55
-  const hay = `${offer.airline} ${offer.flightNumber || ''}`.toLowerCase()
+  const name = offer.airline.toLowerCase()
+  const code = (offer.flightNumber || '').replace(/[^A-Za-z].*$/, '').toUpperCase()
   for (const p of prefs) {
-    const needle = p.toLowerCase()
+    const needle = p.toLowerCase().trim()
     if (!needle) continue
-    if (hay.includes(needle)) return 1
-    if (needle === 'sv' && hay.includes('saud')) return 1
-    if (needle === 'ek' && hay.includes('emirate')) return 1
-    if (needle === 'qr' && hay.includes('qatar')) return 1
+    if (name.includes(needle)) return 1
+    if (needle === 'sv' || needle === 'saudia' || needle.includes('saudi')) {
+      if (name.includes('saud') || code === 'SV') return 1
+    }
+    if (needle === 'ek' || needle.includes('emirate')) {
+      if (name.includes('emirate') || code === 'EK') return 1
+    }
+    if (needle === 'qr' || needle.includes('qatar')) {
+      if (name.includes('qatar') || code === 'QR') return 1
+    }
+    if (needle === 'tk' || needle.includes('turkish')) {
+      if (name.includes('turkish') || code === 'TK') return 1
+    }
+    if (needle.length === 2 && code === needle.toUpperCase()) return 1
   }
   return 0.2
 }
@@ -89,19 +100,28 @@ export function scoreFlightOffer(
     ? (offer.stops === 0 ? 1 : 0.1)
     : (offer.stops === 0 ? 0.85 : 0.5)
 
+  // When the traveler named a preferred airline, honor it strongly —
+  // price alone must not bury the preferred carrier among near peers.
+  const hasAirlinePref = (request.preferredAirlines || []).length > 0
+  const airlineWeight = hasAirlinePref ? Math.max(weights.airline, 0.2) : weights.airline
+  const priceWeight = hasAirlinePref ? Math.max(0.16, weights.price - 0.08) : weights.price
+
   const breakdown = { price, duration, stops, layover, schedule, airline, baggage, direct }
-  const score = Math.round(
+  let score = Math.round(
     100 * (
-      price * weights.price
+      price * priceWeight
       + duration * weights.duration
       + stops * weights.stops
       + layover * weights.layover
       + schedule * weights.schedule
-      + airline * weights.airline
+      + airline * airlineWeight
       + baggage * weights.baggage
       + direct * weights.direct
     ),
   )
+  if (hasAirlinePref && airline >= 1) {
+    score = Math.min(100, score + 10)
+  }
 
   return {
     offer,

@@ -43,6 +43,7 @@ function buildDemoOffers(request: BilamoFlightSearchRequest): NormalizedFlightOf
   const seeds = [
     {
       airline: primary,
+      flightNumber: primary === 'Emirates' ? 'EK816' : primary === 'Qatar Airways' ? 'QR1180' : primary === 'Turkish Airlines' ? 'TK144' : 'SV568',
       price: cabin === 'business' ? 9200 : 2890,
       stops: 0,
       duration: 620,
@@ -53,6 +54,7 @@ function buildDemoOffers(request: BilamoFlightSearchRequest): NormalizedFlightOf
     },
     {
       airline: primary === 'Turkish Airlines' ? 'Saudia' : 'Turkish Airlines',
+      flightNumber: primary === 'Turkish Airlines' ? 'SV100' : 'TK200',
       price: cabin === 'business' ? 8680 : 2660,
       stops: 0,
       duration: 640,
@@ -63,6 +65,7 @@ function buildDemoOffers(request: BilamoFlightSearchRequest): NormalizedFlightOf
     },
     {
       airline: primary === 'Emirates' ? 'Qatar Airways' : 'Emirates',
+      flightNumber: primary === 'Emirates' ? 'QR300' : 'EK300',
       price: cabin === 'business' ? 10500 : 2420,
       stops: 1,
       duration: 780,
@@ -80,6 +83,7 @@ function buildDemoOffers(request: BilamoFlightSearchRequest): NormalizedFlightOf
       currency,
       cabin,
       airline: s.airline,
+      flightNumber: s.flightNumber,
       price: s.price,
       stops: s.stops,
       duration: s.duration,
