@@ -47,7 +47,7 @@ export function detectLoyaltyConversationQuery(
     return 'points_earn_estimate'
   }
   if (
-    /how many (rahhal )?points|my (points )?balance|wallet balance|points balance/.test(lower)
+    /how many ((rahhal|bilamo) )?points|my (points )?balance|wallet balance|points balance/.test(lower)
     || /رصيد نقاطي|كم نقطة لدي/.test(lower)
   ) {
     return 'wallet_balance'

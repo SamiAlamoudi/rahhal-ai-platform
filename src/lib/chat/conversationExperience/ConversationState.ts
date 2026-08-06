@@ -353,7 +353,7 @@ export function detectConversationCommand(userText: string): ConversationCommand
 
   // Sprint 38 — loyalty / rewards (before disruption & planning).
   if (
-    /use (my )?(rahhal )?points|redeem (my )?points|pay with points/.test(lower)
+    /use (my )?((rahhal|bilamo) )?points|redeem (my )?points|pay with points/.test(lower)
     || /استخدم نقاطي|استخدم نقاط بيلامو/.test(lower)
   ) {
     return 'use_bilamo_points'
