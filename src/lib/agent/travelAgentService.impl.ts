@@ -328,6 +328,13 @@ export interface TravelAgentServiceOptions {
    */
   brainV1PreviewEnabled?: boolean
   /**
+   * Bilamo Intelligence Layer — Conversation Manager + parallel search.
+   * Default: FeatureRegistry `ai.bilamo_intelligence` (OFF).
+   * Product `createTravelAgentProvider` opts in with `bilamoIntelligenceEnabled: true`.
+   * Soft-fail: any error continues with the current planner.
+   */
+  bilamoIntelligenceEnabled?: boolean
+  /**
    * Sprint 76 — Traveler Personalization Intelligence (profile learning, ranking).
    * Default: FeatureRegistry `ai.traveler_personalization` (ON).
    */
@@ -1834,6 +1841,72 @@ export function createTravelAgentService(
           tripPlan: memory.tripPlan,
           meta,
           toolBatch: null,
+        }
+      }
+
+      // Bilamo Intelligence Layer — consultant Conversation Manager.
+      // Soft pilot inside planTurn (sole turn owner). Any failure → legacy planner.
+      if (
+        !alphaJourneyCue
+        && !selectedCard
+      ) {
+        try {
+          const { isBilamoIntelligenceEnabled } = await import('../bilamo/intelligence/feature')
+          if (
+            isBilamoIntelligenceEnabled({
+              enabled: options.bilamoIntelligenceEnabled,
+            })
+          ) {
+            const {
+              runBilamoIntelligenceTurn,
+              bilamoResultToTravelAgentTurn,
+            } = await import('../bilamo/intelligence')
+            const priorBilamo = (() => {
+              for (let i = input.messages.length - 1; i >= 0; i -= 1) {
+                const meta = input.messages[i]?.providerMeta as unknown as AgentProviderMeta | undefined
+                if (meta?.bilamo && meta.memory) {
+                  return {
+                    locale: meta.memory.locale,
+                    phase: (meta.bilamo.phase as 'greeting' | 'collecting' | 'searching' | 'recommending' | 'refining')
+                      || 'collecting',
+                    agent: meta.memory,
+                    askedSlots: (meta.bilamo.askedSlots || []) as Array<'destination' | 'dates' | 'travelers'>,
+                    preferences: {
+                      origin: (meta.bilamo.preferences?.origin as string | null) ?? null,
+                      preferredAirline: (meta.bilamo.preferences?.preferredAirline as string | null) ?? null,
+                      seatClass: (meta.bilamo.preferences?.seatClass as string | null) ?? null,
+                      hotelPreference: (meta.bilamo.preferences?.hotelPreference as string | null) ?? null,
+                      budgetRange: (meta.bilamo.preferences?.budgetRange as {
+                        amount: number
+                        currency: string
+                      } | null) ?? null,
+                      partyStyle: (meta.bilamo.preferences?.partyStyle as
+                        | 'solo'
+                        | 'couple'
+                        | 'family'
+                        | 'friends'
+                        | 'business'
+                        | null) ?? null,
+                    },
+                  }
+                }
+              }
+              return null
+            })()
+            const bilamoTurn = await runBilamoIntelligenceTurn({
+              conversationId: input.conversationId,
+              userText,
+              messages: input.messages,
+              priorMemory: priorBilamo,
+              signal: input.signal,
+              onDelta: input.onDialogueDelta,
+            })
+            if (bilamoTurn) {
+              return bilamoResultToTravelAgentTurn(bilamoTurn)
+            }
+          }
+        } catch {
+          // Never surface Bilamo intelligence errors — continue with current planner.
         }
       }
 

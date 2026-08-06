@@ -34,65 +34,86 @@ const DEMO_RECENT = {
   preview: 'Quiet stay near Chiado',
 }
 
-const DEMO_FLIGHTS = [
-  {
-    id: 'f1',
-    airline: 'Saudia',
-    origin: 'RUH',
-    destination: 'IST',
-    departTime: '08:40',
-    arriveTime: '12:55',
-    duration: '4h 15m',
-    stopsLabel: 'Nonstop',
-    priceLabel: 'SAR 1,890',
-    reason: 'Best balance of schedule, comfort, and total cost.',
-  },
-  {
-    id: 'f2',
-    airline: 'Turkish Airlines',
-    origin: 'RUH',
-    destination: 'IST',
-    departTime: '14:10',
-    arriveTime: '18:35',
-    duration: '4h 25m',
-    stopsLabel: 'Nonstop',
-    priceLabel: 'SAR 2,140',
-  },
-]
+type BilamoFlightCard = {
+  id: string
+  airline: string
+  origin: string
+  destination: string
+  departTime: string
+  arriveTime: string
+  duration: string
+  stopsLabel: string
+  priceLabel: string
+  reason?: string
+}
 
-const DEMO_HOTELS = [
-  {
-    id: 'h1',
-    name: 'Edition Istanbul',
-    area: 'Karaköy',
-    rating: 4.8,
-    nightsLabel: '4 nights',
-    priceLabel: 'SAR 3,200',
-    reason: 'Quiet luxury near the water — calm evenings.',
-  },
-]
+type BilamoHotelCard = {
+  id: string
+  name: string
+  area: string
+  rating: number
+  nightsLabel: string
+  priceLabel: string
+  reason?: string
+}
 
-const DEMO_TIMELINE: TripTimelineItem[] = [
-  {
-    id: 't1',
-    time: 'Day 1 · Morning',
-    title: 'Arrive Istanbul',
-    detail: 'Soft landing. Transfer to Karaköy.',
-    kind: 'flight',
-  },
-  {
-    id: 't2',
-    time: 'Day 1 · Evening',
-    title: 'Edition Istanbul',
-    detail: 'Corner suite with Bosphorus light.',
-    kind: 'hotel',
-  },
-]
+type BilamoResultsView = {
+  flights: BilamoFlightCard[]
+  hotels: BilamoHotelCard[]
+  timeline: TripTimelineItem[]
+}
 
-function looksLikeSearchIntent(text: string): boolean {
-  return /istanbul|lisbon|paris|flight|hotel|trip|travel|إسطنبول|باريس|رحلة|فندق|طيران/i.test(
-    text,
-  )
+function moneyLabel(amount: unknown, currency: unknown): string {
+  const cur = typeof currency === 'string' && currency.trim() ? currency : 'SAR'
+  const n = typeof amount === 'number' && Number.isFinite(amount) ? amount : null
+  if (n == null) return cur
+  return `${cur} ${n.toLocaleString('en-US')}`
+}
+
+function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefined): BilamoResultsView | null {
+  if (!meta || typeof meta !== 'object') return null
+  const bilamo = meta.bilamo as {
+    search?: {
+      flights?: Array<Record<string, unknown>>
+      hotels?: Array<Record<string, unknown>>
+      timeline?: Array<Record<string, unknown>>
+    } | null
+  } | undefined
+  const search = bilamo?.search
+  if (!search?.flights?.length && !search?.hotels?.length) return null
+
+  const flights: BilamoFlightCard[] = (search.flights || []).slice(0, 3).map((f, i) => ({
+    id: String(f.id ?? `f-${i}`),
+    airline: String(f.airline ?? 'Flight'),
+    origin: String(f.origin ?? '—'),
+    destination: String(f.destination ?? '—'),
+    departTime: String(f.departTime ?? '—'),
+    arriveTime: String(f.arriveTime ?? '—'),
+    duration: String(f.duration ?? '—'),
+    stopsLabel: String(f.stopsLabel ?? 'Nonstop'),
+    priceLabel: moneyLabel(f.price, f.currency),
+    reason: typeof f.reason === 'string' ? f.reason : undefined,
+  }))
+
+  const hotels: BilamoHotelCard[] = (search.hotels || []).slice(0, 2).map((h, i) => ({
+    id: String(h.id ?? `h-${i}`),
+    name: String(h.name ?? 'Stay'),
+    area: String(h.area ?? 'City center'),
+    rating: typeof h.rating === 'number' ? h.rating : 4.6,
+    nightsLabel: String(h.nightsLabel ?? 'Stay'),
+    priceLabel: moneyLabel(h.price, h.currency),
+    reason: typeof h.reason === 'string' ? h.reason : undefined,
+  }))
+
+  const timeline: TripTimelineItem[] = (search.timeline || []).map((t, i) => ({
+    id: String(t.id ?? `t-${i}`),
+    time: String(t.time ?? ''),
+    title: String(t.title ?? ''),
+    detail: typeof t.detail === 'string' ? t.detail : undefined,
+    kind: (t.kind as TripTimelineItem['kind']) || 'note',
+  }))
+
+  return { flights, hotels, timeline }
 }
 
 function makeLocalUserMessage(conversationId: string, content: string): ChatMessage {
@@ -148,7 +169,7 @@ export function BilamoConversationExperience({
   const [busy, setBusy] = useState(false)
   const [draft, setDraft] = useState('')
   const [composerOpen, setComposerOpen] = useState(false)
-  const [showResults, setShowResults] = useState(false)
+  const [results, setResults] = useState<BilamoResultsView | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [speakPulse, setSpeakPulse] = useState(0)
 
@@ -214,7 +235,10 @@ export function BilamoConversationExperience({
             onComplete: (msg) => {
               upsertMessage(msg)
               setOrbState('completed')
-              if (looksLikeSearchIntent(content)) setShowResults(true)
+              const next = resultsFromAssistantMeta(
+                (msg.providerMeta as Record<string, unknown> | undefined) ?? null,
+              )
+              if (next) setResults(next)
               window.setTimeout(() => setOrbState('idle'), 900)
             },
             onError: (msg, err) => {
@@ -276,7 +300,7 @@ export function BilamoConversationExperience({
 
   const startListening = useCallback(async () => {
     setError(null)
-    setShowResults(false)
+    setResults(null)
     const ok = await startMic()
     if (!ok) {
       setError('Microphone needs permission')
@@ -340,7 +364,7 @@ export function BilamoConversationExperience({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages, partial, showResults, busy])
+  }, [messages, partial, results, busy])
 
   useEffect(() => {
     if (seededRef.current) return
@@ -495,7 +519,7 @@ export function BilamoConversationExperience({
                   )
                 })}
 
-                {showResults && (
+                {results && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -505,15 +529,17 @@ export function BilamoConversationExperience({
                     <p className="px-1 pb-2 text-[13.5px] leading-relaxed text-[var(--bilamo-muted)]">
                       Here is what I would choose for you.
                     </p>
-                    {DEMO_FLIGHTS.map((flight, i) => (
+                    {results.flights.map((flight, i) => (
                       <FlightCard key={flight.id} {...flight} highlighted={i === 0} />
                     ))}
-                    {DEMO_HOTELS.map((hotel, i) => (
+                    {results.hotels.map((hotel, i) => (
                       <HotelCard key={hotel.id} {...hotel} highlighted={i === 0} />
                     ))}
-                    <div className="px-5 py-4">
-                      <TripTimeline items={DEMO_TIMELINE} />
-                    </div>
+                    {results.timeline.length > 0 ? (
+                      <div className="px-5 py-4">
+                        <TripTimeline items={results.timeline} />
+                      </div>
+                    ) : null}
                   </motion.div>
                 )}
                 <div ref={bottomRef} />
