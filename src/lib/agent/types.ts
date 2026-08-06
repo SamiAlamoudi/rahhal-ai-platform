@@ -341,6 +341,13 @@ export interface AgentProviderMeta {
       context: Record<string, unknown>
       timeline: Array<Record<string, unknown>>
     } | null
+    /** Internal dialect id from Arabic Language Intelligence. */
+    arabicDialect?: string | null
+    arabic?: {
+      dialect: string
+      confidence: number
+      normalizedText: string
+    } | null
   }
   /**
    * Sprint 9 — Concierge dialogue state (additive, optional).

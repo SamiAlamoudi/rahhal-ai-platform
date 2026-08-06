@@ -30,6 +30,21 @@ export {
 } from './smartMemory'
 
 export { extractBilamoEntities } from './entityExtraction'
+
+// Arabic Language Intelligence (dialect → canonical) — before entity extraction.
+export {
+  BILAMO_ARABIC_INTELLIGENCE_VERSION,
+  BILAMO_DIALECT_CATALOG,
+  listBilamoDialectIds,
+  detectBilamoArabicDialect,
+  runBilamoArabicIntelligence,
+  registerBilamoDialect,
+} from '../arabic'
+export type {
+  BilamoArabicDialectId,
+  BilamoArabicNormalizeResult,
+  BilamoDialectDetection,
+} from '../arabic'
 export {
   nextMinimumQuestion,
   canSearch,

@@ -4,6 +4,7 @@
  */
 
 import type { AgentLocale, AgentMemory, TripRequirements } from '../../agent/types'
+import type { BilamoArabicDialectId, BilamoArabicNormalizeResult } from '../arabic'
 
 export const BILAMO_INTELLIGENCE_VERSION = '1.0.0'
 
@@ -33,6 +34,11 @@ export interface BilamoConsultantMemory {
     budgetRange: { amount: number; currency: string } | null
     partyStyle: 'solo' | 'couple' | 'family' | 'friends' | 'business' | null
   }
+  /**
+   * Last detected Arabic dialect (internal).
+   * Responses stay clear modern Arabic — dialect is not imitated.
+   */
+  arabicDialect: BilamoArabicDialectId | null
 }
 
 export interface BilamoFlightOption {
@@ -96,6 +102,8 @@ export interface BilamoTurnResult {
   /** Single minimum follow-up slot, if any. */
   askedSlot: BilamoHardSlot | null
   requirements: TripRequirements
+  /** Arabic Language Intelligence for this turn (internal). */
+  arabic: BilamoArabicNormalizeResult | null
 }
 
 export interface BilamoTurnInput {
