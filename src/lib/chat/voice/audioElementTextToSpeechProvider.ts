@@ -309,12 +309,13 @@ export function getSharedAudioContextState(): string | null {
  * so later async connect() does not invent a brand-new locked element.
  */
 export function obtainPrimedRemoteAudioElement(): HTMLAudioElement {
-  if (typeof window === 'undefined' || typeof Audio === 'undefined') {
+  // Prefer document.createElement so Vitest/jsdom (no Audio ctor) can still boot WebRTC sessions.
+  if (typeof document === 'undefined' || !document.body) {
     throw new Error('Audio playback is only available in the browser.')
   }
   if (!primedRemoteAudio) {
     primedRemoteAudio = createHiddenAudio('remote-webrtc')
-  } else if (!primedRemoteAudio.isConnected && document.body) {
+  } else if (!primedRemoteAudio.isConnected) {
     document.body.appendChild(primedRemoteAudio)
   }
   primedRemoteAudio.autoplay = true
