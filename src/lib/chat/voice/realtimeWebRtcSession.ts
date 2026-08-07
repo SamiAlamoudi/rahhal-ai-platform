@@ -22,6 +22,7 @@ import {
   type RealtimeQualitySnapshot,
 } from './realtimeQualityMetrics'
 import {
+  detectConversationLanguage,
   resolveConversationLanguage,
   type ConversationLanguageCode,
 } from './conversationLanguageLayer'
@@ -38,6 +39,7 @@ import {
   VOICE_RECOVERABLE_ERROR_AR,
 } from './voiceUserFacingError'
 import { logMicSessionState, mapToMicSessionState } from './micSessionState'
+import { emptyVoicePlaybackDiagnostics } from '../../bilamo/voice/voicePlaybackDiagnostics'
 import {
   ARABIC_UTTERANCE_COMMIT_MS,
   createArabicUtteranceAssembler,
@@ -99,12 +101,17 @@ export type RealtimeWebRtcSession = {
    * Safe no-op when not connected or after hardStop.
    * Does not auto-run after assistant playback — that path releases the mic to idle.
    */
-  ensureListening: () => void
+  ensureListening: () => Promise<boolean>
   /**
    * Stop local mic capture and return to idle without latching hardStop.
    * Clears the iOS Safari mic indicator; peer/datachannel may stay up for fast reopen.
    */
   releaseToIdle: (reason?: string) => void
+  /**
+   * End-of-speech finalize: commit pending ASR once (includes interim).
+   * Does not cancel a pending silence commit. Does not auto-relisten.
+   */
+  finalizeListening: () => void
   /** True after hardStop until the next explicit connect(). */
   isHardStopped: () => boolean
   /** Send a text user turn into the live session (no classic TTS). */
@@ -113,10 +120,18 @@ export type RealtimeWebRtcSession = {
    * Speak a written assistant draft via Realtime after spoken-dialogue post-processing.
    * Does not change the Realtime engine — only the words fed into it.
    */
-  speakWrittenDraft: (written: string, opts?: { locale?: 'ar' | 'en' }) => void
+  speakWrittenDraft: (written: string, opts?: { locale?: LockedSpeechLanguage }) => void
+  /**
+   * Set ASR / conversation input language before listening.
+   * Must be called with the traveler's language — connect must not force Arabic
+   * when another language is already preferred.
+   */
+  setInputLanguage: (language: LockedSpeechLanguage) => void
   getStatus: () => RealtimeSessionStatus
   isConnected: () => boolean
   getQualitySnapshot: () => RealtimeQualitySnapshot
+  /** Developer-safe playback diagnostics (no transcripts / secrets). */
+  getPlaybackDiagnostics: () => import('../../bilamo/voice/voicePlaybackDiagnostics').VoicePlaybackDiagnostics
 }
 
 type ActiveResponseState = {
@@ -187,6 +202,8 @@ export function createRealtimeWebRtcSession(
    * until the next explicit connect().
    */
   let hardStopped = false
+  /** Preferred ASR language from Bilamo UI (survives connect; includes French). */
+  let preferredInputLanguage: LockedSpeechLanguage | null = null
   /** Active spoken language for this Realtime call (language layer only). */
   let activeLanguage: LockedSpeechLanguage | null = 'ar'
   /** Language frozen for the current assistant response. */
@@ -212,7 +229,27 @@ export function createRealtimeWebRtcSession(
   /** Brief ICE blip timer — avoid tearing down on mobile transient disconnects. */
   let iceRecoveryTimer: ReturnType<typeof setTimeout> | null = null
   /** Queue progressive speakWrittenDraft chunks while a response is already playing. */
-  let speakQueue: Array<{ spoken: string; locale: 'ar' | 'en' }> = []
+  let speakQueue: Array<{ spoken: string; locale: LockedSpeechLanguage }> = []
+  const playbackDiag = emptyVoicePlaybackDiagnostics()
+
+  const applyInputLanguage = (language: LockedSpeechLanguage, reason: string) => {
+    preferredInputLanguage = language
+    activeLanguage = language
+    telemetry('input_language_set', { language, reason })
+    if (!dc || dc.readyState !== 'open' || hasCancellableResponse()) return
+    sendEvent({
+      type: 'session.update',
+      session: {
+        type: 'realtime',
+        audio: {
+          input: {
+            transcription: transcriptionConfig(language),
+            turn_detection: buildRealtimeTurnDetection(),
+          },
+        },
+      },
+    })
+  }
 
   const transcriptGate = createUserTranscriptGate(() => activeLanguage)
 
@@ -424,16 +461,130 @@ export function createRealtimeWebRtcSession(
     })
   }
 
+  /**
+   * Stop audible remote playback without latching the MediaStreamTrack muted.
+   * Historically muteRemote(true) set remoteTrack.enabled=false and, when
+   * rearmMic was false (send barge-in / interrupt), never re-enabled it — so the
+   * next speakWrittenDraft produced silent "speaking" with no audible audio.
+   */
+  const stopRemotePlayback = () => {
+    try {
+      if (remoteAudio) {
+        remoteAudio.pause()
+        try {
+          remoteAudio.currentTime = 0
+        } catch {
+          /* ignore */
+        }
+      }
+      // Keep the track live so the next assistant response can play.
+      if (remoteTrack) remoteTrack.enabled = true
+    } catch {
+      // ignore
+    }
+  }
+
+  const ensureRemoteAudible = async (): Promise<boolean> => {
+    if (!remoteAudio) {
+      playbackDiag.audioElementAttached = false
+      playbackDiag.playResult = 'rejected'
+      playbackDiag.lastEvent = 'playRejected'
+      playbackDiag.lastSafeErrorCode = 'no_audio_element'
+      return false
+    }
+    playbackDiag.audioElementAttached = Boolean(remoteAudio.srcObject)
+    playbackDiag.audioPlayRequested = true
+    playbackDiag.playResult = 'pending'
+    playbackDiag.lastEvent = 'playRequested'
+    try {
+      if (remoteTrack) {
+        remoteTrack.enabled = true
+        playbackDiag.remoteTrackReadyState = remoteTrack.readyState
+        playbackDiag.remoteTrackMuted = remoteTrack.muted
+      }
+      remoteAudio.autoplay = true
+      remoteAudio.setAttribute('playsinline', 'true')
+      remoteAudio.setAttribute('webkit-playsinline', 'true')
+      remoteAudio.muted = false
+      remoteAudio.volume = 1
+      // Best-effort unlock (no-op if already unlocked outside a gesture).
+      try {
+        const { unlockAudioPlayback } = await import('./audioElementTextToSpeechProvider')
+        await unlockAudioPlayback()
+      } catch {
+        /* ignore */
+      }
+      await remoteAudio.play()
+      // play() resolved ⇒ browser allowed playback. Reject only explicit mute/zero volume
+      // (do not require !paused/srcObject — jsdom stubs and some Safari timings keep paused
+      // briefly even when audio is audible).
+      if (remoteAudio.muted || remoteAudio.volume === 0) {
+        playbackDiag.playResult = 'rejected'
+        playbackDiag.audioPlaybackFailed = true
+        playbackDiag.lastEvent = 'playRejected'
+        playbackDiag.lastSafeErrorCode = 'play_resolved_but_silent'
+        return false
+      }
+      playbackDiag.playResult = 'resolved'
+      playbackDiag.audioPlaybackStarted = true
+      playbackDiag.audioPlaybackFailed = false
+      playbackDiag.lastEvent = 'audioPlaybackStarted'
+      return true
+    } catch (err) {
+      const name = err instanceof Error ? err.name : 'play_error'
+      playbackDiag.playResult = 'rejected'
+      playbackDiag.audioPlaybackFailed = true
+      playbackDiag.lastEvent = 'playRejected'
+      playbackDiag.lastSafeErrorCode =
+        name === 'NotAllowedError' || name === 'AbortError'
+          ? name
+          : 'playback_blocked'
+      quality.markAudioRestart()
+      emitQuality()
+      // Structured recovery is owned by BilamoVoiceSession (reconnect → classic TTS).
+      callbacks.onError?.('تعذر تشغيل الصوت.')
+      return false
+    }
+  }
+
+  /** Enter speaking only after remote audio is actually playing (Safari-safe). */
+  const enterSpeakingIfAudible = (via: string) => {
+    if (hardStopped || disposed) return
+    void ensureRemoteAudible().then((ok) => {
+      if (hardStopped || disposed) return
+      if (!ok) {
+        // Do not latch speaking — stay thinking/idle so VoiceSession can fall back.
+        if (status === 'speaking') {
+          releaseToIdleInternal('playback_blocked')
+        }
+        return
+      }
+      telemetry('response_audible_speaking', { via })
+      setStatus('speaking')
+    })
+  }
+
   const muteRemote = (muted: boolean) => {
     try {
-      if (remoteTrack) remoteTrack.enabled = !muted
       if (remoteAudio) {
         if (muted) {
           remoteAudio.pause()
-          remoteAudio.currentTime = 0
+          try {
+            remoteAudio.currentTime = 0
+          } catch {
+            /* ignore */
+          }
         } else {
+          if (remoteTrack) remoteTrack.enabled = true
           void remoteAudio.play().catch(() => undefined)
         }
+      }
+      // Only disable the track on hard teardown paths that call muteRemote(true)
+      // immediately before tearDownPeer. Interrupt/barge-in must use stopRemotePlayback.
+      if (muted && (hardStopped || disposed)) {
+        if (remoteTrack) remoteTrack.enabled = false
+      } else if (!muted && remoteTrack) {
+        remoteTrack.enabled = true
       }
     } catch {
       // ignore
@@ -531,14 +682,22 @@ export function createRealtimeWebRtcSession(
       return
     }
     const built = buildInstructions(utterance, activeLanguage)
-    // Arabic session: never auto-switch to EN/CJK/etc from a short unclear fragment.
+    // Arabic session: never auto-switch to CJK/etc from a short unclear fragment.
+    // Confident Latin FR/EN must be allowed — forcing `ar` here broke French ASR.
     const explicitSwitch = utterance
-      ? /\b(?:speak|talk)\s+english\b|بالإنجليزي|بالانجليزي|English\s*please/i.test(utterance)
+      ? /\b(?:speak|talk)\s+english\b|بالإنجليزي|بالانجليزي|English\s*please|en français|parlons français/i.test(utterance)
       : false
+    const detected = utterance ? detectConversationLanguage(utterance) : null
+    const allowLatinSwitch = Boolean(
+      detected
+      && detected.confidence >= 0.4
+      && (detected.language === 'en' || detected.language === 'fr'),
+    )
     if (
       (activeLanguage === 'ar' || activeLanguage == null)
       && built.language !== 'ar'
       && !explicitSwitch
+      && !allowLatinSwitch
     ) {
       activeLanguage = 'ar'
       sendEvent({
@@ -634,7 +793,9 @@ export function createRealtimeWebRtcSession(
         return
       }
       lockedUserTranscript = result.committedTranscript
-      transcriptGate.lockLanguage(activeLanguage === 'en' ? 'en' : 'ar')
+      transcriptGate.lockLanguage(
+        activeLanguage === 'en' || activeLanguage === 'fr' ? activeLanguage : 'ar',
+      )
       logAsrDiagnostics('asr_final_committed', {
         audioDurationMs: result.audioDurationMs,
         interimTranscript: result.interimTranscript.slice(0, 160),
@@ -792,17 +953,20 @@ export function createRealtimeWebRtcSession(
         activeResponse.cancelled = true
         telemetry('response_cancelled', { responseId: activeResponse.id, source: fromBargeIn ? 'barge_in' : 'manual' })
       }
-      muteRemote(true)
+      // Stop current audio but keep the remote track enabled for the next reply.
+      stopRemotePlayback()
       if (rearmMic) {
         queueMicrotask(() => {
           if (hardStopped || disposed || gen !== sessionGeneration) return
-          muteRemote(false)
+          void ensureRemoteAudible()
           ensureLocalMicLive()
         })
       }
     } else {
       // Skip network cancel entirely — harmless local no-op.
       telemetry('response_cancel_skipped_no_active', { fromBargeIn })
+      // Still clear any residual latch so a later speak can be heard.
+      stopRemotePlayback()
       if (rearmMic) ensureLocalMicLive()
     }
 
@@ -823,13 +987,61 @@ export function createRealtimeWebRtcSession(
     }
   }
 
-  const startSpeakUtterance = (spoken: string, locale: 'ar' | 'en') => {
+  const languageLabelFor = (locale: LockedSpeechLanguage): string => {
+    const map: Partial<Record<LockedSpeechLanguage, string>> = {
+      ar: 'Arabic',
+      en: 'English',
+      fr: 'French',
+      es: 'Spanish',
+      de: 'German',
+      it: 'Italian',
+      tr: 'Turkish',
+      hi: 'Hindi',
+      ur: 'Urdu',
+      zh: 'Chinese',
+      ja: 'Japanese',
+      ko: 'Korean',
+      pt: 'Portuguese',
+      ru: 'Russian',
+      id: 'Indonesian',
+    }
+    return map[locale] || 'English'
+  }
+
+  const startSpeakUtterance = (spoken: string, locale: LockedSpeechLanguage) => {
     // Speaking must never overlap local capture (no Listening + Speaking).
     stopLocalMicCapture('speak_written_draft')
-    if (locale === 'ar') activeLanguage = 'ar'
-    else activeLanguage = 'en'
+    activeLanguage = locale
+    preferredInputLanguage = locale
     const context = inferSpokenContext(spoken)
+    const languageLabel = languageLabelFor(locale)
     assistantBuffer = ''
+    // Fresh play diagnostics for this assistant utterance (same text as UI — no second answer).
+    playbackDiag.audioPlayRequested = false
+    playbackDiag.audioPlaybackStarted = false
+    playbackDiag.audioPlaybackFailed = false
+    playbackDiag.audioPlaybackEnded = false
+    playbackDiag.playResult = null
+    playbackDiag.assistantResponseCreated = false
+    // Ensure prior interrupt did not leave the remote track muted.
+    if (remoteTrack) {
+      remoteTrack.enabled = true
+      playbackDiag.remoteTrackReadyState = remoteTrack.readyState
+      playbackDiag.remoteTrackMuted = remoteTrack.muted
+    }
+    if (remoteAudio) {
+      remoteAudio.autoplay = true
+      remoteAudio.setAttribute('playsinline', 'true')
+      remoteAudio.setAttribute('webkit-playsinline', 'true')
+      remoteAudio.muted = false
+      remoteAudio.volume = 1
+      playbackDiag.audioElementAttached = Boolean(remoteAudio.srcObject)
+      // Warm the element only when a remote stream is attached — SPEAKING still
+      // waits for enterSpeakingIfAudible after output_audio_buffer / audio delta.
+      if (remoteAudio.srcObject) {
+        void ensureRemoteAudible()
+      }
+    }
     setStatus('thinking')
     sendEvent({
       type: 'conversation.item.create',
@@ -840,7 +1052,7 @@ export function createRealtimeWebRtcSession(
           type: 'input_text',
           text: [
             'Speak the following booking-agent dialogue aloud now, VERBATIM — every sentence to the end.',
-            `Language lock: speak only in ${locale === 'ar' ? 'Arabic' : 'English'}. Do not switch languages.`,
+            `Language lock: speak only in ${languageLabel}. Do not switch languages.`,
             spokenToneCue(context),
             'Do not expand, advise, lecture, or add website referrals.',
             'Do not add extra questions beyond what is written.',
@@ -982,6 +1194,8 @@ export function createRealtimeWebRtcSession(
         const at = nowMs()
         captureAudit.onSpeechStarted(at)
         utteranceAssembler.onSpeechStarted(at)
+        playbackDiag.speechDetected = true
+        playbackDiag.lastEvent = 'speechDetected'
         // Keep mic unmuted for the entire utterance (transport integrity).
         ensureLocalMicLive()
       }
@@ -1002,6 +1216,10 @@ export function createRealtimeWebRtcSession(
     if (type === 'input_audio_buffer.speech_stopped') {
       const at = nowMs()
       captureAudit.onSpeechStopped(at)
+      if (status === 'listening') {
+        playbackDiag.endOfSpeechDetected = true
+        playbackDiag.lastEvent = 'endOfSpeechDetected'
+      }
       quality.markSpeechStopped()
       emitQuality()
       if (status === 'listening') {
@@ -1076,10 +1294,12 @@ export function createRealtimeWebRtcSession(
       if (gated.accepted && exact) {
         // Unlock gate segment lock so pause-split segments can append.
         // Turn-level lock is `lockedUserTranscript` after silence commit.
+        const segmentLang = gated.lockedLanguage
         transcriptGate.resetTurn()
-        // Keep Arabic transcription locked — do not adopt EN/CJK from a fragment.
-        if (activeLanguage !== 'en') {
-          activeLanguage = 'ar'
+        // Preserve FR/EN ASR language — forcing `ar` here rejected Latin finals next segment.
+        if (segmentLang === 'fr' || segmentLang === 'en' || segmentLang === 'ar') {
+          activeLanguage = segmentLang
+          preferredInputLanguage = segmentLang
         }
         const display = utteranceAssembler.onSegmentFinal(exact)
         callbacks.onUserTranscript?.(display, false)
@@ -1128,6 +1348,8 @@ export function createRealtimeWebRtcSession(
         language: lang,
       }
       assistantBuffer = ''
+      playbackDiag.assistantResponseCreated = true
+      playbackDiag.lastEvent = 'assistantResponseCreated'
       quality.markResponseCreated()
       emitQuality()
       telemetry('response_created', { responseId: id, language: lang })
@@ -1142,7 +1364,7 @@ export function createRealtimeWebRtcSession(
         emitQuality()
         telemetry('response_audio_started', { responseId: activeResponse.id, via: 'output_buffer' })
       }
-      setStatus('speaking')
+      enterSpeakingIfAudible('output_buffer')
       return
     }
 
@@ -1174,7 +1396,7 @@ export function createRealtimeWebRtcSession(
           telemetry('response_audio_started', { responseId: activeResponse.id })
         }
       }
-      setStatus('speaking')
+      if (status !== 'speaking') enterSpeakingIfAudible('audio_delta')
       return
     }
 
@@ -1198,16 +1420,13 @@ export function createRealtimeWebRtcSession(
       && typeof event.delta === 'string'
     ) {
       if (!assistantBuffer && activeResponse) {
-        // Transcript may start before audio events — mark speaking but do NOT
-        // treat as playback complete.
-        quality.markFirstAssistantAudio()
-        telemetry('response_audio_started', { responseId: activeResponse.id, via: 'transcript' })
-        // Note: hadAudio set only on real audio events / buffer.started so
-        // text-only responses can still complete via response.done.
+        // Transcript may precede audio — keep status thinking until remote audio plays.
+        // Never claim speaking from text-only deltas (Safari silent-speaking root cause).
+        telemetry('response_transcript_delta', { responseId: activeResponse.id })
       }
       assistantBuffer += event.delta
       callbacks.onAssistantTranscript?.(assistantBuffer, false)
-      setStatus('speaking')
+      if (status !== 'speaking' && status !== 'thinking') setStatus('thinking')
       return
     }
 
@@ -1265,10 +1484,10 @@ export function createRealtimeWebRtcSession(
     getQualitySnapshot: () => quality.snapshot(),
     async connect() {
       if (disposed) return
-      // Explicit user start — clear hard Stop latch; lock Arabic transcription.
+      // Explicit user start — clear hard Stop latch; keep preferred FR/EN/AR ASR language.
       hardStopped = false
       sessionGeneration += 1
-      activeLanguage = 'ar'
+      activeLanguage = preferredInputLanguage || activeLanguage || 'ar'
       lockedUserTranscript = null
       utteranceAssembler.reset()
       transcriptGate.resetTurn()
@@ -1341,17 +1560,62 @@ export function createRealtimeWebRtcSession(
       remoteAudio = document.createElement('audio')
       remoteAudio.autoplay = true
       remoteAudio.setAttribute('playsinline', 'true')
-      remoteAudio.style.display = 'none'
+      remoteAudio.setAttribute('webkit-playsinline', 'true')
+      remoteAudio.muted = false
+      remoteAudio.volume = 1
+      remoteAudio.style.cssText =
+        'position:fixed;width:0;height:0;opacity:0;pointer-events:none;left:-9999px;'
       document.body.appendChild(remoteAudio)
+
+      // Unlock AudioContext during connect (must be called from a user gesture).
+      try {
+        const { unlockAudioPlayback } = await import('./audioElementTextToSpeechProvider')
+        await unlockAudioPlayback()
+      } catch {
+        /* best-effort */
+      }
 
       pc.ontrack = (e) => {
         if (!remoteAudio) return
         const stream = e.streams[0] ?? null
+        // Reuse the single persistent audio element — never create duplicates.
         remoteAudio.srcObject = stream
         remoteTrack = stream?.getAudioTracks()?.[0] ?? e.track ?? null
+        playbackDiag.remoteTrackReceived = Boolean(remoteTrack)
+        playbackDiag.audioElementAttached = Boolean(remoteAudio.srcObject)
+        playbackDiag.lastEvent = 'remoteTrackReceived'
+        if (remoteTrack) {
+          remoteTrack.enabled = true
+          playbackDiag.remoteTrackMuted = remoteTrack.muted
+          playbackDiag.remoteTrackReadyState = remoteTrack.readyState
+          remoteTrack.onmute = () => {
+            playbackDiag.remoteTrackMuted = true
+            playbackDiag.remoteTrackReadyState = remoteTrack?.readyState ?? null
+            playbackDiag.lastEvent = 'remoteTrackMuted'
+          }
+          remoteTrack.onunmute = () => {
+            playbackDiag.remoteTrackMuted = false
+            playbackDiag.remoteTrackReadyState = remoteTrack?.readyState ?? null
+            playbackDiag.lastEvent = 'remoteTrackUnmuted'
+            if (remoteTrack) remoteTrack.enabled = true
+            void ensureRemoteAudible()
+          }
+          remoteTrack.onended = () => {
+            playbackDiag.lastEvent = 'remoteTrackEnded'
+            playbackDiag.remoteTrackReadyState = remoteTrack?.readyState ?? 'ended'
+            if (!hardStopped && !disposed && (status === 'speaking' || status === 'thinking')) {
+              releaseToIdleInternal('remote_track_ended')
+            }
+          }
+        }
+        remoteAudio.autoplay = true
+        remoteAudio.setAttribute('playsinline', 'true')
+        remoteAudio.setAttribute('webkit-playsinline', 'true')
+        remoteAudio.muted = false
+        remoteAudio.volume = 1
+        // Attach only — do not claim SPEAKING until assistant audio actually plays.
         void remoteAudio.play().catch(() => {
-          quality.markAudioRestart()
-          emitQuality()
+          /* gesture may be required; ensureRemoteAudible retries on response audio */
         })
         setStatus('listening')
       }
@@ -1440,11 +1704,11 @@ export function createRealtimeWebRtcSession(
 
       const initial = buildInstructions(undefined, activeLanguage)
       activeLanguage = initial.language
-      const { requireProxyAuthHeaders } = await import('../../security/proxyAuth')
-      const authHeaders = await requireProxyAuthHeaders({ 'Content-Type': 'application/json' })
-      const res = await fetch('/api/openai/realtime-call', {
+      const { voiceAuthenticatedFetch } = await import('../../security/voiceAuthProbe')
+      const res = await voiceAuthenticatedFetch('/api/openai/realtime-call', {
         method: 'POST',
-        headers: authHeaders,
+        kind: 'realtime',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sdp: offer.sdp,
           voice,
@@ -1454,24 +1718,52 @@ export function createRealtimeWebRtcSession(
       })
 
       if (!res.ok) {
-        const detail = await res.text().catch(() => '')
         logChat('error', 'voice', 'realtime_call_failed', {
           status: res.status,
-          detail: detail.slice(0, 400),
         })
+        playbackDiag.httpRoute = '/api/openai/realtime-call'
+        playbackDiag.httpStatus = res.status
+        playbackDiag.safeServerErrorCode =
+          res.status === 401 ? 'AUTH_INVALID' : res.status === 403 ? 'CORS_ORIGIN_DENIED' : `HTTP_${res.status}`
+        playbackDiag.lastSafeErrorCode = playbackDiag.safeServerErrorCode
         callbacks.onError?.(VOICE_RECOVERABLE_ERROR_AR)
         setStatus('error')
         tearDownPeer()
         throw new Error(`realtime_call_failed:${res.status}`)
       }
+      playbackDiag.realtimeSessionCreated = true
+      playbackDiag.httpRoute = '/api/openai/realtime-call'
+      playbackDiag.httpStatus = res.status
 
       const answerSdp = await res.text()
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
     },
     disconnect() {
-      // Soft end used by non-Stop paths (e.g. greeting wipe). Still latch hardStopped
-      // so no pending playback callback can reopen listening until explicit connect().
-      hardStopInternal('disconnect')
+      // Soft teardown: tear down peer without latching hardStopped.
+      // Latch was a root cause of silent speakWrittenDraft (speak_blocked_hard_stopped)
+      // after a soft disconnect when the same session object later spoke.
+      if (disposed) return
+      sessionGeneration += 1
+      clearPlaybackTimers()
+      clientRequestedResponse = false
+      speakQueue = []
+      utteranceAssembler.cancelPendingCommit()
+      utteranceAssembler.reset()
+      lockedUserTranscript = null
+      try {
+        disableTurnDetection()
+      } catch {
+        // ignore
+      }
+      muteLocalMic()
+      muteRemote(true)
+      interruptInternal(false, { rearmMic: false })
+      tearDownPeer()
+      status = 'idle'
+      logMicSessionState('IDLE', { source: 'realtime', reason: 'disconnect_soft' })
+      telemetry('disconnect_soft', { hardStopped })
+      callbacks.onStatus?.('idle')
+      callbacks.onDisconnected?.()
     },
     hardStop() {
       hardStopInternal('user_stop')
@@ -1488,42 +1780,64 @@ export function createRealtimeWebRtcSession(
       callbacks.onStatus?.('idle')
       callbacks.onDisconnected?.()
     },
-    ensureListening() {
-      if (disposed || hardStopped) {
-        telemetry('ensure_listening_blocked', { disposed, hardStopped })
-        return
-      }
-      if (!pc || !dc || dc.readyState !== 'open') return
-      // Never Listening while Processing/Speaking — mic stays released.
-      if (
+    async ensureListening() {
+      const sessionBusy = () =>
         status === 'speaking'
         || status === 'thinking'
         || hasCancellableResponse()
         || speakQueue.length > 0
-      ) {
-        telemetry('ensure_listening_blocked_busy', { status, queue: speakQueue.length })
-        return
+      if (disposed || hardStopped) {
+        telemetry('ensure_listening_blocked', { disposed, hardStopped })
+        return false
       }
-      void acquireLocalMic().then((ok) => {
-        if (!ok || hardStopped || disposed) return
-        if (
-          status === 'speaking'
-          || status === 'thinking'
-          || hasCancellableResponse()
-          || speakQueue.length > 0
-        ) {
-          stopLocalMicCapture('ensure_listening_aborted_busy')
-          return
-        }
-        reassertTurnDetection()
-        muteRemote(false)
-        setStatus('listening')
-      })
+      if (!pc || !dc || dc.readyState !== 'open') return false
+      // Never Listening while Processing/Speaking — mic stays released.
+      if (sessionBusy()) {
+        telemetry('ensure_listening_blocked_busy', { status, queue: speakQueue.length })
+        return false
+      }
+      const ok = await acquireLocalMic()
+      if (!ok || hardStopped || disposed) return false
+      // Re-read after await (status may change during mic acquire on Safari).
+      if (sessionBusy()) {
+        stopLocalMicCapture('ensure_listening_aborted_busy')
+        return false
+      }
+      reassertTurnDetection()
+      muteRemote(false)
+      setStatus('listening')
+      return true
+    },
+    getPlaybackDiagnostics() {
+      playbackDiag.peerConnectionState = pc?.connectionState ?? null
+      playbackDiag.iceConnectionState = pc?.iceConnectionState ?? null
+      return { ...playbackDiag }
     },
     releaseToIdle(reason = 'release_to_idle') {
       if (disposed) return
       // Do not latch hardStopped — user may tap mic again without a full reconnect.
       releaseToIdleInternal(reason)
+    },
+    finalizeListening() {
+      if (disposed || hardStopped) return
+      playbackDiag.endOfSpeechDetected = true
+      playbackDiag.lastEvent = 'finalizeListening'
+      telemetry('finalize_listening', {
+        pending: utteranceAssembler.hasPending(),
+        committed: utteranceAssembler.isCommitted(),
+      })
+      // Prefer commit over cancel — silence / orb-stop must submit, not drop ASR.
+      if (utteranceAssembler.hasPending() && !utteranceAssembler.isCommitted()) {
+        playbackDiag.inputCommitted = true
+        utteranceAssembler.forceCommitNow()
+        return
+      }
+      if (utteranceAssembler.isCommitted() || lockedUserTranscript != null) {
+        playbackDiag.inputCommitted = true
+        return
+      }
+      // Nothing to commit — release mic without latching hard stop.
+      releaseToIdleInternal('finalize_empty')
     },
     isHardStopped() {
       return hardStopped
@@ -1536,7 +1850,7 @@ export function createRealtimeWebRtcSession(
       releaseToIdleInternal('interrupt')
     },
     sendText(text: string) {
-      // Architecture: text turns are owned by planTurn (HomeVoiceConsultant).
+      // Architecture: text turns are owned by planTurn (Bilamo VoiceSession / chatEngine).
       // Realtime must not create a parallel spoken reply from sendText.
       const cleaned = text.trim()
       if (!cleaned) return
@@ -1546,16 +1860,21 @@ export function createRealtimeWebRtcSession(
         releaseToIdleInternal('send_text')
       }
     },
+    setInputLanguage(language) {
+      if (disposed) return
+      if (!language) return
+      applyInputLanguage(language, 'set_input_language')
+    },
     speakWrittenDraft(written, opts) {
       if (hardStopped || disposed) {
         telemetry('speak_blocked_hard_stopped')
         return
       }
-      const locale = opts?.locale === 'en' ? 'en' : 'ar'
+      const locale: LockedSpeechLanguage = opts?.locale || activeLanguage || 'ar'
       // Sole Realtime speech path — speak the same text the UI shows.
       // Strip advice/website chrome only; do not invent a shorter second reply.
       const cleaned = toSpokenDialogue(written, {
-        locale,
+        locale: locale === 'ar' ? 'ar' : 'en',
         maxChars: Math.max(280, written.trim().length),
         context: inferSpokenContext(written),
       })

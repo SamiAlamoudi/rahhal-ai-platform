@@ -56,6 +56,43 @@ export function checkEdgeRateLimit(
   return true
 }
 
+/**
+ * Vercel Preview git-alias URLs differ from VERCEL_URL (unique deployment host).
+ * Without this, same-origin SPA → /api on Preview aliases are rejected as CORS_ORIGIN_DENIED
+ * (P0 iPhone fail). Hostnames are derived from PRODUCTION_ORIGINS (no extra brand literals).
+ */
+export function isAllowedVercelPreviewOrigin(origin: string): boolean {
+  try {
+    const u = new URL(origin)
+    if (u.protocol !== 'https:') return false
+    const host = u.hostname.toLowerCase()
+    const vercelSuffix = '.vercel.app'
+    if (!host.endsWith(vercelSuffix)) return false
+
+    for (const entry of PRODUCTION_ORIGINS) {
+      const prodHost = new URL(entry).hostname.toLowerCase()
+      if (host === prodHost) return true
+      if (!prodHost.endsWith(vercelSuffix)) continue
+      const prodBase = prodHost.slice(0, -vercelSuffix.length)
+      // Unique deployment hosts: <prodBase>-*.vercel.app
+      if (host.startsWith(`${prodBase}-`)) return true
+      // Git-branch aliases: *-<prodBase with trailing platform→project>.vercel.app
+      const projectBase = prodBase.endsWith('-platform')
+        ? `${prodBase.slice(0, -'platform'.length)}project`
+        : `${prodBase}-project`
+      if (host === projectBase || host.endsWith(`-${projectBase}`)) return true
+    }
+
+    // Cursor / workspace Preview hosts for this team.
+    if (host.startsWith('workspace') && /^workspace[a-z0-9-]*\.vercel\.app$/.test(host)) {
+      return true
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
 /** Resolve CORS allow-list: production domains + localhost + env + this Vercel deployment. */
 export function resolveCorsAllowlist(env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env): string[] {
   const fromEnv = (env.CORS_ALLOWED_ORIGINS ?? env.OPS_ALLOWED_ORIGINS ?? '')
@@ -68,11 +105,19 @@ export function resolveCorsAllowlist(env: NodeJS.ProcessEnv | Record<string, str
     ? (vercelUrl.startsWith('http') ? vercelUrl.replace(/\/+$/, '') : `https://${vercelUrl.replace(/\/+$/, '')}`)
     : null
 
+  const vercelBranch = (env.VERCEL_BRANCH_URL ?? '').trim()
+  const vercelBranchOrigin = vercelBranch
+    ? (vercelBranch.startsWith('http')
+      ? vercelBranch.replace(/\/+$/, '')
+      : `https://${vercelBranch.replace(/\/+$/, '')}`)
+    : null
+
   return Array.from(new Set([
     ...PRODUCTION_ORIGINS,
     ...DEV_ORIGINS,
     ...fromEnv,
     ...(vercelOrigin ? [vercelOrigin] : []),
+    ...(vercelBranchOrigin ? [vercelBranchOrigin] : []),
   ]))
 }
 
@@ -88,7 +133,7 @@ export function buildCorsHeaders(
   if (!origin) {
     allowOrigin = allowlist[0] ?? 'null'
     allowed = true
-  } else if (allowlist.includes(origin)) {
+  } else if (allowlist.includes(origin) || isAllowedVercelPreviewOrigin(origin)) {
     allowOrigin = origin
     allowed = true
   } else {

@@ -6,6 +6,10 @@
  */
 
 import type { ConversationLanguageCode } from './conversationLanguageLayer'
+import {
+  isEnglishAsrPollution,
+  sanitizeArabicVoiceTranscript,
+} from './sanitizeArabicVoiceTranscript'
 
 export type LockedSpeechLanguage = Exclude<ConversationLanguageCode, 'auto'>
 
@@ -116,6 +120,8 @@ export function isConfirmedUserUtterance(text: string): boolean {
   const t = (text || '').trim()
   if (t.length < 2) return false
   if (NOISE_ONLY_RE.test(t)) return false
+  // English ASR junk ("Down") must never become a turn.
+  if (isEnglishAsrPollution(t)) return false
   // Require real letters (any script) — not punctuation-only ASR junk.
   const letters = t.replace(/[^\p{L}]/gu, '')
   if (letters.length < 2) return false
@@ -228,8 +234,16 @@ export function createUserTranscriptGate(getExpectedLanguage: () => LockedSpeech
         return { displayText: interimPreview, lockedLanguage, suppressed: true }
       }
 
-      interimPreview = trimmed
-      return { displayText: trimmed, lockedLanguage, suppressed: false }
+      const langNow = effectiveLanguage()
+      const cleaned =
+        langNow === 'ar' || langNow === 'ur' || !langNow
+          ? sanitizeArabicVoiceTranscript(trimmed)
+          : trimmed
+      if (!cleaned) {
+        return { displayText: interimPreview, lockedLanguage, suppressed: true }
+      }
+      interimPreview = cleaned
+      return { displayText: cleaned, lockedLanguage, suppressed: false }
     },
     /**
      * Commit exact FINAL ASR once. Never substitute interim text.
@@ -247,8 +261,8 @@ export function createUserTranscriptGate(getExpectedLanguage: () => LockedSpeech
         }
       }
 
-      // Exact recognized text — only trim outer whitespace, never rewrite words.
-      const exact = (transcript || '').trim()
+      // Exact recognized text — sanitize Arabic pollution; final replaces interim.
+      let exact = (transcript || '').trim()
       if (!exact) {
         return {
           displayText: null,
@@ -261,6 +275,18 @@ export function createUserTranscriptGate(getExpectedLanguage: () => LockedSpeech
 
       tryLockFromText(exact)
       const lang = effectiveLanguage()
+      if (lang === 'ar' || lang === 'ur' || !lang) {
+        exact = sanitizeArabicVoiceTranscript(exact)
+      }
+      if (!exact) {
+        return {
+          displayText: null,
+          lockedLanguage,
+          suppressed: true,
+          accepted: false,
+          exactText: null,
+        }
+      }
       if (isUnsupportedInterimScript(exact, lang)) {
         // Reject entirely — do NOT fall back to interim (that rewrites the user).
         return {

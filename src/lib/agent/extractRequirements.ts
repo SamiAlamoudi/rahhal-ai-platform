@@ -18,6 +18,7 @@ const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
   { keys: ['phuket', 'بوكيت', 'فوكت', 'بوكيت تايلند'], value: 'Phuket' },
   { keys: ['osaka', 'اوساكا', 'أوساكا'], value: 'Osaka' },
   { keys: ['kyoto', 'كيوتو'], value: 'Kyoto' },
+  { keys: ['yemen', 'sanaa', 'اليمن', 'صنعاء'], value: 'اليمن' },
   { keys: ['japan', 'اليابان'], value: 'Japan' },
   { keys: ['sapporo', 'hokkaido', 'سابورو', 'هوكايدو'], value: 'Sapporo' },
   { keys: ['switzerland', 'zurich', 'سويسرا', 'زوريخ'], value: 'Switzerland' },
@@ -145,6 +146,7 @@ export function extractFromUserText(
   } else if (
     /\bcouple\b|زوجين/.test(lower)
     || /\b(?:with )?(?:my )?(?:wife|husband|spouse|partner)\b/.test(lower)
+    || /\b(?:avec )?(?:ma |mon )?(?:femme|mari|époux|epoux|épouse|epouse|conjoint[e]?)\b/.test(lower)
     || /زوجتي|زوجي|زوجته|زوجها|خطيبتي|خطيبي/.test(normalized)
   ) {
     patch.travelerType = 'couple'
@@ -152,6 +154,7 @@ export function extractFromUserText(
     // Bare "couple" / زوجين alone must NOT invent a count.
     if (
       /\b(?:with )?(?:my )?(?:wife|husband|spouse|partner)\b/.test(lower)
+      || /\b(?:avec )?(?:ma |mon )?(?:femme|mari|époux|epoux|épouse|epouse|conjoint[e]?)\b/.test(lower)
       || /زوجتي|زوجي|زوجته|زوجها|خطيبتي|خطيبي|مع\s*زوجتي|مع\s*زوجي/.test(normalized)
     ) {
       patch.travelers = patch.travelers ?? 2
@@ -191,7 +194,8 @@ export function extractFromUserText(
   }
   if (
     /\bnext\s+week\b/.test(lower)
-    || /الأسبوع\s*القادم|الاسبوع\s*القادم|الأسبوع\s*المقبل|الاسبوع\s*المقبل/.test(normalized)
+    || /\bla\s+semaine\s+prochaine\b|\bsemaine\s+prochaine\b/.test(lower)
+    || /الأسبوع\s*القادم|الاسبوع\s*القادم|الأسبوع\s*المقبل|الاسبوع\s*المقبل|الأسبوع\s*الجاي|الاسبوع\s*الجاي/.test(normalized)
   ) {
     // Soft flexibility when traveler says "next week" without a hard day.
     if (!isoHardDate(normalized)) patch.datesFlexible = patch.datesFlexible ?? true
@@ -515,9 +519,20 @@ function matchDestinations(
     const enCue = stripped.lower.match(
       /\b(?:to|in)\s+(?!spend|visit|travel|plan|go|have|be|get|make|see|book|want|only|just|about|change|continue)([a-z][a-z]*(?:\s+[a-z]+){0,2}?)(?=\s*(?:,|\.|$|for\b|with\b|under\b|next\b|from\b|and\b|budget\b|\d|couple|family|solo|instead\b))/,
     )
+    const frCue = stripped.lower.match(
+      /\b(?:à|a|au|aux|en|vers)\s+(?!la\b|le\b|les\b|un\b|une\b|des\b|partir|aller|voyage)([a-zàâäéèêëïîôùûüç][a-zàâäéèêëïîôùûüç]*(?:\s+[a-zàâäéèêëïîôùûüç]+){0,2}?)(?=\s*(?:,|\.|$|pour\b|avec\b|la\s+semaine\b|semaine\b|next\b|from\b|et\b|budget\b|\d))/,
+    )
+    // Do not use bare "ل" — it false-matches the trailing letter of words like "ريال".
     const arCue = stripped.original.match(/(?:إلى|الى)\s+([^\s،,]{2,40})/)
     if (enCue?.[1]) {
       const token = enCue[1].trim()
+      if (!isInvalidDestinationToken(token)) {
+        const raw = capitalizeDestination(token)
+        if (raw && !isStopWord(raw)) push(aliasForToken(token) || raw)
+      }
+    }
+    if (frCue?.[1]) {
+      const token = frCue[1].trim()
       if (!isInvalidDestinationToken(token)) {
         const raw = capitalizeDestination(token)
         if (raw && !isStopWord(raw)) push(aliasForToken(token) || raw)
@@ -913,8 +928,9 @@ function matchDates(
   }
   if (
     /\bnext\s+week\b/.test(lower)
+    || /\bla\s+semaine\s+prochaine\b|\bsemaine\s+prochaine\b/.test(lower)
     || /بعد\s*أسبوع|بعد\s*اسبوع/.test(text)
-    || /الأسبوع\s*القادم|الاسبوع\s*القادم|الأسبوع\s*المقبل|الاسبوع\s*المقبل/.test(text)
+    || /الأسبوع\s*القادم|الاسبوع\s*القادم|الأسبوع\s*المقبل|الاسبوع\s*المقبل|الأسبوع\s*الجاي|الاسبوع\s*الجاي/.test(text)
   ) {
     return { start: formatUtcIso(addUtcDays(now, 7)), end: null }
   }

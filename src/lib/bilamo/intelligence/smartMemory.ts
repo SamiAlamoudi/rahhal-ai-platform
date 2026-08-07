@@ -6,16 +6,23 @@ import type { AgentMemory, AgentLocale, TripRequirements } from '../../agent/typ
 import { emptyMemory } from '../../agent/types'
 import { memoryFromMeta, rebuildMemoryFromMessages } from '../../agent/memory'
 import type { ChatMessage } from '../../chat/chatTypes'
+import { readRememberedDeparture } from '../departure/departureLocator'
 import type { BilamoConsultantMemory, BilamoHardSlot, BilamoPhase } from './types'
 
-export function emptyBilamoMemory(locale: AgentLocale = 'en'): BilamoConsultantMemory {
+function rememberedOriginCity(): string | null {
+  const airport = readRememberedDeparture()
+  return airport?.cityAr ?? airport?.cityEn ?? null
+}
+
+export function emptyBilamoMemory(locale: AgentLocale = 'ar'): BilamoConsultantMemory {
   return {
     locale,
+    replyLanguage: locale === 'en' ? 'en' : 'ar',
     phase: 'greeting',
     agent: emptyMemory(locale),
     askedSlots: [],
     preferences: {
-      origin: null,
+      origin: rememberedOriginCity(),
       preferredAirline: null,
       seatClass: null,
       hotelPreference: null,
@@ -69,8 +76,18 @@ export function hydrateBilamoMemory(input: {
   ]
 
   const req = agent.requirements
+  const replyFromMeta = (() => {
+    for (let i = input.messages.length - 1; i >= 0; i -= 1) {
+      const bilamo = (input.messages[i]?.providerMeta as { bilamo?: { replyLanguage?: string } } | null)?.bilamo
+      if (bilamo?.replyLanguage === 'ar' || bilamo?.replyLanguage === 'en' || bilamo?.replyLanguage === 'fr') {
+        return bilamo.replyLanguage
+      }
+    }
+    return base.replyLanguage
+  })()
   return {
     locale: agent.locale || locale,
+    replyLanguage: replyFromMeta || (agent.locale === 'en' ? 'en' : 'ar'),
     phase: mapPhase(agent.phase, req),
     agent: {
       ...agent,
@@ -78,7 +95,7 @@ export function hydrateBilamoMemory(input: {
     },
     askedSlots,
     preferences: {
-      origin: req.origin ?? base.preferences.origin,
+      origin: req.origin ?? base.preferences.origin ?? rememberedOriginCity(),
       preferredAirline: req.preferredAirline ?? base.preferences.preferredAirline,
       seatClass: req.cabinPreference ?? base.preferences.seatClass,
       hotelPreference: req.hotelPreference ?? base.preferences.hotelPreference,

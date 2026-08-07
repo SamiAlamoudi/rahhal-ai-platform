@@ -277,11 +277,11 @@ async function fetchSpeechAudio(
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       hooks?.onTtsRequestStart?.()
-      const { requireProxyAuthHeaders } = await import('../../security/proxyAuth')
-      const authHeaders = await requireProxyAuthHeaders({ 'Content-Type': 'application/json' })
-      const openaiRes = await fetch('/api/openai/tts', {
+      const { voiceAuthenticatedFetch } = await import('../../security/voiceAuthProbe')
+      const openaiRes = await voiceAuthenticatedFetch('/api/openai/tts', {
         method: 'POST',
-        headers: authHeaders,
+        kind: 'tts',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
       })
       if (openaiRes.ok) {
@@ -299,11 +299,9 @@ async function fetchSpeechAudio(
         lastOpenAiReason = `empty_blob:${blob.size}`
         logChat('warn', 'tts', 'openai_tts_empty_blob', { size: blob.size, attempt: attempt + 1 })
       } else {
-        const detail = await openaiRes.text().catch(() => '')
         lastOpenAiReason = `http_${openaiRes.status}`
         logChat('warn', 'tts', 'openai_tts_http_error', {
           status: openaiRes.status,
-          detail: detail.slice(0, 300),
           attempt: attempt + 1,
         })
       }
@@ -338,6 +336,7 @@ async function fetchSpeechAudio(
 
 async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Promise<Blob> {
   const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
+  // French replies use VoiceLocale 'en' (nova/Jenny handle FR); Arabic stays dedicated.
   const voice = locale === 'en' ? 'en-US-JennyNeural' : 'ar-SA-ZariyahNeural'
   const tts = new EdgeTTSBrowser(text, voice, {
     rate: locale === 'ar' ? '-5.00%' : '-2.00%',

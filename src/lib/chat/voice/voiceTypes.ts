@@ -3,7 +3,23 @@
  * No separate conversation/message store. Phone/video calling are out of scope.
  */
 
-export type VoiceLocale = 'ar' | 'en'
+export type VoiceLocale =
+  | 'ar'
+  | 'en'
+  | 'fr'
+  | 'es'
+  | 'de'
+  | 'it'
+  | 'tr'
+  | 'pt'
+  | 'ru'
+  | 'zh'
+  | 'ja'
+  | 'ko'
+  | 'hi'
+  | 'ur'
+  | 'id'
+
 export type VoiceInputMode = 'push_to_talk' | 'hands_free'
 /** ChatGPT-like voice states (Listening → Thinking → Responding → Speaking). */
 export type VoiceSessionStatus =
@@ -34,6 +50,19 @@ export interface VoiceLocaleConfig {
 export const VOICE_LOCALES: Record<VoiceLocale, VoiceLocaleConfig> = {
   ar: { locale: 'ar', speechLang: 'ar-SA', labelAr: 'العربية', labelEn: 'Arabic' },
   en: { locale: 'en', speechLang: 'en-US', labelAr: 'الإنجليزية', labelEn: 'English' },
+  fr: { locale: 'fr', speechLang: 'fr-FR', labelAr: 'الفرنسية', labelEn: 'French' },
+  es: { locale: 'es', speechLang: 'es-ES', labelAr: 'الإسبانية', labelEn: 'Spanish' },
+  de: { locale: 'de', speechLang: 'de-DE', labelAr: 'الألمانية', labelEn: 'German' },
+  it: { locale: 'it', speechLang: 'it-IT', labelAr: 'الإيطالية', labelEn: 'Italian' },
+  tr: { locale: 'tr', speechLang: 'tr-TR', labelAr: 'التركية', labelEn: 'Turkish' },
+  pt: { locale: 'pt', speechLang: 'pt-BR', labelAr: 'البرتغالية', labelEn: 'Portuguese' },
+  ru: { locale: 'ru', speechLang: 'ru-RU', labelAr: 'الروسية', labelEn: 'Russian' },
+  zh: { locale: 'zh', speechLang: 'zh-CN', labelAr: 'الصينية', labelEn: 'Chinese' },
+  ja: { locale: 'ja', speechLang: 'ja-JP', labelAr: 'اليابانية', labelEn: 'Japanese' },
+  ko: { locale: 'ko', speechLang: 'ko-KR', labelAr: 'الكورية', labelEn: 'Korean' },
+  hi: { locale: 'hi', speechLang: 'hi-IN', labelAr: 'الهندية', labelEn: 'Hindi' },
+  ur: { locale: 'ur', speechLang: 'ur-PK', labelAr: 'الأردية', labelEn: 'Urdu' },
+  id: { locale: 'id', speechLang: 'id-ID', labelAr: 'الإندونيسية', labelEn: 'Indonesian' },
 }
 
 export interface SpeechRecognitionResultEvent {
@@ -96,9 +125,10 @@ export interface MicrophonePermissionState {
 }
 
 export function speechLangForLocale(locale: VoiceLocale): string {
-  return VOICE_LOCALES[locale].speechLang
+  return VOICE_LOCALES[locale]?.speechLang || 'en-US'
 }
 
 export function normalizeVoiceLocale(value: string | null | undefined): VoiceLocale {
-  return value === 'en' ? 'en' : 'ar'
+  if (value && value in VOICE_LOCALES) return value as VoiceLocale
+  return 'ar'
 }

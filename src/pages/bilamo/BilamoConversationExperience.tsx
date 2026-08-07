@@ -15,10 +15,31 @@ import {
   type TripTimelineItem,
 } from '../../design-system'
 import { greetingForHour, resolveDisplayName } from '../../design-system/greeting'
-import { useBilamoMic } from '../../hooks/useBilamoMic'
-import { useBilamoSpeak } from '../../hooks/useBilamoSpeak'
-import { useBilamoSpeech } from '../../hooks/useBilamoSpeech'
+import { useBilamoVoiceSession } from '../../hooks/useBilamoVoiceSession'
 import { useAuth } from '../../lib/auth'
+import {
+  BILAMO_DEPARTURE_AIRPORTS,
+  rememberDeparture,
+  resolveDepartureAirport,
+  type BilamoDepartureAirport,
+  type DepartureResolution,
+} from '../../lib/bilamo/departure/departureLocator'
+import { progressiveConsultantAck } from '../../lib/bilamo/intelligence/consultantComposer'
+import {
+  composeUncertainWordConfirm,
+  isBilamoReplyLocale,
+  replyLocaleToVoiceLocale,
+  type BilamoReplyLocale,
+} from '../../lib/bilamo/speech/localeBridge'
+import { understandSpeechTurn } from '../../lib/bilamo/speech/speechUnderstanding'
+import {
+  shouldBargeInFromOrb,
+  shouldIgnoreOrbTapDuringVoiceSubmit,
+  shouldRecoverStuckThinking,
+} from '../../lib/bilamo/speech/voiceSubmitGate'
+import { noteSpeechUnderstandingDiag } from '../../lib/bilamo/voice/voiceHttpTrace'
+import { unlockAudioPlayback } from '../../lib/chat/voice/audioElementTextToSpeechProvider'
+import { sanitizeArabicVoiceTranscript } from '../../lib/chat/voice/sanitizeArabicVoiceTranscript'
 import { chatEngine } from '../../lib/chat/chatEngine'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import { validateUserMessage } from '../../lib/chat/chatHelpers'
@@ -63,27 +84,103 @@ type BilamoFlightsStatus = {
   timedOut: boolean
 }
 
+type BilamoIntelCard = {
+  id: string
+  kind: 'weather' | 'visa' | 'costs' | 'currency' | 'transfer' | 'activity'
+  title: string
+  body: string
+  selectable?: boolean
+}
+
 type BilamoResultsView = {
   flights: BilamoFlightCard[]
   hotels: BilamoHotelCard[]
   timeline: TripTimelineItem[]
   flightsStatus: BilamoFlightsStatus | null
+  intel: BilamoIntelCard[]
 }
 
-function moneyLabel(amount: unknown, currency: unknown): string {
+function moneyLabel(amount: unknown, currency: unknown, locale: 'ar' | 'en' = 'en'): string {
   const cur = typeof currency === 'string' && currency.trim() ? currency : 'SAR'
   const n = typeof amount === 'number' && Number.isFinite(amount) ? amount : null
   if (n == null) return cur
-  return `${cur} ${n.toLocaleString('en-US')}`
+  const formatted = n.toLocaleString(locale === 'ar' ? 'ar-SA' : 'en-US')
+  if (locale === 'ar' && (cur === 'SAR' || cur === 'ر.س')) return `${formatted} ر.س`
+  return `${cur} ${formatted}`
 }
 
-function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefined): BilamoResultsView | null {
+function localizeKindLabel(raw: string | null | undefined, locale: 'ar' | 'en'): string | null {
+  if (!raw) return null
+  if (locale !== 'ar') return raw
+  const lower = raw.toLowerCase()
+  if (/best|overall|أفضل/.test(lower)) return 'أفضل خيار'
+  if (/cheap|lowest|أرخص|سعر/.test(lower)) return 'الأرخص'
+  if (/fast|أسرع/.test(lower)) return 'الأسرع'
+  return raw
+}
+
+function classifyFlightKind(
+  flight: BilamoFlightCard,
+  index: number,
+  locale: 'ar' | 'en',
+): { kindLabel: string; variant: 'hero' | 'alternative' } {
+  const raw = (flight.kindLabel || '').toLowerCase()
+  if (index === 0) {
+    return {
+      kindLabel: localizeKindLabel(flight.kindLabel, locale)
+        || (locale === 'ar' ? 'أفضل خيار' : 'Best overall'),
+      variant: 'hero',
+    }
+  }
+  if (/cheap|lowest|سعر|أرخص/.test(raw) || index === 1) {
+    return {
+      kindLabel: localizeKindLabel(flight.kindLabel, locale)
+        || (locale === 'ar' ? 'الأرخص' : 'Cheapest'),
+      variant: 'alternative',
+    }
+  }
+  return {
+    kindLabel: localizeKindLabel(flight.kindLabel, locale)
+      || (locale === 'ar' ? 'الأسرع' : 'Fastest'),
+    variant: 'alternative',
+  }
+}
+
+/** Cards carry the details — never paint recommendation paragraphs. */
+function displayAssistantContent(
+  content: string,
+  hasResults: boolean,
+  locale: BilamoReplyLocale,
+): string {
+  const trimmed = content.trim()
+  if (!trimmed) return trimmed
+  if (!hasResults) {
+    // Clarification / greeting: keep a single short line, never a paragraph block.
+    const first = trimmed.split(/\n+/)[0]?.trim() || trimmed
+    return first.length <= 140 ? first : `${first.slice(0, 120).trim()}…`
+  }
+  if (locale === 'ar') return 'هذا ما أختاره لك.'
+  if (locale === 'fr') return 'Voici mon choix.'
+  return 'Here is my pick.'
+}
+
+function resultsFromAssistantMeta(
+  meta: Record<string, unknown> | null | undefined,
+  locale: 'ar' | 'en' = 'en',
+): BilamoResultsView | null {
   if (!meta || typeof meta !== 'object') return null
   const bilamo = meta.bilamo as {
     search?: {
       flights?: Array<Record<string, unknown>>
       hotels?: Array<Record<string, unknown>>
       timeline?: Array<Record<string, unknown>>
+      context?: {
+        weather?: string | null
+        visa?: string | null
+        currency?: string | null
+        timeDifference?: string | null
+        transfer?: string | null
+      }
       flightsMeta?: {
         mode?: string
         error?: string | null
@@ -91,14 +188,29 @@ function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefin
         bestScore?: number | null
       }
     } | null
+    memory?: {
+      agent?: {
+        requirements?: {
+          budgetAmount?: number | null
+          budgetCurrency?: string | null
+        }
+      }
+    }
   } | undefined
   const search = bilamo?.search
   const flightsMeta = search?.flightsMeta
   const errorStr = typeof flightsMeta?.error === 'string' ? flightsMeta.error : null
   const timedOut = /timeout/i.test(errorStr || '')
   const hasFlightIssue = Boolean(errorStr || flightsMeta?.stale)
-  if (!search?.flights?.length && !search?.hotels?.length && !hasFlightIssue) return null
+  const ctx = search?.context
+  const hasIntel = Boolean(
+    ctx?.weather || ctx?.visa || ctx?.currency || ctx?.transfer || ctx?.timeDifference,
+  )
+  if (!search?.flights?.length && !search?.hotels?.length && !hasFlightIssue && !hasIntel) {
+    return null
+  }
 
+  // Hero + at most 2 alternatives (cheapest / fastest).
   const flights: BilamoFlightCard[] = (search?.flights || []).slice(0, 3).map((f, i) => ({
     id: String(f.id ?? `f-${i}`),
     airline: String(f.airline ?? 'Flight'),
@@ -108,7 +220,7 @@ function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefin
     arriveTime: String(f.arriveTime ?? '—'),
     duration: String(f.duration ?? '—'),
     stopsLabel: String(f.stopsLabel ?? 'Nonstop'),
-    priceLabel: moneyLabel(f.price, f.currency),
+    priceLabel: moneyLabel(f.price, f.currency, locale),
     reason: typeof f.reason === 'string' ? f.reason : undefined,
     kindLabel: typeof f.kindLabel === 'string' ? f.kindLabel : null,
     score: typeof f.score === 'number' ? f.score : null,
@@ -121,7 +233,7 @@ function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefin
     area: String(h.area ?? 'City center'),
     rating: typeof h.rating === 'number' ? h.rating : 4.6,
     nightsLabel: String(h.nightsLabel ?? 'Stay'),
-    priceLabel: moneyLabel(h.price, h.currency),
+    priceLabel: moneyLabel(h.price, h.currency, locale),
     reason: typeof h.reason === 'string' ? h.reason : undefined,
   }))
 
@@ -145,7 +257,71 @@ function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefin
       ? { mode: 'demo', error: null, stale: false, empty: true, timedOut: false }
       : null)
 
-  return { flights, hotels, timeline, flightsStatus }
+  const titleFor = (kind: BilamoIntelCard['kind']): string => {
+    if (locale === 'ar') {
+      if (kind === 'weather') return 'الطقس'
+      if (kind === 'visa') return 'التأشيرة'
+      if (kind === 'costs') return 'التكلفة'
+      if (kind === 'currency') return 'العملة'
+      if (kind === 'transfer') return 'الانتقال'
+      return 'نشاط'
+    }
+    if (kind === 'weather') return 'Weather'
+    if (kind === 'visa') return 'Visa'
+    if (kind === 'costs') return 'Costs'
+    if (kind === 'currency') return 'Currency'
+    if (kind === 'transfer') return 'Transfer'
+    return 'Activity'
+  }
+
+  const intel: BilamoIntelCard[] = []
+  if (ctx?.weather) {
+    intel.push({ id: 'intel-weather', kind: 'weather', title: titleFor('weather'), body: ctx.weather, selectable: true })
+  }
+  if (ctx?.visa) {
+    intel.push({ id: 'intel-visa', kind: 'visa', title: titleFor('visa'), body: ctx.visa, selectable: true })
+  }
+  if (ctx?.currency) {
+    intel.push({ id: 'intel-currency', kind: 'currency', title: titleFor('currency'), body: ctx.currency, selectable: true })
+  }
+  if (ctx?.transfer) {
+    intel.push({ id: 'intel-transfer', kind: 'transfer', title: titleFor('transfer'), body: ctx.transfer, selectable: true })
+  }
+  const budgetAmount = bilamo?.memory?.agent?.requirements?.budgetAmount
+  const budgetCurrency = bilamo?.memory?.agent?.requirements?.budgetCurrency
+  const flightTotal = typeof search?.flights?.[0]?.price === 'number' ? search.flights[0].price : null
+  const hotelTotal = typeof search?.hotels?.[0]?.price === 'number' ? search.hotels[0].price : null
+  if (flightTotal != null || hotelTotal != null || budgetAmount != null) {
+    const parts = [
+      flightTotal != null
+        ? (locale === 'ar' ? `طيران ${moneyLabel(flightTotal, search?.flights?.[0]?.currency, locale)}` : `Flights ${moneyLabel(flightTotal, search?.flights?.[0]?.currency, locale)}`)
+        : null,
+      hotelTotal != null
+        ? (locale === 'ar' ? `إقامة ${moneyLabel(hotelTotal, search?.hotels?.[0]?.currency, locale)}` : `Stay ${moneyLabel(hotelTotal, search?.hotels?.[0]?.currency, locale)}`)
+        : null,
+      budgetAmount != null
+        ? (locale === 'ar' ? `ميزانيتك ${moneyLabel(budgetAmount, budgetCurrency, locale)}` : `Budget ${moneyLabel(budgetAmount, budgetCurrency, locale)}`)
+        : null,
+    ].filter(Boolean)
+    intel.push({
+      id: 'intel-costs',
+      kind: 'costs',
+      title: titleFor('costs'),
+      body: parts.join(' · '),
+      selectable: true,
+    })
+  }
+  for (const item of timeline.filter((t) => t.kind === 'activity').slice(0, 2)) {
+    intel.push({
+      id: `intel-activity-${item.id}`,
+      kind: 'activity',
+      title: titleFor('activity'),
+      body: [item.title, item.detail].filter(Boolean).join(' — '),
+      selectable: true,
+    })
+  }
+
+  return { flights, hotels, timeline, flightsStatus, intel }
 }
 
 function makeLocalUserMessage(conversationId: string, content: string): ChatMessage {
@@ -181,21 +357,26 @@ export function BilamoConversationExperience({
   autoListen = false,
 }: BilamoConversationExperienceProps) {
   const { user } = useAuth()
-  const {
-    level: micLevel,
-    bands: micBands,
-    error: micError,
-    start: startMic,
-    stop: stopMic,
-  } = useBilamoMic()
   const abortRef = useRef<AbortController | null>(null)
   const silenceTimer = useRef<number | null>(null)
+  const speechStartedRef = useRef(false)
+  const silenceFinalizeOnceRef = useRef(false)
+  const voiceApiRef = useRef<ReturnType<typeof useBilamoVoiceSession> | null>(null)
   const seededRef = useRef(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const sendRef = useRef<(raw: string) => Promise<void>>(async () => {})
   const speakGenerationRef = useRef(0)
+  const sendLockRef = useRef(false)
+  const pendingSendRef = useRef<string | null>(null)
+  const lastSentRef = useRef<{ text: string; at: number } | null>(null)
+  /** Set sync on voice final; cleared when chat send finishes — blocks orb race. */
+  const voiceSubmitInFlightRef = useRef(false)
+  /** Direct send (no soft mic cancel) for voice finals. */
+  const voiceSendRef = useRef<(raw: string) => Promise<void>>(async () => {})
+  /** Classic end-of-speech silence window — only after speech has started. */
+  const SILENCE_FINALIZE_MS = 1600
 
-  const [orbState, setOrbState] = useState<OrbState>('idle')
+  const [chatOrb, setChatOrb] = useState<OrbState | null>(null)
   const [conversationId, setConversationId] = useState<string | null>(null)
   const conversationIdRef = useRef<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -205,20 +386,128 @@ export function BilamoConversationExperience({
   const [results, setResults] = useState<BilamoResultsView | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [speakPulse, setSpeakPulse] = useState(0)
+  const [listenPulse, setListenPulse] = useState(0)
   const [compareIds, setCompareIds] = useState<string[]>([])
   const [detailsId, setDetailsId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [uiLocale, setUiLocale] = useState<'ar' | 'en'>(() =>
-    typeof navigator !== 'undefined' && navigator.language?.startsWith('ar') ? 'ar' : 'en',
-  )
-  const voice = useBilamoSpeak()
+  const [statusLine, setStatusLine] = useState<string | null>(null)
+  const [departure, setDeparture] = useState<DepartureResolution | null>(null)
+  const [changeAirportOpen, setChangeAirportOpen] = useState(false)
+  const [uiLocale, setUiLocale] = useState<BilamoReplyLocale>(() => {
+    if (typeof navigator === 'undefined') return 'ar'
+    const nav = navigator.language?.toLowerCase() || 'ar'
+    if (nav.startsWith('ar')) return 'ar'
+    if (nav.startsWith('fr')) return 'fr'
+    if (nav.startsWith('es')) return 'es'
+    if (nav.startsWith('de')) return 'de'
+    if (nav.startsWith('it')) return 'it'
+    if (nav.startsWith('tr')) return 'tr'
+    if (nav.startsWith('hi')) return 'hi'
+    if (nav.startsWith('ur')) return 'ur'
+    if (nav.startsWith('zh')) return 'zh'
+    if (nav.startsWith('ja')) return 'ja'
+    return 'en'
+  })
+  /** One speak arming per chat turn — prevents overlapping audio. */
+  const spokenArmedRef = useRef(false)
+
+  const handleSpeechFinal = useCallback((transcript: string, normalizedHint?: string | null) => {
+    // Sync gate FIRST — async import previously left a gap where orb "stuck"
+    // recovery called bargeIn and dropped the request before send().
+    voiceSubmitInFlightRef.current = true
+    const submitStarted = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    try {
+      const previous = isBilamoReplyLocale(uiLocale) ? uiLocale : 'ar'
+      const understood = understandSpeechTurn({
+        transcript,
+        normalizedHint,
+        previousLanguage: previous,
+        languagePreference: 'auto',
+      })
+      if (!understood.displayTranscript && !understood.normalizedForExtract) {
+        voiceSubmitInFlightRef.current = false
+        voiceApiRef.current?.releaseToIdle('empty_transcript')
+        return
+      }
+      noteSpeechUnderstandingDiag({
+        language: understood.language,
+        dialect: understood.dialect,
+        transcriptConfidence: understood.transcriptConfidence,
+        normalizedIntent: understood.normalizedIntent,
+        submitLatencyMs: (typeof performance !== 'undefined' ? performance.now() : Date.now()) - submitStarted,
+      })
+      setUiLocale(understood.language)
+      voiceApiRef.current?.setLocale(replyLocaleToVoiceLocale(understood.language))
+
+      // Low confidence: confirm ONLY the uncertain word — never the whole sentence.
+      if (understood.needsDestinationConfirm && understood.confirmDestinationLabel) {
+        voiceSubmitInFlightRef.current = false
+        const confirm = composeUncertainWordConfirm(
+          understood.confirmDestinationLabel,
+          understood.language,
+        )
+        const handle = voiceApiRef.current?.speak(
+          confirm.spokenText,
+          replyLocaleToVoiceLocale(understood.language),
+        )
+        if (handle) {
+          speakGenerationRef.current = handle.generation
+          setChatOrb('speaking')
+          void handle.done.finally(() => {
+            if (speakGenerationRef.current === handle.generation) setChatOrb(null)
+          })
+        }
+        setMessages((prev) => {
+          const id = conversationIdRef.current || 'local'
+          return [
+            ...prev,
+            makeLocalUserMessage(id, understood.displayTranscript),
+            {
+              ...makeLocalUserMessage(id, confirm.displayText),
+              role: 'assistant' as const,
+            },
+          ]
+        })
+        return
+      }
+
+      // Voice finals must use voiceSendRef (not sendWithMicStop soft-cancel).
+      void voiceSendRef.current(understood.normalizedForExtract || understood.displayTranscript)
+    } catch {
+      voiceSubmitInFlightRef.current = false
+    }
+  }, [uiLocale])
+
+  const voice = useBilamoVoiceSession({
+    onFinalUtterance: handleSpeechFinal,
+  })
+  voiceApiRef.current = voice
 
   conversationIdRef.current = conversationId
 
-  const displayName = useMemo(() => resolveDisplayName(user, uiLocale), [user, uiLocale])
+  // Merge voice session FSM with chat "thinking" ownership (no duplicate mic/TTS stacks).
+  const orbState: OrbState = (() => {
+    const fromVoice = voice.orbState
+    if (
+      fromVoice === 'listening'
+      || fromVoice === 'speaking'
+      || voice.snapshot.state === 'interrupted'
+    ) {
+      return fromVoice === 'listening' || voice.snapshot.state === 'interrupted'
+        ? 'listening'
+        : 'speaking'
+    }
+    if (fromVoice === 'thinking') return 'thinking'
+    if (busy || chatOrb === 'thinking') return 'thinking'
+    if (chatOrb === 'completed') return 'completed'
+    return 'idle'
+  })()
+
+  const binaryLocale = uiLocale === 'ar' ? 'ar' as const : 'en' as const
+  const displayName = useMemo(() => resolveDisplayName(user, binaryLocale), [user, binaryLocale])
   const greeting = useMemo(
-    () => greetingForHour(new Date().getHours(), displayName, uiLocale),
-    [displayName, uiLocale],
+    () => greetingForHour(new Date().getHours(), displayName, binaryLocale),
+    [displayName, binaryLocale],
   )
 
   const inConversation = messages.length > 0 || busy || orbState !== 'idle'
@@ -237,42 +526,99 @@ export function BilamoConversationExperience({
         compareTitle: 'مقارنة سريعة',
         compareSelect: 'اختيار',
         selectedStay: 'اختيارك محفوظ — الخيارات ما زالت ظاهرة.',
-        micNeed: 'الميكروفون يحتاج إذناً',
-        tapAgain: 'اضغط مجدداً عند الانتهاء من الكلام',
+        micNeed: 'تحقق من الميكروفون',
+        tapAgain: 'تحدث بشكل طبيعي — سأتابع تلقائياً عند التوقف',
         somethingWrong: 'حدث خطأ ما',
         thinking: 'أفكّر…',
         type: 'اكتب',
-        tip: 'اضغط على الكرة للتحدث، أو اكتب رسالتك.',
+        tip: 'اضغط مرة واحدة للتحدث. عند التوقف أكمل تلقائياً.',
+        retryVoice: 'إعادة المحاولة',
+        continueText: 'متابعة بالنص',
+        classicVoice: 'صوت مبسّط',
+        changeAirport: 'تغيير المطار',
+        audioError: 'تعذر تشغيل الصوت. يمكنك المحاولة مرة أخرى.',
       }
-    : {
-        heroLead: 'Here is what I would choose for you.',
-        emptyFlights: 'I could not find a strong flight match for those dates yet.',
-        emptySuggest: 'Try more flexible dates, another departure city, or a nearby destination.',
-        timeout: 'The provider timed out — we can retry right now.',
-        tryAgain: 'Search again',
-        flexibleDates: 'Flexible dates',
-        nearbyIdeas: 'Suggest alternatives',
-        stale: 'Prices may have shifted — say if you want me to refresh.',
-        backup: 'I used a reliable backup inventory after a brief availability hiccup.',
-        providerError: 'The provider paused for a moment. You can try again.',
-        compareTitle: 'Quick compare',
-        compareSelect: 'Select',
-        selectedStay: 'Your choice is saved — recommendations stay visible.',
-        micNeed: 'Microphone needs permission',
-        tapAgain: 'Tap again when you finish speaking',
-        somethingWrong: 'Something went wrong',
-        thinking: 'Thinking…',
-        type: 'Type',
-        tip: 'Tap the orb to speak, or type your message.',
-      }
+    : uiLocale === 'fr'
+      ? {
+          heroLead: 'Voici ce que je choisirais pour vous.',
+          emptyFlights: 'Je n\'ai pas encore trouvé de vol solide pour ces dates.',
+          emptySuggest: 'Essayez des dates plus souples, une autre ville de départ, ou une destination proche.',
+          timeout: 'Le fournisseur a expiré — nous pouvons réessayer maintenant.',
+          tryAgain: 'Relancer la recherche',
+          flexibleDates: 'Dates flexibles',
+          nearbyIdeas: 'Proposer des alternatives',
+          stale: 'Les tarifs ont pu bouger — dites-moi si vous voulez une mise à jour.',
+          backup: 'J\'ai utilisé un inventaire de secours fiable après un court incident.',
+          providerError: 'Le fournisseur a marqué une pause. Vous pouvez réessayer.',
+          compareTitle: 'Comparaison rapide',
+          compareSelect: 'Choisir',
+          selectedStay: 'Votre choix est enregistré — les options restent visibles.',
+          micNeed: 'Vérifier le microphone',
+          tapAgain: 'Parlez naturellement — je continue automatiquement quand vous vous arrêtez',
+          somethingWrong: 'Une erreur s\'est produite',
+          thinking: 'Je réfléchis…',
+          type: 'Écrire',
+          tip: 'Appuyez une fois pour parler. À la pause, je continue automatiquement.',
+          retryVoice: 'Réessayer',
+          continueText: 'Continuer par texte',
+          classicVoice: 'Voix simple',
+          changeAirport: 'Changer d\'aéroport',
+          audioError: 'Impossible de lire l\'audio. Vous pouvez réessayer.',
+        }
+      : {
+          heroLead: 'Here is what I would choose for you.',
+          emptyFlights: 'I could not find a strong flight match for those dates yet.',
+          emptySuggest: 'Try more flexible dates, another departure city, or a nearby destination.',
+          timeout: 'The provider timed out — we can retry right now.',
+          tryAgain: 'Search again',
+          flexibleDates: 'Flexible dates',
+          nearbyIdeas: 'Suggest alternatives',
+          stale: 'Prices may have shifted — say if you want me to refresh.',
+          backup: 'I used a reliable backup inventory after a brief availability hiccup.',
+          providerError: 'The provider paused for a moment. You can try again.',
+          compareTitle: 'Quick compare',
+          compareSelect: 'Select',
+          selectedStay: 'Your choice is saved — recommendations stay visible.',
+          micNeed: 'Check microphone',
+          tapAgain: 'Speak naturally — I continue automatically when you pause',
+          somethingWrong: 'Something went wrong',
+          thinking: 'Thinking…',
+          type: 'Type',
+          tip: 'Tap once to speak. When you pause, I continue automatically.',
+          retryVoice: 'Try again',
+          continueText: 'Continue by text',
+          classicVoice: 'Simple voice',
+          changeAirport: 'Change airport',
+          audioError: 'Could not play audio. You can try again.',
+        }
 
-  const stopListeningHard = useCallback(() => {
-    stopMic()
+  const clearSilenceTimer = useCallback(() => {
     if (silenceTimer.current != null) {
       window.clearTimeout(silenceTimer.current)
       silenceTimer.current = null
     }
-  }, [stopMic])
+  }, [])
+
+  const stopListeningHard = useCallback(() => {
+    clearSilenceTimer()
+    // Prefer finalizeListening (realtime commits ASR; classic emits final once).
+    const api = voiceApiRef.current
+    if (typeof api?.finalizeListening === 'function') {
+      api.finalizeListening()
+    } else if (api?.session && typeof api.session.finalizeListening === 'function') {
+      api.session.finalizeListening()
+    } else {
+      api?.stopListening()
+    }
+  }, [clearSilenceTimer])
+
+  /** Typed send: cancel mic without emitting a voice final (no duplicate turn). */
+  const cancelListeningSoft = useCallback(() => {
+    clearSilenceTimer()
+    const api = voiceApiRef.current
+    if (typeof api?.cancelListening === 'function') api.cancelListening()
+    else api?.stopListening()
+  }, [clearSilenceTimer])
 
   const upsertMessage = useCallback((message: ChatMessage) => {
     setMessages((prev) => {
@@ -286,30 +632,81 @@ export function BilamoConversationExperience({
 
   const send = useCallback(
     async (raw: string) => {
-      const content = raw.trim()
+      // Never run Arabic sanitizer on non-Arabic turns (empties/strips Latin).
+      const trimmed = raw.trim()
+      const content = uiLocale === 'ar'
+        ? (sanitizeArabicVoiceTranscript(trimmed) || trimmed)
+        : trimmed
       const validation = validateUserMessage(content)
       if (validation) {
         setError(validation)
         return
       }
+      // Generation-owned send — never double-submit the same voice final.
+      // Use sendLockRef only (never React `busy` — stale closures dropped voice turns).
+      if (sendLockRef.current) {
+        pendingSendRef.current = content
+        void import('../../lib/bilamo/voice/voiceHttpTrace').then(({ noteVoiceDiscardReason }) => {
+          noteVoiceDiscardReason('queued_while_busy')
+        })
+        return
+      }
+      const last = lastSentRef.current
+      if (last && last.text === content && Date.now() - last.at < 5_000) {
+        voiceSubmitInFlightRef.current = false
+        return
+      }
+      sendLockRef.current = true
+      lastSentRef.current = { text: content, at: Date.now() }
+      spokenArmedRef.current = false
 
-      // Immediate barge-in: kill TTS + mic before the new turn starts.
-      speakGenerationRef.current += 1
-      voice.stop()
-      stopListeningHard()
+      // Only interrupt audible playback (typed barge-in). Voice-final submit must
+      // NOT interrupt/finalize again — that raced WebRTC before speak().
+      const fromVoiceFinal = voiceSubmitInFlightRef.current
+      if (!fromVoiceFinal) {
+        speakGenerationRef.current += 1
+        voice.interrupt()
+        cancelListeningSoft()
+      }
+
+      // Best-effort unlock (primary unlock is orb tap). Keep connect warm.
+      void unlockAudioPlayback().catch(() => undefined)
+      void voice.connect().catch(() => undefined)
 
       setError(null)
       setBusy(true)
-      setOrbState('thinking')
+      setChatOrb('thinking')
       setDraft('')
       // Sticky composer — stay open across turns once the traveler is typing.
       setComposerOpen(true)
+
+      // Immediate perceived-speed feedback (not a fake final answer).
+      const ackLocale = uiLocale === 'ar' || uiLocale === 'fr' ? uiLocale : 'en'
+      setStatusLine(progressiveConsultantAck(ackLocale, 0))
+      const ackTimers = [
+        window.setTimeout(() => setStatusLine(progressiveConsultantAck(ackLocale, 1)), 420),
+        window.setTimeout(() => setStatusLine(progressiveConsultantAck(ackLocale, 2)), 900),
+      ]
 
       abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
 
       const isSelectTurn = /^select\s+(flight|hotel)\s+/i.test(content)
+
+      const armSpeakOnce = (spokenRaw: string, voiceLocale: ReturnType<typeof replyLocaleToVoiceLocale>) => {
+        const spoken = spokenRaw.trim()
+        if (!spoken || spokenArmedRef.current) return
+        spokenArmedRef.current = true
+        const handle = voice.speak(spoken, voiceLocale)
+        speakGenerationRef.current = handle.generation
+        setChatOrb('speaking')
+        void handle.done.finally(() => {
+          if (speakGenerationRef.current === handle.generation) {
+            window.setTimeout(() => setChatOrb(null), 200)
+          }
+        })
+      }
 
       try {
         let id = conversationIdRef.current
@@ -333,15 +730,29 @@ export function BilamoConversationExperience({
             signal: controller.signal,
             onAssistantCreate: (msg) => {
               // Text streaming uses thinking — speaking is reserved for audible TTS.
-              setOrbState('thinking')
+              setChatOrb('thinking')
+              setStatusLine(null)
               upsertMessage(msg)
             },
-            onDelta: upsertMessage,
+            onDelta: (msg) => {
+              upsertMessage(msg)
+              // Architecture: start audio on first spoken token — do not wait for onComplete.
+              const meta = msg.providerMeta as { spokenText?: string; bilamo?: { replyLanguage?: string } } | undefined
+              const spoken = typeof meta?.spokenText === 'string' ? meta.spokenText.trim() : ''
+              if (!spoken) return
+              const replyLang = isBilamoReplyLocale(meta?.bilamo?.replyLanguage)
+                ? meta!.bilamo!.replyLanguage!
+                : uiLocale
+              const voiceLocale = replyLocaleToVoiceLocale(replyLang)
+              armSpeakOnce(spoken, voiceLocale)
+            },
             onComplete: (msg) => {
               upsertMessage(msg)
-              setOrbState('completed')
+              if (!spokenArmedRef.current) setChatOrb('completed')
+              setStatusLine(null)
               const next = resultsFromAssistantMeta(
                 (msg.providerMeta as Record<string, unknown> | undefined) ?? null,
+                binaryLocale,
               )
               // Preserve prior recommendation cards on selection / non-search turns.
               if (next) {
@@ -354,31 +765,31 @@ export function BilamoConversationExperience({
                 spokenText?: string
                 memory?: { locale?: string }
                 selectedBookingOptionId?: string | null
+                bilamo?: { replyLanguage?: string }
               } | undefined
               if (meta?.selectedBookingOptionId) {
                 setSelectedId(meta.selectedBookingOptionId)
               }
-              const locale = meta?.memory?.locale === 'ar' ? 'ar' : uiLocale
-              setUiLocale(locale)
+              const replyLang = isBilamoReplyLocale(meta?.bilamo?.replyLanguage)
+                ? meta!.bilamo!.replyLanguage!
+                : meta?.memory?.locale === 'ar'
+                  ? 'ar'
+                  : uiLocale
+              setUiLocale(replyLang)
+              const voiceLocale = replyLocaleToVoiceLocale(replyLang)
+              voice.setLocale(voiceLocale)
               const spoken = (meta?.spokenText || msg.content || '').trim()
-              if (spoken) {
-                const handle = voice.speak({ text: spoken, locale })
-                speakGenerationRef.current = handle.generation
-                void handle.done.finally(() => {
-                  if (speakGenerationRef.current === handle.generation) {
-                    window.setTimeout(() => setOrbState('idle'), 200)
-                  }
-                })
-                setOrbState('speaking')
-              } else {
-                window.setTimeout(() => setOrbState('idle'), 500)
+              // Never double-speak — early delta already armed audio for this turn.
+              if (spoken) armSpeakOnce(spoken, voiceLocale)
+              else if (!spokenArmedRef.current) {
+                window.setTimeout(() => setChatOrb(null), 500)
               }
             },
             onError: (msg, err) => {
               upsertMessage(msg)
               if (!isBenignChatError(err)) setError(err)
-              voice.stop()
-              setOrbState('idle')
+              voice.interrupt()
+              setChatOrb(null)
             },
           },
         )
@@ -387,137 +798,176 @@ export function BilamoConversationExperience({
           const withoutTemp = prev.filter((m) => m.id !== temp.id && m.id !== result.assistant.id)
           return [...withoutTemp, result.user, result.assistant]
         })
+        if (id) voice.setConversationId(id)
       } catch (err) {
         if (!isBenignChatError(err)) {
           logChatError('bilamo.experience.send', err)
           setError(err instanceof Error ? err.message : copy.somethingWrong)
         }
-        voice.stop()
-        setOrbState('idle')
+        voice.interrupt()
+        setChatOrb(null)
+        setStatusLine(null)
       } finally {
+        for (const t of ackTimers) window.clearTimeout(t)
         if (abortRef.current === controller) abortRef.current = null
         setBusy(false)
+        sendLockRef.current = false
+        voiceSubmitInFlightRef.current = false
+        const pending = pendingSendRef.current
+        pendingSendRef.current = null
+        if (pending) {
+          // Flush exactly one queued voice turn after the prior request completes.
+          void voiceSendRef.current(pending)
+        }
       }
     },
-    [copy.somethingWrong, stopListeningHard, uiLocale, upsertMessage, voice],
+    [binaryLocale, cancelListeningSoft, copy.somethingWrong, uiLocale, upsertMessage, voice],
   )
 
-  sendRef.current = send
+  // Smart departure: geolocation → nearest airport → remembered. Never interrogate for origin.
+  useEffect(() => {
+    let cancelled = false
+    void resolveDepartureAirport({ requestGeolocation: true }).then((resolved) => {
+      if (cancelled || !resolved) return
+      setDeparture(resolved)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
-  const handleSpeechFinal = useCallback(
-    (transcript: string) => {
-      stopListeningHard()
-      void sendRef.current(transcript)
-    },
-    [stopListeningHard],
-  )
+  const applyDepartureAirport = useCallback((airport: BilamoDepartureAirport) => {
+    rememberDeparture(airport)
+    setDeparture({
+      airport,
+      source: 'remembered',
+      assumptionLineAr: `سأعتبر ${airport.cityAr} نقطة الانطلاق.`,
+      assumptionLineEn: `I'll take ${airport.cityEn} as your departure point.`,
+    })
+    setChangeAirportOpen(false)
+  }, [])
 
-  const {
-    partial,
-    error: speechError,
-    start: startSpeech,
-    stop: stopSpeech,
-  } = useBilamoSpeech(handleSpeechFinal)
+  voiceSendRef.current = send
 
   const stopListening = useCallback(() => {
-    stopSpeech()
     stopListeningHard()
-    setOrbState((prev) => (prev === 'listening' ? 'idle' : prev))
-  }, [stopListeningHard, stopSpeech])
+    setChatOrb(null)
+  }, [stopListeningHard])
 
-  // Ensure send() also stops speech recognition when barge-in happens mid-listen.
+  // Typed composer only — soft-cancel mic (no voice final). Voice finals use voiceSendRef.
   const sendWithMicStop = useCallback(
     async (raw: string) => {
-      stopSpeech()
+      voice.cancelListening()
       await send(raw)
     },
-    [send, stopSpeech],
+    [send, voice],
   )
   sendRef.current = sendWithMicStop
 
   const startListening = useCallback(async () => {
     setError(null)
+    voice.clearError()
     speakGenerationRef.current += 1
-    voice.stop()
-    // Keep prior recommendation cards visible while capturing the next utterance.
-    const ok = await startMic()
-    if (!ok) {
-      setError(copy.micNeed)
-      setComposerOpen(true)
-      return
-    }
-    setOrbState('listening')
+    voice.interrupt()
+    setChatOrb(null)
     bilamoHaptic(6)
-    const lang = uiLocale === 'ar' || navigator.language?.startsWith('ar') ? 'ar-SA' : 'en-US'
-    if (lang.startsWith('ar')) setUiLocale('ar')
-    const started = startSpeech(lang)
-    if (!started) {
-      stopListeningHard()
-      setOrbState('idle')
-      setError(copy.tapAgain)
+    // Unlock during the mic tap gesture (required for later TTS / WebRTC play).
+    void unlockAudioPlayback().catch(() => undefined)
+    const locale = isBilamoReplyLocale(uiLocale) ? uiLocale : 'ar'
+    setUiLocale(locale)
+    voice.setLocale(replyLocaleToVoiceLocale(locale))
+    // First orb tap owns continuous conversation (ChatGPT-Voice parity).
+    voice.setContinuousListening(true)
+    const ok = await voice.startListening()
+    if (!ok) {
+      setError(voice.lastError || copy.micNeed)
       setComposerOpen(true)
+      voice.setContinuousListening(false)
     }
-  }, [
-    copy.micNeed,
-    copy.tapAgain,
-    startMic,
-    startSpeech,
-    stopListeningHard,
-    uiLocale,
-    voice,
-  ])
+  }, [copy.micNeed, uiLocale, voice])
 
   const toggleOrb = useCallback(() => {
     bilamoHaptic(orbState === 'listening' ? 4 : 8)
-    if (orbState === 'listening') {
-      if (partial.trim()) {
-        stopSpeech()
-        stopListeningHard()
-      } else {
-        stopListening()
-      }
+    // Always unlock Safari audio on the user gesture that owns the mic.
+    void unlockAudioPlayback().catch(() => undefined)
+
+    const gate = {
+      voiceSubmitInFlight: voiceSubmitInFlightRef.current,
+      sendLocked: sendLockRef.current,
+      busy,
+      voiceState: voice.snapshot.state,
+      orbState,
+    }
+
+    // EOS → processing → submit: ignore second tap (previous "stuck" bargeIn dropped requests).
+    if (shouldIgnoreOrbTapDuringVoiceSubmit(gate) && orbState !== 'listening' && orbState !== 'speaking') {
       return
     }
-    if (orbState === 'thinking' || orbState === 'speaking' || busy) {
-      // Mic tap while speaking interrupts TTS only — no auto-relisten.
-      if (orbState === 'speaking') {
-        speakGenerationRef.current += 1
-        voice.stop()
-        setOrbState('idle')
-      }
+
+    if (orbState === 'listening') {
+      // Intentional end — finalize once (not soft cancel).
+      clearSilenceTimer()
+      silenceFinalizeOnceRef.current = true
+      const api = voiceApiRef.current
+      if (typeof api?.finalizeListening === 'function') api.finalizeListening()
+      else if (api?.session) api.session.finalizeListening()
+      else stopListening()
+      return
+    }
+    if (shouldBargeInFromOrb(gate)) {
+      speakGenerationRef.current += 1
+      setChatOrb(null)
+      void voice.bargeIn()
+      return
+    }
+    // Empty ASR / stuck thinking with no live submit — recover without reload.
+    if (shouldRecoverStuckThinking(gate)) {
+      voice.releaseToIdle('orb_stuck_recover')
+      setChatOrb(null)
+      void startListening()
+      return
+    }
+    if (orbState === 'thinking' || busy) {
       return
     }
     void startListening()
-  }, [
-    busy,
-    orbState,
-    partial,
-    startListening,
-    stopListening,
-    stopListeningHard,
-    stopSpeech,
-    voice,
-  ])
+  }, [busy, clearSilenceTimer, orbState, startListening, stopListening, voice])
 
+  const partial = voice.partialTranscript
+
+  // Hands-free end-of-speech: arm silence timer ONLY after speech has started.
+  // Deps are orbState + partial only — never voice/listenPulse callbacks (those
+  // re-created every 90ms and previously reset the timer forever → second-tap bug).
   useEffect(() => {
-    if (orbState !== 'listening') return
-    if (silenceTimer.current != null) {
-      window.clearTimeout(silenceTimer.current)
-      silenceTimer.current = null
+    if (orbState !== 'listening') {
+      speechStartedRef.current = false
+      silenceFinalizeOnceRef.current = false
+      clearSilenceTimer()
+      return
     }
-    if (partial.trim() && micLevel < 0.025) {
-      silenceTimer.current = window.setTimeout(() => {
-        stopSpeech()
-        stopListeningHard()
-      }, 1100)
+
+    const text = partial.trim()
+    if (text) speechStartedRef.current = true
+
+    if (!speechStartedRef.current || silenceFinalizeOnceRef.current) {
+      return
     }
+
+    clearSilenceTimer()
+    silenceTimer.current = window.setTimeout(() => {
+      if (silenceFinalizeOnceRef.current || !speechStartedRef.current) return
+      silenceFinalizeOnceRef.current = true
+      // Finalize exactly once → commit/submit. No second orb tap required.
+      const api = voiceApiRef.current
+      if (typeof api?.finalizeListening === 'function') api.finalizeListening()
+      else if (api?.session) api.session.finalizeListening()
+      else api?.stopListening()
+    }, SILENCE_FINALIZE_MS)
+
     return () => {
-      if (silenceTimer.current != null) {
-        window.clearTimeout(silenceTimer.current)
-        silenceTimer.current = null
-      }
+      clearSilenceTimer()
     }
-  }, [micLevel, orbState, partial, stopListeningHard, stopSpeech])
+  }, [clearSilenceTimer, orbState, partial])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
@@ -544,6 +994,15 @@ export function BilamoConversationExperience({
     return () => window.clearInterval(id)
   }, [orbState])
 
+  useEffect(() => {
+    if (orbState !== 'listening') {
+      setListenPulse(0)
+      return
+    }
+    const id = window.setInterval(() => setListenPulse((n) => n + 1), 90)
+    return () => window.clearInterval(id)
+  }, [orbState])
+
   const speakingBands = useMemo(() => {
     if (orbState !== 'speaking') return undefined
     return Array.from({ length: 32 }, (_, i) => {
@@ -552,9 +1011,19 @@ export function BilamoConversationExperience({
     })
   }, [orbState, speakPulse])
 
-  const level = orbState === 'listening' ? micLevel : orbState === 'speaking' ? 0.42 : 0
-  const bands = orbState === 'listening' ? micBands : speakingBands
+  // Synthetic listen bands — avoids a second getUserMedia alongside the transport mic.
+  const listeningBands = useMemo(() => {
+    if (orbState !== 'listening') return undefined
+    return Array.from({ length: 32 }, (_, i) => {
+      const t = listenPulse * 0.34 + i * 0.41
+      return 0.12 + 0.55 * Math.abs(Math.sin(t)) * (0.55 + 0.45 * Math.abs(Math.cos(t * 0.7)))
+    })
+  }, [listenPulse, orbState])
+
+  const level = orbState === 'listening' ? 0.38 : orbState === 'speaking' ? 0.42 : 0
+  const bands = orbState === 'listening' ? listeningBands : speakingBands
   const transcript = presenceLine(orbState, partial)
+  const voiceError = voice.lastError
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -612,7 +1081,11 @@ export function BilamoConversationExperience({
   return (
     <BilamoShell>
       <LayoutGroup>
-        <div className="mx-auto flex min-h-[100dvh] w-full max-w-[24rem] flex-col px-8 pb-10 pt-14 sm:max-w-md">
+        <div
+          className="mx-auto flex min-h-[100dvh] w-full max-w-[24rem] flex-col px-8 pb-10 pt-14 sm:max-w-md"
+          dir={uiLocale === 'ar' ? 'rtl' : 'ltr'}
+          lang={uiLocale === 'fr' ? 'fr' : uiLocale === 'ar' ? 'ar' : 'en'}
+        >
           <header className="relative z-10 text-center">
             <Logo size={inConversation ? 'sm' : 'md'} className="justify-center" />
             <AnimatePresence mode="wait">
@@ -643,7 +1116,11 @@ export function BilamoConversationExperience({
                 bands={bands}
                 size={inConversation ? 140 : 248}
                 onClick={toggleOrb}
-                label={orbState === 'listening' ? 'Stop' : 'Speak'}
+                label={
+                  orbState === 'listening'
+                    ? (uiLocale === 'ar' ? 'إيقاف' : 'Stop')
+                    : (uiLocale === 'ar' ? 'تحدث' : 'Speak')
+                }
               />
             </motion.div>
 
@@ -664,17 +1141,88 @@ export function BilamoConversationExperience({
               </AnimatePresence>
             </div>
 
+            {departure && !transcript ? (
+              <div className="mt-4 max-w-[18rem] space-y-2 text-center">
+                <p className="text-[13px] leading-relaxed text-[var(--bilamo-muted)]">
+                  {uiLocale === 'ar' ? departure.assumptionLineAr : departure.assumptionLineEn}
+                </p>
+                <button
+                  type="button"
+                  className="text-[12.5px] text-[var(--bilamo-text)]/80 underline-offset-2 hover:underline"
+                  onClick={() => setChangeAirportOpen((v) => !v)}
+                >
+                  {copy.changeAirport}
+                </button>
+                {changeAirportOpen ? (
+                  <div className="flex flex-wrap justify-center gap-2 pt-1">
+                    {BILAMO_DEPARTURE_AIRPORTS.slice(0, 6).map((airport) => (
+                      <button
+                        key={airport.code}
+                        type="button"
+                        className="rounded-full border border-[var(--bilamo-border)] px-3 py-1 text-[12px] text-[var(--bilamo-text)]/85"
+                        onClick={() => applyDepartureAirport(airport)}
+                      >
+                        {uiLocale === 'ar' ? airport.cityAr : airport.cityEn}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             <AnimatePresence>
-              {(micError || speechError || error) && (
-                <motion.p
+              {(voiceError || error) && (
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="mt-5 max-w-[18rem] text-center text-[13px] leading-relaxed text-[var(--bilamo-danger)]/85"
+                  className="mt-5 max-w-[18rem] space-y-2 text-center"
                   role="alert"
                 >
-                  {error ?? micError ?? speechError}
-                </motion.p>
+                  <p className="text-[13px] leading-relaxed text-[var(--bilamo-danger)]/85">
+                    {error ?? voiceError ?? copy.audioError}
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+                      <button
+                        type="button"
+                        className="text-[12.5px] text-[var(--bilamo-text)]/80 underline-offset-2 hover:underline"
+                        onClick={() => {
+                          setError(null)
+                          voice.clearError()
+                          voice.releaseToIdle('error_retry')
+                          void startListening()
+                        }}
+                      >
+                        {copy.retryVoice}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-[12.5px] text-[var(--bilamo-text)]/80 underline-offset-2 hover:underline"
+                        onClick={() => {
+                          setError(null)
+                          voice.clearError()
+                          voice.releaseToIdle('continue_text')
+                          setComposerOpen(true)
+                        }}
+                      >
+                        {copy.continueText}
+                      </button>
+                      {voiceError && voice.transportKind === 'realtime_webrtc' ? (
+                        <button
+                          type="button"
+                          className="text-[12.5px] text-[var(--bilamo-text)]/80 underline-offset-2 hover:underline"
+                          onClick={() => {
+                            void voice.switchToClassic().then(() => {
+                              voice.clearError()
+                              voice.releaseToIdle('classic_switch')
+                            })
+                          }}
+                        >
+                          {copy.classicVoice}
+                        </button>
+                      ) : null}
+                    </div>
+                </motion.div>
               )}
             </AnimatePresence>
           </section>
@@ -705,11 +1253,15 @@ export function BilamoConversationExperience({
                         </p>
                       ) : (
                         <p className="max-w-[98%] text-[16.5px] leading-[1.72] tracking-[-0.02em] whitespace-pre-wrap text-[var(--bilamo-text)]/93">
-                          {msg.content || (isLastAssistant ? '' : '')}
+                          {displayAssistantContent(
+                            msg.content || '',
+                            Boolean(results?.flights.length || results?.hotels.length),
+                            binaryLocale,
+                          )}
                           {isLastAssistant ? (
                             <motion.span
                               aria-hidden
-                              className="ml-1 inline-block h-1.5 w-1.5 translate-y-[-0.1em] rounded-full bg-[var(--bilamo-secondary)] align-middle"
+                              className="ms-1 inline-block h-1.5 w-1.5 translate-y-[-0.1em] rounded-full bg-[var(--bilamo-secondary)] align-middle"
                               animate={{ opacity: [0.2, 0.9, 0.2], scale: [0.85, 1.05, 0.85] }}
                               transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
                             />
@@ -719,6 +1271,19 @@ export function BilamoConversationExperience({
                     </motion.div>
                   )
                 })}
+
+                {statusLine && busy && orbState === 'thinking' ? (
+                  <motion.p
+                    key={statusLine}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={springs.soft}
+                    className="px-1 text-[13.5px] leading-relaxed text-[var(--bilamo-muted)]"
+                  >
+                    {statusLine}
+                  </motion.p>
+                ) : null}
 
                 {busy && orbState === 'thinking' && !results ? (
                   <motion.div
@@ -857,7 +1422,10 @@ export function BilamoConversationExperience({
                       ) : null}
                     </AnimatePresence>
 
-                    {results.flights.map((flight, i) => (
+                    {results.flights.map((flight, i) => {
+                      const classified = classifyFlightKind(flight, i, binaryLocale)
+                      const isHero = classified.variant === 'hero'
+                      return (
                       <motion.div
                         key={flight.id}
                         layout
@@ -874,13 +1442,14 @@ export function BilamoConversationExperience({
                           duration={flight.duration}
                           stopsLabel={flight.stopsLabel}
                           priceLabel={flight.priceLabel}
-                          reason={flight.reason}
-                          kindLabel={flight.kindLabel}
+                          reason={isHero ? flight.reason : flight.reason}
+                          kindLabel={classified.kindLabel}
                           score={flight.score}
                           baggageSummary={flight.baggageSummary}
-                          highlighted={i === 0 && selectedId == null}
+                          highlighted={isHero && selectedId == null}
                           selected={selectedId === flight.id}
-                          locale={uiLocale}
+                          variant={classified.variant}
+                          locale={binaryLocale}
                           onSelect={() => selectFlight(flight.id)}
                           onCompare={() => {
                             setCompareIds((prev) => {
@@ -910,16 +1479,29 @@ export function BilamoConversationExperience({
                                     : 'This recommendation balances price, comfort, and schedule fit.')}
                               </p>
                               <p className="mt-1 text-[12px] text-[var(--bilamo-muted)]">
-                                {[flight.duration, flight.stopsLabel, flight.baggageSummary]
+                                {[
+                                  flight.duration,
+                                  flight.stopsLabel,
+                                  flight.baggageSummary
+                                    ? (uiLocale === 'ar'
+                                      ? `أمتعة ${flight.baggageSummary}`
+                                      : `Bags ${flight.baggageSummary}`)
+                                    : null,
+                                  flight.score != null
+                                    ? (uiLocale === 'ar'
+                                      ? `درجة بيلامو ${flight.score}`
+                                      : `Bilamo Score ${flight.score}`)
+                                    : null,
+                                ]
                                   .filter(Boolean)
                                   .join(' · ')}
-                                {flight.score != null ? ` · Score ${flight.score}` : ''}
                               </p>
                             </motion.div>
                           ) : null}
                         </AnimatePresence>
                       </motion.div>
-                    ))}
+                      )
+                    })}
                     {results.hotels.map((hotel, i) => (
                       <motion.div
                         key={hotel.id}
@@ -932,7 +1514,7 @@ export function BilamoConversationExperience({
                           {...hotel}
                           highlighted={i === 0 && selectedId == null}
                           selected={selectedId === hotel.id}
-                          locale={uiLocale}
+                          locale={binaryLocale}
                           onSelect={() => selectHotel(hotel.id)}
                           onViewDetails={() => {
                             setDetailsId((prev) => (prev === hotel.id ? null : hotel.id))
@@ -960,6 +1542,36 @@ export function BilamoConversationExperience({
                             </motion.div>
                           ) : null}
                         </AnimatePresence>
+                      </motion.div>
+                    ))}
+                    {results.intel.map((card, i) => (
+                      <motion.div
+                        key={card.id}
+                        layout
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ ...springs.soft, delay: 0.04 * (results.flights.length + results.hotels.length + i) }}
+                        className="bilamo-glass mx-0 rounded-[1.25rem] px-5 py-4"
+                      >
+                        <p className="text-[12.5px] tracking-[-0.01em] text-[var(--bilamo-muted)]">
+                          {card.title}
+                        </p>
+                        <p className="mt-1 text-[14px] leading-snug text-[var(--bilamo-text)]/90">
+                          {card.body}
+                        </p>
+                        {card.selectable ? (
+                          <button
+                            type="button"
+                            className="mt-2 text-[12.5px] text-[var(--bilamo-text)]/80 underline-offset-2 hover:underline"
+                            onClick={() => {
+                              setSelectedId(card.id)
+                              bilamoHaptic(4)
+                              void sendWithMicStop(`select intel ${card.kind}`)
+                            }}
+                          >
+                            {uiLocale === 'ar' ? 'اعتماد' : uiLocale === 'fr' ? 'Choisir' : 'Select'}
+                          </button>
+                        ) : null}
                       </motion.div>
                     ))}
                     {results.timeline.length > 0 ? (
@@ -991,7 +1603,7 @@ export function BilamoConversationExperience({
             </motion.p>
           )}
 
-          <div className="relative z-10 mt-6 flex flex-col items-center">
+          <div className="sticky bottom-0 z-20 mt-6 flex flex-col items-center bg-gradient-to-t from-[var(--bilamo-bg)] via-[var(--bilamo-bg)] to-transparent pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-3">
             <AnimatePresence mode="wait">
               {!composerOpen ? (
                 <motion.button
@@ -1001,7 +1613,7 @@ export function BilamoConversationExperience({
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   onClick={() => setComposerOpen(true)}
-                  className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-muted)]/40 transition-colors hover:text-[var(--bilamo-muted)]/75"
+                  className="min-h-11 text-[12px] tracking-[-0.01em] text-[var(--bilamo-muted)]/40 transition-colors hover:text-[var(--bilamo-muted)]/75"
                 >
                   {copy.type}
                 </motion.button>

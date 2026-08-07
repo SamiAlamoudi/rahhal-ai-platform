@@ -57,11 +57,24 @@ export async function probeRealtimeCapability(
   fetchImpl: typeof fetch = fetch,
 ): Promise<RealtimeCapability | null> {
   try {
-    const { requireProxyAuthHeaders } = await import('../../security/proxyAuth')
-    const headers = await requireProxyAuthHeaders()
+    const { voiceApiHeaders } = await import('../../security/voiceAuthProbe')
+    const {
+      noteVoiceHttpResult,
+      noteVoiceRequestDispatched,
+      parseSafeErrorCodeFromResponse,
+    } = await import('../../bilamo/voice/voiceHttpTrace')
+    const headers = await voiceApiHeaders(null)
+    noteVoiceRequestDispatched('/api/openai/realtime-session')
     const res = await fetchImpl('/api/openai/realtime-session', {
       method: 'GET',
       headers,
+    })
+    const bodyCode = res.ok ? null : await parseSafeErrorCodeFromResponse(res)
+    noteVoiceHttpResult({
+      route: '/api/openai/realtime-session',
+      status: res.status,
+      bodyCode,
+      kind: 'realtime_session',
     })
     if (!res.ok) return null
     return await res.json() as RealtimeCapability

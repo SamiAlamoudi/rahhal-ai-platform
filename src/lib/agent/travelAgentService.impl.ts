@@ -1865,8 +1865,16 @@ export function createTravelAgentService(
               for (let i = input.messages.length - 1; i >= 0; i -= 1) {
                 const meta = input.messages[i]?.providerMeta as unknown as AgentProviderMeta | undefined
                 if (meta?.bilamo && meta.memory) {
+                  const replyLanguageRaw = (meta.bilamo as { replyLanguage?: string }).replyLanguage
+                  const replyLanguage: 'ar' | 'en' | 'fr' =
+                    replyLanguageRaw === 'fr'
+                      ? 'fr'
+                      : replyLanguageRaw === 'en' || meta.memory.locale === 'en'
+                        ? 'en'
+                        : 'ar'
                   return {
                     locale: meta.memory.locale,
+                    replyLanguage,
                     phase: (meta.bilamo.phase as 'greeting' | 'collecting' | 'searching' | 'recommending' | 'refining')
                       || 'collecting',
                     agent: meta.memory,
