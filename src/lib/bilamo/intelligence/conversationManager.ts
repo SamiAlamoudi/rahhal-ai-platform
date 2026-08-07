@@ -14,6 +14,7 @@ import {
   acknowledgeAndAsk,
   canSearch,
   nextMinimumQuestion,
+  withSearchDefaults,
 } from './clarification'
 import {
   composeGreeting,
@@ -326,6 +327,14 @@ export async function runBilamoIntelligenceTurn(
   memory = syncPreferencesFromRequirements(memory, requirements)
 
   const locale = memory.locale === 'en' ? 'en' : 'ar'
+  // Soft-default solo only for readiness/search — do not persist assumed travelers
+  // during collecting, or follow-up turns lose the "assumed solo" acknowledgment.
+  const travelersAssumed = requirements.travelers == null
+  const searchRequirements = withSearchDefaults(requirements)
+  memory = {
+    ...memory,
+    agent: { ...memory.agent, requirements },
+  }
 
   // Pure greeting with no travel signal → consultant welcome.
   if (
@@ -354,12 +363,15 @@ export async function runBilamoIntelligenceTurn(
   }
 
   const askedSlot = nextMinimumQuestion({
-    requirements,
+    requirements: searchRequirements,
     askedSlots: memory.askedSlots,
   })
 
-  if (askedSlot || !canSearch(requirements)) {
-    const slot = askedSlot ?? nextMinimumQuestion({ requirements, askedSlots: [] })
+  if (askedSlot || !canSearch(searchRequirements)) {
+    const slot = askedSlot ?? nextMinimumQuestion({
+      requirements: searchRequirements,
+      askedSlots: [],
+    })
     if (!slot) {
       // Should not happen; fall through.
       return null
@@ -387,8 +399,13 @@ export async function runBilamoIntelligenceTurn(
     }
   }
 
-  // Ready to search — parallel orchestrator with consultant progress stream.
-  memory = { ...memory, phase: 'searching' }
+  // Ready to search — materialize soft defaults into the search requirements.
+  requirements = searchRequirements
+  memory = {
+    ...memory,
+    phase: 'searching',
+    agent: { ...memory.agent, requirements },
+  }
   const progressLines: string[] = []
   const pushProgress = (message: string) => {
     if (!message || progressLines[progressLines.length - 1] === message) return
@@ -400,7 +417,7 @@ export async function runBilamoIntelligenceTurn(
     })
   }
   pushProgress(
-    locale === 'ar' ? 'لديّ ما يكفي للبحث.' : 'I have enough information to search.',
+    locale === 'ar' ? 'لديّ ما يكفي — أرتّب الآن.' : 'I have enough — arranging now.',
   )
 
   const search = await runBilamoSearchOrchestrator({
@@ -413,7 +430,12 @@ export async function runBilamoIntelligenceTurn(
     },
   })
 
-  const copy = composeRecommendation({ requirements, search, locale })
+  const copy = composeRecommendation({
+    requirements,
+    search,
+    locale,
+    assumedSolo: travelersAssumed && requirements.travelers === 1,
+  })
   await streamConsultantText({
     ...copy,
     onDelta: input.onDelta,

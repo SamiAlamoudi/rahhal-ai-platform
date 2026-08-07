@@ -1,6 +1,7 @@
 /**
  * Minimum follow-up policy — one hard slot at a time.
- * Budget is never asked. Never re-ask slots already asked or filled.
+ * Budget is never asked. Travelers soft-default to solo (never a blocking question).
+ * Never re-ask slots already asked or filled.
  */
 
 import {
@@ -17,23 +18,36 @@ const FIELD_TO_SLOT: Record<string, BilamoHardSlot> = {
   travelers: 'travelers',
 }
 
+/** Soft defaults so the consultant can search after destination + timing. */
+export function withSearchDefaults(requirements: TripRequirements): TripRequirements {
+  return {
+    ...requirements,
+    travelers: requirements.travelers ?? 1,
+  }
+}
+
 export function nextMinimumQuestion(input: {
   requirements: TripRequirements
   askedSlots: BilamoHardSlot[]
+  /** When true (default), travelers are never a blocking question. */
+  softDefaultTravelers?: boolean
 }): BilamoHardSlot | null {
-  const missing = missingClarificationFields(input.requirements, { smart: true })
+  const softDefaultTravelers = input.softDefaultTravelers !== false
+  const req = softDefaultTravelers ? withSearchDefaults(input.requirements) : input.requirements
+  const missing = missingClarificationFields(req, { smart: true })
   for (const field of missing) {
     const slot = FIELD_TO_SLOT[field]
     if (!slot) continue
+    if (softDefaultTravelers && slot === 'travelers') continue
     if (input.askedSlots.includes(slot)) continue
-    if (slot === 'dates' && hasApproximateTravelDates(input.requirements)) continue
+    if (slot === 'dates' && hasApproximateTravelDates(req)) continue
     return slot
   }
   return null
 }
 
 export function canSearch(requirements: TripRequirements): boolean {
-  return nextMinimumQuestion({ requirements, askedSlots: [] }) == null
+  return nextMinimumQuestion({ requirements, askedSlots: [], softDefaultTravelers: true }) == null
 }
 
 export function clarificationPrompt(
@@ -64,7 +78,7 @@ export function clarificationPrompt(
     return { displayText, spokenText }
   }
 
-  // travelers
+  // travelers (legacy path — normally soft-defaulted)
   const displayText = locale === 'ar'
     ? (dest
       ? `حسناً — ${dest}. تسافر لوحدك، أم مع أحد؟`
@@ -84,5 +98,29 @@ export function acknowledgeAndAsk(
   requirements: TripRequirements,
 ): { displayText: string; spokenText: string } {
   const locale = memory.locale === 'en' ? 'en' : 'ar'
-  return clarificationPrompt(slot, requirements, locale)
+  const base = clarificationPrompt(slot, requirements, locale)
+  const dest = requirements.destination || requirements.destinations[0]
+  const origin = requirements.origin || memory.preferences.origin
+
+  // Light acknowledgment of what we already know — never a second question.
+  if (slot === 'dates' && dest) {
+    if (locale === 'ar') {
+      const prefix = origin
+        ? `فهمت — ${dest} من ${origin}. `
+        : `فهمت — ${dest}. `
+      return {
+        displayText: `${prefix}${base.displayText.replace(/^ممتاز — [^.]+\.\s*/, '')}`,
+        spokenText: base.spokenText,
+      }
+    }
+    const prefix = origin
+      ? `Understood — ${dest} from ${origin}. `
+      : `Understood — ${dest}. `
+    return {
+      displayText: `${prefix}${base.displayText.replace(/^Wonderful — [^.]+\.\s*/, '')}`,
+      spokenText: base.spokenText,
+    }
+  }
+
+  return base
 }

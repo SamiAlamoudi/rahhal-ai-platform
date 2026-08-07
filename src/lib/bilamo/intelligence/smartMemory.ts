@@ -1,5 +1,5 @@
 /**
- * Smart Memory — never ask twice; retain consultant preferences.
+ * Smart Memory — never ask twice; retain consultant preferences across turns.
  */
 
 import type { AgentMemory, AgentLocale, TripRequirements } from '../../agent/types'
@@ -25,6 +25,22 @@ export function emptyBilamoMemory(locale: AgentLocale = 'en'): BilamoConsultantM
   }
 }
 
+function collectAskedSlotsFromMessages(messages: ChatMessage[]): BilamoHardSlot[] {
+  const asked = new Set<BilamoHardSlot>()
+  for (const message of messages) {
+    const bilamo = (message.providerMeta as { bilamo?: {
+      askedSlots?: BilamoHardSlot[]
+      askedSlot?: BilamoHardSlot | null
+    } } | null | undefined)?.bilamo
+    if (!bilamo) continue
+    for (const slot of bilamo.askedSlots ?? []) {
+      if (slot) asked.add(slot)
+    }
+    if (bilamo.askedSlot) asked.add(bilamo.askedSlot)
+  }
+  return [...asked]
+}
+
 export function hydrateBilamoMemory(input: {
   messages: ChatMessage[]
   prior?: BilamoConsultantMemory | null
@@ -44,6 +60,14 @@ export function hydrateBilamoMemory(input: {
     }
   }
 
+  // Merge askedSlots from prior + every assistant bilamo meta (survives reload).
+  const askedSlots = [
+    ...new Set<BilamoHardSlot>([
+      ...base.askedSlots,
+      ...collectAskedSlotsFromMessages(input.messages),
+    ]),
+  ]
+
   const req = agent.requirements
   return {
     locale: agent.locale || locale,
@@ -52,7 +76,7 @@ export function hydrateBilamoMemory(input: {
       ...agent,
       locale: agent.locale || locale,
     },
-    askedSlots: [...base.askedSlots],
+    askedSlots,
     preferences: {
       origin: req.origin ?? base.preferences.origin,
       preferredAirline: req.preferredAirline ?? base.preferences.preferredAirline,

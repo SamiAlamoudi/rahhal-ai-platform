@@ -21,6 +21,10 @@ export interface FlightCardProps {
   onSelect?: () => void
   onCompare?: () => void
   onViewDetails?: () => void
+  /** Traveler has chosen this option. */
+  selected?: boolean
+  /** Action labels locale — defaults to English. */
+  locale?: 'ar' | 'en'
   className?: string
 }
 
@@ -41,13 +45,18 @@ export function FlightCard({
   onSelect,
   onCompare,
   onViewDetails,
+  selected = false,
+  locale = 'en',
   className,
 }: FlightCardProps) {
+  const labels = locale === 'ar'
+    ? { select: 'اختيار', compare: 'مقارنة', details: 'التفاصيل', selected: 'تم الاختيار' }
+    : { select: 'Select', compare: 'Compare', details: 'View details', selected: 'Selected' }
   const metaParts = [
     duration,
     stopsLabel,
     baggageSummary ? `Bag ${baggageSummary}` : null,
-    score != null && highlighted ? `Score ${score}` : null,
+    score != null && (highlighted || selected) ? `Score ${score}` : null,
   ].filter(Boolean)
 
   const showActions = Boolean(onSelect || onCompare || onViewDetails)
@@ -55,12 +64,17 @@ export function FlightCard({
   return (
     <div className={cn('space-y-0.5', className)}>
       <SearchResult
-        title={kindLabel && highlighted ? kindLabel : `${origin} → ${destination}`}
-        subtitle={kindLabel && highlighted ? `${airline} · ${origin} → ${destination}` : airline}
+        title={kindLabel && (highlighted || selected) ? kindLabel : `${origin} → ${destination}`}
+        subtitle={
+          kindLabel && (highlighted || selected)
+            ? `${airline} · ${origin} → ${destination}`
+            : airline
+        }
         priceLabel={priceLabel}
-        highlighted={highlighted}
+        highlighted={highlighted && !selected}
+        selected={selected}
         reason={reason}
-        onSelect={onSelect}
+        interactive={false}
         meta={metaParts.join(' · ')}
       >
         <div className="mt-2 flex items-center gap-2 text-[12.5px] text-[var(--bilamo-muted)]">
@@ -79,9 +93,10 @@ export function FlightCard({
             <button
               type="button"
               onClick={onSelect}
-              className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-text)]/75 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)]"
+              disabled={selected}
+              className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-text)]/75 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)] disabled:opacity-60 disabled:no-underline"
             >
-              Select
+              {selected ? labels.selected : labels.select}
             </button>
           ) : null}
           {onCompare ? (
@@ -90,7 +105,7 @@ export function FlightCard({
               onClick={onCompare}
               className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-muted)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)]"
             >
-              Compare
+              {labels.compare}
             </button>
           ) : null}
           {onViewDetails ? (
@@ -99,7 +114,7 @@ export function FlightCard({
               onClick={onViewDetails}
               className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-muted)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)]"
             >
-              View details
+              {labels.details}
             </button>
           ) : null}
         </div>

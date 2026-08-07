@@ -35,6 +35,7 @@ export {
   canSearch,
   clarificationPrompt,
   acknowledgeAndAsk,
+  withSearchDefaults,
 } from './clarification'
 export { runBilamoSearchOrchestrator } from './searchOrchestrator'
 export {

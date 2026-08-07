@@ -6,6 +6,8 @@ import {
   runBilamoSearchOrchestrator,
   emptyBilamoMemory,
   rememberAsked,
+  withSearchDefaults,
+  hydrateBilamoMemory,
 } from '../bilamo/intelligence'
 import { emptyRequirements } from '../agent/types'
 import { createTravelAgentService } from '../agent/travelAgentService'
@@ -50,7 +52,7 @@ describe('Bilamo Intelligence Layer', () => {
     expect(turn!.search).toBeNull()
   })
 
-  it('never re-asks a slot already asked when still missing other hard slots', () => {
+  it('never re-asks dates; travelers are soft-defaulted (not a blocking question)', () => {
     const req = {
       ...emptyRequirements(),
       destination: 'Japan',
@@ -62,7 +64,33 @@ describe('Bilamo Intelligence Layer', () => {
       requirements: req,
       askedSlots: ['dates'],
     })
-    expect(second).toBe('travelers')
+    // Premium path: solo is assumed — only destination + timing block search.
+    expect(second).toBeNull()
+  })
+
+  it('withSearchDefaults fills solo travelers without mutating other fields', () => {
+    const req = {
+      ...emptyRequirements(),
+      destination: 'Paris',
+      destinations: ['Paris'],
+      durationDays: 4,
+    }
+    const next = withSearchDefaults(req)
+    expect(next.travelers).toBe(1)
+    expect(next.destination).toBe('Paris')
+    expect(withSearchDefaults({ ...req, travelers: 3 }).travelers).toBe(3)
+  })
+
+  it('hydrateBilamoMemory merges askedSlots from prior assistant meta', () => {
+    const hydrated = hydrateBilamoMemory({
+      messages: [
+        msg('user', 'Japan please'),
+        msg('assistant', 'When roughly?', {
+          bilamo: { askedSlot: 'dates', askedSlots: ['dates'] },
+        }),
+      ],
+    })
+    expect(hydrated.askedSlots).toContain('dates')
   })
 
   it('does not treat budget as required for search readiness', () => {
@@ -115,7 +143,7 @@ describe('Bilamo Intelligence Layer', () => {
     expect(turn).not.toBeNull()
     expect(turn!.phase).toBe('recommending')
     expect(turn!.search?.flights.length).toBeGreaterThan(0)
-    expect(turn!.displayText.toLowerCase()).toMatch(/option|choose|suggest|airline|hotel/)
+    expect(turn!.displayText.toLowerCase()).toMatch(/pick|recommend|airline|hotel|why|stay/)
     expect(turn!.spokenText.split(' ').length).toBeLessThan(40)
   })
 
