@@ -132,7 +132,7 @@ function classify(rel, line, token) {
     return { classification: 'Internal technical', reason: 'Already neutralized internal token' }
   }
 
-  if (/^Rahhal[A-Z]/.test(t) || /^RAHHAL_/.test(t) || /^rahhal[A-Z_]/.test(t)) {
+  if (/^Rahhal[A-Z]/.test(t) || t.startsWith('RAHHAL_') || /^rahhal[A-Z_]/.test(t)) {
     return {
       classification: 'Internal technical',
       reason: inTest
