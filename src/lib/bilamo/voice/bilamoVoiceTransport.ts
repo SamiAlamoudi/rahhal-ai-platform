@@ -75,6 +75,11 @@ export interface BilamoVoiceTransport {
    * Classic may alias stopListening. Default: stopListening.
    */
   finalizeListening?(): void
+  /**
+   * Soft-cancel listening without emitting a final transcript.
+   * Used when typed send must not spawn a parallel voice turn.
+   */
+  cancelListening?(): void
   /** Optional raw PCM / blob path — classic may no-op. */
   sendAudio?(chunk: ArrayBuffer): void
   speak(request: BilamoSpeakRequest): BilamoSpeakHandle

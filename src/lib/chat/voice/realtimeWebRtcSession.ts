@@ -120,11 +120,11 @@ export type RealtimeWebRtcSession = {
    * Speak a written assistant draft via Realtime after spoken-dialogue post-processing.
    * Does not change the Realtime engine — only the words fed into it.
    */
-  speakWrittenDraft: (written: string, opts?: { locale?: 'ar' | 'en' | 'fr' }) => void
+  speakWrittenDraft: (written: string, opts?: { locale?: LockedSpeechLanguage }) => void
   /**
    * Set ASR / conversation input language before listening.
-   * Must be called with the traveler's language (including `fr`) — connect must not
-   * force Arabic when French/English is already preferred.
+   * Must be called with the traveler's language — connect must not force Arabic
+   * when another language is already preferred.
    */
   setInputLanguage: (language: LockedSpeechLanguage) => void
   getStatus: () => RealtimeSessionStatus
@@ -229,7 +229,7 @@ export function createRealtimeWebRtcSession(
   /** Brief ICE blip timer — avoid tearing down on mobile transient disconnects. */
   let iceRecoveryTimer: ReturnType<typeof setTimeout> | null = null
   /** Queue progressive speakWrittenDraft chunks while a response is already playing. */
-  let speakQueue: Array<{ spoken: string; locale: 'ar' | 'en' | 'fr' }> = []
+  let speakQueue: Array<{ spoken: string; locale: LockedSpeechLanguage }> = []
   const playbackDiag = emptyVoicePlaybackDiagnostics()
 
   const applyInputLanguage = (language: LockedSpeechLanguage, reason: string) => {
@@ -987,13 +987,34 @@ export function createRealtimeWebRtcSession(
     }
   }
 
-  const startSpeakUtterance = (spoken: string, locale: 'ar' | 'en' | 'fr') => {
+  const languageLabelFor = (locale: LockedSpeechLanguage): string => {
+    const map: Partial<Record<LockedSpeechLanguage, string>> = {
+      ar: 'Arabic',
+      en: 'English',
+      fr: 'French',
+      es: 'Spanish',
+      de: 'German',
+      it: 'Italian',
+      tr: 'Turkish',
+      hi: 'Hindi',
+      ur: 'Urdu',
+      zh: 'Chinese',
+      ja: 'Japanese',
+      ko: 'Korean',
+      pt: 'Portuguese',
+      ru: 'Russian',
+      id: 'Indonesian',
+    }
+    return map[locale] || 'English'
+  }
+
+  const startSpeakUtterance = (spoken: string, locale: LockedSpeechLanguage) => {
     // Speaking must never overlap local capture (no Listening + Speaking).
     stopLocalMicCapture('speak_written_draft')
     activeLanguage = locale
     preferredInputLanguage = locale
     const context = inferSpokenContext(spoken)
-    const languageLabel = locale === 'ar' ? 'Arabic' : locale === 'fr' ? 'French' : 'English'
+    const languageLabel = languageLabelFor(locale)
     assistantBuffer = ''
     // Fresh play diagnostics for this assistant utterance (same text as UI — no second answer).
     playbackDiag.audioPlayRequested = false
@@ -1841,7 +1862,7 @@ export function createRealtimeWebRtcSession(
     },
     setInputLanguage(language) {
       if (disposed) return
-      if (language !== 'ar' && language !== 'en' && language !== 'fr') return
+      if (!language) return
       applyInputLanguage(language, 'set_input_language')
     },
     speakWrittenDraft(written, opts) {
@@ -1849,9 +1870,7 @@ export function createRealtimeWebRtcSession(
         telemetry('speak_blocked_hard_stopped')
         return
       }
-      // French must not collapse to Arabic (previous ternary treated only 'en' as Latin).
-      const locale: 'ar' | 'en' | 'fr' =
-        opts?.locale === 'en' || opts?.locale === 'fr' ? opts.locale : 'ar'
+      const locale: LockedSpeechLanguage = opts?.locale || activeLanguage || 'ar'
       // Sole Realtime speech path — speak the same text the UI shows.
       // Strip advice/website chrome only; do not invent a shorter second reply.
       const cleaned = toSpokenDialogue(written, {

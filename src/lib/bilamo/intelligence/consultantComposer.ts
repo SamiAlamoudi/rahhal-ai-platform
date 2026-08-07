@@ -26,7 +26,6 @@ export function composeRecommendation(input: {
 }): { displayText: string; spokenText: string } {
   const dest = input.requirements.destination || input.requirements.destinations[0] || 'your destination'
   const flight = input.search.flights[0]
-  const hotel = input.search.hotels[0]
   const locale = input.locale
   const emptyFlights = !input.search.flights.length
   const flightsMeta = input.search.flightsMeta
@@ -44,18 +43,17 @@ export function composeRecommendation(input: {
       }
     }
 
-    const lines = [
-      `هذا ما أختاره لك إلى ${dest}.`,
-      input.assumedSolo ? 'افترضت أنك تسافر لوحدك — قل لي إن كان معك أحد.' : null,
-      hotel ? `وللإقامة: ${hotel.name}.` : null,
-      stale ? 'قد تكون الأسعار تحرّكت — قل لي إن أردت تحديثاً.' : null,
-    ].filter(Boolean) as string[]
-
+    // Cards are the source of truth — never emit recommendation paragraphs.
+    let displayText = `هذا ما أختاره لك إلى ${dest}.`
+    if (input.assumedSolo) displayText += ' افترضت أنك لوحدك.'
+    if (stale) displayText += ' قد تتحرك الأسعار.'
     const spokenText = flight
-      ? `أقترح ${flight.airline} لـ ${dest}. ${String(flight.reason || '').split(/[.!?؟]/)[0]}.`
+      ? `أقترح ${flight.airline} لـ ${dest}.`
       : `رتّبت خيارات لـ ${dest}.`
-
-    return { displayText: lines.join(' '), spokenText }
+    return {
+      displayText,
+      spokenText: input.assumedSolo ? `${spokenText} افترضت أنك لوحدك.` : spokenText,
+    }
   }
 
   if (locale === 'fr') {
@@ -69,18 +67,16 @@ export function composeRecommendation(input: {
       }
     }
 
-    const lines = [
-      `Voici mon choix pour ${dest}.`,
-      input.assumedSolo ? 'J\'ai supposé un voyage en solo — dites-moi si quelqu\'un vous accompagne.' : null,
-      hotel ? `Pour le séjour : ${hotel.name}.` : null,
-      stale ? 'Les tarifs ont pu bouger — dites-moi si vous voulez une mise à jour.' : null,
-    ].filter(Boolean) as string[]
-
+    let displayText = `Voici mon choix pour ${dest}.`
+    if (input.assumedSolo) displayText += ' Solo par défaut.'
+    if (stale) displayText += ' Les tarifs ont pu bouger.'
     const spokenText = flight
-      ? `Je retiendrais ${flight.airline} pour ${dest}. ${String(flight.reason || '').split(/[.!?؟]/)[0]}.`
+      ? `Je retiendrais ${flight.airline} pour ${dest}.`
       : `J'ai préparé des options pour ${dest}.`
-
-    return { displayText: lines.join(' '), spokenText }
+    return {
+      displayText,
+      spokenText: input.assumedSolo ? `${spokenText} Solo par défaut.` : spokenText,
+    }
   }
 
   if (emptyFlights) {
@@ -93,18 +89,17 @@ export function composeRecommendation(input: {
     }
   }
 
-  const lines = [
-    `Here is my pick for ${dest}.`,
-    input.assumedSolo ? 'I assumed you are traveling solo — tell me if someone is joining.' : null,
-    hotel ? `For the stay: ${hotel.name}.` : null,
-    stale ? 'Prices may have shifted — say if you want a refresh.' : null,
-  ].filter(Boolean) as string[]
-
+  // Cards carry flight/hotel/visa/weather/costs — keep display to one short line.
+  let displayText = `Here is my pick for ${dest}.`
+  if (input.assumedSolo) displayText += ' Solo assumed.'
+  if (stale) displayText += ' Prices may have shifted.'
   const spokenText = flight
-    ? `I'd take the ${flight.airline} for ${dest}. ${String(flight.reason || '').split(/[.!?؟]/)[0]}.`
+    ? `I'd take the ${flight.airline} for ${dest}.`
     : `I've shaped options for ${dest}.`
-
-  return { displayText: lines.join(' '), spokenText }
+  return {
+    displayText,
+    spokenText: input.assumedSolo ? `${spokenText} Solo assumed.` : spokenText,
+  }
 }
 
 export function composeGreeting(locale: BilamoReplyLocale): { displayText: string; spokenText: string } {

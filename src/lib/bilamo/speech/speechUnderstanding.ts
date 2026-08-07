@@ -2,6 +2,7 @@
  * Speech understanding stage — runs before Bilamo intent extraction.
  *
  * Pipeline: transcript → language/dialect → cleanup → semantic normalize → confidence.
+ * Never translate before understanding. Never invent destinations.
  * Never logs raw audio. Keeps original transcript separate from normalized text.
  */
 
@@ -16,6 +17,7 @@ import {
 import { sanitizeArabicVoiceTranscript } from '../../chat/voice/sanitizeArabicVoiceTranscript'
 import {
   coerceReplyLocale,
+  isBilamoReplyLocale,
   type BilamoReplyLocale,
 } from './localeBridge'
 
@@ -30,15 +32,15 @@ export type SpeechUnderstandingResult = {
   normalizedIntent: string | null
   destinationConfidence: number
   needsDestinationConfirm: boolean
+  /** Uncertain word/phrase only — never a full-sentence repeat. */
   confirmDestinationLabel: string | null
 }
 
 function cleanupForLanguage(text: string, language: BilamoReplyLocale): string {
   const trimmed = text.trim()
   if (!trimmed) return ''
-  // Arabic-only sanitizer. Running it on French/English empties short Latin
-  // utterances and strips valid FR tokens — root cause of FR intent loss.
-  if (language === 'ar') {
+  // Arabic-only sanitizer. Running it on Latin/CJK empties or corrupts valid tokens.
+  if (language === 'ar' || language === 'ur') {
     return sanitizeArabicVoiceTranscript(trimmed) || trimmed
   }
   return trimmed.replace(/\s+/g, ' ').trim()
@@ -81,7 +83,7 @@ export function assessDestinationConfidence(raw: string | null | undefined): {
       identityLabel: identity.label,
     }
   }
-  // Unknown free-text place — confirm only when the token looks weak/garbled.
+  // Unknown free-text place — confirm only the weak token (never the whole sentence).
   const token = identity.label.trim()
   const weak =
     token.length < 3
@@ -93,6 +95,13 @@ export function assessDestinationConfidence(raw: string | null | undefined): {
     label: identity.label,
     identityLabel: identity.label,
   }
+}
+
+function previousAsConversationLang(
+  previous: BilamoReplyLocale | null | undefined,
+): Exclude<ConversationLanguageCode, 'auto'> | null {
+  if (!previous || !isBilamoReplyLocale(previous)) return null
+  return previous
 }
 
 export function understandSpeechTurn(input: {
@@ -118,20 +127,21 @@ export function understandSpeechTurn(input: {
     }
   }
 
+  const previous = previousAsConversationLang(input.previousLanguage)
   const resolved = resolveConversationLanguage({
     preference: input.languagePreference ?? 'auto',
     utterance: raw,
-    previousLanguage: input.previousLanguage === 'fr'
-      ? 'fr'
-      : input.previousLanguage === 'en'
-        ? 'en'
-        : input.previousLanguage === 'ar'
-          ? 'ar'
-          : null,
-    fallbackPreference: input.previousLanguage === 'en' ? 'en' : 'ar',
+    previousLanguage: previous,
+    // Latin-script conversations must not fall back to Arabic ASR.
+    fallbackPreference: previous === 'ar' || (!previous && /[\u0600-\u06FF]/.test(raw))
+      ? 'ar'
+      : 'en',
   })
   const detected = detectConversationLanguage(raw)
-  const language = coerceReplyLocale(resolved.language, input.previousLanguage ?? 'ar')
+  const language = coerceReplyLocale(
+    resolved.language,
+    previous ?? (detected.language === 'ar' ? 'ar' : 'en'),
+  )
   const languageConfidence =
     resolved.source === 'explicit_switch'
       ? 1
@@ -175,6 +185,7 @@ export function understandSpeechTurn(input: {
     dialect,
     dialectConfidence,
     transcriptConfidence,
+    // Never put a full-sentence translation here — intent tag only.
     normalizedIntent: destAssess.identityLabel
       ? `dest:${destAssess.identityLabel}`
       : `lang:${language}`,

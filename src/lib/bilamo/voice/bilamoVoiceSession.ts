@@ -35,6 +35,8 @@ import { probeVoiceAuth } from '../../security/voiceAuthProbe'
 
 /** Stuck processing/speaking without a live operation → recover to idle (no auto-listen). */
 const STUCK_STATE_WATCHDOG_MS = 8_000
+/** Finalize with no final transcript → release idle (must not wait on 8s watchdog). */
+const EMPTY_FINALIZE_MS = 1_400
 /** Realtime speak with no audible start → classic fallback for this turn. */
 const SILENT_REALTIME_FALLBACK_MS = 4_500
 
@@ -98,9 +100,10 @@ export type BilamoVoiceSession = {
   disconnect: () => void
   startListening: () => Promise<boolean>
   stopListening: () => void
+  /** Soft-cancel mic without emitting a final transcript. */
+  cancelListening: () => void
   /**
    * End-of-speech finalize: commit/emit final transcript once, then processing.
-   * Does NOT auto-relisten after assistant playback.
    */
   finalizeListening: () => void
   /** User-intent barge-in: stop playback, invalidate generation, start listening. */
@@ -111,6 +114,8 @@ export type BilamoVoiceSession = {
   switchToClassic: () => Promise<void>
   clearError: () => void
   clearTranscripts: () => void
+  /** ChatGPT-Voice parity: after first orb tap, re-arm mic when playback ends. */
+  setContinuousListening: (enabled: boolean) => void
   getMetrics: () => ReturnType<BilamoVoiceMetrics['snapshot']>
   getMetricsReport: () => BilamoVoiceMetricsReport
   /** Attach document visibility / device-loss hardening (idempotent). */
@@ -184,9 +189,12 @@ export function createBilamoVoiceSession(
   let guardsAttached = false
   let watchdogTimer: ReturnType<typeof setTimeout> | null = null
   let silentRealtimeTimer: ReturnType<typeof setTimeout> | null = null
+  let emptyFinalizeTimer: ReturnType<typeof setTimeout> | null = null
   let classicFallbackInFlight = false
   /** One realtime reconnect attempt per speak generation before classic TTS. */
   let playbackReconnectAttempted = false
+  /** After first user orb tap — re-arm mic when assistant playback ends. */
+  let continuousListening = false
   let playbackDiag = emptyVoicePlaybackDiagnostics()
   /** Stable snapshot reference for useSyncExternalStore (must not allocate every read). */
   let snapshot: BilamoVoiceSessionSnapshot = {
@@ -357,15 +365,26 @@ export function createBilamoVoiceSession(
     for (const listener of listeners) listener(snapshot)
   }
 
+  const clearEmptyFinalizeTimer = () => {
+    if (emptyFinalizeTimer != null) {
+      clearTimeout(emptyFinalizeTimer)
+      emptyFinalizeTimer = null
+    }
+  }
+
   const releaseToIdle = (reason = 'release_to_idle') => {
     if (disposed) return
     clearWatchdog()
     clearSilentRealtimeTimer()
+    clearEmptyFinalizeTimer()
     activeSpeakTransportGen = -1
     armingSpeak = false
     if (reason === 'watchdog') {
       playbackDiag.lastEvent = 'watchdogIdleRecovery'
       lastSafeErrorCode = 'watchdog_idle_recovery'
+    } else if (reason === 'empty_finalize') {
+      playbackDiag.lastEvent = 'emptyFinalizeIdle'
+      lastSafeErrorCode = 'empty_finalize'
     }
     noteVoiceTurnStage('idle')
     playbackDiag.turnStage = 'idle'
@@ -373,6 +392,17 @@ export function createBilamoVoiceSession(
       state = 'idle'
     }
     emit()
+  }
+
+  const rearmContinuousListening = () => {
+    if (disposed || !continuousListening) return
+    if (state !== 'idle') return
+    void session.startListening().then((ok) => {
+      if (!ok && continuousListening) {
+        // Stay idle — traveler can tap; do not latch error forever.
+        releaseToIdle('continuous_rearm_failed')
+      }
+    })
   }
 
   const armStuckWatchdog = () => {
@@ -576,6 +606,7 @@ export function createBilamoVoiceSession(
           // Already handed off this turn — never double-submit.
           if (lastFinalKey) return
         }
+        clearEmptyFinalizeTimer()
         lastFinalKey = key
         finalTranscript = event.text
         normalizedForExtract = event.normalizedForExtract ?? null
@@ -619,9 +650,12 @@ export function createBilamoVoiceSession(
         playbackDiag.lastEvent = 'audioPlaybackEnded'
         noteVoiceTurnStage('idle')
         playbackDiag.turnStage = 'idle'
-        // No auto-relisten after natural speak end — idle until user taps.
         if (state === 'speaking' || state === 'interrupted' || state === 'processing') {
           setState('idle')
+        }
+        // ChatGPT-Voice parity: next turn without a second orb tap.
+        if (continuousListening) {
+          globalThis.setTimeout(() => rearmContinuousListening(), 120)
         }
       },
       onAudioChunk: (info) => {
@@ -840,8 +874,20 @@ export function createBilamoVoiceSession(
     },
     stopListening() {
       // Soft stop (background / cancel). Silence + orb end-of-speech must call finalizeListening.
+      clearEmptyFinalizeTimer()
       transport?.stopListening()
       if (state === 'listening' || state === 'interrupted') setState('idle')
+    },
+    cancelListening() {
+      clearEmptyFinalizeTimer()
+      if (typeof transport?.cancelListening === 'function') {
+        transport.cancelListening()
+      } else {
+        transport?.stopListening()
+      }
+      if (state === 'listening' || state === 'interrupted' || state === 'processing') {
+        setState('idle')
+      }
     },
     finalizeListening() {
       if (disposed) return
@@ -858,6 +904,8 @@ export function createBilamoVoiceSession(
       playbackDiag.lastFsmTransition = `${state}->finalizing`
       noteVoiceTurnStage('finalizing')
       playbackDiag.turnStage = 'finalizing'
+      const genAtFinalize = generation
+      const keyBefore = lastFinalKey
       // Transitional: waiting for final transcript emit (exactly once via lastFinalKey).
       if (state === 'listening' || state === 'interrupted') {
         setState('processing')
@@ -867,6 +915,20 @@ export function createBilamoVoiceSession(
       } else {
         transport?.stopListening()
       }
+      clearEmptyFinalizeTimer()
+      emptyFinalizeTimer = globalThis.setTimeout(() => {
+        emptyFinalizeTimer = null
+        if (disposed || generation !== genAtFinalize) return
+        if (playbackDiag.finalTranscriptReceived) return
+        if (lastFinalKey !== keyBefore) return
+        if (state !== 'processing') return
+        // Empty / rejected ASR must not leave the orb stuck thinking.
+        releaseToIdle('empty_finalize')
+      }, EMPTY_FINALIZE_MS)
+      emit()
+    },
+    setContinuousListening(enabled) {
+      continuousListening = enabled
       emit()
     },
     async bargeIn() {

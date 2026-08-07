@@ -120,6 +120,7 @@ export function useBilamoVoiceSession(options: UseBilamoVoiceSessionOptions = {}
     bargeIn: () => session.bargeIn(),
     startListening: () => session.startListening(),
     stopListening: () => session.stopListening(),
+    cancelListening: () => session.cancelListening(),
     /** End-of-speech finalize (commit once) — preferred over stopListening for silence. */
     finalizeListening: () => session.finalizeListening(),
     connect: () => session.connect(),
@@ -129,6 +130,7 @@ export function useBilamoVoiceSession(options: UseBilamoVoiceSessionOptions = {}
     releaseToIdle: (reason?: string) => session.releaseToIdle(reason),
     setConversationId: (id: string | null) => session.setConversationId(id),
     setLocale: (locale: VoiceLocale) => session.setLocale(locale),
+    setContinuousListening: (enabled: boolean) => session.setContinuousListening(enabled),
     getMetrics: () => session.getMetrics(),
     getMetricsReport: () => session.getMetricsReport(),
   }

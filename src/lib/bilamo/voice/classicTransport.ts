@@ -9,6 +9,7 @@ import {
 } from '../../chat/voice/audioElementTextToSpeechProvider'
 import { createTextToSpeechProvider } from '../../chat/voice/voiceProviderFactory'
 import type { TextToSpeechProvider, VoiceLocale } from '../../chat/voice/voiceTypes'
+import { speechLangForLocale } from '../../chat/voice/voiceTypes'
 import { normalizeArabicAsrForExtraction } from '../../chat/voice/arabicAsrNormalize'
 import { sanitizeArabicVoiceTranscript } from '../../chat/voice/sanitizeArabicVoiceTranscript'
 import type {
@@ -188,7 +189,7 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
       intentionalStop = false
       const rec = new Ctor()
       recognition = rec
-      rec.lang = locale === 'ar' ? 'ar-SA' : locale === 'fr' ? 'fr-FR' : 'en-US'
+      rec.lang = speechLangForLocale(locale)
       rec.continuous = true
       rec.interimResults = true
       let reconnectAttempted = false
@@ -310,6 +311,29 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
         emitFinalIfNeeded()
         if (recognition === rec) clearRecognition()
       }, 700)
+    },
+
+    cancelListening() {
+      // Soft cancel — never emit a final (typed send must not spawn a voice turn).
+      intentionalStop = true
+      finalEmitted = true
+      finalBuffer = ''
+      interimBuffer = ''
+      listening = false
+      callbacks.onListeningChange?.(false)
+      stopEpoch += 1
+      const rec = recognition
+      clearRecognition()
+      if (!rec) return
+      try {
+        rec.abort()
+      } catch {
+        try {
+          rec.stop()
+        } catch {
+          /* ignore */
+        }
+      }
     },
 
     finalizeListening() {

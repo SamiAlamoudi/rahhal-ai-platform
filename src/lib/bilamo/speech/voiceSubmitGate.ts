@@ -16,10 +16,13 @@ export type VoiceSubmitGateInput = {
  * True when a second orb tap must be ignored (not barge-in).
  * Covers the race: EOS → processing → (submit not busy yet) → user taps →
  * previous "voiceStuck" workaround called bargeIn and dropped the request.
+ *
+ * Does NOT ignore solely for orb thinking — empty finalize can leave thinking
+ * with no in-flight submit; that must recover.
  */
 export function shouldIgnoreOrbTapDuringVoiceSubmit(input: VoiceSubmitGateInput): boolean {
   if (input.voiceSubmitInFlight || input.sendLocked) return true
-  if (input.busy || input.orbState === 'thinking') return true
+  if (input.busy) return true
   return false
 }
 
@@ -30,4 +33,16 @@ export function shouldIgnoreOrbTapDuringVoiceSubmit(input: VoiceSubmitGateInput)
 export function shouldBargeInFromOrb(input: VoiceSubmitGateInput): boolean {
   if (input.voiceSubmitInFlight || input.sendLocked || input.busy) return false
   return input.orbState === 'speaking' || input.voiceState === 'speaking'
+}
+
+/**
+ * Stuck thinking/processing with no live submit — recover to listening.
+ * ChatGPT-Voice parity: never leave the orb dead after empty ASR.
+ */
+export function shouldRecoverStuckThinking(input: VoiceSubmitGateInput): boolean {
+  if (input.voiceSubmitInFlight || input.sendLocked || input.busy) return false
+  return (
+    input.voiceState === 'processing'
+    || (input.orbState === 'thinking' && input.voiceState !== 'speaking')
+  )
 }

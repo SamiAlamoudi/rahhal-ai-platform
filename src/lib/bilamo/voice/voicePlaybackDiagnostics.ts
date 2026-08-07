@@ -14,6 +14,7 @@ export type VoicePlaybackDiagEvent =
   | 'silentRealtimeTimeout'
   | 'classicFallback'
   | 'watchdogIdleRecovery'
+  | 'emptyFinalizeIdle'
   | 'speechDetected'
   | 'endOfSpeechDetected'
   | 'inputCommitted'
