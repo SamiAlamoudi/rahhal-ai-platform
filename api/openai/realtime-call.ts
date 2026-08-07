@@ -32,7 +32,8 @@ function defaultInstructions(dialectHint?: string): string {
   ].join(' ')
 }
 
-function buildSessionConfig(input: {
+/** Exported for unit tests — keep audio output modalities locked. */
+export function buildSessionConfig(input: {
   voice?: string
   instructions?: string
   dialectHint?: string
@@ -43,6 +44,9 @@ function buildSessionConfig(input: {
     type: 'realtime',
     model: process.env.OPENAI_REALTIME_MODEL?.trim() || REALTIME_VOICE_MODEL,
     instructions,
+    // GA Realtime: audio-only output modalities — text-only responses produce
+    // no remote WebRTC track audio (visible text, silent speaker).
+    output_modalities: ['audio'],
     audio: {
       input: {
         transcription: {

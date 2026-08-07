@@ -8,6 +8,11 @@ import { Navigate } from 'react-router-dom'
 import { BilamoShell, Button, Logo } from '../design-system'
 import { useBilamoVoiceSession } from '../hooks/useBilamoVoiceSession'
 import type { BilamoVoiceMetricsReport } from '../lib/bilamo/voice'
+import {
+  runDirectAudioProbe,
+  type DirectAudioProbeResult,
+} from '../lib/bilamo/voice/directAudioProbe'
+import { unlockAudioPlayback } from '../lib/chat/voice/audioElementTextToSpeechProvider'
 import { probeVoiceAuth } from '../lib/security/voiceAuthProbe'
 
 function voiceDiagnosticsEnabled(): boolean {
@@ -21,6 +26,8 @@ export default function BilamoVoiceDiagnostics() {
   const [report, setReport] = useState<BilamoVoiceMetricsReport | null>(null)
   const [micPermission, setMicPermission] = useState<string>('unknown')
   const [copyHint, setCopyHint] = useState<string | null>(null)
+  const [probeBusy, setProbeBusy] = useState(false)
+  const [probe, setProbe] = useState<DirectAudioProbeResult | null>(null)
 
   useEffect(() => {
     if (!allowed) return
@@ -209,12 +216,56 @@ export default function BilamoVoiceDiagnostics() {
           )}
         </div>
 
+        <div className="bilamo-glass space-y-3 rounded-[1.25rem] px-5 py-4">
+          <p className="text-[13px] text-[var(--bilamo-muted)]">
+            اختبار الصوت — bypasses STT / conversation / cards. Fixed Arabic TTS only.
+          </p>
+          <Button
+            type="button"
+            variant="primary"
+            disabled={probeBusy}
+            onClick={() => {
+              setProbeBusy(true)
+              setProbe(null)
+              // Must unlock inside this tap gesture before async TTS returns.
+              void unlockAudioPlayback()
+                .catch(() => undefined)
+                .then(() => runDirectAudioProbe())
+                .then((result) => setProbe(result))
+                .finally(() => setProbeBusy(false))
+            }}
+          >
+            اختبار الصوت
+          </Button>
+          {probe ? (
+            <dl className="space-y-2 text-[13px]">
+              <Row label="Probe result" value={probe.result} />
+              <Row label="Failure stage" value={probe.failureStage || '—'} />
+              <Row label="HTTP status" value={probe.httpStatus == null ? '—' : String(probe.httpStatus)} />
+              <Row label="MIME" value={probe.contentType || '—'} />
+              <Row label="Bytes" value={String(probe.bytes)} />
+              <Row label="AudioContext" value={probe.audioContextState || '—'} />
+              <Row label="play() called" value={yn(probe.playCalled)} />
+              <Row label="play() result" value={probe.playResult || '—'} />
+              <Row label="playing event" value={yn(probe.playingEvent)} />
+              <Row label="timeupdate" value={yn(probe.timeupdateSeen)} />
+              <Row label="max currentTime" value={probe.maxCurrentTime.toFixed(3)} />
+              <Row label="ended" value={yn(probe.ended)} />
+              <Row label="readyState" value={probe.elementReadyState == null ? '—' : String(probe.elementReadyState)} />
+              <Row label="paused" value={probe.elementPaused == null ? '—' : yn(probe.elementPaused)} />
+              <Row label="muted" value={probe.elementMuted == null ? '—' : yn(probe.elementMuted)} />
+              <Row label="volume" value={probe.elementVolume == null ? '—' : String(probe.elementVolume)} />
+              <Row label="correlation" value={probe.correlationId} />
+            </dl>
+          ) : null}
+        </div>
+
         <div className="flex flex-wrap gap-3">
           <Button
             type="button"
             variant="secondary"
             onClick={() => {
-              void voice.connect()
+              void unlockAudioPlayback().then(() => voice.connect())
             }}
           >
             Connect
@@ -223,7 +274,7 @@ export default function BilamoVoiceDiagnostics() {
             type="button"
             variant="secondary"
             onClick={() => {
-              void voice.startListening()
+              void unlockAudioPlayback().then(() => voice.startListening())
             }}
           >
             Start mic

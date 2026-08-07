@@ -452,7 +452,8 @@ export function BilamoConversationExperience({
         )
         if (handle) {
           speakGenerationRef.current = handle.generation
-          setChatOrb('speaking')
+          // Stay thinking until VoiceSession reports audible SPEAKING.
+          setChatOrb('thinking')
           void handle.done.finally(() => {
             if (speakGenerationRef.current === handle.generation) setChatOrb(null)
           })
@@ -698,9 +699,11 @@ export function BilamoConversationExperience({
         const spoken = spokenRaw.trim()
         if (!spoken || spokenArmedRef.current) return
         spokenArmedRef.current = true
+        // Stay thinking until VoiceSession reports audible SPEAKING (play started).
+        // Never claim speaking from text/TTS-request alone.
+        setChatOrb('thinking')
         const handle = voice.speak(spoken, voiceLocale)
         speakGenerationRef.current = handle.generation
-        setChatOrb('speaking')
         void handle.done.finally(() => {
           if (speakGenerationRef.current === handle.generation) {
             window.setTimeout(() => setChatOrb(null), 200)

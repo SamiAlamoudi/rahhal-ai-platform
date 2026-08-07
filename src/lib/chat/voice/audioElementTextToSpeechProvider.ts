@@ -26,6 +26,8 @@ let unlocked = false
 let sharedAudio: HTMLAudioElement | null = null
 let sharedAudioB: HTMLAudioElement | null = null
 let unlockWarmAudio: HTMLAudioElement | null = null
+/** Primed during user gesture — reused by Realtime WebRTC remote playback. */
+let primedRemoteAudio: HTMLAudioElement | null = null
 let activeObjectUrl: string | null = null
 let activeObjectUrlB: string | null = null
 let useBufferB = false
@@ -183,22 +185,67 @@ export function preconnectOpenAiTtsRoute(): void {
  * Call from a user gesture (mic tap / send) before the async reply returns.
  * Uses a *separate* warm-up element so we never wipe the playback element's src.
  */
+/**
+ * Safari autoplay is often per-element. Warm the *actual* playback nodes
+ * (not only a throwaway element), or later TTS play() stays NotAllowed.
+ */
+async function primeElementForSafari(el: HTMLAudioElement): Promise<void> {
+  const prevSrc = el.src
+  const prevMuted = el.muted
+  const prevVolume = el.volume
+  try {
+    el.muted = false
+    el.volume = 1
+    el.src = SILENT_WAV
+    await el.play().catch(() => undefined)
+    el.pause()
+    try {
+      el.currentTime = 0
+    } catch {
+      // ignore
+    }
+  } finally {
+    // Restore — next speak sets a real blob URL.
+    if (prevSrc && !prevSrc.startsWith('data:')) {
+      try {
+        el.src = prevSrc
+      } catch {
+        el.removeAttribute('src')
+      }
+    } else {
+      el.removeAttribute('src')
+    }
+    el.muted = prevMuted
+    el.volume = prevVolume
+  }
+}
+
 export async function unlockAudioPlayback(): Promise<void> {
   if (typeof window === 'undefined' || typeof Audio === 'undefined') return
 
   await resumeAudioContext()
   preconnectOpenAiTtsRoute()
 
-  // Ensure playback node exists in the DOM under the gesture stack.
+  // Ensure playback nodes exist in the DOM under the gesture stack and prime them.
+  // Safari autoplay unlock is per-element — warming only a throwaway node left TTS silent.
   try {
-    ensurePlaybackAudio()
+    const a = ensurePlaybackAudio()
+    const b = ensurePlaybackAudioB()
+    const remote = obtainPrimedRemoteAudioElement()
+    a.muted = false
+    a.volume = 1
+    b.muted = false
+    b.volume = 1
+    remote.muted = false
+    remote.volume = 1
+    await primeElementForSafari(a)
+    await primeElementForSafari(b)
+    await primeElementForSafari(remote)
   } catch {
     // ignore
   }
 
-  // Sprint 80 P1-6: unlock uses silent local audio + route preconnect/OPTIONS only.
-  // Do not POST a synthetic "مرحبا" TTS — that burns latency and proxy quota on every gesture.
-
+  // Warm element retained for legacy unlock path.
   try {
     if (!unlockWarmAudio) {
       unlockWarmAudio = new Audio(SILENT_WAV)
@@ -233,6 +280,55 @@ export async function unlockAudioPlayback(): Promise<void> {
   } catch {
     // ignore
   }
+
+  // Persist unlock across visibility / bfcache returns.
+  try {
+    if (typeof document !== 'undefined' && !(document as Document & { __bilamoAudioUnlockBound?: boolean }).__bilamoAudioUnlockBound) {
+      ;(document as Document & { __bilamoAudioUnlockBound?: boolean }).__bilamoAudioUnlockBound = true
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && unlocked) {
+          void resumeAudioContext().catch(() => undefined)
+        }
+      })
+      window.addEventListener('pageshow', () => {
+        if (unlocked) void resumeAudioContext().catch(() => undefined)
+      })
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/** Expose AudioContext state for diagnostics (never secrets). */
+export function getSharedAudioContextState(): string | null {
+  return audioContext?.state ?? null
+}
+
+/**
+ * Realtime remote playback element — created/primed inside unlockAudioPlayback
+ * so later async connect() does not invent a brand-new locked element.
+ */
+export function obtainPrimedRemoteAudioElement(): HTMLAudioElement {
+  if (typeof window === 'undefined' || typeof Audio === 'undefined') {
+    throw new Error('Audio playback is only available in the browser.')
+  }
+  if (!primedRemoteAudio) {
+    primedRemoteAudio = createHiddenAudio('remote-webrtc')
+  } else if (!primedRemoteAudio.isConnected && document.body) {
+    document.body.appendChild(primedRemoteAudio)
+  }
+  primedRemoteAudio.autoplay = true
+  primedRemoteAudio.muted = false
+  primedRemoteAudio.volume = 1
+  return primedRemoteAudio
+}
+
+/** Classic TTS playback element — primed during unlock for Safari autoplay. */
+export function obtainPrimedTtsPlaybackElement(): HTMLAudioElement {
+  const el = ensurePlaybackAudio()
+  el.muted = false
+  el.volume = 1
+  return el
 }
 
 export function isAudioPlaybackUnlocked(): boolean {
@@ -387,6 +483,7 @@ function playBlobOnElement(
       audio.onended = null
       audio.onerror = null
       audio.onplaying = null
+      audio.ontimeupdate = null
       if (err) {
         if (useB) revokeActiveUrlB()
         else revokeActiveUrl()
@@ -403,7 +500,18 @@ function playBlobOnElement(
       playbackStarted = true
       onPlaybackStart?.()
     }
+    audio.ontimeupdate = () => {
+      // Safari sometimes skips 'playing' — currentTime progression is audible proof.
+      if (playbackStarted || audio.currentTime <= 0.01) return
+      playbackStarted = true
+      onPlaybackStart?.()
+    }
     audio.onended = () => {
+      if (!playbackStarted) {
+        // Extremely short clips may end before 'playing' fires — treat ended as audible.
+        playbackStarted = true
+        onPlaybackStart?.()
+      }
       if (useB) revokeActiveUrlB()
       else revokeActiveUrl()
       finish()
@@ -415,10 +523,12 @@ function playBlobOnElement(
       const playAttempt = audio.play()
       if (playAttempt && typeof playAttempt.then === 'function') {
         playAttempt.then(() => {
-          if (!playbackStarted) {
-            playbackStarted = true
-            onPlaybackStart?.()
-          }
+          // Do NOT treat play() resolve alone as audible start (Safari silent autoplay).
+          // Wait briefly for playing/timeupdate; otherwise fail so classic recovery can run.
+          window.setTimeout(() => {
+            if (settled || playbackStarted) return
+            finish(new Error('تعذر تشغيل الصوت — لم يبدأ التشغيل الفعلي'))
+          }, 1200)
         }).catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err)
           finish(new Error(`تعذر تشغيل الصوت — اسمح بالتشغيل التلقائي (${message})`))

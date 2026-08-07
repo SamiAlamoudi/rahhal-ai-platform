@@ -32,13 +32,14 @@ import {
   noteVoiceTurnStage,
 } from './voiceHttpTrace'
 import { probeVoiceAuth } from '../../security/voiceAuthProbe'
+import { logChat } from '../../chat/chatLogger'
 
 /** Stuck processing/speaking without a live operation → recover to idle (no auto-listen). */
 const STUCK_STATE_WATCHDOG_MS = 8_000
 /** Finalize with no final transcript → release idle (must not wait on 8s watchdog). */
 const EMPTY_FINALIZE_MS = 1_400
 /** Realtime speak with no audible start → classic fallback for this turn. */
-const SILENT_REALTIME_FALLBACK_MS = 4_500
+const SILENT_REALTIME_FALLBACK_MS = 2_500
 
 /** User-facing voice errors — never expose technical / provider details. */
 const USER_SAFE_ERRORS = {
@@ -460,6 +461,10 @@ export function createBilamoVoiceSession(
     if (!pending || pending.gen !== failedGen) return
     classicFallbackInFlight = true
     clearSilentRealtimeTimer()
+    logChat('warn', 'voice', 'REALTIME_AUDIO_FAILED', {
+      generation: failedGen,
+      next: 'CLASSIC_TTS',
+    })
     try {
       transport?.interrupt()
       activeSpeakTransportGen = -1
@@ -486,10 +491,17 @@ export function createBilamoVoiceSession(
       await handle.done
       if (!playbackDiag.audioPlaybackStarted) {
         // Classic also silent — last-resort user guidance (still not text-only reply).
+        logChat('error', 'voice', 'VOICE_OUTPUT_FAILED', {
+          generation: failedGen,
+          stage: 'classic_silent',
+        })
         error = USER_SAFE_ERRORS.playback
         lastSafeErrorCode = 'playback_exhausted'
         setState('idle')
       } else {
+        logChat('debug', 'voice', 'REALTIME_AUDIO_FAILED → CLASSIC_TTS_OK', {
+          generation: failedGen,
+        })
         error = null
       }
     } finally {
@@ -638,6 +650,10 @@ export function createBilamoVoiceSession(
         playbackDiag.turnStage = 'playing'
         playbackReconnectAttempted = false
         error = null
+        logChat('debug', 'voice', fellBackToClassic ? 'CLASSIC_TTS_OK' : 'REALTIME_AUDIO_OK', {
+          transport: transportKind,
+          generation: gen,
+        })
         // first_audio is marked on real audio chunk / playback — not assumed here.
         setState('speaking')
       },

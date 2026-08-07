@@ -42,7 +42,8 @@ export function createRealtimeWebRtcBilamoTransport(
   /** Speak handles waiting on speaking-end callbacks. */
   const pendingSpeak = new Map<number, { resolve: () => void }>()
   const silentTimers = new Map<number, ReturnType<typeof setTimeout>>()
-  const SILENT_AUDIO_MS = 4_000
+  /** Align with BilamoVoiceSession silent-realtime classic fallback window. */
+  const SILENT_AUDIO_MS = 2_500
 
   const clearSilentTimer = (generation: number) => {
     const t = silentTimers.get(generation)

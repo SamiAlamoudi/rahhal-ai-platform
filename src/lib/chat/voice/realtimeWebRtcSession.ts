@@ -41,6 +41,10 @@ import {
 import { logMicSessionState, mapToMicSessionState } from './micSessionState'
 import { emptyVoicePlaybackDiagnostics } from '../../bilamo/voice/voicePlaybackDiagnostics'
 import {
+  obtainPrimedRemoteAudioElement,
+  unlockAudioPlayback,
+} from './audioElementTextToSpeechProvider'
+import {
   ARABIC_UTTERANCE_COMMIT_MS,
   createArabicUtteranceAssembler,
   type AssembledUtteranceCommit,
@@ -509,7 +513,6 @@ export function createRealtimeWebRtcSession(
       remoteAudio.volume = 1
       // Best-effort unlock (no-op if already unlocked outside a gesture).
       try {
-        const { unlockAudioPlayback } = await import('./audioElementTextToSpeechProvider')
         await unlockAudioPlayback()
       } catch {
         /* ignore */
@@ -635,7 +638,14 @@ export function createRealtimeWebRtcSession(
     clientRequestedResponse = true
     setStatus('thinking')
     telemetry('response_create_requested', { reason })
-    sendEvent({ type: 'response.create' })
+    // Must request audio output — bare response.create can yield text-only
+    // (transcript events without remote track audio → silent device).
+    sendEvent({
+      type: 'response.create',
+      response: {
+        output_modalities: ['audio'],
+      },
+    })
   }
 
   const shouldAcceptTranscriptForResponse = (text: string): boolean => {
@@ -882,7 +892,11 @@ export function createRealtimeWebRtcSession(
       // ignore
     }
     try {
-      remoteAudio?.remove()
+      // Detach stream only — keep the shared primed <audio> in DOM for Safari unlock.
+      if (remoteAudio) {
+        remoteAudio.pause()
+        remoteAudio.srcObject = null
+      }
     } catch {
       // ignore
     }
@@ -1451,17 +1465,22 @@ export function createRealtimeWebRtcSession(
       assistantBuffer = ''
       if (activeResponse) {
         activeResponse.responseDone = true
-        // WebRTC often omits audio.delta events (media track carries audio).
-        // If we were speaking / have transcript, wait for playback drain — never
-        // treat response.done alone as playback complete.
-        if (status === 'speaking' || lastAssistantSpoken || assistantBuffer.length > 0) {
-          activeResponse.hadAudio = true
+        // CRITICAL: never treat transcript text as hadAudio. That masked silent
+        // remote tracks and blocked classic TTS recovery (text visible, no speaker).
+        if (activeResponse.hadAudio) {
           activeResponse.audioStreamDone = true
           if (!activeResponse.playbackStopped) schedulePlaybackFallback()
-        } else if (!activeResponse.hadAudio) {
+        } else if (!activeResponse.cancelled) {
           activeResponse.playbackStopped = true
-        } else if (activeResponse.audioStreamDone && !activeResponse.playbackStopped) {
-          schedulePlaybackFallback()
+          telemetry('response_done_no_audio', {
+            responseId: activeResponse.id,
+            status,
+            sample: lastAssistantSpoken.slice(0, 40),
+          })
+          // Surface as playback failure so BilamoVoiceSession runs ONE classic TTS.
+          callbacks.onError?.(
+            'تعذر تشغيل الصوت — لا يوجد بث صوتي من الجلسة المباشرة',
+          )
         }
       }
       quality.markResponseDone()
@@ -1557,19 +1576,16 @@ export function createRealtimeWebRtcSession(
         }
       }
 
-      remoteAudio = document.createElement('audio')
+      // Reuse the gesture-primed remote element — never invent a new locked <audio>.
+      remoteAudio = obtainPrimedRemoteAudioElement()
       remoteAudio.autoplay = true
       remoteAudio.setAttribute('playsinline', 'true')
       remoteAudio.setAttribute('webkit-playsinline', 'true')
       remoteAudio.muted = false
       remoteAudio.volume = 1
-      remoteAudio.style.cssText =
-        'position:fixed;width:0;height:0;opacity:0;pointer-events:none;left:-9999px;'
-      document.body.appendChild(remoteAudio)
 
       // Unlock AudioContext during connect (must be called from a user gesture).
       try {
-        const { unlockAudioPlayback } = await import('./audioElementTextToSpeechProvider')
         await unlockAudioPlayback()
       } catch {
         /* best-effort */
@@ -1671,11 +1687,13 @@ export function createRealtimeWebRtcSession(
         const built = buildInstructions(undefined, activeLanguage)
         activeLanguage = built.language
         // Enable input transcription with language hint + ChatGPT-Voice-like turn detection.
+        // Lock output_modalities to audio so speakWrittenDraft cannot go text-only.
         sendEvent({
           type: 'session.update',
           session: {
             type: 'realtime',
             instructions: built.instructions,
+            output_modalities: ['audio'],
             audio: {
               input: {
                 transcription: transcriptionConfig(activeLanguage),
