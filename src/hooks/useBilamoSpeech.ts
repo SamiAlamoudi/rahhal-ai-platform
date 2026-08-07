@@ -110,15 +110,47 @@ export function useBilamoSpeech(onFinal: (transcript: string) => void): BilamoSp
         }
       }
 
+      let reconnectAttempted = false
+
       recognition.onerror = (event) => {
         const code = event.error || 'speech_error'
         if (intentionalStop.current && (code === 'aborted' || code === 'no-speech')) return
         if (code === 'no-speech') return
+        // One soft reconnect on transient network drops — keeps Arabic turns alive.
+        if (
+          !intentionalStop.current
+          && !reconnectAttempted
+          && (code === 'network' || code === 'aborted')
+        ) {
+          reconnectAttempted = true
+          try {
+            recognition.start()
+            return
+          } catch {
+            /* fall through to surface error */
+          }
+        }
         setError(code)
         setListening(false)
       }
 
       recognition.onend = () => {
+        // Unexpected end mid-utterance with no final yet → one reconnect.
+        if (
+          !intentionalStop.current
+          && !reconnectAttempted
+          && !finalRef.current.trim()
+          && recognitionRef.current === recognition
+        ) {
+          reconnectAttempted = true
+          try {
+            recognition.start()
+            setListening(true)
+            return
+          } catch {
+            /* fall through */
+          }
+        }
         setListening(false)
         const transcript = finalRef.current.trim()
         cleanup()

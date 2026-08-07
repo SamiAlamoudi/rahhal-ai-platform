@@ -178,11 +178,10 @@ function assertConsultantVoice(meta: AgentProviderMeta, text: string) {
 }
 
 describe('Bilamo Intelligence E2E — real traveler conversations', () => {
-  it('Japan multi-turn: NL → clarify dates → clarify travelers → orchestrate → recommend', async () => {
+  it('Japan multi-turn: NL → clarify dates → orchestrate → recommend (solo soft-default)', async () => {
     const { turns } = await converse([
       'I want to travel to Japan.',
       'About 7 days next April.',
-      'Two of us — a couple.',
     ])
 
     // Turn 1 — destination extracted, only dates asked
@@ -194,36 +193,24 @@ describe('Bilamo Intelligence E2E — real traveler conversations', () => {
     expect(b1.askedSlots).toContain('dates')
     expect(t1.text.toLowerCase()).toMatch(/when|day|date/)
     expect(t1.text.toLowerCase()).not.toMatch(/budget/)
-    // Dates question may say "how many days" — must not ask travelers yet.
+    // Dates question may say "how many days" — must not ask travelers (soft-defaulted).
     expect(t1.text.toLowerCase()).not.toMatch(/solo|with someone|how many travelers/)
     expect(b1.search).toBeNull()
     assertConsultantVoice(t1.meta, t1.text)
 
-    // Turn 2 — dates remembered, only travelers asked (never re-ask dates/destination)
+    // Turn 2 — dates remembered → search + recommendation (travelers assumed solo)
     const t2 = turns[1]
     const b2 = bilamo(t2.meta)
     expect(t2.meta.memory.requirements.destination).toMatch(/Japan/i)
     expect(t2.meta.memory.requirements.durationDays).toBe(7)
-    expect(b2.phase).toBe('collecting')
-    expect(b2.askedSlot).toBe('travelers')
-    expect(b2.askedSlots).toEqual(expect.arrayContaining(['dates', 'travelers']))
-    expect(t2.text.toLowerCase()).toMatch(/solo|someone|travel/)
+    expect(t2.meta.memory.requirements.travelers).toBe(1)
+    expect(b2.phase).toBe('recommending')
+    expect(b2.askedSlot).toBeNull()
+    expect(b2.search).toBeTruthy()
+    expect(t2.text.toLowerCase()).toMatch(/solo|assumed/)
     expect(t2.text.toLowerCase()).not.toMatch(/budget/)
-    expect(t2.text.toLowerCase()).not.toMatch(/how many days|roughly how many days/)
-    expect(b2.search).toBeNull()
 
-    // Turn 3 — parallel orchestration + consultant recommendation
-    const t3 = turns[2]
-    const b3 = bilamo(t3.meta)
-    expect(t3.meta.memory.requirements.destination).toMatch(/Japan/i)
-    expect(t3.meta.memory.requirements.durationDays).toBe(7)
-    expect(t3.meta.memory.requirements.travelers).toBe(2)
-    expect(t3.meta.memory.requirements.travelerType).toBe('couple')
-    expect(b3.phase).toBe('recommending')
-    expect(b3.askedSlot).toBeNull()
-    expect(b3.search).toBeTruthy()
-
-    const search = b3.search!
+    const search = b2.search!
     expect(search.flights.length).toBeGreaterThanOrEqual(2)
     expect(search.hotels.length).toBeGreaterThanOrEqual(1)
     expect(search.context.weather).toBeTruthy()
@@ -235,16 +222,16 @@ describe('Bilamo Intelligence E2E — real traveler conversations', () => {
     expect(search.flights[0].reason).toBeTruthy()
 
     // Recommendation presentation — explain #1, alternatives, no raw dump
-    expect(t3.text.toLowerCase()).toMatch(/japan|choose|option|suggest/)
-    expect(t3.text.toLowerCase()).toMatch(/alternative|if you prefer|strong alternative/)
-    expect(t3.meta.bookingSearch?.searchInvoked).toBe(true)
-    expect(t3.meta.bookingOptions?.length).toBeGreaterThan(0)
-    expect(t3.meta.tripPlan?.destinations?.[0]).toMatch(/Japan/i)
-    expect(t3.meta.tripPlan?.accommodations?.length).toBeGreaterThan(0)
-    assertConsultantVoice(t3.meta, t3.text)
+    expect(t2.text.toLowerCase()).toMatch(/japan|choose|option|suggest|why/)
+    expect(t2.text.toLowerCase()).toMatch(/alternative|if you prefer|strong alternative/)
+    expect(t2.meta.bookingSearch?.searchInvoked).toBe(true)
+    expect(t2.meta.bookingOptions?.length).toBeGreaterThan(0)
+    expect(t2.meta.tripPlan?.destinations?.[0]).toMatch(/Japan/i)
+    expect(t2.meta.tripPlan?.accommodations?.length).toBeGreaterThan(0)
+    assertConsultantVoice(t2.meta, t2.text)
 
     // Streaming happened (dialogue deltas)
-    expect(t3.deltas.length).toBeGreaterThan(0)
+    expect(t2.deltas.length).toBeGreaterThan(0)
   })
 
   it('one-shot complete request skips unnecessary questions and returns unified search', async () => {
