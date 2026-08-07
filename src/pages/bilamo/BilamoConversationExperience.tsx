@@ -79,6 +79,16 @@ function moneyLabel(amount: unknown, currency: unknown, locale: 'ar' | 'en' = 'e
   return `${cur} ${formatted}`
 }
 
+function localizeKindLabel(raw: string | null | undefined, locale: 'ar' | 'en'): string | null {
+  if (!raw) return null
+  if (locale !== 'ar') return raw
+  const lower = raw.toLowerCase()
+  if (/best|overall|أفضل/.test(lower)) return 'أفضل خيار'
+  if (/cheap|lowest|أرخص|سعر/.test(lower)) return 'الأرخص'
+  if (/fast|أسرع/.test(lower)) return 'الأسرع'
+  return raw
+}
+
 function classifyFlightKind(
   flight: BilamoFlightCard,
   index: number,
@@ -87,19 +97,21 @@ function classifyFlightKind(
   const raw = (flight.kindLabel || '').toLowerCase()
   if (index === 0) {
     return {
-      kindLabel: flight.kindLabel
+      kindLabel: localizeKindLabel(flight.kindLabel, locale)
         || (locale === 'ar' ? 'أفضل خيار' : 'Best overall'),
       variant: 'hero',
     }
   }
   if (/cheap|lowest|سعر|أرخص/.test(raw) || index === 1) {
     return {
-      kindLabel: flight.kindLabel || (locale === 'ar' ? 'الأرخص' : 'Cheapest'),
+      kindLabel: localizeKindLabel(flight.kindLabel, locale)
+        || (locale === 'ar' ? 'الأرخص' : 'Cheapest'),
       variant: 'alternative',
     }
   }
   return {
-    kindLabel: flight.kindLabel || (locale === 'ar' ? 'الأسرع' : 'Fastest'),
+    kindLabel: localizeKindLabel(flight.kindLabel, locale)
+      || (locale === 'ar' ? 'الأسرع' : 'Fastest'),
     variant: 'alternative',
   }
 }
