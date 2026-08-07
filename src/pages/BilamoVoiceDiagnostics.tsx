@@ -62,30 +62,49 @@ export default function BilamoVoiceDiagnostics() {
         </header>
 
         <dl className="bilamo-glass space-y-3 rounded-[1.25rem] px-5 py-4 text-[13.5px]">
-          <Row label="Requested transport" value={snap.requestedTransport || '—'} />
-          <Row label="Actual transport" value={snap.transportKind || '—'} />
-          <Row label="Session state" value={snap.state} />
+          <Row label="Transport requested" value={snap.requestedTransport || '—'} />
+          <Row label="Transport active" value={snap.transportKind || '—'} />
+          <Row label="Realtime session created" value={yn(Boolean(snap.transportKind === 'realtime_webrtc' && snap.connection === 'connected'))} />
+          <Row label="FSM current state" value={snap.state} />
+          <Row label="Last FSM transition" value={playback.lastFsmTransition || '—'} />
           <Row label="Connection" value={snap.connection} />
-          <Row label="Mic permission" value={micPermission} />
-          <Row label="Microphone listening" value={String(snap.listening)} />
-          <Row label="AudioContext" value={snap.audioContextState || '—'} />
-          <Row label="Peer connection" value={playback.peerConnectionState || '—'} />
+          <Row label="Peer connection state" value={playback.peerConnectionState || '—'} />
           <Row label="ICE state" value={playback.iceConnectionState || '—'} />
-          <Row label="Remote track received" value={yn(playback.remoteTrackReceived)} />
+          <Row label="Mic permission" value={micPermission} />
+          <Row label="Mic track state" value={String(snap.listening)} />
+          <Row label="AudioContext" value={snap.audioContextState || '—'} />
+          <Row label="Speech detected" value={yn(playback.speechDetected)} />
+          <Row label="End-of-speech detected" value={yn(playback.endOfSpeechDetected)} />
+          <Row label="Input committed" value={yn(playback.inputCommitted)} />
+          <Row label="Final transcript received" value={yn(playback.finalTranscriptReceived)} />
+          <Row label="Assistant response created" value={yn(playback.assistantResponseCreated)} />
+          <Row label="Remote audio track received" value={yn(playback.remoteTrackReceived)} />
           <Row
-            label="Remote track muted"
-            value={playback.remoteTrackMuted == null ? '—' : yn(playback.remoteTrackMuted)}
+            label="Remote track muted/unmuted"
+            value={
+              playback.remoteTrackMuted == null
+                ? '—'
+                : playback.remoteTrackMuted
+                  ? 'muted'
+                  : 'unmuted'
+            }
           />
-          <Row label="Audio play requested" value={yn(playback.audioPlayRequested)} />
-          <Row label="Audio playback started" value={yn(playback.audioPlaybackStarted)} />
+          <Row label="Remote track readyState" value={playback.remoteTrackReadyState || '—'} />
+          <Row label="Audio element attached" value={yn(playback.audioElementAttached)} />
+          <Row label="play() requested" value={yn(playback.audioPlayRequested)} />
+          <Row label="play() result" value={playback.playResult || '—'} />
+          <Row label="Actual playback started" value={yn(playback.audioPlaybackStarted)} />
+          <Row label="Playback ended" value={yn(playback.audioPlaybackEnded)} />
           <Row label="Audio playback failed" value={yn(playback.audioPlaybackFailed)} />
-          <Row label="Speaking (audible)" value={String(snap.speaking || snap.state === 'speaking')} />
-          <Row label="Fallback classic" value={String(snap.fellBackToClassic)} />
+          <Row label="Classic fallback invoked" value={yn(playback.classicFallbackInvoked || snap.fellBackToClassic)} />
+          <Row label="Interrupt acknowledged" value={yn(playback.interruptAcknowledged)} />
+          <Row label="Speaking (audible only)" value={String(snap.speaking || snap.state === 'speaking')} />
           <Row label="Second-turn ready" value={yn(snap.secondTurnReady)} />
-          <Row label="Last safe error code" value={snap.lastSafeErrorCode || '—'} />
+          <Row label="Stuck-state watchdog count" value={String(playback.stuckWatchdogCount ?? 0)} />
+          <Row label="Last safe error code" value={snap.lastSafeErrorCode || playback.lastSafeErrorCode || '—'} />
           <Row label="Last playback event" value={playback.lastEvent || '—'} />
           <Row
-            label="First audio (last)"
+            label="First-audio latency"
             value={formatMs(latest?.timeToFirstAudioMs ?? agg?.timeToFirstAudioMs.last)}
           />
           <Row

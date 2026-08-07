@@ -1,5 +1,5 @@
 /**
- * Developer-safe voice playback diagnostics — never include transcripts or secrets.
+ * Developer-safe voice playback / turn diagnostics — never include transcripts or secrets.
  */
 
 export type VoicePlaybackDiagEvent =
@@ -14,34 +14,68 @@ export type VoicePlaybackDiagEvent =
   | 'silentRealtimeTimeout'
   | 'classicFallback'
   | 'watchdogIdleRecovery'
+  | 'speechDetected'
+  | 'endOfSpeechDetected'
+  | 'inputCommitted'
+  | 'finalTranscriptReceived'
+  | 'assistantResponseCreated'
+  | 'playRequested'
+  | 'playResolved'
+  | 'playRejected'
+  | 'interruptAcknowledged'
+  | 'finalizeListening'
 
 export type VoicePlaybackDiagnostics = {
   remoteTrackReceived: boolean
   remoteTrackMuted: boolean | null
+  remoteTrackReadyState: string | null
+  audioElementAttached: boolean
   audioPlayRequested: boolean
   audioPlaybackStarted: boolean
   audioPlaybackFailed: boolean
   audioPlaybackEnded: boolean
+  speechDetected: boolean
+  endOfSpeechDetected: boolean
+  inputCommitted: boolean
+  finalTranscriptReceived: boolean
+  assistantResponseCreated: boolean
+  classicFallbackInvoked: boolean
+  interruptAcknowledged: boolean
   lastEvent: VoicePlaybackDiagEvent | null
   lastSafeErrorCode: string | null
+  lastFsmTransition: string | null
+  stuckWatchdogCount: number
   audioContextState: string | null
   peerConnectionState: string | null
   iceConnectionState: string | null
+  playResult: 'pending' | 'resolved' | 'rejected' | null
 }
 
 export function emptyVoicePlaybackDiagnostics(): VoicePlaybackDiagnostics {
   return {
     remoteTrackReceived: false,
     remoteTrackMuted: null,
+    remoteTrackReadyState: null,
+    audioElementAttached: false,
     audioPlayRequested: false,
     audioPlaybackStarted: false,
     audioPlaybackFailed: false,
     audioPlaybackEnded: false,
+    speechDetected: false,
+    endOfSpeechDetected: false,
+    inputCommitted: false,
+    finalTranscriptReceived: false,
+    assistantResponseCreated: false,
+    classicFallbackInvoked: false,
+    interruptAcknowledged: false,
     lastEvent: null,
     lastSafeErrorCode: null,
+    lastFsmTransition: null,
+    stuckWatchdogCount: 0,
     audioContextState: null,
     peerConnectionState: null,
     iceConnectionState: null,
+    playResult: null,
   }
 }
 

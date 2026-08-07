@@ -65,7 +65,16 @@ export interface BilamoVoiceTransport {
   connect(): Promise<void>
   disconnect(): void
   startListening(locale?: VoiceLocale): Promise<boolean>
+  /**
+   * End listening and finalize the current utterance once (silence / user stop).
+   * Must emit at most one final transcript. Must NOT auto-relisten.
+   */
   stopListening(): void
+  /**
+   * Silence / end-of-speech finalize — prefer commit over cancel for realtime.
+   * Classic may alias stopListening. Default: stopListening.
+   */
+  finalizeListening?(): void
   /** Optional raw PCM / blob path — classic may no-op. */
   sendAudio?(chunk: ArrayBuffer): void
   speak(request: BilamoSpeakRequest): BilamoSpeakHandle

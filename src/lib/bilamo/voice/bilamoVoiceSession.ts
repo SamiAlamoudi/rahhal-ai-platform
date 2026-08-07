@@ -90,6 +90,11 @@ export type BilamoVoiceSession = {
   disconnect: () => void
   startListening: () => Promise<boolean>
   stopListening: () => void
+  /**
+   * End-of-speech finalize: commit/emit final transcript once, then processing.
+   * Does NOT auto-relisten after assistant playback.
+   */
+  finalizeListening: () => void
   /** User-intent barge-in: stop playback, invalidate generation, start listening. */
   bargeIn: () => Promise<boolean>
   speak: (text: string, locale?: VoiceLocale) => BilamoSpeakHandle
@@ -213,7 +218,43 @@ export function createBilamoVoiceSession(
     const transportSpeaking = transport?.isSpeaking() ?? false
     const transportListening = transport?.isListening() ?? false
     const fromTransport = transport?.getPlaybackDiagnostics?.()
-    if (fromTransport) playbackDiag = { ...playbackDiag, ...fromTransport }
+    if (fromTransport) {
+      // Transport owns peer/ICE/remote-track/play() fields. Session owns turn FSM flags.
+      // Never let transport defaults wipe sticky session diagnostics mid-turn.
+      const sessionSticky = {
+        speechDetected: playbackDiag.speechDetected,
+        endOfSpeechDetected: playbackDiag.endOfSpeechDetected,
+        inputCommitted: playbackDiag.inputCommitted,
+        finalTranscriptReceived: playbackDiag.finalTranscriptReceived,
+        assistantResponseCreated: playbackDiag.assistantResponseCreated,
+        classicFallbackInvoked: playbackDiag.classicFallbackInvoked,
+        interruptAcknowledged: playbackDiag.interruptAcknowledged,
+        stuckWatchdogCount: playbackDiag.stuckWatchdogCount,
+        lastFsmTransition: playbackDiag.lastFsmTransition,
+      }
+      playbackDiag = {
+        ...playbackDiag,
+        ...fromTransport,
+        speechDetected: sessionSticky.speechDetected || Boolean(fromTransport.speechDetected),
+        endOfSpeechDetected:
+          sessionSticky.endOfSpeechDetected || Boolean(fromTransport.endOfSpeechDetected),
+        inputCommitted: sessionSticky.inputCommitted || Boolean(fromTransport.inputCommitted),
+        finalTranscriptReceived:
+          sessionSticky.finalTranscriptReceived || Boolean(fromTransport.finalTranscriptReceived),
+        assistantResponseCreated:
+          sessionSticky.assistantResponseCreated
+          || Boolean(fromTransport.assistantResponseCreated),
+        classicFallbackInvoked:
+          sessionSticky.classicFallbackInvoked || Boolean(fromTransport.classicFallbackInvoked),
+        interruptAcknowledged:
+          sessionSticky.interruptAcknowledged || Boolean(fromTransport.interruptAcknowledged),
+        stuckWatchdogCount: Math.max(
+          sessionSticky.stuckWatchdogCount,
+          fromTransport.stuckWatchdogCount ?? 0,
+        ),
+        lastFsmTransition: sessionSticky.lastFsmTransition || fromTransport.lastFsmTransition,
+      }
+    }
     playbackDiag.audioContextState = readAudioContextState()
     const secondTurnReady =
       !disposed
@@ -283,6 +324,7 @@ export function createBilamoVoiceSession(
       if (generation !== genAtArm) return
       if (state !== stateAtArm && state !== 'processing' && state !== 'speaking') return
       // No legitimate active operation — recover to idle without auto-listen.
+      playbackDiag.stuckWatchdogCount += 1
       releaseToIdle('watchdog')
     }, STUCK_STATE_WATCHDOG_MS)
   }
@@ -329,6 +371,7 @@ export function createBilamoVoiceSession(
         wireTransport(result.transport)
         prepared = true
         playbackDiag.lastEvent = 'classicFallback'
+        playbackDiag.classicFallbackInvoked = true
         emit()
       }
       const spoken = pending.text.trim()
@@ -353,6 +396,10 @@ export function createBilamoVoiceSession(
       onPartialTranscript: (event) => {
         if (disposed) return
         partialTranscript = event.text
+        if (event.text.trim()) {
+          playbackDiag.speechDetected = true
+          playbackDiag.lastEvent = 'speechDetected'
+        }
         metrics.mark('partial_transcript')
         if (state === 'listening' || state === 'processing') emit()
         else {
@@ -367,6 +414,9 @@ export function createBilamoVoiceSession(
         finalTranscript = event.text
         normalizedForExtract = event.normalizedForExtract ?? null
         partialTranscript = ''
+        playbackDiag.finalTranscriptReceived = true
+        playbackDiag.inputCommitted = true
+        playbackDiag.lastEvent = 'finalTranscriptReceived'
         metrics.mark('final_transcript')
         setState('processing')
         onFinalUtterance?.(event)
@@ -550,6 +600,20 @@ export function createBilamoVoiceSession(
       partialTranscript = ''
       finalTranscript = null
       lastFinalKey = ''
+      // Fresh turn diagnostics — sticky EOS/commit flags must not block the next finalize.
+      playbackDiag.speechDetected = false
+      playbackDiag.endOfSpeechDetected = false
+      playbackDiag.inputCommitted = false
+      playbackDiag.finalTranscriptReceived = false
+      playbackDiag.assistantResponseCreated = false
+      playbackDiag.classicFallbackInvoked = false
+      playbackDiag.interruptAcknowledged = false
+      playbackDiag.audioPlayRequested = false
+      playbackDiag.audioPlaybackStarted = false
+      playbackDiag.audioPlaybackFailed = false
+      playbackDiag.audioPlaybackEnded = false
+      playbackDiag.playResult = null
+      playbackDiag.lastEvent = null
       metrics.mark('listen_start')
       const ok = await transport!.startListening(locale)
       if (ok) {
@@ -563,8 +627,33 @@ export function createBilamoVoiceSession(
       return ok
     },
     stopListening() {
+      // Soft stop (background / cancel). Silence + orb end-of-speech must call finalizeListening.
       transport?.stopListening()
-      if (state === 'listening') setState('idle')
+      if (state === 'listening' || state === 'interrupted') setState('idle')
+    },
+    finalizeListening() {
+      if (disposed) return
+      if (state !== 'listening' && state !== 'interrupted') {
+        // Still allow transport finalize if mic is live (desync recovery).
+        if (!transport?.isListening()) return
+      }
+      // Exactly-once at session layer (silence timer + orb tap + transport VAD).
+      if (playbackDiag.endOfSpeechDetected && state === 'processing') {
+        return
+      }
+      playbackDiag.endOfSpeechDetected = true
+      playbackDiag.lastEvent = 'endOfSpeechDetected'
+      playbackDiag.lastFsmTransition = `${state}->finalizing`
+      // Transitional: waiting for final transcript emit (exactly once via lastFinalKey).
+      if (state === 'listening' || state === 'interrupted') {
+        setState('processing')
+      }
+      if (typeof transport?.finalizeListening === 'function') {
+        transport.finalizeListening()
+      } else {
+        transport?.stopListening()
+      }
+      emit()
     },
     async bargeIn() {
       if (disposed) return false
@@ -693,6 +782,8 @@ export function createBilamoVoiceSession(
       clearSilentRealtimeTimer()
       transport?.interrupt()
       metrics.mark('interrupt_ack')
+      playbackDiag.interruptAcknowledged = true
+      playbackDiag.lastEvent = 'interruptAcknowledged'
       // Always clear transitional states — processing latch was the Safari second-turn deadlock.
       if (
         state === 'speaking'
@@ -736,11 +827,14 @@ export function createBilamoVoiceSession(
 
       const onVisibility = () => {
         if (!document.hidden) {
-          // Foreground: refresh AudioContext state only — never auto-relisten.
-          emit()
+          // Foreground: resume AudioContext if suspended — never auto-relisten.
+          void import('../../chat/voice/audioElementTextToSpeechProvider')
+            .then((m) => m.unlockAudioPlayback())
+            .catch(() => undefined)
+            .finally(() => emit())
           return
         }
-        // Background: stop capture / playback; never auto-relisten on foreground.
+        // Background: soft-stop capture / playback; never auto-submit or auto-relisten.
         if (state === 'listening') {
           transport?.stopListening()
           setState('idle')

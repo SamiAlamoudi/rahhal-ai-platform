@@ -59,14 +59,32 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
   let finalBuffer = ''
   let listenLocale: VoiceLocale = 'en'
   let finalEmitted = false
+  /** Latest interim hypothesis — promoted on silence/stop when no isFinal arrived. */
+  let interimBuffer = ''
+  let stopEpoch = 0
 
   const setConnection = (next: BilamoVoiceConnectionState) => {
     connectionState = next
     callbacks.onConnectionStateChange?.(next)
   }
 
+  const promoteInterimToFinal = () => {
+    const piece = interimBuffer.trim()
+    interimBuffer = ''
+    if (!piece) return
+    if (!finalBuffer.trim()) {
+      finalBuffer = piece
+      return
+    }
+    // Avoid duplicating if interim is already contained in finals.
+    if (!finalBuffer.includes(piece)) {
+      finalBuffer = `${finalBuffer} ${piece}`.trim()
+    }
+  }
+
   const emitFinalIfNeeded = () => {
     if (finalEmitted) return
+    promoteInterimToFinal()
     const transcript = finalBuffer.trim()
     finalBuffer = ''
     if (!transcript) return
@@ -133,6 +151,7 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
       if (disposed) return false
       intentionalStop = false
       finalBuffer = ''
+      interimBuffer = ''
       finalEmitted = false
       listenLocale = locale
       const Ctor = getSpeechCtor()
@@ -176,6 +195,7 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
           }
         }
         if (added) {
+          interimBuffer = ''
           finalBuffer = `${finalBuffer} ${added}`.trim()
           callbacks.onPartialTranscript?.({
             text: finalBuffer,
@@ -183,6 +203,7 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
             locale,
           })
         } else if (interim) {
+          interimBuffer = interim.trim()
           callbacks.onPartialTranscript?.({
             text: `${finalBuffer} ${interim}`.trim(),
             isFinal: false,
@@ -217,6 +238,7 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
           !intentionalStop
           && !reconnectAttempted
           && !finalBuffer.trim()
+          && !interimBuffer.trim()
           && recognition === rec
         ) {
           reconnectAttempted = true
@@ -231,8 +253,9 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
         }
         listening = false
         callbacks.onListeningChange?.(false)
-        clearRecognition()
+        // Emit before detaching so finals are not lost; clear after.
         emitFinalIfNeeded()
+        if (recognition === rec) clearRecognition()
       }
 
       try {
@@ -255,14 +278,31 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
       intentionalStop = true
       listening = false
       callbacks.onListeningChange?.(false)
-      try {
-        recognition?.stop()
-      } catch {
-        /* ignore */
+      promoteInterimToFinal()
+      const rec = recognition
+      const epoch = ++stopEpoch
+      if (!rec) {
+        emitFinalIfNeeded()
+        return
       }
-      clearRecognition()
-      // User/silence stop must still deliver the final transcript once.
-      emitFinalIfNeeded()
+      try {
+        rec.stop()
+      } catch {
+        emitFinalIfNeeded()
+        clearRecognition()
+        return
+      }
+      // Wait briefly for onend finals; fallback emit if browser never fires onend.
+      // Exactly-once via finalEmitted. Do not bump speakGen (that cancels TTS).
+      globalThis.setTimeout(() => {
+        if (epoch !== stopEpoch) return
+        emitFinalIfNeeded()
+        if (recognition === rec) clearRecognition()
+      }, 700)
+    },
+
+    finalizeListening() {
+      transport.stopListening()
     },
 
     speak(request: BilamoSpeakRequest): BilamoSpeakHandle {

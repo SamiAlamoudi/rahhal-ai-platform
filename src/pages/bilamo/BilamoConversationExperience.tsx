@@ -241,10 +241,15 @@ export function BilamoConversationExperience({
   const { user } = useAuth()
   const abortRef = useRef<AbortController | null>(null)
   const silenceTimer = useRef<number | null>(null)
+  const speechStartedRef = useRef(false)
+  const silenceFinalizeOnceRef = useRef(false)
+  const voiceApiRef = useRef<ReturnType<typeof useBilamoVoiceSession> | null>(null)
   const seededRef = useRef(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const sendRef = useRef<(raw: string) => Promise<void>>(async () => {})
   const speakGenerationRef = useRef(0)
+  /** Classic end-of-speech silence window — only after speech has started. */
+  const SILENCE_FINALIZE_MS = 1600
 
   const [chatOrb, setChatOrb] = useState<OrbState | null>(null)
   const [conversationId, setConversationId] = useState<string | null>(null)
@@ -272,6 +277,7 @@ export function BilamoConversationExperience({
   const voice = useBilamoVoiceSession({
     onFinalUtterance: handleSpeechFinal,
   })
+  voiceApiRef.current = voice
 
   conversationIdRef.current = conversationId
 
@@ -316,11 +322,11 @@ export function BilamoConversationExperience({
         compareSelect: 'اختيار',
         selectedStay: 'اختيارك محفوظ — الخيارات ما زالت ظاهرة.',
         micNeed: 'الميكروفون يحتاج إذناً',
-        tapAgain: 'اضغط مجدداً عند الانتهاء من الكلام',
+        tapAgain: 'تحدث بشكل طبيعي — سأتابع تلقائياً عند التوقف',
         somethingWrong: 'حدث خطأ ما',
         thinking: 'أفكّر…',
         type: 'اكتب',
-        tip: 'اضغط على الكرة للتحدث، أو اكتب رسالتك.',
+        tip: 'اضغط مرة واحدة للتحدث. عند التوقف أكمل تلقائياً.',
         retryVoice: 'أعد المحاولة',
         classicVoice: 'صوت مبسّط',
       }
@@ -339,22 +345,34 @@ export function BilamoConversationExperience({
         compareSelect: 'Select',
         selectedStay: 'Your choice is saved — recommendations stay visible.',
         micNeed: 'Microphone needs permission',
-        tapAgain: 'Tap again when you finish speaking',
+        tapAgain: 'Speak naturally — I continue automatically when you pause',
         somethingWrong: 'Something went wrong',
         thinking: 'Thinking…',
         type: 'Type',
-        tip: 'Tap the orb to speak, or type your message.',
+        tip: 'Tap once to speak. When you pause, I continue automatically.',
         retryVoice: 'Retry',
         classicVoice: 'Simple voice',
       }
 
-  const stopListeningHard = useCallback(() => {
-    voice.stopListening()
+  const clearSilenceTimer = useCallback(() => {
     if (silenceTimer.current != null) {
       window.clearTimeout(silenceTimer.current)
       silenceTimer.current = null
     }
-  }, [voice])
+  }, [])
+
+  const stopListeningHard = useCallback(() => {
+    clearSilenceTimer()
+    // Prefer finalizeListening (realtime commits ASR; classic emits final once).
+    const api = voiceApiRef.current
+    if (typeof api?.finalizeListening === 'function') {
+      api.finalizeListening()
+    } else if (api?.session && typeof api.session.finalizeListening === 'function') {
+      api.session.finalizeListening()
+    } else {
+      api?.stopListening()
+    }
+  }, [clearSilenceTimer])
 
   const upsertMessage = useCallback((message: ChatMessage) => {
     setMessages((prev) => {
@@ -573,25 +591,39 @@ export function BilamoConversationExperience({
 
   const partial = voice.partialTranscript
 
+  // Hands-free end-of-speech: arm silence timer ONLY after speech has started.
+  // Deps are orbState + partial only — never voice/listenPulse callbacks (those
+  // re-created every 90ms and previously reset the timer forever → second-tap bug).
   useEffect(() => {
-    if (orbState !== 'listening') return
-    if (silenceTimer.current != null) {
-      window.clearTimeout(silenceTimer.current)
-      silenceTimer.current = null
+    if (orbState !== 'listening') {
+      speechStartedRef.current = false
+      silenceFinalizeOnceRef.current = false
+      clearSilenceTimer()
+      return
     }
-    // Classic silence finalize — stopListening emits final once. No second mic stream.
-    if (partial.trim()) {
-      silenceTimer.current = window.setTimeout(() => {
-        stopListeningHard()
-      }, 1400)
+
+    const text = partial.trim()
+    if (text) speechStartedRef.current = true
+
+    if (!speechStartedRef.current || silenceFinalizeOnceRef.current) {
+      return
     }
+
+    clearSilenceTimer()
+    silenceTimer.current = window.setTimeout(() => {
+      if (silenceFinalizeOnceRef.current || !speechStartedRef.current) return
+      silenceFinalizeOnceRef.current = true
+      // Finalize exactly once → commit/submit. No second orb tap required.
+      const api = voiceApiRef.current
+      if (typeof api?.finalizeListening === 'function') api.finalizeListening()
+      else if (api?.session) api.session.finalizeListening()
+      else api?.stopListening()
+    }, SILENCE_FINALIZE_MS)
+
     return () => {
-      if (silenceTimer.current != null) {
-        window.clearTimeout(silenceTimer.current)
-        silenceTimer.current = null
-      }
+      clearSilenceTimer()
     }
-  }, [orbState, partial, stopListeningHard])
+  }, [clearSilenceTimer, orbState, partial])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })

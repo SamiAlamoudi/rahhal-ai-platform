@@ -56,6 +56,8 @@ export type ArabicUtteranceAssembler = {
   /** Clear commit timer without committing (e.g. hard Stop). */
   cancelPendingCommit: () => void
   scheduleCommit: (delayMs: number) => void
+  /** Force silence commit now (includes interim). Exactly-once via committed flag. */
+  forceCommitNow: () => void
 }
 
 export function createArabicUtteranceAssembler(options: {
@@ -98,7 +100,8 @@ export function createArabicUtteranceAssembler(options: {
     commitTimer = null
     if (committed) return
     const lang = options.conversationLanguage() || 'ar'
-    const display = segments.join(' ').replace(/\s+/g, ' ').trim()
+    // Include interim — Safari/Realtime often only has interim when silence lands.
+    const display = joinDisplay()
     const audioMs = durationMs(options.nowMs())
     interim = ''
 
@@ -229,6 +232,11 @@ export function createArabicUtteranceAssembler(options: {
         if (gen !== generation) return
         flushCommit()
       }, delayMs)
+    },
+    forceCommitNow() {
+      if (committed) return
+      clearTimer()
+      flushCommit()
     },
   }
 }

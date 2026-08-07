@@ -210,9 +210,18 @@ export function createRealtimeWebRtcBilamoTransport(
     },
 
     stopListening() {
+      // Soft stop — cancel pending ASR (visibility / barge cleanup). Does not submit.
       listening = false
       callbacks.onListeningChange?.(false)
-      session?.releaseToIdle('bilamo_stop_listening')
+      session?.releaseToIdle?.('stop_listening')
+    },
+
+    finalizeListening() {
+      // End-of-speech / silence / intentional orb finalize — commit once.
+      listening = false
+      callbacks.onListeningChange?.(false)
+      if (!session) return
+      session.finalizeListening()
     },
 
     speak(request: BilamoSpeakRequest): BilamoSpeakHandle {
@@ -294,20 +303,35 @@ export function createRealtimeWebRtcBilamoTransport(
     isListening: () => listening,
     isConnected: () => Boolean(session?.isConnected()),
     getConnectionState: () => connectionState,
-    getPlaybackDiagnostics: () => session?.getPlaybackDiagnostics()
-      ?? {
+    getPlaybackDiagnostics: () => {
+      const fromSession = session?.getPlaybackDiagnostics()
+      if (fromSession) return fromSession
+      return {
         remoteTrackReceived: false,
         remoteTrackMuted: null,
+        remoteTrackReadyState: null,
+        audioElementAttached: false,
         audioPlayRequested: false,
         audioPlaybackStarted: false,
         audioPlaybackFailed: false,
         audioPlaybackEnded: false,
+        speechDetected: false,
+        endOfSpeechDetected: false,
+        inputCommitted: false,
+        finalTranscriptReceived: false,
+        assistantResponseCreated: false,
+        classicFallbackInvoked: false,
+        interruptAcknowledged: false,
         lastEvent: null,
         lastSafeErrorCode: null,
+        lastFsmTransition: null,
+        stuckWatchdogCount: 0,
         audioContextState: null,
         peerConnectionState: null,
         iceConnectionState: null,
-      },
+        playResult: null,
+      }
+    },
 
     dispose() {
       disposed = true

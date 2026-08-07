@@ -105,6 +105,11 @@ export type RealtimeWebRtcSession = {
    * Clears the iOS Safari mic indicator; peer/datachannel may stay up for fast reopen.
    */
   releaseToIdle: (reason?: string) => void
+  /**
+   * End-of-speech finalize: commit pending ASR once (includes interim).
+   * Does not cancel a pending silence commit. Does not auto-relisten.
+   */
+  finalizeListening: () => void
   /** True after hardStop until the next explicit connect(). */
   isHardStopped: () => boolean
   /** Send a text user turn into the live session (no classic TTS). */
@@ -218,15 +223,27 @@ export function createRealtimeWebRtcSession(
   const playbackDiag = {
     remoteTrackReceived: false,
     remoteTrackMuted: null as boolean | null,
+    remoteTrackReadyState: null as string | null,
+    audioElementAttached: false,
     audioPlayRequested: false,
     audioPlaybackStarted: false,
     audioPlaybackFailed: false,
     audioPlaybackEnded: false,
+    speechDetected: false,
+    endOfSpeechDetected: false,
+    inputCommitted: false,
+    finalTranscriptReceived: false,
+    assistantResponseCreated: false,
+    classicFallbackInvoked: false,
+    interruptAcknowledged: false,
     lastEvent: null as import('../../bilamo/voice/voicePlaybackDiagnostics').VoicePlaybackDiagEvent | null,
     lastSafeErrorCode: null as string | null,
+    lastFsmTransition: null as string | null,
+    stuckWatchdogCount: 0,
     audioContextState: null as string | null,
     peerConnectionState: null as string | null,
     iceConnectionState: null as string | null,
+    playResult: null as 'pending' | 'resolved' | 'rejected' | null,
   }
 
   const transcriptGate = createUserTranscriptGate(() => activeLanguage)
@@ -463,11 +480,26 @@ export function createRealtimeWebRtcSession(
   }
 
   const ensureRemoteAudible = async (): Promise<boolean> => {
-    if (!remoteAudio) return false
+    if (!remoteAudio) {
+      playbackDiag.audioElementAttached = false
+      playbackDiag.playResult = 'rejected'
+      playbackDiag.lastEvent = 'playRejected'
+      playbackDiag.lastSafeErrorCode = 'no_audio_element'
+      return false
+    }
+    playbackDiag.audioElementAttached = Boolean(remoteAudio.srcObject)
     playbackDiag.audioPlayRequested = true
-    playbackDiag.lastEvent = 'audioPlayRequested'
+    playbackDiag.playResult = 'pending'
+    playbackDiag.lastEvent = 'playRequested'
     try {
-      if (remoteTrack) remoteTrack.enabled = true
+      if (remoteTrack) {
+        remoteTrack.enabled = true
+        playbackDiag.remoteTrackReadyState = remoteTrack.readyState
+        playbackDiag.remoteTrackMuted = remoteTrack.muted
+      }
+      remoteAudio.autoplay = true
+      remoteAudio.setAttribute('playsinline', 'true')
+      remoteAudio.setAttribute('webkit-playsinline', 'true')
       remoteAudio.muted = false
       remoteAudio.volume = 1
       // Best-effort unlock (no-op if already unlocked outside a gesture).
@@ -478,14 +510,30 @@ export function createRealtimeWebRtcSession(
         /* ignore */
       }
       await remoteAudio.play()
+      // play() resolved ⇒ browser allowed playback. Reject only explicit mute/zero volume
+      // (do not require !paused/srcObject — jsdom stubs and some Safari timings keep paused
+      // briefly even when audio is audible).
+      if (remoteAudio.muted || remoteAudio.volume === 0) {
+        playbackDiag.playResult = 'rejected'
+        playbackDiag.audioPlaybackFailed = true
+        playbackDiag.lastEvent = 'playRejected'
+        playbackDiag.lastSafeErrorCode = 'play_resolved_but_silent'
+        return false
+      }
+      playbackDiag.playResult = 'resolved'
       playbackDiag.audioPlaybackStarted = true
       playbackDiag.audioPlaybackFailed = false
       playbackDiag.lastEvent = 'audioPlaybackStarted'
       return true
-    } catch {
+    } catch (err) {
+      const name = err instanceof Error ? err.name : 'play_error'
+      playbackDiag.playResult = 'rejected'
       playbackDiag.audioPlaybackFailed = true
-      playbackDiag.lastEvent = 'audioPlaybackFailed'
-      playbackDiag.lastSafeErrorCode = 'playback_blocked'
+      playbackDiag.lastEvent = 'playRejected'
+      playbackDiag.lastSafeErrorCode =
+        name === 'NotAllowedError' || name === 'AbortError'
+          ? name
+          : 'playback_blocked'
       quality.markAudioRestart()
       emitQuality()
       callbacks.onError?.(
@@ -932,12 +980,31 @@ export function createRealtimeWebRtcSession(
     else activeLanguage = 'en'
     const context = inferSpokenContext(spoken)
     assistantBuffer = ''
+    // Fresh play diagnostics for this assistant utterance (same text as UI — no second answer).
+    playbackDiag.audioPlayRequested = false
+    playbackDiag.audioPlaybackStarted = false
+    playbackDiag.audioPlaybackFailed = false
+    playbackDiag.audioPlaybackEnded = false
+    playbackDiag.playResult = null
+    playbackDiag.assistantResponseCreated = false
     // Ensure prior interrupt did not leave the remote track muted.
-    if (remoteTrack) remoteTrack.enabled = true
+    if (remoteTrack) {
+      remoteTrack.enabled = true
+      playbackDiag.remoteTrackReadyState = remoteTrack.readyState
+      playbackDiag.remoteTrackMuted = remoteTrack.muted
+    }
     if (remoteAudio) {
+      remoteAudio.autoplay = true
+      remoteAudio.setAttribute('playsinline', 'true')
+      remoteAudio.setAttribute('webkit-playsinline', 'true')
       remoteAudio.muted = false
       remoteAudio.volume = 1
-      void ensureRemoteAudible()
+      playbackDiag.audioElementAttached = Boolean(remoteAudio.srcObject)
+      // Warm the element only when a remote stream is attached — SPEAKING still
+      // waits for enterSpeakingIfAudible after output_audio_buffer / audio delta.
+      if (remoteAudio.srcObject) {
+        void ensureRemoteAudible()
+      }
     }
     setStatus('thinking')
     sendEvent({
@@ -1091,6 +1158,8 @@ export function createRealtimeWebRtcSession(
         const at = nowMs()
         captureAudit.onSpeechStarted(at)
         utteranceAssembler.onSpeechStarted(at)
+        playbackDiag.speechDetected = true
+        playbackDiag.lastEvent = 'speechDetected'
         // Keep mic unmuted for the entire utterance (transport integrity).
         ensureLocalMicLive()
       }
@@ -1111,6 +1180,10 @@ export function createRealtimeWebRtcSession(
     if (type === 'input_audio_buffer.speech_stopped') {
       const at = nowMs()
       captureAudit.onSpeechStopped(at)
+      if (status === 'listening') {
+        playbackDiag.endOfSpeechDetected = true
+        playbackDiag.lastEvent = 'endOfSpeechDetected'
+      }
       quality.markSpeechStopped()
       emitQuality()
       if (status === 'listening') {
@@ -1237,6 +1310,8 @@ export function createRealtimeWebRtcSession(
         language: lang,
       }
       assistantBuffer = ''
+      playbackDiag.assistantResponseCreated = true
+      playbackDiag.lastEvent = 'assistantResponseCreated'
       quality.markResponseCreated()
       emitQuality()
       telemetry('response_created', { responseId: id, language: lang })
@@ -1469,30 +1544,41 @@ export function createRealtimeWebRtcSession(
         remoteAudio.srcObject = stream
         remoteTrack = stream?.getAudioTracks()?.[0] ?? e.track ?? null
         playbackDiag.remoteTrackReceived = Boolean(remoteTrack)
+        playbackDiag.audioElementAttached = Boolean(remoteAudio.srcObject)
         playbackDiag.lastEvent = 'remoteTrackReceived'
         if (remoteTrack) {
           remoteTrack.enabled = true
           playbackDiag.remoteTrackMuted = remoteTrack.muted
+          playbackDiag.remoteTrackReadyState = remoteTrack.readyState
           remoteTrack.onmute = () => {
             playbackDiag.remoteTrackMuted = true
+            playbackDiag.remoteTrackReadyState = remoteTrack?.readyState ?? null
             playbackDiag.lastEvent = 'remoteTrackMuted'
           }
           remoteTrack.onunmute = () => {
             playbackDiag.remoteTrackMuted = false
+            playbackDiag.remoteTrackReadyState = remoteTrack?.readyState ?? null
             playbackDiag.lastEvent = 'remoteTrackUnmuted'
             if (remoteTrack) remoteTrack.enabled = true
             void ensureRemoteAudible()
           }
           remoteTrack.onended = () => {
             playbackDiag.lastEvent = 'remoteTrackEnded'
+            playbackDiag.remoteTrackReadyState = remoteTrack?.readyState ?? 'ended'
             if (!hardStopped && !disposed && (status === 'speaking' || status === 'thinking')) {
               releaseToIdleInternal('remote_track_ended')
             }
           }
         }
+        remoteAudio.autoplay = true
+        remoteAudio.setAttribute('playsinline', 'true')
+        remoteAudio.setAttribute('webkit-playsinline', 'true')
         remoteAudio.muted = false
         remoteAudio.volume = 1
-        void ensureRemoteAudible()
+        // Attach only — do not claim SPEAKING until assistant audio actually plays.
+        void remoteAudio.play().catch(() => {
+          /* gesture may be required; ensureRemoteAudible retries on response audio */
+        })
         setStatus('listening')
       }
 
@@ -1665,6 +1751,27 @@ export function createRealtimeWebRtcSession(
       if (disposed) return
       // Do not latch hardStopped — user may tap mic again without a full reconnect.
       releaseToIdleInternal(reason)
+    },
+    finalizeListening() {
+      if (disposed || hardStopped) return
+      playbackDiag.endOfSpeechDetected = true
+      playbackDiag.lastEvent = 'finalizeListening'
+      telemetry('finalize_listening', {
+        pending: utteranceAssembler.hasPending(),
+        committed: utteranceAssembler.isCommitted(),
+      })
+      // Prefer commit over cancel — silence / orb-stop must submit, not drop ASR.
+      if (utteranceAssembler.hasPending() && !utteranceAssembler.isCommitted()) {
+        playbackDiag.inputCommitted = true
+        utteranceAssembler.forceCommitNow()
+        return
+      }
+      if (utteranceAssembler.isCommitted() || lockedUserTranscript != null) {
+        playbackDiag.inputCommitted = true
+        return
+      }
+      // Nothing to commit — release mic without latching hard stop.
+      releaseToIdleInternal('finalize_empty')
     },
     isHardStopped() {
       return hardStopped

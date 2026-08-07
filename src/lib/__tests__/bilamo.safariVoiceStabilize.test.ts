@@ -39,12 +39,15 @@ function makeMockTransport(
     /** Never fire onSpeakingStart (silent transport). */
     silent?: boolean
     playReject?: boolean
+    /** Final transcript emitted once on finalizeListening. */
+    pendingFinal?: string
   },
 ): BilamoVoiceTransport & {
   callbacks: BilamoVoiceTransportCallbacks
   speakCount: number
   interruptCount: number
   listenCount: number
+  finalizeCount: number
   endSpeak: (generation?: number) => void
 } {
   let callbacks: BilamoVoiceTransportCallbacks = {}
@@ -56,6 +59,7 @@ function makeMockTransport(
   let speakCount = 0
   let interruptCount = 0
   let listenCount = 0
+  let finalizeCount = 0
   const pending = new Map<number, () => void>()
 
   const transport: BilamoVoiceTransport & {
@@ -63,6 +67,7 @@ function makeMockTransport(
     speakCount: number
     interruptCount: number
     listenCount: number
+    finalizeCount: number
     endSpeak: (generation?: number) => void
   } = {
     kind,
@@ -77,6 +82,9 @@ function makeMockTransport(
     },
     get listenCount() {
       return listenCount
+    },
+    get finalizeCount() {
+      return finalizeCount
     },
     endSpeak(generation) {
       const gen = generation ?? speakGen
@@ -112,6 +120,15 @@ function makeMockTransport(
     stopListening() {
       listening = false
       callbacks.onListeningChange?.(false)
+    },
+    finalizeListening() {
+      finalizeCount += 1
+      listening = false
+      callbacks.onListeningChange?.(false)
+      const text = (opts?.pendingFinal || '').trim()
+      if (text) {
+        callbacks.onFinalTranscript?.({ text, isFinal: true })
+      }
     },
     speak({ text }) {
       speakCount += 1
@@ -476,5 +493,256 @@ describe('classic audible gate', () => {
     expect(transport.isSpeaking()).toBe(false)
     await handle.done
     expect(events).toEqual(['start', 'end'])
+  })
+})
+
+describe('P0 hands-free finalize + audible gate', () => {
+  it('one tap listen → finalizeListening auto-submits without second tap path', async () => {
+    const finals: string[] = []
+    const mock = makeMockTransport('classic_tts', {
+      pendingFinal: 'أبغى أسافر اليابان الأسبوع القادم',
+    })
+    const session = createBilamoVoiceSession({
+      mode: 'classic',
+      createTransport: async () => ({
+        transport: mock,
+        mode: 'classic',
+        selected: 'classic_tts',
+        fellBack: false,
+        reason: null,
+      }),
+      onFinalUtterance: (e) => finals.push(e.text),
+    })
+    await session.connect()
+    await session.startListening()
+    expect(session.getSnapshot().state).toBe('listening')
+    // Silence / EOS path — not a second orb "submit" via soft stopListening.
+    session.finalizeListening()
+    expect(mock.finalizeCount).toBe(1)
+    expect(finals).toEqual(['أبغى أسافر اليابان الأسبوع القادم'])
+    expect(session.getSnapshot().playback.endOfSpeechDetected).toBe(true)
+    expect(session.getSnapshot().playback.finalTranscriptReceived).toBe(true)
+    expect(session.getSnapshot().playback.inputCommitted).toBe(true)
+    expect(session.getSnapshot().state).toBe('processing')
+    session.dispose()
+  })
+
+  it('finalizeListening is exactly-once (no double submit)', async () => {
+    const finals: string[] = []
+    const mock = makeMockTransport('classic_tts', {
+      pendingFinal: 'أريد السفر',
+    })
+    const session = createBilamoVoiceSession({
+      mode: 'classic',
+      createTransport: async () => ({
+        transport: mock,
+        mode: 'classic',
+        selected: 'classic_tts',
+        fellBack: false,
+        reason: null,
+      }),
+      onFinalUtterance: (e) => finals.push(e.text),
+    })
+    await session.connect()
+    await session.startListening()
+    session.finalizeListening()
+    session.finalizeListening()
+    session.finalizeListening()
+    expect(mock.finalizeCount).toBe(1)
+    expect(finals).toHaveLength(1)
+    session.dispose()
+  })
+
+  it('soft stopListening does not claim speaking from transcript-only events', async () => {
+    const mock = makeMockTransport('realtime_webrtc')
+    const session = createBilamoVoiceSession({
+      mode: 'realtime',
+      createTransport: async () => ({
+        transport: mock,
+        mode: 'realtime',
+        selected: 'realtime_webrtc',
+        fellBack: false,
+        reason: null,
+      }),
+    })
+    await session.connect()
+    await session.startListening()
+    mock.callbacks.onPartialTranscript?.({ text: 'مرحبا', isFinal: false })
+    expect(session.getSnapshot().playback.speechDetected).toBe(true)
+    mock.callbacks.onFinalTranscript?.({ text: 'مرحبا', isFinal: true })
+    expect(session.getSnapshot().state).toBe('processing')
+    expect(session.getSnapshot().state).not.toBe('speaking')
+    expect(session.getSnapshot().playback.audioPlaybackStarted).toBe(false)
+    session.dispose()
+  })
+
+  it('silent realtime timeout invokes classic fallback for the same text (no overlap)', async () => {
+    vi.useFakeTimers()
+    let classicSpeakCount = 0
+    const realtime = makeMockTransport('realtime_webrtc', { silent: true })
+    const classic: BilamoVoiceTransport = {
+      kind: 'classic_tts',
+      setCallbacks(next) {
+        realtime.setCallbacks(next)
+      },
+      connect: async () => realtime.connect(),
+      disconnect: () => realtime.disconnect(),
+      startListening: () => realtime.startListening(),
+      stopListening: () => realtime.stopListening(),
+      speak(_req) {
+        void _req
+        classicSpeakCount += 1
+        const generation = 900 + classicSpeakCount
+        queueMicrotask(() => {
+          const cbs = realtime.callbacks
+          cbs.onSpeakingStart?.(generation)
+          cbs.onAudioChunk?.({ generation })
+          cbs.onSpeakingEnd?.(generation)
+        })
+        return { generation, done: Promise.resolve() }
+      },
+      interrupt: () => realtime.interrupt(),
+      stop: () => realtime.stop(),
+      isSpeaking: () => false,
+      isListening: () => false,
+      isConnected: () => true,
+      getConnectionState: () => 'connected',
+      dispose: () => undefined,
+    }
+
+    let switched = false
+    const session = createBilamoVoiceSession({
+      mode: 'realtime',
+      createTransport: async ({ forceClassic } = {}) => {
+        if (forceClassic || switched) {
+          switched = true
+          return {
+            transport: classic,
+            mode: 'classic',
+            selected: 'classic_tts',
+            fellBack: true,
+            reason: 'silent_realtime',
+          }
+        }
+        return {
+          transport: realtime,
+          mode: 'realtime',
+          selected: 'realtime_webrtc',
+          fellBack: false,
+          reason: null,
+        }
+      },
+    })
+    await session.connect()
+    const handle = session.speak('نفس الرد الصوتي', 'ar')
+    await vi.advanceTimersByTimeAsync(5_000)
+    await handle.done
+    await vi.advanceTimersByTimeAsync(50)
+    expect(session.getSnapshot().playback.classicFallbackInvoked || session.getSnapshot().fellBackToClassic).toBe(true)
+    expect(classicSpeakCount).toBeGreaterThanOrEqual(1)
+    // Realtime + classic must not both be mid-speak.
+    expect(realtime.isSpeaking()).toBe(false)
+    session.dispose()
+  })
+
+  it('playback completion returns IDLE and allows five consecutive voice turns', async () => {
+    const mock = makeMockTransport()
+    const session = createBilamoVoiceSession({
+      mode: 'classic',
+      createTransport: async () => ({
+        transport: mock,
+        mode: 'classic',
+        selected: 'classic_tts',
+        fellBack: false,
+        reason: null,
+      }),
+    })
+    await session.connect()
+    for (let i = 0; i < 5; i += 1) {
+      await session.startListening()
+      mock.callbacks.onPartialTranscript?.({ text: `turn ${i + 1}`, isFinal: false })
+      session.finalizeListening()
+      // If no pendingFinal, drive the turn via speak after soft processing.
+      if (session.getSnapshot().state === 'processing' || session.getSnapshot().state === 'listening' || session.getSnapshot().state === 'idle') {
+        const handle = session.speak(`reply ${i + 1}`, 'en')
+        await handle.done
+      }
+      expect(session.getSnapshot().state).toBe('idle')
+      expect(session.getSnapshot().secondTurnReady).toBe(true)
+    }
+    expect(mock.listenCount).toBe(5)
+    expect(mock.speakCount).toBe(5)
+    session.dispose()
+  })
+
+  it('interrupt then next turn works without reload', async () => {
+    const mock = makeMockTransport('classic_tts', { speakDelayMs: 80 })
+    const session = createBilamoVoiceSession({
+      mode: 'classic',
+      createTransport: async () => ({
+        transport: mock,
+        mode: 'classic',
+        selected: 'classic_tts',
+        fellBack: false,
+        reason: null,
+      }),
+    })
+    await session.connect()
+    session.speak('long', 'en')
+    await new Promise((r) => setTimeout(r, 10))
+    session.interrupt()
+    expect(session.getSnapshot().playback.interruptAcknowledged).toBe(true)
+    expect(session.getSnapshot().state).toBe('idle')
+    const ok = await session.startListening()
+    expect(ok).toBe(true)
+    session.finalizeListening()
+    const h2 = session.speak('next', 'en')
+    await h2.done
+    expect(session.getSnapshot().state).toBe('idle')
+    session.dispose()
+  })
+
+  it('play() rejection returns idle and does not latch PLAYING', async () => {
+    const mock = makeMockTransport('classic_tts', { playReject: true })
+    const session = createBilamoVoiceSession({
+      mode: 'classic',
+      createTransport: async () => ({
+        transport: mock,
+        mode: 'classic',
+        selected: 'classic_tts',
+        fellBack: false,
+        reason: null,
+      }),
+    })
+    await session.connect()
+    const handle = session.speak('blocked', 'ar')
+    await handle.done
+    await new Promise((r) => setTimeout(r, 20))
+    expect(session.getSnapshot().state).not.toBe('speaking')
+    expect(session.getSnapshot().state).toBe('idle')
+    expect(session.getSnapshot().playback.audioPlaybackStarted).toBe(false)
+    session.dispose()
+  })
+})
+
+describe('arabic forceCommitNow (interim + once)', () => {
+  it('forceCommitNow commits interim exactly once', async () => {
+    const { createArabicUtteranceAssembler } = await import('../chat/voice/arabicUtteranceAssembler')
+    const commits: string[] = []
+    let now = 0
+    const assembler = createArabicUtteranceAssembler({
+      conversationLanguage: () => 'ar',
+      nowMs: () => now,
+      onCommit: (r) => commits.push(r.committedTranscript),
+      onReject: () => undefined,
+    })
+    assembler.onSpeechStarted(0)
+    now = 2000
+    assembler.onInterim('أبغى أسافر اليابان الأسبوع القادم')
+    assembler.onSpeechStopped(now)
+    assembler.forceCommitNow()
+    assembler.forceCommitNow()
+    expect(commits).toHaveLength(1)
+    expect(commits[0]).toContain('اليابان')
   })
 })
