@@ -25,6 +25,12 @@ import {
   type DepartureResolution,
 } from '../../lib/bilamo/departure/departureLocator'
 import { progressiveConsultantAck } from '../../lib/bilamo/intelligence/consultantComposer'
+import { understandSpeechTurn } from '../../lib/bilamo/speech/speechUnderstanding'
+import {
+  shouldBargeInFromOrb,
+  shouldIgnoreOrbTapDuringVoiceSubmit,
+} from '../../lib/bilamo/speech/voiceSubmitGate'
+import { noteSpeechUnderstandingDiag } from '../../lib/bilamo/voice/voiceHttpTrace'
 import { unlockAudioPlayback } from '../../lib/chat/voice/audioElementTextToSpeechProvider'
 import { sanitizeArabicVoiceTranscript } from '../../lib/chat/voice/sanitizeArabicVoiceTranscript'
 import { chatEngine } from '../../lib/chat/chatEngine'
@@ -259,6 +265,10 @@ export function BilamoConversationExperience({
   const sendLockRef = useRef(false)
   const pendingSendRef = useRef<string | null>(null)
   const lastSentRef = useRef<{ text: string; at: number } | null>(null)
+  /** Set sync on voice final; cleared when chat send finishes — blocks orb race. */
+  const voiceSubmitInFlightRef = useRef(false)
+  /** Direct send (no soft mic cancel) for voice finals. */
+  const voiceSendRef = useRef<(raw: string) => Promise<void>>(async () => {})
   /** Classic end-of-speech silence window — only after speech has started. */
   const SILENCE_FINALIZE_MS = 1600
 
@@ -287,16 +297,21 @@ export function BilamoConversationExperience({
   })
 
   const handleSpeechFinal = useCallback((transcript: string, normalizedHint?: string | null) => {
+    // Sync gate FIRST — async import previously left a gap where orb "stuck"
+    // recovery called bargeIn and dropped the request before send().
+    voiceSubmitInFlightRef.current = true
     const submitStarted = typeof performance !== 'undefined' ? performance.now() : Date.now()
-    void import('../../lib/bilamo/speech/speechUnderstanding').then(async ({ understandSpeechTurn }) => {
-      const { noteSpeechUnderstandingDiag } = await import('../../lib/bilamo/voice/voiceHttpTrace')
+    try {
       const understood = understandSpeechTurn({
         transcript,
         normalizedHint,
         previousLanguage: uiLocale === 'fr' || uiLocale === 'en' || uiLocale === 'ar' ? uiLocale : 'ar',
         languagePreference: 'auto',
       })
-      if (!understood.displayTranscript && !understood.normalizedForExtract) return
+      if (!understood.displayTranscript && !understood.normalizedForExtract) {
+        voiceSubmitInFlightRef.current = false
+        return
+      }
       noteSpeechUnderstandingDiag({
         language: understood.language,
         dialect: understood.dialect,
@@ -305,11 +320,12 @@ export function BilamoConversationExperience({
         submitLatencyMs: (typeof performance !== 'undefined' ? performance.now() : Date.now()) - submitStarted,
       })
       setUiLocale(understood.language)
-      // French replies use Latin TTS voices (VoiceLocale 'en').
       voiceApiRef.current?.setLocale(understood.language === 'ar' ? 'ar' : 'en')
-      // Planning uses normalized text; UI message still shows cleaned display transcript.
-      void sendRef.current(understood.normalizedForExtract || understood.displayTranscript)
-    })
+      // Voice finals must use voiceSendRef (not sendWithMicStop soft-cancel).
+      void voiceSendRef.current(understood.normalizedForExtract || understood.displayTranscript)
+    } catch {
+      voiceSubmitInFlightRef.current = false
+    }
   }, [uiLocale])
 
   const voice = useBilamoVoiceSession({
@@ -465,8 +481,8 @@ export function BilamoConversationExperience({
         return
       }
       // Generation-owned send — never double-submit the same voice final.
-      // If a turn is in flight, queue exactly one pending utterance (never silent discard).
-      if (sendLockRef.current || busy) {
+      // Use sendLockRef only (never React `busy` — stale closures dropped voice turns).
+      if (sendLockRef.current) {
         pendingSendRef.current = content
         void import('../../lib/bilamo/voice/voiceHttpTrace').then(({ noteVoiceDiscardReason }) => {
           noteVoiceDiscardReason('queued_while_busy')
@@ -474,16 +490,23 @@ export function BilamoConversationExperience({
         return
       }
       const last = lastSentRef.current
-      if (last && last.text === content && Date.now() - last.at < 5_000) return
+      if (last && last.text === content && Date.now() - last.at < 5_000) {
+        voiceSubmitInFlightRef.current = false
+        return
+      }
       sendLockRef.current = true
       lastSentRef.current = { text: content, at: Date.now() }
 
-      // Immediate barge-in: kill TTS + mic before the new turn starts.
-      speakGenerationRef.current += 1
-      voice.interrupt()
-      stopListeningHard()
+      // Only interrupt audible playback (typed barge-in). Voice-final submit must
+      // NOT interrupt/finalize again — that raced WebRTC before speak().
+      const fromVoiceFinal = voiceSubmitInFlightRef.current
+      if (!fromVoiceFinal) {
+        speakGenerationRef.current += 1
+        voice.interrupt()
+        stopListeningHard()
+      }
 
-      // Unlock audio during the user gesture so the later reply can play.
+      // Best-effort unlock (primary unlock is orb tap). Keep connect warm.
       void unlockAudioPlayback().catch(() => undefined)
       void voice.connect().catch(() => undefined)
 
@@ -609,15 +632,16 @@ export function BilamoConversationExperience({
         if (abortRef.current === controller) abortRef.current = null
         setBusy(false)
         sendLockRef.current = false
+        voiceSubmitInFlightRef.current = false
         const pending = pendingSendRef.current
         pendingSendRef.current = null
         if (pending) {
           // Flush exactly one queued voice turn after the prior request completes.
-          void sendRef.current(pending)
+          void voiceSendRef.current(pending)
         }
       }
     },
-    [busy, copy.somethingWrong, stopListeningHard, uiLocale, upsertMessage, voice],
+    [copy.somethingWrong, stopListeningHard, uiLocale, upsertMessage, voice],
   )
 
   // Smart departure: geolocation → nearest airport → remembered. Never interrogate for origin.
@@ -643,14 +667,14 @@ export function BilamoConversationExperience({
     setChangeAirportOpen(false)
   }, [])
 
-  sendRef.current = send
+  voiceSendRef.current = send
 
   const stopListening = useCallback(() => {
     stopListeningHard()
     setChatOrb(null)
   }, [stopListeningHard])
 
-  // Ensure send() also stops speech recognition when barge-in happens mid-listen.
+  // Typed composer only — soft-stop mic. Voice finals use voiceSendRef (no soft cancel).
   const sendWithMicStop = useCallback(
     async (raw: string) => {
       voice.stopListening()
@@ -683,25 +707,31 @@ export function BilamoConversationExperience({
     bilamoHaptic(orbState === 'listening' ? 4 : 8)
     // Always unlock Safari audio on the user gesture that owns the mic.
     void unlockAudioPlayback().catch(() => undefined)
+
+    const gate = {
+      voiceSubmitInFlight: voiceSubmitInFlightRef.current,
+      sendLocked: sendLockRef.current,
+      busy,
+      voiceState: voice.snapshot.state,
+      orbState,
+    }
+
+    // EOS → processing → submit: ignore second tap (previous "stuck" bargeIn dropped requests).
+    if (shouldIgnoreOrbTapDuringVoiceSubmit(gate) && orbState !== 'listening' && orbState !== 'speaking') {
+      return
+    }
+
     if (orbState === 'listening') {
-      // Stop → classic transport emits final transcript once (if any).
-      stopListening()
+      // Intentional end — finalize once (not soft cancel).
+      clearSilenceTimer()
+      silenceFinalizeOnceRef.current = true
+      const api = voiceApiRef.current
+      if (typeof api?.finalizeListening === 'function') api.finalizeListening()
+      else if (api?.session) api.session.finalizeListening()
+      else stopListening()
       return
     }
-    if (orbState === 'speaking') {
-      // True barge-in: stop playback, invalidate generation, start listening.
-      speakGenerationRef.current += 1
-      setChatOrb(null)
-      void voice.bargeIn()
-      return
-    }
-    // Stuck voice processing/speaking with no chat busy → recover + listen (second-turn deadlock).
-    const voiceStuck =
-      !busy
-      && (voice.snapshot.state === 'processing'
-        || voice.snapshot.state === 'speaking'
-        || (orbState === 'thinking' && !voice.snapshot.secondTurnReady))
-    if (voiceStuck) {
+    if (shouldBargeInFromOrb(gate)) {
       speakGenerationRef.current += 1
       setChatOrb(null)
       void voice.bargeIn()
@@ -711,7 +741,7 @@ export function BilamoConversationExperience({
       return
     }
     void startListening()
-  }, [busy, orbState, startListening, stopListening, voice])
+  }, [busy, clearSilenceTimer, orbState, startListening, stopListening, voice])
 
   const partial = voice.partialTranscript
 

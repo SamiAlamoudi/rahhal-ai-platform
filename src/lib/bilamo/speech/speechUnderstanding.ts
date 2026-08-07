@@ -36,10 +36,12 @@ export type SpeechUnderstandingResult = {
 function cleanupForLanguage(text: string, language: BilamoReplyLocale): string {
   const trimmed = text.trim()
   if (!trimmed) return ''
+  // Arabic-only sanitizer. Running it on French/English empties short Latin
+  // utterances and strips valid FR tokens — root cause of FR intent loss.
   if (language === 'ar') {
     return sanitizeArabicVoiceTranscript(trimmed) || trimmed
   }
-  return sanitizeArabicVoiceTranscript(trimmed) || trimmed.replace(/\s+/g, ' ').trim()
+  return trimmed.replace(/\s+/g, ' ').trim()
 }
 
 function scoreTranscriptConfidence(input: {
