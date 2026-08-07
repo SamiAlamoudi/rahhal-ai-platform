@@ -35,6 +35,9 @@ jobs:
       - name: Security gate (secret scan · env access · sanitization · authz)
         run: npm run security:gate
 
+      - name: Branding inventory guardrail
+        run: npm run branding:check
+
       - name: Typecheck
         run: npm run typecheck
 

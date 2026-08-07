@@ -405,7 +405,7 @@ export async function runConversationBrain(input: {
       if (parsed) {
         if (groundedEmpty && replyInventedTravelFacts(parsed.displayText).length > 0) {
           if (typeof console !== 'undefined') {
-            console.warn('[rahhal] greeting_hallucination_blocked', {
+            console.warn('[platform] greeting_hallucination_blocked', {
               invented: replyInventedTravelFacts(parsed.displayText),
             })
           }
@@ -436,7 +436,7 @@ export async function runConversationBrain(input: {
     // OpenAI/remote was selected — NEVER substitute local travel templates.
     const unavailable = remoteUnavailableReply(input.facts.locale, llm.providerId)
     if (typeof console !== 'undefined') {
-      console.warn('[rahhal] openai_conversation_unavailable', {
+      console.warn('[platform] openai_conversation_unavailable', {
         providerId: unavailable.providerId,
         status: result.status,
         error: 'error' in result ? result.error : undefined,

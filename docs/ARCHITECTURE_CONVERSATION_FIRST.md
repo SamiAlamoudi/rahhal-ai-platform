@@ -1,7 +1,10 @@
 # Conversation-First Architecture
 
-Rahhal (رحّال) is a Conversation-First AI Travel Consultant.
-**Rahhal remains the product.** OpenAI ChatGPT is the intelligence and speaking engine behind Rahhal.
+> This document describes work completed before the product was renamed to Bilamo.
+> Active product brand: **Bilamo / بيلامو**. Historical “Rahhal” names below are archival.
+
+Bilamo is a Conversation-First AI Travel Consultant.
+**Bilamo is the product.** OpenAI ChatGPT is the intelligence and speaking engine behind Bilamo.
 
 ## Responsibility split
 

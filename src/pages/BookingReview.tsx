@@ -323,7 +323,7 @@ export default function BookingReview() {
     navigate('/results')
   }
 
-  const handlePayViaRahhal = () => {
+  const handlePayment = () => {
     if (!session || session.items.length === 0) {
       setError('لا توجد عناصر للدفع')
       return
@@ -413,7 +413,7 @@ export default function BookingReview() {
                 },
               })}
               onRemoveItem={(itemId) => handleRemoveItem(itemId)}
-              onContinuePayment={handlePayViaRahhal}
+              onContinuePayment={handlePayment}
             />
           </div>
         )}
@@ -531,7 +531,7 @@ export default function BookingReview() {
             </button>
             <button
               type="button"
-              onClick={handlePayViaRahhal}
+              onClick={handlePayment}
               disabled={session.items.length === 0}
               data-testid="pay-bilamo"
               className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-40"

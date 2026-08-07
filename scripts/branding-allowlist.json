@@ -1,0 +1,690 @@
+{
+  "version": 1,
+  "description": "Reviewed allowlist for legacy Rahhal technical tokens. Do not add Active user-facing entries. Prefer domain renames over expanding this list.",
+  "entries": [
+    {
+      "path": "api/_lib/edgeGuard.ts",
+      "token": "https://rahhal-ai-platform.vercel.app",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "api/openai/realtime-call.ts",
+      "token": "X-Rahhal-Realtime-Model",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "api/openai/realtime-call.ts",
+      "token": "X-Rahhal-Upstream-Status",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "api/openai/realtime-call.ts",
+      "token": "X-Rahhal-Voice-Architecture",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "api/openai/realtime-session.ts",
+      "token": "X-Rahhal-Realtime-Model",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "api/openai/tts.ts",
+      "token": "X-Rahhal-TTS-Format",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "api/openai/tts.ts",
+      "token": "X-Rahhal-TTS-Model",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "api/openai/tts.ts",
+      "token": "X-Rahhal-TTS-Voice",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "api/tts.ts",
+      "token": "X-Rahhal-TTS-Bytes",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "api/tts.ts",
+      "token": "X-Rahhal-TTS-Provider",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/core/amadeusSandbox/normalize.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/core/amadeusSandbox/types.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/core/constitution/BehaviorTypes.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/core/constitution/index.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/core/constitution/PrincipleValidator.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/core/constitution/RahhalPrinciples.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/index.css",
+      "token": "--rahhal-glow",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/index.css",
+      "token": "--rahhal-ink",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/index.css",
+      "token": "--rahhal-muted",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/index.css",
+      "token": "--rahhal-radius-xl",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/index.css",
+      "token": "--rahhal-surface",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/integrations/multiProvider/config.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/integrations/multiProvider/types.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/integrations/providers/amadeus/amadeusSandbox.ts",
+      "token": "rahhal",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/integrations/providers/amadeus/amadeusSandbox.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/integrations/providers/amadeus/bookingReadyPayload.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/integrations/providers/amadeus/conversationFlightFormat.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/integrations/providers/amadeus/FlightMapper.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/__tests__/aiConstitution.sprint87.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/aiOrchestrator.sprint43.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/amadeus.sprint59.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/booking.sprint60.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/bookingOrchestrator.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/bookingSelectionMapper.test.ts",
+      "token": "https://www.amadeus.com/book/flights?offerId=offer-1&source=rahhal&env=sandbox",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/brainFoundation.sprint81.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/brainReasoning.sprint82.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/chatRecovery.test.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/checkoutOrchestrator.test.ts",
+      "token": "https://rahhal.app/checkout/return?orderId=${session.order.id}",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/demoAuth.test.ts",
+      "token": "planner@rahhal.local",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/edgeGuard.sprint79.test.ts",
+      "token": "https://rahhal-ai-platform.vercel.app",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/edgeGuard.sprint79.test.ts",
+      "token": "https://rahhal-ai-platform.vercel.app/api/amadeus-token",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/edgeGuard.sprint79.test.ts",
+      "token": "https://rahhal-ai-platform.vercel.app/api/openai/chat",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/financePlatform.sprint41.test.ts",
+      "token": "Rahhal",
+      "classification": "Compatibility",
+      "reason": "NLU back-compat utterance pattern"
+    },
+    {
+      "path": "src/lib/__tests__/gaRelease.sprint70.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/liveFlightSearch.sprint105.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/liveFlightValidation.sprint80.p2.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/moyasarCheckout.test.ts",
+      "token": "https://rahhal.app",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/moyasarCheckout.test.ts",
+      "token": "https://rahhal.app/",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/moyasarCheckout.test.ts",
+      "token": "https://rahhal.app/checkout/return?orderId=ord-99",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/moyasarPaymentProvider.test.ts",
+      "token": "https://rahhal.app/checkout/return?orderId=order-001",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/moyasarPaymentProvider.test.ts",
+      "token": "https://rahhal.app/checkout/success",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/paymentProvider.test.ts",
+      "token": "https://rahhal.app/checkout/success",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/rahhalAlpha.integration.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/rahhalAlpha.journey.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/rahhalBrain.sprint50.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/sprint79.productionValidation.test.ts",
+      "token": "https://rahhal-ai-platform.vercel.app",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/sprint79.productionValidation.test.ts",
+      "token": "https://rahhal-ai-platform.vercel.app${path}",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/ticketing.engine.test.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/tripManagement.sprint35.test.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/tripManagement.sprint35.test.ts",
+      "token": "user@rahhal.test",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/uiExperience.sprint119.test.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/__tests__/voiceExperienceSprint.test.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Test fixture or historical test title"
+    },
+    {
+      "path": "src/lib/admin/mockAdminData.ts",
+      "token": "admin@rahhal.app",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/agent/constitution/bridge.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/agent/conversationBrain/systemPrompt.ts",
+      "token": "RAHHAL",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/agent/documentCenter/sharing.ts",
+      "token": "https://rahhal.app/share/docs/${token}",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/agent/documentCenter/zip.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/agent/liveFlightSearch/LiveFlightSearchMapper.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/agent/liveFlightSearch/LiveFlightSearchRunner.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/agent/liveFlightSearch/types.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/agent/liveHotelSearch/types.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/agent/liveProviders/adapters/amadeus.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/agent/liveProviders/adapters/booking.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/agent/llm/openaiClient.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/agent/travelAgentService.impl.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/agent/types.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/ai/preferences/preferenceStorage.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/aiOrchestrator/feature.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/aiOrchestrator/index.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/aiOrchestrator/RahhalAiOrchestrator.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/aiOrchestrator/types.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/auth/AuthContext.tsx",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/auth/authService.ts",
+      "token": "demo@rahhal.local",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/auth/authService.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/auth/demoAuth.ts",
+      "token": "demo@rahhal.local",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/booking/bookingRecord.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/brain/core/index.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/brain/core/ports.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/brain/core/rahhalBrain.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/brain/core/types.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/brain/v1/SafetyLayer.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/chat/chatgptExperience/contextRecovery.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/chat/chatRecovery.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/chat/conversationExperience/ConversationState.ts",
+      "token": "rahhal",
+      "classification": "Compatibility",
+      "reason": "NLU back-compat utterance pattern"
+    },
+    {
+      "path": "src/lib/chat/conversationExperienceUi/theme.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/chat/localChatStore.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/chat/voice/audioElementTextToSpeechProvider.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/chat/voice/voiceExperiencePrefs.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/finance/conversation/financeQueries.ts",
+      "token": "rahhal",
+      "classification": "Compatibility",
+      "reason": "NLU back-compat utterance pattern"
+    },
+    {
+      "path": "src/lib/finance/MarkupEngine.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/loyalty/conversation/loyaltyQueries.ts",
+      "token": "rahhal",
+      "classification": "Compatibility",
+      "reason": "NLU back-compat utterance pattern"
+    },
+    {
+      "path": "src/lib/ops/logging/correlation.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/ops/release/versionManifest.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/orderManagement/types.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/supplierAdapters/types.ts",
+      "token": "Rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/ticketing/confirmationDocuments.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/ticketing/types.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/trips/BoardingPassService.ts",
+      "token": "rahhal",
+      "classification": "Internal technical",
+      "reason": "Legacy identifier in active codebase"
+    },
+    {
+      "path": "src/lib/trips/HotelVoucherService.ts",
+      "token": "rahhal://documents/hotel-voucher/${voucherId}.pdf",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/trips/TicketService.ts",
+      "token": "rahhal://documents/e-ticket/${ticketId}.pdf",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/trips/TripDocuments.ts",
+      "token": "rahhal://documents/invoice-bundle/${tripId}.pdf",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/trips/TripDocuments.ts",
+      "token": "rahhal://documents/itinerary/${tripId}.pdf",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/viteTtsApiPlugin.ts",
+      "token": "X-Rahhal-TTS-Provider",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/utils/__tests__/liveSearchOrchestrator.test.ts",
+      "token": "https://www.amadeus.com/book/flights?offerId=SV-100&source=rahhal&env=sandbox",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    }
+  ]
+}
