@@ -38,6 +38,7 @@ import {
   VOICE_RECOVERABLE_ERROR_AR,
 } from './voiceUserFacingError'
 import { logMicSessionState, mapToMicSessionState } from './micSessionState'
+import { emptyVoicePlaybackDiagnostics } from '../../bilamo/voice/voicePlaybackDiagnostics'
 import {
   ARABIC_UTTERANCE_COMMIT_MS,
   createArabicUtteranceAssembler,
@@ -220,31 +221,7 @@ export function createRealtimeWebRtcSession(
   let iceRecoveryTimer: ReturnType<typeof setTimeout> | null = null
   /** Queue progressive speakWrittenDraft chunks while a response is already playing. */
   let speakQueue: Array<{ spoken: string; locale: 'ar' | 'en' }> = []
-  const playbackDiag = {
-    remoteTrackReceived: false,
-    remoteTrackMuted: null as boolean | null,
-    remoteTrackReadyState: null as string | null,
-    audioElementAttached: false,
-    audioPlayRequested: false,
-    audioPlaybackStarted: false,
-    audioPlaybackFailed: false,
-    audioPlaybackEnded: false,
-    speechDetected: false,
-    endOfSpeechDetected: false,
-    inputCommitted: false,
-    finalTranscriptReceived: false,
-    assistantResponseCreated: false,
-    classicFallbackInvoked: false,
-    interruptAcknowledged: false,
-    lastEvent: null as import('../../bilamo/voice/voicePlaybackDiagnostics').VoicePlaybackDiagEvent | null,
-    lastSafeErrorCode: null as string | null,
-    lastFsmTransition: null as string | null,
-    stuckWatchdogCount: 0,
-    audioContextState: null as string | null,
-    peerConnectionState: null as string | null,
-    iceConnectionState: null as string | null,
-    playResult: null as 'pending' | 'resolved' | 'rejected' | null,
-  }
+  const playbackDiag = emptyVoicePlaybackDiagnostics()
 
   const transcriptGate = createUserTranscriptGate(() => activeLanguage)
 
@@ -1665,11 +1642,11 @@ export function createRealtimeWebRtcSession(
 
       const initial = buildInstructions(undefined, activeLanguage)
       activeLanguage = initial.language
-      const { requireProxyAuthHeaders } = await import('../../security/proxyAuth')
-      const authHeaders = await requireProxyAuthHeaders({ 'Content-Type': 'application/json' })
-      const res = await fetch('/api/openai/realtime-call', {
+      const { voiceAuthenticatedFetch } = await import('../../security/voiceAuthProbe')
+      const res = await voiceAuthenticatedFetch('/api/openai/realtime-call', {
         method: 'POST',
-        headers: authHeaders,
+        kind: 'realtime',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sdp: offer.sdp,
           voice,
@@ -1679,16 +1656,22 @@ export function createRealtimeWebRtcSession(
       })
 
       if (!res.ok) {
-        const detail = await res.text().catch(() => '')
         logChat('error', 'voice', 'realtime_call_failed', {
           status: res.status,
-          detail: detail.slice(0, 400),
         })
+        playbackDiag.httpRoute = '/api/openai/realtime-call'
+        playbackDiag.httpStatus = res.status
+        playbackDiag.safeServerErrorCode =
+          res.status === 401 ? 'AUTH_INVALID' : res.status === 403 ? 'CORS_ORIGIN_DENIED' : `HTTP_${res.status}`
+        playbackDiag.lastSafeErrorCode = playbackDiag.safeServerErrorCode
         callbacks.onError?.(VOICE_RECOVERABLE_ERROR_AR)
         setStatus('error')
         tearDownPeer()
         throw new Error(`realtime_call_failed:${res.status}`)
       }
+      playbackDiag.realtimeSessionCreated = true
+      playbackDiag.httpRoute = '/api/openai/realtime-call'
+      playbackDiag.httpStatus = res.status
 
       const answerSdp = await res.text()
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })

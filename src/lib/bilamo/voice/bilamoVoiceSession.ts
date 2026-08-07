@@ -23,8 +23,15 @@ import type {
 import {
   emptyVoicePlaybackDiagnostics,
   readAudioContextState,
+  speechRecognitionSupported,
   type VoicePlaybackDiagnostics,
 } from './voicePlaybackDiagnostics'
+import {
+  applyVoiceHttpTrace,
+  beginVoiceTurnCorrelation,
+  noteVoiceTurnStage,
+} from './voiceHttpTrace'
+import { probeVoiceAuth } from '../../security/voiceAuthProbe'
 
 /** Stuck processing/speaking without a live operation → recover to idle (no auto-listen). */
 const STUCK_STATE_WATCHDOG_MS = 8_000
@@ -39,7 +46,7 @@ const USER_SAFE_ERRORS = {
   device: 'Microphone disconnected. Tap to try again, or type instead.',
   unsupported: 'Voice is unavailable in this browser. You can type instead.',
   /** Only after reconnect + classic TTS both fail — never “continue in text”. */
-  playback: 'تعذر تشغيل الصوت. اضغط الميكروفون لإعادة المحاولة.',
+  playback: 'تعذر تشغيل الصوت. يمكنك المحاولة مرة أخرى.',
   fallback: 'أعيد تشغيل الصوت بصوت أوضح…',
 } as const
 
@@ -234,6 +241,21 @@ export function createBilamoVoiceSession(
         interruptAcknowledged: playbackDiag.interruptAcknowledged,
         stuckWatchdogCount: playbackDiag.stuckWatchdogCount,
         lastFsmTransition: playbackDiag.lastFsmTransition,
+        correlationId: playbackDiag.correlationId,
+        turnStage: playbackDiag.turnStage,
+        timestampMs: playbackDiag.timestampMs,
+        authenticatedUser: playbackDiag.authenticatedUser,
+        supabaseSessionAvailable: playbackDiag.supabaseSessionAvailable,
+        requestDispatched: playbackDiag.requestDispatched,
+        httpRoute: playbackDiag.httpRoute,
+        httpStatus: playbackDiag.httpStatus,
+        safeServerErrorCode: playbackDiag.safeServerErrorCode,
+        realtimeSessionCreated: playbackDiag.realtimeSessionCreated,
+        classicFallbackHttpStatus: playbackDiag.classicFallbackHttpStatus,
+        discardReason: playbackDiag.discardReason,
+        authProbeCode: playbackDiag.authProbeCode,
+        mediaStreamActive: playbackDiag.mediaStreamActive,
+        speechRecognitionSupported: playbackDiag.speechRecognitionSupported,
       }
       playbackDiag = {
         ...playbackDiag,
@@ -256,9 +278,32 @@ export function createBilamoVoiceSession(
           fromTransport.stuckWatchdogCount ?? 0,
         ),
         lastFsmTransition: sessionSticky.lastFsmTransition || fromTransport.lastFsmTransition,
+        correlationId: sessionSticky.correlationId || fromTransport.correlationId,
+        turnStage: sessionSticky.turnStage,
+        timestampMs: sessionSticky.timestampMs ?? fromTransport.timestampMs,
+        authenticatedUser: sessionSticky.authenticatedUser ?? fromTransport.authenticatedUser,
+        supabaseSessionAvailable:
+          sessionSticky.supabaseSessionAvailable ?? fromTransport.supabaseSessionAvailable,
+        requestDispatched: sessionSticky.requestDispatched || Boolean(fromTransport.requestDispatched),
+        httpRoute: sessionSticky.httpRoute || fromTransport.httpRoute,
+        httpStatus: sessionSticky.httpStatus ?? fromTransport.httpStatus,
+        safeServerErrorCode: sessionSticky.safeServerErrorCode || fromTransport.safeServerErrorCode,
+        realtimeSessionCreated:
+          sessionSticky.realtimeSessionCreated ?? fromTransport.realtimeSessionCreated,
+        classicFallbackHttpStatus:
+          sessionSticky.classicFallbackHttpStatus ?? fromTransport.classicFallbackHttpStatus,
+        discardReason: sessionSticky.discardReason || fromTransport.discardReason,
+        authProbeCode: sessionSticky.authProbeCode || fromTransport.authProbeCode,
+        mediaStreamActive: sessionSticky.mediaStreamActive ?? fromTransport.mediaStreamActive,
+        speechRecognitionSupported:
+          sessionSticky.speechRecognitionSupported ?? fromTransport.speechRecognitionSupported,
       }
     }
     playbackDiag.audioContextState = readAudioContextState()
+    if (playbackDiag.speechRecognitionSupported == null) {
+      playbackDiag.speechRecognitionSupported = speechRecognitionSupported()
+    }
+    playbackDiag = applyVoiceHttpTrace(playbackDiag)
     const secondTurnReady =
       !disposed
       && (state === 'idle' || state === 'error')
@@ -301,6 +346,8 @@ export function createBilamoVoiceSession(
       playbackDiag.lastEvent = 'watchdogIdleRecovery'
       lastSafeErrorCode = 'watchdog_idle_recovery'
     }
+    noteVoiceTurnStage('idle')
+    playbackDiag.turnStage = 'idle'
     if (state !== 'idle') {
       state = 'idle'
     }
@@ -374,7 +421,7 @@ export function createBilamoVoiceSession(
         transportKind = result.transport.kind
         wireTransport(result.transport)
         prepared = true
-        playbackDiag.lastEvent = 'classicFallback'
+        playbackDiag.lastEvent = 'CLASSIC_FALLBACK_STARTED'
         playbackDiag.classicFallbackInvoked = true
         emit()
       }
@@ -515,6 +562,8 @@ export function createBilamoVoiceSession(
         playbackDiag.finalTranscriptReceived = true
         playbackDiag.inputCommitted = true
         playbackDiag.lastEvent = 'finalTranscriptReceived'
+        noteVoiceTurnStage('requesting')
+        playbackDiag.turnStage = 'requesting'
         metrics.mark('final_transcript')
         setState('processing')
         onFinalUtterance?.(event)
@@ -531,6 +580,9 @@ export function createBilamoVoiceSession(
         metrics.mark('speak_start')
         playbackDiag.audioPlaybackStarted = true
         playbackDiag.lastEvent = 'audioPlaybackStarted'
+        playbackDiag.playResult = 'resolved'
+        noteVoiceTurnStage('playing')
+        playbackDiag.turnStage = 'playing'
         playbackReconnectAttempted = false
         error = null
         // first_audio is marked on real audio chunk / playback — not assumed here.
@@ -543,6 +595,8 @@ export function createBilamoVoiceSession(
         metrics.mark('speak_end')
         playbackDiag.audioPlaybackEnded = true
         playbackDiag.lastEvent = 'audioPlaybackEnded'
+        noteVoiceTurnStage('idle')
+        playbackDiag.turnStage = 'idle'
         // No auto-relisten after natural speak end — idle until user taps.
         if (state === 'speaking' || state === 'interrupted' || state === 'processing') {
           setState('idle')
@@ -649,6 +703,7 @@ export function createBilamoVoiceSession(
     async prepare() {
       if (disposed || prepared) return
       metrics.mark('connect_start')
+      void probeVoiceAuth().catch(() => undefined)
       const result = await createTransport({ mode: options.mode })
       requestedTransport = result.mode
       fellBackToClassic = result.fellBack
@@ -664,11 +719,25 @@ export function createBilamoVoiceSession(
       if (disposed) return
       if (!prepared) await session.prepare()
       metrics.mark('connect_start')
+      // Soft auth probe for diagnostics only — server routes still enforce JWT.
+      // Do not hard-fail connect here (would mask mic permission errors / block classic).
+      const authProbe = await probeVoiceAuth().catch(() => ({
+        ok: false,
+        authenticatedUser: false,
+        supabaseSessionAvailable: false,
+        authProbeCode: 'AUTH_PROBE_FAILED' as string | null,
+      }))
+      if (!authProbe.ok) {
+        lastSafeErrorCode = authProbe.authProbeCode || 'AUTH_REQUIRED'
+        playbackDiag.authProbeCode = lastSafeErrorCode
+        emit()
+      }
       setState('connecting')
       try {
         await transport!.connect()
         metrics.mark('connect_ok')
         error = null
+        playbackDiag.realtimeSessionCreated = transportKind === 'realtime_webrtc' ? true : playbackDiag.realtimeSessionCreated
         setState('idle')
         publishBilamoVoiceMetrics(metrics.report())
       } catch {
@@ -711,29 +780,39 @@ export function createBilamoVoiceSession(
       finalTranscript = null
       lastFinalKey = ''
       // Fresh turn diagnostics — sticky EOS/commit flags must not block the next finalize.
-      playbackDiag.speechDetected = false
-      playbackDiag.endOfSpeechDetected = false
-      playbackDiag.inputCommitted = false
-      playbackDiag.finalTranscriptReceived = false
-      playbackDiag.assistantResponseCreated = false
-      playbackDiag.classicFallbackInvoked = false
-      playbackDiag.interruptAcknowledged = false
-      playbackDiag.audioPlayRequested = false
-      playbackDiag.audioPlaybackStarted = false
-      playbackDiag.audioPlaybackFailed = false
-      playbackDiag.audioPlaybackEnded = false
-      playbackDiag.playResult = null
-      playbackDiag.lastEvent = null
+      const correlationId = beginVoiceTurnCorrelation()
+      playbackDiag = {
+        ...emptyVoicePlaybackDiagnostics(),
+        correlationId,
+        turnStage: 'listening',
+        speechRecognitionSupported: speechRecognitionSupported(),
+        peerConnectionState: playbackDiag.peerConnectionState,
+        iceConnectionState: playbackDiag.iceConnectionState,
+        audioElementAttached: playbackDiag.audioElementAttached,
+        remoteTrackReceived: playbackDiag.remoteTrackReceived,
+        remoteTrackMuted: playbackDiag.remoteTrackMuted,
+        remoteTrackReadyState: playbackDiag.remoteTrackReadyState,
+        stuckWatchdogCount: playbackDiag.stuckWatchdogCount,
+        timestampMs: Date.now(),
+      }
+      void probeVoiceAuth().catch(() => undefined)
       playbackReconnectAttempted = false
       metrics.mark('listen_start')
       const ok = await transport!.startListening(locale)
       if (ok) {
         metrics.mark('mic_ready')
+        playbackDiag.mediaStreamActive = true
+        noteVoiceTurnStage('listening')
         setState('listening')
         publishBilamoVoiceMetrics(metrics.report())
       } else {
         error = USER_SAFE_ERRORS.mic
+        playbackDiag.mediaStreamActive = false
+        noteVoiceTurnStage('error')
         setState('error')
+        globalThis.setTimeout(() => {
+          if (!disposed && state === 'error') releaseToIdle('mic_error_recover')
+        }, 80)
       }
       return ok
     },
@@ -755,6 +834,8 @@ export function createBilamoVoiceSession(
       playbackDiag.endOfSpeechDetected = true
       playbackDiag.lastEvent = 'endOfSpeechDetected'
       playbackDiag.lastFsmTransition = `${state}->finalizing`
+      noteVoiceTurnStage('finalizing')
+      playbackDiag.turnStage = 'finalizing'
       // Transitional: waiting for final transcript emit (exactly once via lastFinalKey).
       if (state === 'listening' || state === 'interrupted') {
         setState('processing')
@@ -805,7 +886,11 @@ export function createBilamoVoiceSession(
       playbackDiag.audioPlaybackStarted = false
       playbackDiag.audioPlaybackFailed = false
       playbackDiag.audioPlaybackEnded = false
-      playbackDiag.lastEvent = 'audioPlayRequested'
+      playbackDiag.assistantResponseCreated = true
+      playbackDiag.lastEvent = 'MODEL_RESPONSE_STARTED'
+      noteVoiceTurnStage('response_ready')
+      playbackDiag.turnStage = 'playback_starting'
+      noteVoiceTurnStage('playback_starting')
       // Do not reset playbackReconnectAttempted here — that caused reconnect loops
       // when the post-reconnect speak also failed. Reset on listen start / audible start.
       // Stay in processing until onSpeakingStart proves audible playback began.

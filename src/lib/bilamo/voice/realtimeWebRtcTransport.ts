@@ -15,6 +15,7 @@ import type {
   BilamoVoiceTransport,
   BilamoVoiceTransportCallbacks,
 } from './bilamoVoiceTransport'
+import { emptyVoicePlaybackDiagnostics } from './voicePlaybackDiagnostics'
 
 export type RealtimeTransportOptions = {
   /** Injected session factory for tests. */
@@ -310,31 +311,7 @@ export function createRealtimeWebRtcBilamoTransport(
     getPlaybackDiagnostics: () => {
       const fromSession = session?.getPlaybackDiagnostics()
       if (fromSession) return fromSession
-      return {
-        remoteTrackReceived: false,
-        remoteTrackMuted: null,
-        remoteTrackReadyState: null,
-        audioElementAttached: false,
-        audioPlayRequested: false,
-        audioPlaybackStarted: false,
-        audioPlaybackFailed: false,
-        audioPlaybackEnded: false,
-        speechDetected: false,
-        endOfSpeechDetected: false,
-        inputCommitted: false,
-        finalTranscriptReceived: false,
-        assistantResponseCreated: false,
-        classicFallbackInvoked: false,
-        interruptAcknowledged: false,
-        lastEvent: null,
-        lastSafeErrorCode: null,
-        lastFsmTransition: null,
-        stuckWatchdogCount: 0,
-        audioContextState: null,
-        peerConnectionState: null,
-        iceConnectionState: null,
-        playResult: null,
-      }
+      return emptyVoicePlaybackDiagnostics()
     },
 
     dispose() {

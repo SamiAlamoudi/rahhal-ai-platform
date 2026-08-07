@@ -257,6 +257,7 @@ export function BilamoConversationExperience({
   const sendRef = useRef<(raw: string) => Promise<void>>(async () => {})
   const speakGenerationRef = useRef(0)
   const sendLockRef = useRef(false)
+  const pendingSendRef = useRef<string | null>(null)
   const lastSentRef = useRef<{ text: string; at: number } | null>(null)
   /** Classic end-of-speech silence window — only after speech has started. */
   const SILENCE_FINALIZE_MS = 1600
@@ -341,9 +342,11 @@ export function BilamoConversationExperience({
         thinking: 'أفكّر…',
         type: 'اكتب',
         tip: 'اضغط مرة واحدة للتحدث. عند التوقف أكمل تلقائياً.',
-        retryVoice: 'أعد المحاولة',
+        retryVoice: 'إعادة المحاولة',
+        continueText: 'متابعة بالنص',
         classicVoice: 'صوت مبسّط',
         changeAirport: 'تغيير المطار',
+        audioError: 'تعذر تشغيل الصوت. يمكنك المحاولة مرة أخرى.',
       }
     : {
         heroLead: 'Here is what I would choose for you.',
@@ -366,8 +369,10 @@ export function BilamoConversationExperience({
         type: 'Type',
         tip: 'Tap once to speak. When you pause, I continue automatically.',
         retryVoice: 'Retry',
+        continueText: 'Continue in text',
         classicVoice: 'Simple voice',
         changeAirport: 'Change airport',
+        audioError: 'Could not play audio. You can try again.',
       }
 
   const clearSilenceTimer = useCallback(() => {
@@ -409,7 +414,14 @@ export function BilamoConversationExperience({
         return
       }
       // Generation-owned send — never double-submit the same voice final.
-      if (sendLockRef.current || busy) return
+      // If a turn is in flight, queue exactly one pending utterance (never silent discard).
+      if (sendLockRef.current || busy) {
+        pendingSendRef.current = content
+        void import('../../lib/bilamo/voice/voiceHttpTrace').then(({ noteVoiceDiscardReason }) => {
+          noteVoiceDiscardReason('queued_while_busy')
+        })
+        return
+      }
       const last = lastSentRef.current
       if (last && last.text === content && Date.now() - last.at < 5_000) return
       sendLockRef.current = true
@@ -537,6 +549,12 @@ export function BilamoConversationExperience({
         if (abortRef.current === controller) abortRef.current = null
         setBusy(false)
         sendLockRef.current = false
+        const pending = pendingSendRef.current
+        pendingSendRef.current = null
+        if (pending) {
+          // Flush exactly one queued voice turn after the prior request completes.
+          void sendRef.current(pending)
+        }
       }
     },
     [busy, copy.somethingWrong, stopListeningHard, uiLocale, upsertMessage, voice],
@@ -882,15 +900,16 @@ export function BilamoConversationExperience({
                   role="alert"
                 >
                   <p className="text-[13px] leading-relaxed text-[var(--bilamo-danger)]/85">
-                    {error ?? voiceError}
+                    {error ?? voiceError ?? copy.audioError}
                   </p>
-                  {voiceError ? (
-                    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+                  <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
                       <button
                         type="button"
                         className="text-[12.5px] text-[var(--bilamo-text)]/80 underline-offset-2 hover:underline"
                         onClick={() => {
+                          setError(null)
                           voice.clearError()
+                          voice.releaseToIdle('error_retry')
                           void startListening()
                         }}
                       >
@@ -900,19 +919,22 @@ export function BilamoConversationExperience({
                         type="button"
                         className="text-[12.5px] text-[var(--bilamo-text)]/80 underline-offset-2 hover:underline"
                         onClick={() => {
+                          setError(null)
                           voice.clearError()
+                          voice.releaseToIdle('continue_text')
                           setComposerOpen(true)
                         }}
                       >
-                        {copy.type}
+                        {copy.continueText}
                       </button>
-                      {voice.transportKind === 'realtime_webrtc' ? (
+                      {voiceError && voice.transportKind === 'realtime_webrtc' ? (
                         <button
                           type="button"
                           className="text-[12.5px] text-[var(--bilamo-text)]/80 underline-offset-2 hover:underline"
                           onClick={() => {
                             void voice.switchToClassic().then(() => {
                               voice.clearError()
+                              voice.releaseToIdle('classic_switch')
                             })
                           }}
                         >
@@ -920,7 +942,6 @@ export function BilamoConversationExperience({
                         </button>
                       ) : null}
                     </div>
-                  ) : null}
                 </motion.div>
               )}
             </AnimatePresence>

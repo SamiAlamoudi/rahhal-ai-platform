@@ -24,6 +24,28 @@ export type VoicePlaybackDiagEvent =
   | 'playRejected'
   | 'interruptAcknowledged'
   | 'finalizeListening'
+  | 'VOICE_REQUEST_CREATED'
+  | 'VOICE_REQUEST_SENT'
+  | 'VOICE_REQUEST_AUTHENTICATED'
+  | 'VOICE_REQUEST_ACCEPTED'
+  | 'MODEL_RESPONSE_STARTED'
+  | 'MODEL_RESPONSE_COMPLETED'
+  | 'CLASSIC_FALLBACK_STARTED'
+  | 'CLASSIC_FALLBACK_OK'
+  | 'CLASSIC_FALLBACK_FAILED'
+  | 'TURN_IDLE'
+  | 'AUTH_PROBE'
+
+export type VoiceTurnStage =
+  | 'idle'
+  | 'listening'
+  | 'finalizing'
+  | 'requesting'
+  | 'response_ready'
+  | 'playback_starting'
+  | 'playing'
+  | 'error'
+  | 'done'
 
 export type VoicePlaybackDiagnostics = {
   remoteTrackReceived: boolean
@@ -49,6 +71,22 @@ export type VoicePlaybackDiagnostics = {
   peerConnectionState: string | null
   iceConnectionState: string | null
   playResult: 'pending' | 'resolved' | 'rejected' | null
+  /** Per-turn correlation (short, non-secret). */
+  correlationId: string | null
+  turnStage: VoiceTurnStage
+  timestampMs: number | null
+  authenticatedUser: boolean | null
+  supabaseSessionAvailable: boolean | null
+  mediaStreamActive: boolean | null
+  speechRecognitionSupported: boolean | null
+  requestDispatched: boolean
+  httpRoute: string | null
+  httpStatus: number | null
+  safeServerErrorCode: string | null
+  realtimeSessionCreated: boolean | null
+  classicFallbackHttpStatus: number | null
+  discardReason: string | null
+  authProbeCode: string | null
 }
 
 export function emptyVoicePlaybackDiagnostics(): VoicePlaybackDiagnostics {
@@ -76,6 +114,21 @@ export function emptyVoicePlaybackDiagnostics(): VoicePlaybackDiagnostics {
     peerConnectionState: null,
     iceConnectionState: null,
     playResult: null,
+    correlationId: null,
+    turnStage: 'idle',
+    timestampMs: null,
+    authenticatedUser: null,
+    supabaseSessionAvailable: null,
+    mediaStreamActive: null,
+    speechRecognitionSupported: null,
+    requestDispatched: false,
+    httpRoute: null,
+    httpStatus: null,
+    safeServerErrorCode: null,
+    realtimeSessionCreated: null,
+    classicFallbackHttpStatus: null,
+    discardReason: null,
+    authProbeCode: null,
   }
 }
 
@@ -94,4 +147,36 @@ export function readAudioContextState(): string | null {
   } catch {
     return null
   }
+}
+
+export function newVoiceCorrelationId(): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID().slice(0, 8)
+    }
+  } catch {
+    /* fall through */
+  }
+  return `v${Date.now().toString(36).slice(-6)}`
+}
+
+export function safeHttpErrorCode(status: number, bodyCode?: string | null): string {
+  if (bodyCode && /^[A-Z0-9_]{3,48}$/.test(bodyCode)) return bodyCode
+  if (status === 401) return 'HTTP_401'
+  if (status === 403) return 'HTTP_403'
+  if (status === 429) return 'HTTP_429'
+  if (status === 502) return 'HTTP_502'
+  if (status === 503) return 'HTTP_503'
+  if (status >= 500) return 'HTTP_5XX'
+  if (status >= 400) return 'HTTP_4XX'
+  return `HTTP_${status}`
+}
+
+export function speechRecognitionSupported(): boolean | null {
+  if (typeof window === 'undefined') return null
+  const w = window as Window & {
+    SpeechRecognition?: unknown
+    webkitSpeechRecognition?: unknown
+  }
+  return Boolean(w.SpeechRecognition || w.webkitSpeechRecognition)
 }
