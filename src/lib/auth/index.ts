@@ -20,5 +20,6 @@ export {
   validateSignUpForm,
   validateSignInForm,
   mapAuthErrorMessage,
+  isAuthNetworkError,
   type AuthError,
 } from './authValidation'
