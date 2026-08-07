@@ -6,7 +6,12 @@
  */
 
 import type { VoiceLocale } from '../../chat/voice/voiceTypes'
-import { createBilamoVoiceMetrics, type BilamoVoiceMetrics } from './bilamoVoiceMetrics'
+import {
+  createBilamoVoiceMetrics,
+  type BilamoVoiceMetrics,
+  type BilamoVoiceMetricsReport,
+} from './bilamoVoiceMetrics'
+import { publishBilamoVoiceMetrics } from './bilamoVoiceMetricsReporter'
 import { createBilamoVoiceTransport } from './createBilamoVoiceTransport'
 import type {
   BilamoSpeakHandle,
@@ -15,6 +20,15 @@ import type {
   BilamoVoiceTransport,
   BilamoVoiceTransportMode,
 } from './bilamoVoiceTransport'
+
+/** User-facing voice errors — never expose technical / provider details. */
+const USER_SAFE_ERRORS = {
+  mic: 'Microphone needs permission',
+  connect: 'Could not start voice. You can type instead.',
+  reconnect: 'Connection lost. You can retry or type instead.',
+  device: 'Microphone disconnected. Tap to try again, or type instead.',
+  unsupported: 'Voice is unavailable in this browser. You can type instead.',
+} as const
 
 /** Canonical session state machine (maps onto Orb visuals). */
 export type BilamoVoiceSessionState =
@@ -66,6 +80,9 @@ export type BilamoVoiceSession = {
   clearError: () => void
   clearTranscripts: () => void
   getMetrics: () => ReturnType<BilamoVoiceMetrics['snapshot']>
+  getMetricsReport: () => BilamoVoiceMetricsReport
+  /** Attach document visibility / device-loss hardening (idempotent). */
+  attachReliabilityGuards: () => () => void
   dispose: () => void
 }
 
@@ -126,6 +143,7 @@ export function createBilamoVoiceSession(
   let activeSpeakTransportGen = -1
   let onFinalUtterance: ((event: BilamoTranscriptEvent) => void) | null =
     options.onFinalUtterance ?? null
+  let guardsAttached = false
   /** Stable snapshot reference for useSyncExternalStore (must not allocate every read). */
   let snapshot: BilamoVoiceSessionSnapshot = {
     state: 'idle',
@@ -231,8 +249,20 @@ export function createBilamoVoiceSession(
         }
         emit()
       },
-      onError: (message) => {
-        error = message
+      onError: (message, detail) => {
+        const code = detail?.code || ''
+        if (code === 'not-allowed' || /permission/i.test(message)) {
+          error = USER_SAFE_ERRORS.mic
+        } else if (code === 'unsupported_browser') {
+          error = USER_SAFE_ERRORS.unsupported
+        } else if (code === 'device_lost' || code === 'audio_device_lost') {
+          error = USER_SAFE_ERRORS.device
+        } else if (code.startsWith('reconnect') || code === 'connect_failed') {
+          error = USER_SAFE_ERRORS.reconnect
+        } else {
+          // Never surface raw provider / WebRTC strings to travelers.
+          error = USER_SAFE_ERRORS.connect
+        }
         setState('error')
       },
       onListeningChange: (listening) => {
@@ -298,7 +328,7 @@ export function createBilamoVoiceSession(
             /* fall through */
           }
         }
-        error = 'Could not start voice. You can type instead.'
+        error = USER_SAFE_ERRORS.connect
         setState('error')
       }
     },
@@ -322,9 +352,12 @@ export function createBilamoVoiceSession(
       lastFinalKey = ''
       metrics.mark('listen_start')
       const ok = await transport!.startListening(locale)
-      if (ok) setState('listening')
-      else {
-        error = 'Microphone needs permission'
+      if (ok) {
+        metrics.mark('mic_ready')
+        setState('listening')
+        publishBilamoVoiceMetrics(metrics.report())
+      } else {
+        error = USER_SAFE_ERRORS.mic
         setState('error')
       }
       return ok
@@ -340,6 +373,7 @@ export function createBilamoVoiceSession(
       generation += 1
       activeSpeakTransportGen = -1
       transport?.interrupt()
+      metrics.mark('interrupt_ack')
       setState('interrupted')
       // User intent: start listening after interrupt — not auto-relisten after reply end.
       partialTranscript = ''
@@ -347,14 +381,22 @@ export function createBilamoVoiceSession(
       lastFinalKey = ''
       metrics.mark('listen_start')
       const ok = await transport!.startListening(locale)
-      if (ok) setState('listening')
-      else setState('idle')
+      if (ok) {
+        metrics.mark('mic_ready')
+        setState('listening')
+      } else {
+        setState('idle')
+      }
+      publishBilamoVoiceMetrics(metrics.report())
       return ok
     },
     speak(text, speakLocale) {
       generation += 1
       const sessionGen = generation
-      if (text.trim()) setState('speaking')
+      if (text.trim()) {
+        metrics.mark('response_start')
+        setState('speaking')
+      }
 
       const done = (async () => {
         if (!prepared) await session.prepare()
@@ -377,6 +419,7 @@ export function createBilamoVoiceSession(
           activeSpeakTransportGen = -1
           setState('idle')
         }
+        publishBilamoVoiceMetrics(metrics.report())
       })()
 
       return { generation: sessionGen, done }
@@ -386,7 +429,9 @@ export function createBilamoVoiceSession(
       generation += 1
       activeSpeakTransportGen = -1
       transport?.interrupt()
+      metrics.mark('interrupt_ack')
       if (state === 'speaking' || state === 'interrupted') setState('idle')
+      publishBilamoVoiceMetrics(metrics.report())
     },
     async switchToClassic() {
       transport?.dispose()
@@ -409,6 +454,41 @@ export function createBilamoVoiceSession(
       emit()
     },
     getMetrics: () => metrics.snapshot(),
+    getMetricsReport: () => metrics.report(),
+    attachReliabilityGuards() {
+      if (guardsAttached || typeof document === 'undefined') return () => {}
+      guardsAttached = true
+
+      const onVisibility = () => {
+        if (!document.hidden) return
+        // Background: stop capture / playback; never auto-relisten on foreground.
+        if (state === 'listening') {
+          transport?.stopListening()
+          setState('idle')
+        } else if (state === 'speaking') {
+          session.interrupt()
+        }
+      }
+
+      const onDeviceChange = () => {
+        // Device loss while listening — surface recovery, do not auto-reopen mic.
+        if (state === 'listening' || transport?.isListening()) {
+          transport?.stopListening()
+          error = USER_SAFE_ERRORS.device
+          setState('error')
+        }
+      }
+
+      document.addEventListener('visibilitychange', onVisibility)
+      const md = typeof navigator !== 'undefined' ? navigator.mediaDevices : null
+      md?.addEventListener?.('devicechange', onDeviceChange)
+
+      return () => {
+        document.removeEventListener('visibilitychange', onVisibility)
+        md?.removeEventListener?.('devicechange', onDeviceChange)
+        guardsAttached = false
+      }
+    },
     dispose() {
       disposed = true
       transport?.dispose()

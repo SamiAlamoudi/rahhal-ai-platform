@@ -31,4 +31,14 @@ export type {
 } from './bilamoVoiceSession'
 
 export { createBilamoVoiceMetrics } from './bilamoVoiceMetrics'
-export type { BilamoVoiceMetricsSnapshot, BilamoVoiceMetricMark } from './bilamoVoiceMetrics'
+export type {
+  BilamoVoiceMetricsSnapshot,
+  BilamoVoiceMetricMark,
+  BilamoVoiceMetricsReport,
+  BilamoVoiceLatencyAggregate,
+} from './bilamoVoiceMetrics'
+export {
+  publishBilamoVoiceMetrics,
+  readPublishedBilamoVoiceMetrics,
+  voiceMetricsEnabled,
+} from './bilamoVoiceMetricsReporter'

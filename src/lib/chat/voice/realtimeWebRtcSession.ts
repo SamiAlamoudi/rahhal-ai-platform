@@ -1536,7 +1536,7 @@ export function createRealtimeWebRtcSession(
       releaseToIdleInternal('interrupt')
     },
     sendText(text: string) {
-      // Architecture: text turns are owned by planTurn (HomeVoiceConsultant).
+      // Architecture: text turns are owned by planTurn (Bilamo VoiceSession / chatEngine).
       // Realtime must not create a parallel spoken reply from sendText.
       const cleaned = text.trim()
       if (!cleaned) return

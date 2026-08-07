@@ -112,14 +112,14 @@ export function createRealtimeWebRtcBilamoTransport(
           setConnection('reconnecting')
           void session?.connect().catch(() => {
             setConnection('error')
-            callbacks.onError?.('Connection lost. You can retry or type instead.', {
+            callbacks.onError?.('reconnect_failed', {
               code: 'reconnect_failed',
               recoverable: true,
             })
           })
         } else {
           setConnection('error')
-          callbacks.onError?.('Connection lost. You can retry or type instead.', {
+          callbacks.onError?.('reconnect_exhausted', {
             code: 'reconnect_exhausted',
             recoverable: true,
           })

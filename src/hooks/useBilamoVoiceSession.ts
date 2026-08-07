@@ -41,8 +41,10 @@ export function useBilamoVoiceSession(options: UseBilamoVoiceSessionOptions = {}
     session.setOnFinalUtterance((event) => {
       onFinal(event.text, event.normalizedForExtract ?? null)
     })
+    const detachGuards = session.attachReliabilityGuards()
     return () => {
       session.setOnFinalUtterance(null)
+      detachGuards()
       // Do not dispose shared session on unmount — Home ↔ Conversation share it.
       if (!shared) session.dispose()
     }
@@ -113,5 +115,6 @@ export function useBilamoVoiceSession(options: UseBilamoVoiceSessionOptions = {}
     setConversationId: (id: string | null) => session.setConversationId(id),
     setLocale: (locale: 'ar' | 'en') => session.setLocale(locale),
     getMetrics: () => session.getMetrics(),
+    getMetricsReport: () => session.getMetricsReport(),
   }
 }
