@@ -222,8 +222,8 @@ describe('Bilamo Intelligence E2E — real traveler conversations', () => {
     expect(search.flights[0].reason).toBeTruthy()
 
     // Recommendation presentation — explain #1, alternatives, no raw dump
-    expect(t2.text.toLowerCase()).toMatch(/japan|choose|option|suggest|why/)
-    expect(t2.text.toLowerCase()).toMatch(/alternative|if you prefer|strong alternative/)
+    expect(t2.text.toLowerCase()).toMatch(/japan|pick|recommend|why|select/)
+    expect(t2.text.toLowerCase()).toMatch(/alternative|stay:|select a card/)
     expect(t2.meta.bookingSearch?.searchInvoked).toBe(true)
     expect(t2.meta.bookingOptions?.length).toBeGreaterThan(0)
     expect(t2.meta.tripPlan?.destinations?.[0]).toMatch(/Japan/i)

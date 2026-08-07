@@ -1794,11 +1794,11 @@ export function createTravelAgentService(
           : ''
         const displayText = memory.locale === 'ar'
           ? (selectedCard.kind === 'flight'
-            ? `تم اختيار رحلة ${label}${priceBit}. نكمل تجهيز الحجز — هل تريد فندقًا أيضًا؟`
-            : `تم اختيار فندق ${label}${priceBit}. نكمل تجهيز الحجز — هل تريد تأكيد المعاينة؟`)
+            ? `تم اختيار رحلة ${label}${priceBit}. أبقيت خياراتك ظاهرة — هل نضيف إقامة، أم نراجع الحجز؟`
+            : `تم اختيار فندق ${label}${priceBit}. أبقيت التوصيات ظاهرة — هل نؤكد المعاينة، أم تعدّل شيئاً؟`)
           : (selectedCard.kind === 'flight'
-            ? `Selected flight ${label}${priceBit}. Shall I add a hotel next?`
-            : `Selected hotel ${label}${priceBit}. Ready to confirm the preview?`)
+            ? `Selected ${label}${priceBit}. Your recommendations stay visible — shall I add a stay, or review booking?`
+            : `Selected ${label}${priceBit}. Your recommendations stay visible — confirm the preview, or adjust something?`)
         logPipeline({
           stage: 'conversation',
           event: 'booking_option_selected',

@@ -8,6 +8,7 @@ export interface HotelCardProps {
   nightsLabel: string
   priceLabel: string
   highlighted?: boolean
+  selected?: boolean
   reason?: string
   onSelect?: () => void
   onViewDetails?: () => void
@@ -22,6 +23,7 @@ export function HotelCard({
   nightsLabel,
   priceLabel,
   highlighted,
+  selected = false,
   reason,
   onSelect,
   onViewDetails,
@@ -29,8 +31,8 @@ export function HotelCard({
   className,
 }: HotelCardProps) {
   const labels = locale === 'ar'
-    ? { select: 'اختيار', details: 'التفاصيل' }
-    : { select: 'Select', details: 'View details' }
+    ? { select: 'اختيار', details: 'التفاصيل', selected: 'تم الاختيار' }
+    : { select: 'Select', details: 'View details', selected: 'Selected' }
   const showActions = Boolean(onSelect || onViewDetails)
 
   return (
@@ -38,9 +40,10 @@ export function HotelCard({
       <SearchResult
         title={name}
         priceLabel={priceLabel}
-        highlighted={highlighted}
+        highlighted={highlighted && !selected}
+        selected={selected}
         reason={reason}
-        onSelect={onSelect}
+        interactive={false}
         subtitle={`${area} · ${rating.toFixed(1)}`}
         meta={nightsLabel}
       />
@@ -54,9 +57,10 @@ export function HotelCard({
             <button
               type="button"
               onClick={onSelect}
-              className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-text)]/75 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)]"
+              disabled={selected}
+              className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-text)]/75 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)] disabled:opacity-60 disabled:no-underline"
             >
-              {labels.select}
+              {selected ? labels.selected : labels.select}
             </button>
           ) : null}
           {onViewDetails ? (

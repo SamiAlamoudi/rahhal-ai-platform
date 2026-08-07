@@ -143,7 +143,7 @@ describe('Bilamo Intelligence Layer', () => {
     expect(turn).not.toBeNull()
     expect(turn!.phase).toBe('recommending')
     expect(turn!.search?.flights.length).toBeGreaterThan(0)
-    expect(turn!.displayText.toLowerCase()).toMatch(/option|choose|suggest|airline|hotel/)
+    expect(turn!.displayText.toLowerCase()).toMatch(/pick|recommend|airline|hotel|why|stay/)
     expect(turn!.spokenText.split(' ').length).toBeLessThan(40)
   })
 
