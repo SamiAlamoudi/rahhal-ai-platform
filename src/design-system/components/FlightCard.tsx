@@ -21,6 +21,8 @@ export interface FlightCardProps {
   onSelect?: () => void
   onCompare?: () => void
   onViewDetails?: () => void
+  /** Action labels locale — defaults to English. */
+  locale?: 'ar' | 'en'
   className?: string
 }
 
@@ -41,8 +43,12 @@ export function FlightCard({
   onSelect,
   onCompare,
   onViewDetails,
+  locale = 'en',
   className,
 }: FlightCardProps) {
+  const labels = locale === 'ar'
+    ? { select: 'اختيار', compare: 'مقارنة', details: 'التفاصيل' }
+    : { select: 'Select', compare: 'Compare', details: 'View details' }
   const metaParts = [
     duration,
     stopsLabel,
@@ -81,7 +87,7 @@ export function FlightCard({
               onClick={onSelect}
               className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-text)]/75 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)]"
             >
-              Select
+              {labels.select}
             </button>
           ) : null}
           {onCompare ? (
@@ -90,7 +96,7 @@ export function FlightCard({
               onClick={onCompare}
               className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-muted)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)]"
             >
-              Compare
+              {labels.compare}
             </button>
           ) : null}
           {onViewDetails ? (
@@ -99,7 +105,7 @@ export function FlightCard({
               onClick={onViewDetails}
               className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-muted)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)]"
             >
-              View details
+              {labels.details}
             </button>
           ) : null}
         </div>

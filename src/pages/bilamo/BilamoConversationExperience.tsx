@@ -16,6 +16,7 @@ import {
 } from '../../design-system'
 import { greetingForHour, resolveDisplayName } from '../../design-system/greeting'
 import { useBilamoMic } from '../../hooks/useBilamoMic'
+import { useBilamoSpeak } from '../../hooks/useBilamoSpeak'
 import { useBilamoSpeech } from '../../hooks/useBilamoSpeech'
 import { useAuth } from '../../lib/auth'
 import { chatEngine } from '../../lib/chat/chatEngine'
@@ -203,6 +204,12 @@ export function BilamoConversationExperience({
   const [results, setResults] = useState<BilamoResultsView | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [speakPulse, setSpeakPulse] = useState(0)
+  const [compareIds, setCompareIds] = useState<string[]>([])
+  const [detailsId, setDetailsId] = useState<string | null>(null)
+  const [uiLocale, setUiLocale] = useState<'ar' | 'en'>(() =>
+    typeof navigator !== 'undefined' && navigator.language?.startsWith('ar') ? 'ar' : 'en',
+  )
+  const { speak: speakReply, stop: stopSpeak } = useBilamoSpeak()
 
   conversationIdRef.current = conversationId
 
@@ -213,6 +220,33 @@ export function BilamoConversationExperience({
   )
 
   const inConversation = messages.length > 0 || busy || orbState !== 'idle'
+  const copy = uiLocale === 'ar'
+    ? {
+        heroLead: 'هذا ما أختاره لك.',
+        emptyFlights: 'لم أجد رحلة قوية بهذه التواريخ بعد.',
+        tryAgain: 'حاول مجدداً',
+        stale: 'قد تكون الأسعار تحرّكت — قل لي إن أردت تحديثاً.',
+        backup: 'استخدمت مخزوناً موثوقاً بعد تعثّر لحظي في التوفر.',
+        providerError: 'تعذّر الوصول للمزوّد للحظة. يمكنك إعادة المحاولة.',
+        compareTitle: 'مقارنة سريعة',
+        micNeed: 'الميكروفون يحتاج إذناً',
+        tapAgain: 'اضغط مجدداً عند الانتهاء من الكلام',
+        somethingWrong: 'حدث خطأ ما',
+        thinking: 'أفكّر…',
+      }
+    : {
+        heroLead: 'Here is what I would choose for you.',
+        emptyFlights: 'I could not find a strong flight match for those dates yet.',
+        tryAgain: 'Try again',
+        stale: 'Prices may have shifted — say if you want me to refresh.',
+        backup: 'I used a reliable backup inventory after a brief availability hiccup.',
+        providerError: 'The provider paused for a moment. You can try again.',
+        compareTitle: 'Quick compare',
+        micNeed: 'Microphone needs permission',
+        tapAgain: 'Tap again when you finish speaking',
+        somethingWrong: 'Something went wrong',
+        thinking: 'Thinking…',
+      }
 
   const upsertMessage = useCallback((message: ChatMessage) => {
     setMessages((prev) => {
@@ -269,8 +303,25 @@ export function BilamoConversationExperience({
               const next = resultsFromAssistantMeta(
                 (msg.providerMeta as Record<string, unknown> | undefined) ?? null,
               )
-              if (next) setResults(next)
-              window.setTimeout(() => setOrbState('idle'), 900)
+              if (next) {
+                setResults(next)
+                setCompareIds([])
+                setDetailsId(null)
+              }
+              const meta = msg.providerMeta as {
+                spokenText?: string
+                memory?: { locale?: string }
+              } | undefined
+              const locale = meta?.memory?.locale === 'ar' ? 'ar' : uiLocale
+              setUiLocale(locale)
+              const spoken = (meta?.spokenText || msg.content || '').trim()
+              if (spoken) {
+                void speakReply(spoken, locale).finally(() => {
+                  window.setTimeout(() => setOrbState('idle'), 200)
+                })
+              } else {
+                window.setTimeout(() => setOrbState('idle'), 700)
+              }
             },
             onError: (msg, err) => {
               upsertMessage(msg)
@@ -287,7 +338,7 @@ export function BilamoConversationExperience({
       } catch (err) {
         if (!isBenignChatError(err)) {
           logChatError('bilamo.experience.send', err)
-          setError(err instanceof Error ? err.message : 'Something went wrong')
+          setError(err instanceof Error ? err.message : copy.somethingWrong)
         }
         setOrbState('idle')
       } finally {
@@ -295,7 +346,7 @@ export function BilamoConversationExperience({
         setBusy(false)
       }
     },
-    [upsertMessage],
+    [copy.somethingWrong, speakReply, uiLocale, upsertMessage],
   )
 
   sendRef.current = send
@@ -331,24 +382,23 @@ export function BilamoConversationExperience({
 
   const startListening = useCallback(async () => {
     setError(null)
-    setResults(null)
+    stopSpeak()
+    // Keep prior recommendation cards visible while capturing the next utterance.
     const ok = await startMic()
     if (!ok) {
-      setError('Microphone needs permission')
+      setError(copy.micNeed)
       setComposerOpen(true)
       return
     }
     setOrbState('listening')
     bilamoHaptic(6)
-    const started = startSpeech(
-      typeof navigator !== 'undefined' && navigator.language?.startsWith('ar')
-        ? 'ar-SA'
-        : 'en-US',
-    )
+    const lang = uiLocale === 'ar' || navigator.language?.startsWith('ar') ? 'ar-SA' : 'en-US'
+    if (lang.startsWith('ar')) setUiLocale('ar')
+    const started = startSpeech(lang)
     if (!started) {
-      setError('Tap again when you finish speaking')
+      setError(copy.tapAgain)
     }
-  }, [startMic, startSpeech])
+  }, [copy.micNeed, copy.tapAgain, startMic, startSpeech, stopSpeak, uiLocale])
 
   const toggleOrb = useCallback(() => {
     bilamoHaptic(orbState === 'listening' ? 4 : 8)
@@ -361,7 +411,14 @@ export function BilamoConversationExperience({
       }
       return
     }
-    if (orbState === 'thinking' || orbState === 'speaking' || busy) return
+    if (orbState === 'thinking' || orbState === 'speaking' || busy) {
+      // Mic tap while speaking interrupts TTS only — no auto-relisten.
+      if (orbState === 'speaking') {
+        stopSpeak()
+        setOrbState('idle')
+      }
+      return
+    }
     void startListening()
   }, [
     busy,
@@ -370,6 +427,7 @@ export function BilamoConversationExperience({
     startListening,
     stopListening,
     stopMic,
+    stopSpeak,
     stopSpeech,
   ])
 
@@ -550,69 +608,221 @@ export function BilamoConversationExperience({
                   )
                 })}
 
+                {busy && orbState === 'thinking' && !results ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={springs.soft}
+                    className="space-y-2 pt-2"
+                    aria-label={copy.thinking}
+                  >
+                    {[0, 1].map((i) => (
+                      <motion.div
+                        key={i}
+                        className="bilamo-glass h-[4.5rem] rounded-[1.25rem]"
+                        animate={{ opacity: [0.35, 0.7, 0.35] }}
+                        transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.15 }}
+                      />
+                    ))}
+                  </motion.div>
+                ) : null}
+
                 {results && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ ...springs.soft, delay: 0.05 }}
                     className="space-y-2 pt-2"
+                    layout
                   >
                     {results.flightsStatus?.empty && !results.flights.length ? (
                       <div className="space-y-3 px-1 py-2">
                         <p className="text-[13.5px] leading-relaxed text-[var(--bilamo-muted)]">
-                          I could not find a strong flight match for those dates yet.
+                          {results.flightsStatus.error ? copy.providerError : copy.emptyFlights}
                         </p>
                         <button
                           type="button"
-                          onClick={() => void send('Please search flights again with flexible dates')}
+                          onClick={() => void send(
+                            uiLocale === 'ar'
+                              ? 'ابحث عن رحلات مرة أخرى بتواريخ مرنة'
+                              : 'Please search flights again with flexible dates',
+                          )}
                           className="text-[13px] text-[var(--bilamo-text)]/80 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bilamo-secondary)]"
                         >
-                          Try again
+                          {copy.tryAgain}
                         </button>
                       </div>
                     ) : (
-                      <p className="px-1 pb-2 text-[13.5px] leading-relaxed text-[var(--bilamo-muted)]">
-                        Here is what I would choose for you.
-                      </p>
+                      <motion.p
+                        layout
+                        className="px-1 pb-2 text-[13.5px] leading-relaxed text-[var(--bilamo-muted)]"
+                      >
+                        {copy.heroLead}
+                      </motion.p>
                     )}
                     {results.flightsStatus?.stale ? (
                       <p className="px-1 text-[12.5px] text-[var(--bilamo-muted)]/90">
-                        Prices may have shifted — say if you want me to refresh.
+                        {copy.stale}
                       </p>
                     ) : null}
                     {results.flightsStatus?.error && results.flights.length > 0 ? (
                       <p className="px-1 text-[12.5px] text-[var(--bilamo-muted)]/90">
-                        I used a reliable backup inventory after a brief availability hiccup.
+                        {copy.backup}
                       </p>
                     ) : null}
+
+                    <AnimatePresence initial={false}>
+                      {compareIds.length >= 2 ? (
+                        <motion.div
+                          key="compare"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={springs.soft}
+                          className="bilamo-glass mx-0 space-y-2 rounded-[1.25rem] px-5 py-4"
+                        >
+                          <p className="text-[12.5px] tracking-[-0.01em] text-[var(--bilamo-muted)]">
+                            {copy.compareTitle}
+                          </p>
+                          {results.flights
+                            .filter((f) => compareIds.includes(f.id))
+                            .map((f) => (
+                              <div
+                                key={`cmp-${f.id}`}
+                                className="flex items-baseline justify-between gap-3 border-t border-[var(--bilamo-border)] pt-2 first:border-0 first:pt-0"
+                              >
+                                <div className="min-w-0">
+                                  <p className="truncate text-[13.5px] text-[var(--bilamo-text)]/90">
+                                    {f.airline} · {f.stopsLabel}
+                                  </p>
+                                  <p className="text-[12px] text-[var(--bilamo-muted)]">
+                                    {f.departTime} → {f.arriveTime}
+                                    {f.score != null ? ` · ${f.score}` : ''}
+                                  </p>
+                                </div>
+                                <p className="shrink-0 tabular-nums text-[13px] text-[var(--bilamo-text)]">
+                                  {f.priceLabel}
+                                </p>
+                              </div>
+                            ))}
+                        </motion.div>
+                      ) : null}
+                    </AnimatePresence>
+
                     {results.flights.map((flight, i) => (
-                      <FlightCard
+                      <motion.div
                         key={flight.id}
-                        airline={flight.airline}
-                        origin={flight.origin}
-                        destination={flight.destination}
-                        departTime={flight.departTime}
-                        arriveTime={flight.arriveTime}
-                        duration={flight.duration}
-                        stopsLabel={flight.stopsLabel}
-                        priceLabel={flight.priceLabel}
-                        reason={flight.reason}
-                        kindLabel={flight.kindLabel}
-                        score={flight.score}
-                        baggageSummary={flight.baggageSummary}
-                        highlighted={i === 0}
-                        onSelect={() => void send(`Select the ${flight.airline} flight at ${flight.departTime}`)}
-                        onCompare={() => void send(`Compare these flight options for me`)}
-                        onViewDetails={() => void send(`Tell me more about the ${flight.airline} option at ${flight.departTime}`)}
-                      />
+                        layout
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ ...springs.soft, delay: 0.04 * i }}
+                      >
+                        <FlightCard
+                          airline={flight.airline}
+                          origin={flight.origin}
+                          destination={flight.destination}
+                          departTime={flight.departTime}
+                          arriveTime={flight.arriveTime}
+                          duration={flight.duration}
+                          stopsLabel={flight.stopsLabel}
+                          priceLabel={flight.priceLabel}
+                          reason={flight.reason}
+                          kindLabel={flight.kindLabel}
+                          score={flight.score}
+                          baggageSummary={flight.baggageSummary}
+                          highlighted={i === 0}
+                          locale={uiLocale}
+                          onSelect={() => void send(`select flight ${flight.id}`)}
+                          onCompare={() => {
+                            setCompareIds((prev) => {
+                              if (prev.includes(flight.id)) return prev.filter((id) => id !== flight.id)
+                              const next = [...prev, flight.id]
+                              return next.slice(-3)
+                            })
+                            bilamoHaptic(4)
+                          }}
+                          onViewDetails={() => {
+                            setDetailsId((prev) => (prev === flight.id ? null : flight.id))
+                            bilamoHaptic(4)
+                          }}
+                        />
+                        <AnimatePresence>
+                          {detailsId === flight.id ? (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={springs.soft}
+                              className="overflow-hidden px-5 pb-3"
+                            >
+                              <p className="text-[13px] leading-relaxed text-[var(--bilamo-text)]/75">
+                                {flight.reason
+                                  || (uiLocale === 'ar'
+                                    ? 'تفاصيل هذه التوصية مرتبطة بتوازن السعر والراحة والتوقيت.'
+                                    : 'This recommendation balances price, comfort, and schedule fit.')}
+                              </p>
+                              <p className="mt-1 text-[12px] text-[var(--bilamo-muted)]">
+                                {[flight.duration, flight.stopsLabel, flight.baggageSummary]
+                                  .filter(Boolean)
+                                  .join(' · ')}
+                                {flight.score != null ? ` · Score ${flight.score}` : ''}
+                              </p>
+                            </motion.div>
+                          ) : null}
+                        </AnimatePresence>
+                      </motion.div>
                     ))}
                     {results.hotels.map((hotel, i) => (
-                      <HotelCard key={hotel.id} {...hotel} highlighted={i === 0} />
+                      <motion.div
+                        key={hotel.id}
+                        layout
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ ...springs.soft, delay: 0.04 * (results.flights.length + i) }}
+                      >
+                        <HotelCard
+                          {...hotel}
+                          highlighted={i === 0}
+                          locale={uiLocale}
+                          onSelect={() => void send(`select hotel ${hotel.id}`)}
+                          onViewDetails={() => {
+                            setDetailsId((prev) => (prev === hotel.id ? null : hotel.id))
+                            bilamoHaptic(4)
+                          }}
+                        />
+                        <AnimatePresence>
+                          {detailsId === hotel.id ? (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={springs.soft}
+                              className="overflow-hidden px-5 pb-3"
+                            >
+                              <p className="text-[13px] leading-relaxed text-[var(--bilamo-text)]/75">
+                                {hotel.reason
+                                  || (uiLocale === 'ar'
+                                    ? 'اخترت هذا الفندق لتوازن الموقع والهدوء وجودة الإقامة.'
+                                    : 'I chose this stay for location calm, fit, and overnight value.')}
+                              </p>
+                              <p className="mt-1 text-[12px] text-[var(--bilamo-muted)]">
+                                {hotel.area} · {hotel.nightsLabel} · {hotel.rating.toFixed(1)}
+                              </p>
+                            </motion.div>
+                          ) : null}
+                        </AnimatePresence>
+                      </motion.div>
                     ))}
                     {results.timeline.length > 0 ? (
-                      <div className="px-5 py-4">
+                      <motion.div
+                        layout
+                        className="px-5 py-4"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ ...springs.gentle, delay: 0.12 }}
+                      >
                         <TripTimeline items={results.timeline} />
-                      </div>
+                      </motion.div>
                     ) : null}
                   </motion.div>
                 )}

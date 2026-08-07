@@ -14,6 +14,7 @@ import {
   acknowledgeAndAsk,
   canSearch,
   nextMinimumQuestion,
+  withSearchDefaults,
 } from './clarification'
 import {
   composeGreeting,
@@ -326,6 +327,13 @@ export async function runBilamoIntelligenceTurn(
   memory = syncPreferencesFromRequirements(memory, requirements)
 
   const locale = memory.locale === 'en' ? 'en' : 'ar'
+  const travelersAssumed = requirements.travelers == null
+  // Soft-default solo so we only ask destination + timing before delivering value.
+  requirements = withSearchDefaults(requirements)
+  memory = {
+    ...memory,
+    agent: { ...memory.agent, requirements },
+  }
 
   // Pure greeting with no travel signal → consultant welcome.
   if (
@@ -400,7 +408,7 @@ export async function runBilamoIntelligenceTurn(
     })
   }
   pushProgress(
-    locale === 'ar' ? 'لديّ ما يكفي للبحث.' : 'I have enough information to search.',
+    locale === 'ar' ? 'لديّ ما يكفي — أرتّب الآن.' : 'I have enough — arranging now.',
   )
 
   const search = await runBilamoSearchOrchestrator({
@@ -413,7 +421,12 @@ export async function runBilamoIntelligenceTurn(
     },
   })
 
-  const copy = composeRecommendation({ requirements, search, locale })
+  const copy = composeRecommendation({
+    requirements,
+    search,
+    locale,
+    assumedSolo: travelersAssumed && requirements.travelers === 1,
+  })
   await streamConsultantText({
     ...copy,
     onDelta: input.onDelta,
