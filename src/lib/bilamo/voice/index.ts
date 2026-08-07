@@ -38,6 +38,14 @@ export type {
   BilamoVoiceLatencyAggregate,
 } from './bilamoVoiceMetrics'
 export {
+  emptyVoicePlaybackDiagnostics,
+  readAudioContextState,
+} from './voicePlaybackDiagnostics'
+export type {
+  VoicePlaybackDiagnostics,
+  VoicePlaybackDiagEvent,
+} from './voicePlaybackDiagnostics'
+export {
   publishBilamoVoiceMetrics,
   readPublishedBilamoVoiceMetrics,
   voiceMetricsEnabled,

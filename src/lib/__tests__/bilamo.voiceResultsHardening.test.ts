@@ -107,8 +107,9 @@ describe('Bilamo voice + results hardening', () => {
   })
 
   it('emits progressive Arabic acknowledgements quickly', () => {
-    expect(progressiveConsultantAck('ar', 0)).toBe('فهمتك.')
+    expect(progressiveConsultantAck('ar', 0)).toMatch(/تمام|فهمت/)
     expect(progressiveConsultantAck('ar', 1)).toMatch(/أبحث/)
+    expect(progressiveConsultantAck('ar', 2)).toMatch(/خيارات/)
     expect(progressiveConsultantAck('en', 0)).toMatch(/Got it/i)
   })
 

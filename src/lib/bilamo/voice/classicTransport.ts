@@ -307,9 +307,7 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
             speed: locale === 'ar' ? 0.98 : 1,
           })
           if (speakGen !== generation) return
-          speaking = true
-          callbacks.onSpeakingStart?.(generation)
-          callbacks.onAudioChunk?.({ generation })
+          let playbackStarted = false
           await engine.speak({
             text: trimmed,
             locale,
@@ -318,15 +316,24 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
             format: 'wav',
             speed: locale === 'ar' ? 0.98 : 1,
             onAudioPlaybackStart: () => {
-              if (speakGen === generation) {
-                callbacks.onAudioChunk?.({ generation })
-              }
+              if (speakGen !== generation) return
+              playbackStarted = true
+              speaking = true
+              callbacks.onSpeakingStart?.(generation)
+              callbacks.onAudioChunk?.({ generation })
             },
             instructions:
               locale === 'ar'
                 ? 'Speak warm Saudi-Gulf Arabic, natural consultant pacing, no theatrical accent.'
                 : undefined,
           })
+          if (speakGen === generation && !playbackStarted) {
+            // Speak resolved without an audible start (Safari autoplay / empty buffer).
+            callbacks.onError?.('تعذر تشغيل الصوت. سأكمل معك بالنص الآن.', {
+              code: 'playback_blocked',
+              recoverable: true,
+            })
+          }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
           callbacks.onError?.(

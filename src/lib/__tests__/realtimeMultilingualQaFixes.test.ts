@@ -302,12 +302,10 @@ describe('realtime cancel-only-when-active lifecycle', () => {
     // Authorize speech via sole path (speakWrittenDraft), then create
     session.speakWrittenDraft('ممتاز، خلنا نكمّل الحجز', { locale: 'ar' })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.created', response: { id: 'resp_1' } }) })
-    channel.onmessage!({
-      data: JSON.stringify({
-        type: 'response.output_audio_transcript.delta',
-        delta: 'ممتاز، ',
-      }),
-    })
+    channel.onmessage!({ data: JSON.stringify({ type: 'output_audio_buffer.started' }) })
+    // Speaking is gated on successful remoteAudio.play() (async).
+    await new Promise<void>((r) => setTimeout(r, 0))
+    await new Promise<void>((r) => setTimeout(r, 0))
     expect(session.getStatus()).toBe('speaking')
 
     // Simulate a latched-mute bug condition, then interrupt must restore audibility.
@@ -339,6 +337,8 @@ describe('realtime cancel-only-when-active lifecycle', () => {
       data: JSON.stringify({ type: 'response.output_audio_transcript.delta', delta: 'خط كامل من الرد المنطوق' }),
     })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.output_audio_transcript.done' }) })
+    await new Promise<void>((r) => setTimeout(r, 0))
+    await new Promise<void>((r) => setTimeout(r, 0))
     expect(session.getStatus()).toBe('speaking')
 
     channel.onmessage!({ data: JSON.stringify({ type: 'response.output_audio.done' }) })

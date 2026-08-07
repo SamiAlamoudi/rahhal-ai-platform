@@ -46,6 +46,7 @@ export default function BilamoVoiceDiagnostics() {
   const snap = voice.snapshot
   const latest = report?.latest
   const agg = report?.aggregates
+  const playback = snap.playback
 
   return (
     <BilamoShell>
@@ -61,14 +62,28 @@ export default function BilamoVoiceDiagnostics() {
         </header>
 
         <dl className="bilamo-glass space-y-3 rounded-[1.25rem] px-5 py-4 text-[13.5px]">
-          <Row label="Transport" value={snap.transportKind || '—'} />
+          <Row label="Requested transport" value={snap.requestedTransport || '—'} />
+          <Row label="Actual transport" value={snap.transportKind || '—'} />
           <Row label="Session state" value={snap.state} />
           <Row label="Connection" value={snap.connection} />
           <Row label="Mic permission" value={micPermission} />
-          <Row label="Session connected" value={String(snap.connection === 'connected')} />
-          <Row label="Listening" value={String(snap.listening)} />
+          <Row label="Microphone listening" value={String(snap.listening)} />
+          <Row label="AudioContext" value={snap.audioContextState || '—'} />
+          <Row label="Peer connection" value={playback.peerConnectionState || '—'} />
+          <Row label="ICE state" value={playback.iceConnectionState || '—'} />
+          <Row label="Remote track received" value={yn(playback.remoteTrackReceived)} />
+          <Row
+            label="Remote track muted"
+            value={playback.remoteTrackMuted == null ? '—' : yn(playback.remoteTrackMuted)}
+          />
+          <Row label="Audio play requested" value={yn(playback.audioPlayRequested)} />
+          <Row label="Audio playback started" value={yn(playback.audioPlaybackStarted)} />
+          <Row label="Audio playback failed" value={yn(playback.audioPlaybackFailed)} />
           <Row label="Speaking (audible)" value={String(snap.speaking || snap.state === 'speaking')} />
           <Row label="Fallback classic" value={String(snap.fellBackToClassic)} />
+          <Row label="Second-turn ready" value={yn(snap.secondTurnReady)} />
+          <Row label="Last safe error code" value={snap.lastSafeErrorCode || '—'} />
+          <Row label="Last playback event" value={playback.lastEvent || '—'} />
           <Row
             label="First audio (last)"
             value={formatMs(latest?.timeToFirstAudioMs ?? agg?.timeToFirstAudioMs.last)}
@@ -134,4 +149,8 @@ function Row({ label, value }: { label: string; value: string }) {
 function formatMs(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '—'
   return `${Math.round(value)} ms`
+}
+
+function yn(value: boolean): string {
+  return value ? 'yes' : 'no'
 }

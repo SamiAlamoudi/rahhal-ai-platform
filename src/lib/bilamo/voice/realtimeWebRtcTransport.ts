@@ -40,6 +40,16 @@ export function createRealtimeWebRtcBilamoTransport(
   let userWantsConnected = false
   /** Speak handles waiting on speaking-end callbacks. */
   const pendingSpeak = new Map<number, { resolve: () => void }>()
+  const silentTimers = new Map<number, ReturnType<typeof setTimeout>>()
+  const SILENT_AUDIO_MS = 4_000
+
+  const clearSilentTimer = (generation: number) => {
+    const t = silentTimers.get(generation)
+    if (t != null) {
+      clearTimeout(t)
+      silentTimers.delete(generation)
+    }
+  }
 
   const setConnection = (next: BilamoVoiceConnectionState) => {
     connectionState = next
@@ -54,9 +64,10 @@ export function createRealtimeWebRtcBilamoTransport(
           callbacks.onListeningChange?.(true)
         } else if (status === 'speaking') {
           // Only mark audible speaking once the session reports speaking
-          // (set after remote audio / response audio events — not on speak() call).
+          // (set after remote audio play() succeeds — not on speak() call).
           if (!speaking) {
             speaking = true
+            clearSilentTimer(speakGen)
             callbacks.onSpeakingStart?.(speakGen)
             callbacks.onAudioChunk?.({ generation: speakGen })
           }
@@ -65,9 +76,10 @@ export function createRealtimeWebRtcBilamoTransport(
             listening = false
             callbacks.onListeningChange?.(false)
           }
-          if (speaking) {
+          if (speaking || pendingSpeak.has(speakGen)) {
             const gen = speakGen
             speaking = false
+            clearSilentTimer(gen)
             callbacks.onSpeakingEnd?.(gen)
             pendingSpeak.get(gen)?.resolve()
             pendingSpeak.delete(gen)
@@ -77,6 +89,7 @@ export function createRealtimeWebRtcBilamoTransport(
           if (speaking) {
             const gen = speakGen
             speaking = false
+            clearSilentTimer(gen)
             callbacks.onSpeakingEnd?.(gen)
             pendingSpeak.get(gen)?.resolve()
             pendingSpeak.delete(gen)
@@ -184,7 +197,13 @@ export function createRealtimeWebRtcBilamoTransport(
         }
       }
       // User intent — ensureListening never auto-runs after reply.
-      session?.ensureListening()
+      // Await mic acquisition so Safari second-turn cannot claim listening with a dead track.
+      const ok = await session!.ensureListening()
+      if (!ok) {
+        listening = false
+        callbacks.onListeningChange?.(false)
+        return false
+      }
       listening = true
       callbacks.onListeningChange?.(true)
       return true
@@ -219,15 +238,36 @@ export function createRealtimeWebRtcBilamoTransport(
         session.speakWrittenDraft(trimmed, { locale: request.locale })
       } catch {
         speaking = false
+        clearSilentTimer(generation)
         callbacks.onSpeakingEnd?.(generation)
         pendingSpeak.delete(generation)
         resolveDone()
+        return { generation, done }
       }
 
-      // Safety timeout — Realtime should fire speaking end via status.
+      // If remote audible playback never starts, signal silent playback for classic fallback.
+      clearSilentTimer(generation)
+      silentTimers.set(
+        generation,
+        globalThis.setTimeout(() => {
+          if (!pendingSpeak.has(generation) || speaking) return
+          callbacks.onSilentPlayback?.({
+            generation,
+            code: 'silent_realtime_timeout',
+          })
+          speaking = false
+          callbacks.onSpeakingEnd?.(generation)
+          pendingSpeak.get(generation)?.resolve()
+          pendingSpeak.delete(generation)
+          clearSilentTimer(generation)
+        }, SILENT_AUDIO_MS),
+      )
+
+      // Absolute safety timeout — Realtime should fire speaking end via status.
       globalThis.setTimeout(() => {
         if (pendingSpeak.has(generation)) {
           speaking = false
+          clearSilentTimer(generation)
           callbacks.onSpeakingEnd?.(generation)
           pendingSpeak.get(generation)?.resolve()
           pendingSpeak.delete(generation)
@@ -238,6 +278,7 @@ export function createRealtimeWebRtcBilamoTransport(
     },
 
     interrupt() {
+      for (const gen of silentTimers.keys()) clearSilentTimer(gen)
       speakGen += 1
       speaking = false
       for (const [, p] of pendingSpeak) p.resolve()
@@ -253,6 +294,20 @@ export function createRealtimeWebRtcBilamoTransport(
     isListening: () => listening,
     isConnected: () => Boolean(session?.isConnected()),
     getConnectionState: () => connectionState,
+    getPlaybackDiagnostics: () => session?.getPlaybackDiagnostics()
+      ?? {
+        remoteTrackReceived: false,
+        remoteTrackMuted: null,
+        audioPlayRequested: false,
+        audioPlaybackStarted: false,
+        audioPlaybackFailed: false,
+        audioPlaybackEnded: false,
+        lastEvent: null,
+        lastSafeErrorCode: null,
+        audioContextState: null,
+        peerConnectionState: null,
+        iceConnectionState: null,
+      },
 
     dispose() {
       disposed = true

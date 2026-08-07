@@ -57,16 +57,33 @@ export function useBilamoVoiceSession(options: UseBilamoVoiceSessionOptions = {}
       state: 'idle',
       connection: 'idle',
       transportKind: null,
+      requestedTransport: null,
       partialTranscript: '',
       finalTranscript: null,
       normalizedForExtract: null,
       generation: 0,
       error: null,
+      lastSafeErrorCode: null,
       fellBackToClassic: false,
       locale: 'en',
       conversationId: null,
       listening: false,
       speaking: false,
+      secondTurnReady: true,
+      audioContextState: null,
+      playback: {
+        remoteTrackReceived: false,
+        remoteTrackMuted: null,
+        audioPlayRequested: false,
+        audioPlaybackStarted: false,
+        audioPlaybackFailed: false,
+        audioPlaybackEnded: false,
+        lastEvent: null,
+        lastSafeErrorCode: null,
+        audioContextState: null,
+        peerConnectionState: null,
+        iceConnectionState: null,
+      },
     }),
   )
 
@@ -77,6 +94,11 @@ export function useBilamoVoiceSession(options: UseBilamoVoiceSessionOptions = {}
     setToggleBusy(true)
     try {
       if (snapshot.state === 'speaking' || snapshot.speaking) {
+        await session.bargeIn()
+        return
+      }
+      // Stuck processing after first turn — recover via barge-in (no reload).
+      if (snapshot.state === 'processing' && !snapshot.secondTurnReady) {
         await session.bargeIn()
         return
       }

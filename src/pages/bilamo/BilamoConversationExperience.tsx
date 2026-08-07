@@ -539,6 +539,8 @@ export function BilamoConversationExperience({
 
   const toggleOrb = useCallback(() => {
     bilamoHaptic(orbState === 'listening' ? 4 : 8)
+    // Always unlock Safari audio on the user gesture that owns the mic.
+    void unlockAudioPlayback().catch(() => undefined)
     if (orbState === 'listening') {
       // Stop → classic transport emits final transcript once (if any).
       stopListening()
@@ -546,6 +548,18 @@ export function BilamoConversationExperience({
     }
     if (orbState === 'speaking') {
       // True barge-in: stop playback, invalidate generation, start listening.
+      speakGenerationRef.current += 1
+      setChatOrb(null)
+      void voice.bargeIn()
+      return
+    }
+    // Stuck voice processing/speaking with no chat busy → recover + listen (second-turn deadlock).
+    const voiceStuck =
+      !busy
+      && (voice.snapshot.state === 'processing'
+        || voice.snapshot.state === 'speaking'
+        || (orbState === 'thinking' && !voice.snapshot.secondTurnReady))
+    if (voiceStuck) {
       speakGenerationRef.current += 1
       setChatOrb(null)
       void voice.bargeIn()

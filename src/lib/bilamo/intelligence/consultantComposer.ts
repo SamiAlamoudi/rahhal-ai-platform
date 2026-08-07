@@ -91,13 +91,13 @@ export function composeGreeting(locale: 'ar' | 'en'): { displayText: string; spo
 /** Progressive consultant status lines for perceived responsiveness. */
 export function progressiveConsultantAck(locale: 'ar' | 'en', phase: 0 | 1 | 2): string {
   if (locale === 'ar') {
-    if (phase === 0) return 'فهمتك.'
-    if (phase === 1) return 'أبحث الآن عن أفضل الخيارات.'
-    return 'أقارن بين الرحلات المباشرة والأسرع.'
+    if (phase === 0) return 'تمام، فهمت.'
+    if (phase === 1) return 'أبحث لك الآن.'
+    return 'وجدت خيارات مناسبة.'
   }
   if (phase === 0) return 'Got it.'
-  if (phase === 1) return 'I am looking for the best options now.'
-  return 'Comparing nonstop and fastest flights.'
+  if (phase === 1) return 'Looking for you now.'
+  return 'I found solid options.'
 }
 
 /** Stream consultant text in natural phrase chunks (tuned for perceived speed). */

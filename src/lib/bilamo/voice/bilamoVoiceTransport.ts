@@ -48,6 +48,8 @@ export interface BilamoVoiceTransportCallbacks {
   onConnectionStateChange?: (state: BilamoVoiceConnectionState) => void
   onError?: (message: string, detail?: { code?: string; recoverable?: boolean }) => void
   onListeningChange?: (listening: boolean) => void
+  /** Silent / missing remote audio — session may fall back to classic for this turn. */
+  onSilentPlayback?: (detail: { generation: number; code: string }) => void
 }
 
 /**
@@ -74,6 +76,8 @@ export interface BilamoVoiceTransport {
   isListening(): boolean
   isConnected(): boolean
   getConnectionState(): BilamoVoiceConnectionState
+  /** Optional Safari/WebRTC playback diagnostics (no secrets / transcripts). */
+  getPlaybackDiagnostics?(): import('./voicePlaybackDiagnostics').VoicePlaybackDiagnostics
   dispose(): void
 }
 

@@ -20,6 +20,16 @@ import type {
   BilamoVoiceTransport,
   BilamoVoiceTransportMode,
 } from './bilamoVoiceTransport'
+import {
+  emptyVoicePlaybackDiagnostics,
+  readAudioContextState,
+  type VoicePlaybackDiagnostics,
+} from './voicePlaybackDiagnostics'
+
+/** Stuck processing/speaking without a live operation → recover to idle (no auto-listen). */
+const STUCK_STATE_WATCHDOG_MS = 8_000
+/** Realtime speak with no audible start → classic fallback for this turn. */
+const SILENT_REALTIME_FALLBACK_MS = 4_500
 
 /** User-facing voice errors — never expose technical / provider details. */
 const USER_SAFE_ERRORS = {
@@ -49,16 +59,23 @@ export type BilamoVoiceSessionSnapshot = {
   state: BilamoVoiceSessionState
   connection: BilamoVoiceConnectionState
   transportKind: BilamoVoiceTransport['kind'] | null
+  /** Env/factory requested mode (realtime|classic|auto). */
+  requestedTransport: BilamoVoiceTransportMode | null
   partialTranscript: string
   finalTranscript: string | null
   normalizedForExtract: string | null
   generation: number
   error: string | null
+  lastSafeErrorCode: string | null
   fellBackToClassic: boolean
   locale: VoiceLocale
   conversationId: string | null
   listening: boolean
   speaking: boolean
+  /** True when user can start a new voice turn immediately (idle + not speaking). */
+  secondTurnReady: boolean
+  audioContextState: string | null
+  playback: VoicePlaybackDiagnostics
 }
 
 export type BilamoVoiceSession = {
@@ -85,6 +102,8 @@ export type BilamoVoiceSession = {
   getMetricsReport: () => BilamoVoiceMetricsReport
   /** Attach document visibility / device-loss hardening (idempotent). */
   attachReliabilityGuards: () => () => void
+  /** Force idle after terminal errors — never auto-listen. */
+  releaseToIdle: (reason?: string) => void
   dispose: () => void
 }
 
@@ -130,11 +149,13 @@ export function createBilamoVoiceSession(
   let state: BilamoVoiceSessionState = 'idle'
   let connection: BilamoVoiceConnectionState = 'idle'
   let transportKind: BilamoVoiceTransport['kind'] | null = null
+  let requestedTransport: BilamoVoiceTransportMode | null = options.mode ?? null
   let partialTranscript = ''
   let finalTranscript: string | null = null
   let normalizedForExtract: string | null = null
   let generation = 0
   let error: string | null = null
+  let lastSafeErrorCode: string | null = null
   let fellBackToClassic = false
   let locale: VoiceLocale = options.locale ?? 'en'
   let conversationId: string | null = options.conversationId ?? null
@@ -148,38 +169,76 @@ export function createBilamoVoiceSession(
   let onFinalUtterance: ((event: BilamoTranscriptEvent) => void) | null =
     options.onFinalUtterance ?? null
   let guardsAttached = false
+  let watchdogTimer: ReturnType<typeof setTimeout> | null = null
+  let silentRealtimeTimer: ReturnType<typeof setTimeout> | null = null
+  let classicFallbackInFlight = false
+  let playbackDiag = emptyVoicePlaybackDiagnostics()
   /** Stable snapshot reference for useSyncExternalStore (must not allocate every read). */
   let snapshot: BilamoVoiceSessionSnapshot = {
     state: 'idle',
     connection: 'idle',
     transportKind: null,
+    requestedTransport,
     partialTranscript: '',
     finalTranscript: null,
     normalizedForExtract: null,
     generation: 0,
     error: null,
+    lastSafeErrorCode: null,
     fellBackToClassic: false,
     locale,
     conversationId,
     listening: false,
     speaking: false,
+    secondTurnReady: true,
+    audioContextState: null,
+    playback: emptyVoicePlaybackDiagnostics(),
+  }
+
+  const clearWatchdog = () => {
+    if (watchdogTimer != null) {
+      clearTimeout(watchdogTimer)
+      watchdogTimer = null
+    }
+  }
+
+  const clearSilentRealtimeTimer = () => {
+    if (silentRealtimeTimer != null) {
+      clearTimeout(silentRealtimeTimer)
+      silentRealtimeTimer = null
+    }
   }
 
   const refreshSnapshot = () => {
+    const transportSpeaking = transport?.isSpeaking() ?? false
+    const transportListening = transport?.isListening() ?? false
+    const fromTransport = transport?.getPlaybackDiagnostics?.()
+    if (fromTransport) playbackDiag = { ...playbackDiag, ...fromTransport }
+    playbackDiag.audioContextState = readAudioContextState()
+    const secondTurnReady =
+      !disposed
+      && (state === 'idle' || state === 'error')
+      && !transportSpeaking
+      && activeSpeakTransportGen < 0
     snapshot = {
       state,
       connection,
       transportKind,
+      requestedTransport,
       partialTranscript,
       finalTranscript,
       normalizedForExtract,
       generation,
       error,
+      lastSafeErrorCode,
       fellBackToClassic,
       locale,
       conversationId,
-      listening: transport?.isListening() ?? false,
-      speaking: transport?.isSpeaking() ?? false,
+      listening: transportListening,
+      speaking: transportSpeaking || state === 'speaking',
+      secondTurnReady,
+      audioContextState: playbackDiag.audioContextState,
+      playback: { ...playbackDiag },
     }
   }
 
@@ -188,14 +247,103 @@ export function createBilamoVoiceSession(
     for (const listener of listeners) listener(snapshot)
   }
 
+  const releaseToIdle = (reason = 'release_to_idle') => {
+    if (disposed) return
+    clearWatchdog()
+    clearSilentRealtimeTimer()
+    activeSpeakTransportGen = -1
+    armingSpeak = false
+    if (reason === 'watchdog') {
+      playbackDiag.lastEvent = 'watchdogIdleRecovery'
+      lastSafeErrorCode = 'watchdog_idle_recovery'
+    }
+    if (state !== 'idle') {
+      state = 'idle'
+    }
+    emit()
+  }
+
+  const armStuckWatchdog = () => {
+    clearWatchdog()
+    if (disposed) return
+    if (state !== 'processing' && state !== 'speaking' && state !== 'connecting') return
+    const genAtArm = generation
+    const stateAtArm = state
+    watchdogTimer = setTimeout(() => {
+      if (disposed) return
+      const liveOp =
+        transport?.isSpeaking()
+        || transport?.isListening()
+        || armingSpeak
+        || (activeSpeakTransportGen >= 0 && transport?.isSpeaking())
+      if (liveOp) {
+        armStuckWatchdog()
+        return
+      }
+      if (generation !== genAtArm) return
+      if (state !== stateAtArm && state !== 'processing' && state !== 'speaking') return
+      // No legitimate active operation — recover to idle without auto-listen.
+      releaseToIdle('watchdog')
+    }, STUCK_STATE_WATCHDOG_MS)
+  }
+
   const setState = (next: BilamoVoiceSessionState) => {
     if (disposed) return
-    if (state === next) return
+    if (state === next) {
+      if (next === 'processing' || next === 'speaking' || next === 'connecting') {
+        armStuckWatchdog()
+      }
+      return
+    }
     state = next
+    if (next === 'idle' || next === 'error' || next === 'listening') {
+      clearWatchdog()
+      if (next === 'listening') clearSilentRealtimeTimer()
+    } else if (next === 'processing' || next === 'speaking' || next === 'connecting') {
+      armStuckWatchdog()
+    }
+    if (next === 'speaking') clearSilentRealtimeTimer()
     emit()
   }
 
   const getSnapshot = (): BilamoVoiceSessionSnapshot => snapshot
+
+  /** Internal: silent realtime → classic TTS for the same spoken text. */
+  let pendingClassicFallbackText: { gen: number; text: string; locale: VoiceLocale } | null = null
+
+  const runClassicFallback = async (failedGen: number) => {
+    if (disposed || classicFallbackInFlight) return
+    const pending = pendingClassicFallbackText
+    if (!pending || pending.gen !== failedGen) return
+    classicFallbackInFlight = true
+    clearSilentRealtimeTimer()
+    try {
+      transport?.interrupt()
+      activeSpeakTransportGen = -1
+      if (transportKind !== 'classic_tts') {
+        error = USER_SAFE_ERRORS.fallback
+        transport?.dispose()
+        const result = await createTransport({ mode: 'classic', forceClassic: true })
+        fellBackToClassic = true
+        transportKind = result.transport.kind
+        wireTransport(result.transport)
+        prepared = true
+        playbackDiag.lastEvent = 'classicFallback'
+        emit()
+      }
+      const spoken = pending.text.trim()
+      pendingClassicFallbackText = null
+      if (!spoken) {
+        releaseToIdle('silent_realtime_no_text')
+        return
+      }
+      // Re-enter speak on classic — session.speak bumps generation.
+      const handle = session.speak(spoken, pending.locale)
+      await handle.done
+    } finally {
+      classicFallbackInFlight = false
+    }
+  }
 
   const wireTransport = (t: BilamoVoiceTransport) => {
     transport = t
@@ -231,14 +379,20 @@ export function createBilamoVoiceSession(
         } else if (gen !== activeSpeakTransportGen) {
           return
         }
+        clearSilentRealtimeTimer()
         metrics.mark('speak_start')
-        metrics.mark('first_audio')
+        playbackDiag.audioPlaybackStarted = true
+        playbackDiag.lastEvent = 'audioPlaybackStarted'
+        // first_audio is marked on real audio chunk / playback — not assumed here.
         setState('speaking')
       },
       onSpeakingEnd: (gen) => {
         if (disposed || gen !== activeSpeakTransportGen) return
         activeSpeakTransportGen = -1
+        clearSilentRealtimeTimer()
         metrics.mark('speak_end')
+        playbackDiag.audioPlaybackEnded = true
+        playbackDiag.lastEvent = 'audioPlaybackEnded'
         // No auto-relisten after natural speak end — idle until user taps.
         if (state === 'speaking' || state === 'interrupted' || state === 'processing') {
           setState('idle')
@@ -247,7 +401,17 @@ export function createBilamoVoiceSession(
       onAudioChunk: (info) => {
         if (info.generation === activeSpeakTransportGen || armingSpeak) {
           metrics.mark('first_audio')
+          playbackDiag.audioPlaybackStarted = true
+          playbackDiag.lastEvent = 'audioPlaybackStarted'
         }
+      },
+      onSilentPlayback: (detail) => {
+        if (disposed || detail.generation !== activeSpeakTransportGen) return
+        lastSafeErrorCode = detail.code
+        playbackDiag.audioPlaybackFailed = true
+        playbackDiag.lastEvent = 'silentRealtimeTimeout'
+        playbackDiag.lastSafeErrorCode = detail.code
+        void runClassicFallback(detail.generation)
       },
       onConnectionStateChange: (next) => {
         connection = next
@@ -265,6 +429,8 @@ export function createBilamoVoiceSession(
       },
       onError: (message, detail) => {
         const code = detail?.code || ''
+        lastSafeErrorCode = code || 'voice_error'
+        playbackDiag.lastSafeErrorCode = lastSafeErrorCode
         if (code === 'not-allowed' || /permission/i.test(message)) {
           error = USER_SAFE_ERRORS.mic
         } else if (code === 'unsupported_browser') {
@@ -273,8 +439,12 @@ export function createBilamoVoiceSession(
           error = USER_SAFE_ERRORS.device
         } else if (code === 'playback_blocked' || code === 'playback_unsupported' || /تشغيل الصوت/i.test(message)) {
           error = USER_SAFE_ERRORS.playback
-          // Playback blocked — stay conversational via text; do not hard-error the orb.
-          emit()
+          playbackDiag.audioPlaybackFailed = true
+          playbackDiag.lastEvent = 'audioPlaybackFailed'
+          // Playback blocked — keep text usable; never stay stuck in speaking/processing.
+          activeSpeakTransportGen = -1
+          clearSilentRealtimeTimer()
+          setState('idle')
           return
         } else if (code.startsWith('reconnect') || code === 'connect_failed') {
           error = USER_SAFE_ERRORS.reconnect
@@ -283,6 +453,12 @@ export function createBilamoVoiceSession(
           error = USER_SAFE_ERRORS.connect
         }
         setState('error')
+        // Recoverable errors should not permanently disable the next mic tap.
+        if (detail?.recoverable) {
+          globalThis.setTimeout(() => {
+            if (!disposed && state === 'error') releaseToIdle('recoverable_error')
+          }, 50)
+        }
       },
       onListeningChange: (listening) => {
         if (listening && state !== 'speaking') setState('listening')
@@ -314,6 +490,7 @@ export function createBilamoVoiceSession(
       if (disposed || prepared) return
       metrics.mark('connect_start')
       const result = await createTransport({ mode: options.mode })
+      requestedTransport = result.mode
       fellBackToClassic = result.fellBack
       wireTransport(result.transport)
       prepared = true
@@ -416,20 +593,31 @@ export function createBilamoVoiceSession(
     speak(text, speakLocale) {
       generation += 1
       const sessionGen = generation
-      if (text.trim()) {
-        metrics.mark('response_start')
-        // Stay in processing until onSpeakingStart proves audible playback began.
-        if (state !== 'listening' && state !== 'interrupted') setState('processing')
+      const trimmed = text.trim()
+      if (!trimmed) {
+        // Empty speak must never leave the session in processing.
+        if (state === 'processing' || state === 'speaking') releaseToIdle('empty_speak')
+        return { generation: sessionGen, done: Promise.resolve() }
       }
+
+      metrics.mark('response_start')
+      playbackDiag.audioPlayRequested = true
+      playbackDiag.audioPlaybackStarted = false
+      playbackDiag.audioPlaybackFailed = false
+      playbackDiag.audioPlaybackEnded = false
+      playbackDiag.lastEvent = 'audioPlayRequested'
+      // Stay in processing until onSpeakingStart proves audible playback began.
+      if (state !== 'listening' && state !== 'interrupted') setState('processing')
 
       const finishSpeak = async (handle: BilamoSpeakHandle) => {
         await handle.done
-        if (
-          generation === sessionGen
-          && activeSpeakTransportGen === handle.generation
-          && (state === 'speaking' || state === 'interrupted' || state === 'processing')
-        ) {
+        clearSilentRealtimeTimer()
+        if (generation !== sessionGen) return
+        // Always clear speaking generation for this handle when done.
+        if (activeSpeakTransportGen === handle.generation) {
           activeSpeakTransportGen = -1
+        }
+        if (state === 'speaking' || state === 'interrupted' || state === 'processing') {
           setState('idle')
         }
         publishBilamoVoiceMetrics(metrics.report())
@@ -441,7 +629,7 @@ export function createBilamoVoiceSession(
         let handle: BilamoSpeakHandle
         try {
           handle = transport.speak({
-            text,
+            text: trimmed,
             locale: speakLocale ?? locale,
           })
         } finally {
@@ -452,8 +640,22 @@ export function createBilamoVoiceSession(
           return null
         }
         activeSpeakTransportGen = handle.generation
-        if (transport.isSpeaking() && state === 'processing') {
-          setState('speaking')
+        // Never claim speaking from isSpeaking() alone — wait for onSpeakingStart (audible).
+        if (transport.kind === 'realtime_webrtc' && !fellBackToClassic) {
+          pendingClassicFallbackText = {
+            gen: handle.generation,
+            text: trimmed,
+            locale: speakLocale ?? locale,
+          }
+          clearSilentRealtimeTimer()
+          silentRealtimeTimer = globalThis.setTimeout(() => {
+            if (disposed || generation !== sessionGen) return
+            if (state === 'speaking' || playbackDiag.audioPlaybackStarted) return
+            lastSafeErrorCode = 'silent_realtime_timeout'
+            playbackDiag.lastEvent = 'silentRealtimeTimeout'
+            playbackDiag.audioPlaybackFailed = true
+            void runClassicFallback(handle.generation)
+          }, SILENT_REALTIME_FALLBACK_MS)
         }
         return handle
       }
@@ -462,6 +664,7 @@ export function createBilamoVoiceSession(
       if (prepared && transport) {
         const handle = armAndSpeak()
         if (!handle) {
+          releaseToIdle('speak_aborted')
           return { generation: sessionGen, done: Promise.resolve() }
         }
         return { generation: sessionGen, done: finishSpeak(handle) }
@@ -469,9 +672,15 @@ export function createBilamoVoiceSession(
 
       const done = (async () => {
         if (!prepared) await session.prepare()
-        if (disposed || generation !== sessionGen || !transport) return
+        if (disposed || generation !== sessionGen || !transport) {
+          releaseToIdle('speak_prepare_aborted')
+          return
+        }
         const handle = armAndSpeak()
-        if (!handle) return
+        if (!handle) {
+          releaseToIdle('speak_aborted')
+          return
+        }
         await finishSpeak(handle)
       })()
 
@@ -481,21 +690,33 @@ export function createBilamoVoiceSession(
       metrics.mark('interrupt')
       generation += 1
       activeSpeakTransportGen = -1
+      clearSilentRealtimeTimer()
       transport?.interrupt()
       metrics.mark('interrupt_ack')
-      if (state === 'speaking' || state === 'interrupted') setState('idle')
+      // Always clear transitional states — processing latch was the Safari second-turn deadlock.
+      if (
+        state === 'speaking'
+        || state === 'interrupted'
+        || state === 'processing'
+        || state === 'connecting'
+      ) {
+        setState('idle')
+      }
       publishBilamoVoiceMetrics(metrics.report())
     },
     async switchToClassic() {
       transport?.dispose()
       const result = await createTransport({ mode: 'classic', forceClassic: true })
       fellBackToClassic = true
+      transportKind = result.transport.kind
       wireTransport(result.transport)
       prepared = true
+      playbackDiag.lastEvent = 'classicFallback'
       emit()
     },
     clearError() {
       error = null
+      lastSafeErrorCode = null
       if (state === 'error') setState('idle')
       else emit()
     },
@@ -506,6 +727,7 @@ export function createBilamoVoiceSession(
       lastFinalKey = ''
       emit()
     },
+    releaseToIdle,
     getMetrics: () => metrics.snapshot(),
     getMetricsReport: () => metrics.report(),
     attachReliabilityGuards() {
@@ -513,13 +735,25 @@ export function createBilamoVoiceSession(
       guardsAttached = true
 
       const onVisibility = () => {
-        if (!document.hidden) return
+        if (!document.hidden) {
+          // Foreground: refresh AudioContext state only — never auto-relisten.
+          emit()
+          return
+        }
         // Background: stop capture / playback; never auto-relisten on foreground.
         if (state === 'listening') {
           transport?.stopListening()
           setState('idle')
-        } else if (state === 'speaking') {
+        } else if (state === 'speaking' || state === 'processing') {
           session.interrupt()
+        }
+      }
+
+      const onPageHide = () => {
+        if (state === 'listening' || state === 'speaking' || state === 'processing') {
+          session.interrupt()
+          transport?.stopListening()
+          releaseToIdle('pagehide')
         }
       }
 
@@ -528,22 +762,32 @@ export function createBilamoVoiceSession(
         if (state === 'listening' || transport?.isListening()) {
           transport?.stopListening()
           error = USER_SAFE_ERRORS.device
+          lastSafeErrorCode = 'audio_device_lost'
           setState('error')
         }
       }
 
       document.addEventListener('visibilitychange', onVisibility)
+      if (typeof window !== 'undefined') {
+        window.addEventListener('pagehide', onPageHide)
+        window.addEventListener('pageshow', () => emit())
+      }
       const md = typeof navigator !== 'undefined' ? navigator.mediaDevices : null
       md?.addEventListener?.('devicechange', onDeviceChange)
 
       return () => {
         document.removeEventListener('visibilitychange', onVisibility)
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('pagehide', onPageHide)
+        }
         md?.removeEventListener?.('devicechange', onDeviceChange)
         guardsAttached = false
       }
     },
     dispose() {
       disposed = true
+      clearWatchdog()
+      clearSilentRealtimeTimer()
       transport?.dispose()
       transport = null
       listeners.clear()

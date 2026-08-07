@@ -99,7 +99,7 @@ export type RealtimeWebRtcSession = {
    * Safe no-op when not connected or after hardStop.
    * Does not auto-run after assistant playback — that path releases the mic to idle.
    */
-  ensureListening: () => void
+  ensureListening: () => Promise<boolean>
   /**
    * Stop local mic capture and return to idle without latching hardStop.
    * Clears the iOS Safari mic indicator; peer/datachannel may stay up for fast reopen.
@@ -117,6 +117,8 @@ export type RealtimeWebRtcSession = {
   getStatus: () => RealtimeSessionStatus
   isConnected: () => boolean
   getQualitySnapshot: () => RealtimeQualitySnapshot
+  /** Developer-safe playback diagnostics (no transcripts / secrets). */
+  getPlaybackDiagnostics: () => import('../../bilamo/voice/voicePlaybackDiagnostics').VoicePlaybackDiagnostics
 }
 
 type ActiveResponseState = {
@@ -213,6 +215,19 @@ export function createRealtimeWebRtcSession(
   let iceRecoveryTimer: ReturnType<typeof setTimeout> | null = null
   /** Queue progressive speakWrittenDraft chunks while a response is already playing. */
   let speakQueue: Array<{ spoken: string; locale: 'ar' | 'en' }> = []
+  const playbackDiag = {
+    remoteTrackReceived: false,
+    remoteTrackMuted: null as boolean | null,
+    audioPlayRequested: false,
+    audioPlaybackStarted: false,
+    audioPlaybackFailed: false,
+    audioPlaybackEnded: false,
+    lastEvent: null as import('../../bilamo/voice/voicePlaybackDiagnostics').VoicePlaybackDiagEvent | null,
+    lastSafeErrorCode: null as string | null,
+    audioContextState: null as string | null,
+    peerConnectionState: null as string | null,
+    iceConnectionState: null as string | null,
+  }
 
   const transcriptGate = createUserTranscriptGate(() => activeLanguage)
 
@@ -449,6 +464,8 @@ export function createRealtimeWebRtcSession(
 
   const ensureRemoteAudible = async (): Promise<boolean> => {
     if (!remoteAudio) return false
+    playbackDiag.audioPlayRequested = true
+    playbackDiag.lastEvent = 'audioPlayRequested'
     try {
       if (remoteTrack) remoteTrack.enabled = true
       remoteAudio.muted = false
@@ -461,8 +478,14 @@ export function createRealtimeWebRtcSession(
         /* ignore */
       }
       await remoteAudio.play()
+      playbackDiag.audioPlaybackStarted = true
+      playbackDiag.audioPlaybackFailed = false
+      playbackDiag.lastEvent = 'audioPlaybackStarted'
       return true
     } catch {
+      playbackDiag.audioPlaybackFailed = true
+      playbackDiag.lastEvent = 'audioPlaybackFailed'
+      playbackDiag.lastSafeErrorCode = 'playback_blocked'
       quality.markAudioRestart()
       emitQuality()
       callbacks.onError?.(
@@ -470,6 +493,23 @@ export function createRealtimeWebRtcSession(
       )
       return false
     }
+  }
+
+  /** Enter speaking only after remote audio is actually playing (Safari-safe). */
+  const enterSpeakingIfAudible = (via: string) => {
+    if (hardStopped || disposed) return
+    void ensureRemoteAudible().then((ok) => {
+      if (hardStopped || disposed) return
+      if (!ok) {
+        // Do not latch speaking — stay thinking/idle so VoiceSession can fall back.
+        if (status === 'speaking') {
+          releaseToIdleInternal('playback_blocked')
+        }
+        return
+      }
+      telemetry('response_audible_speaking', { via })
+      setStatus('speaking')
+    })
   }
 
   const muteRemote = (muted: boolean) => {
@@ -1211,7 +1251,7 @@ export function createRealtimeWebRtcSession(
         emitQuality()
         telemetry('response_audio_started', { responseId: activeResponse.id, via: 'output_buffer' })
       }
-      setStatus('speaking')
+      enterSpeakingIfAudible('output_buffer')
       return
     }
 
@@ -1243,7 +1283,7 @@ export function createRealtimeWebRtcSession(
           telemetry('response_audio_started', { responseId: activeResponse.id })
         }
       }
-      setStatus('speaking')
+      if (status !== 'speaking') enterSpeakingIfAudible('audio_delta')
       return
     }
 
@@ -1267,16 +1307,13 @@ export function createRealtimeWebRtcSession(
       && typeof event.delta === 'string'
     ) {
       if (!assistantBuffer && activeResponse) {
-        // Transcript may start before audio events — mark speaking but do NOT
-        // treat as playback complete.
-        quality.markFirstAssistantAudio()
-        telemetry('response_audio_started', { responseId: activeResponse.id, via: 'transcript' })
-        // Note: hadAudio set only on real audio events / buffer.started so
-        // text-only responses can still complete via response.done.
+        // Transcript may precede audio — keep status thinking until remote audio plays.
+        // Never claim speaking from text-only deltas (Safari silent-speaking root cause).
+        telemetry('response_transcript_delta', { responseId: activeResponse.id })
       }
       assistantBuffer += event.delta
       callbacks.onAssistantTranscript?.(assistantBuffer, false)
-      setStatus('speaking')
+      if (status !== 'speaking' && status !== 'thinking') setStatus('thinking')
       return
     }
 
@@ -1428,9 +1465,31 @@ export function createRealtimeWebRtcSession(
       pc.ontrack = (e) => {
         if (!remoteAudio) return
         const stream = e.streams[0] ?? null
+        // Reuse the single persistent audio element — never create duplicates.
         remoteAudio.srcObject = stream
         remoteTrack = stream?.getAudioTracks()?.[0] ?? e.track ?? null
-        if (remoteTrack) remoteTrack.enabled = true
+        playbackDiag.remoteTrackReceived = Boolean(remoteTrack)
+        playbackDiag.lastEvent = 'remoteTrackReceived'
+        if (remoteTrack) {
+          remoteTrack.enabled = true
+          playbackDiag.remoteTrackMuted = remoteTrack.muted
+          remoteTrack.onmute = () => {
+            playbackDiag.remoteTrackMuted = true
+            playbackDiag.lastEvent = 'remoteTrackMuted'
+          }
+          remoteTrack.onunmute = () => {
+            playbackDiag.remoteTrackMuted = false
+            playbackDiag.lastEvent = 'remoteTrackUnmuted'
+            if (remoteTrack) remoteTrack.enabled = true
+            void ensureRemoteAudible()
+          }
+          remoteTrack.onended = () => {
+            playbackDiag.lastEvent = 'remoteTrackEnded'
+            if (!hardStopped && !disposed && (status === 'speaking' || status === 'thinking')) {
+              releaseToIdleInternal('remote_track_ended')
+            }
+          }
+        }
         remoteAudio.muted = false
         remoteAudio.volume = 1
         void ensureRemoteAudible()
@@ -1569,37 +1628,38 @@ export function createRealtimeWebRtcSession(
       callbacks.onStatus?.('idle')
       callbacks.onDisconnected?.()
     },
-    ensureListening() {
-      if (disposed || hardStopped) {
-        telemetry('ensure_listening_blocked', { disposed, hardStopped })
-        return
-      }
-      if (!pc || !dc || dc.readyState !== 'open') return
-      // Never Listening while Processing/Speaking — mic stays released.
-      if (
+    async ensureListening() {
+      const sessionBusy = () =>
         status === 'speaking'
         || status === 'thinking'
         || hasCancellableResponse()
         || speakQueue.length > 0
-      ) {
-        telemetry('ensure_listening_blocked_busy', { status, queue: speakQueue.length })
-        return
+      if (disposed || hardStopped) {
+        telemetry('ensure_listening_blocked', { disposed, hardStopped })
+        return false
       }
-      void acquireLocalMic().then((ok) => {
-        if (!ok || hardStopped || disposed) return
-        if (
-          status === 'speaking'
-          || status === 'thinking'
-          || hasCancellableResponse()
-          || speakQueue.length > 0
-        ) {
-          stopLocalMicCapture('ensure_listening_aborted_busy')
-          return
-        }
-        reassertTurnDetection()
-        muteRemote(false)
-        setStatus('listening')
-      })
+      if (!pc || !dc || dc.readyState !== 'open') return false
+      // Never Listening while Processing/Speaking — mic stays released.
+      if (sessionBusy()) {
+        telemetry('ensure_listening_blocked_busy', { status, queue: speakQueue.length })
+        return false
+      }
+      const ok = await acquireLocalMic()
+      if (!ok || hardStopped || disposed) return false
+      // Re-read after await (status may change during mic acquire on Safari).
+      if (sessionBusy()) {
+        stopLocalMicCapture('ensure_listening_aborted_busy')
+        return false
+      }
+      reassertTurnDetection()
+      muteRemote(false)
+      setStatus('listening')
+      return true
+    },
+    getPlaybackDiagnostics() {
+      playbackDiag.peerConnectionState = pc?.connectionState ?? null
+      playbackDiag.iceConnectionState = pc?.iceConnectionState ?? null
+      return { ...playbackDiag }
     },
     releaseToIdle(reason = 'release_to_idle') {
       if (disposed) return
