@@ -336,6 +336,7 @@ async function fetchSpeechAudio(
 
 async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Promise<Blob> {
   const { EdgeTTSBrowser } = await import('edge-tts-universal/browser')
+  // French replies use VoiceLocale 'en' (nova/Jenny handle FR); Arabic stays dedicated.
   const voice = locale === 'en' ? 'en-US-JennyNeural' : 'ar-SA-ZariyahNeural'
   const tts = new EdgeTTSBrowser(text, voice, {
     rate: locale === 'ar' ? '-5.00%' : '-2.00%',

@@ -111,6 +111,18 @@ export default function BilamoVoiceDiagnostics() {
           <Row label="Authenticated user" value={yn(playback.authenticatedUser)} />
           <Row label="Supabase session available" value={yn(playback.supabaseSessionAvailable)} />
           <Row label="Auth probe code" value={playback.authProbeCode || '—'} />
+          <Row label="Language" value={playback.language || '—'} />
+          <Row label="Dialect" value={playback.dialect || '—'} />
+          <Row
+            label="Transcript confidence"
+            value={playback.transcriptConfidence == null ? '—' : String(playback.transcriptConfidence)}
+          />
+          <Row label="Normalized intent" value={playback.normalizedIntent || '—'} />
+          <Row
+            label="Submit latency"
+            value={playback.submitLatencyMs == null ? '—' : `${playback.submitLatencyMs} ms`}
+          />
+          <Row label="Audible" value={yn(playback.audible || playback.audioPlaybackStarted)} />
           <Row label="Mic permission" value={micPermission} />
           <Row label="MediaStream active" value={yn(playback.mediaStreamActive)} />
           <Row label="Speech recognition supported" value={yn(playback.speechRecognitionSupported)} />

@@ -104,7 +104,8 @@ export function createRealtimeWebRtcBilamoTransport(
           text,
           isFinal,
           normalizedForExtract: meta?.normalizedForExtract,
-          locale: (meta?.conversationLanguage === 'en' ? 'en' : 'ar') as VoiceLocale,
+          // French Realtime language still maps to Latin TTS locale ('en').
+          locale: (meta?.conversationLanguage === 'ar' ? 'ar' : 'en') as VoiceLocale,
         }
         if (isFinal) callbacks.onFinalTranscript?.(event)
         else callbacks.onPartialTranscript?.(event)

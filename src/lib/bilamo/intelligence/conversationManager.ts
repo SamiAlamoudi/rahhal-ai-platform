@@ -7,8 +7,16 @@
 
 import { resolveDestinationIdentity } from '../../agent/destinationIdentity'
 import { missingClarificationFields } from '../../agent/clarification'
-import { emptyMemory, withTripPlan, type TripPlan } from '../../agent/types'
+import { emptyMemory, withTripPlan, type AgentLocale, type TripPlan } from '../../agent/types'
 import type { AgentMemory, AgentProviderMeta } from '../../agent/types'
+import { detectReplyLocale } from '../../agent/locale'
+import {
+  coerceAgentLocale,
+  coerceReplyLocale,
+  replyLocaleToAgentLocale,
+  type BilamoReplyLocale,
+} from '../speech/localeBridge'
+import { assessDestinationConfidence } from '../speech/speechUnderstanding'
 import type { ChatMessage } from '../../chat/chatTypes'
 import {
   acknowledgeAndAsk,
@@ -40,9 +48,25 @@ import {
 function isGreetingOnly(text: string): boolean {
   const t = text.trim().toLowerCase()
   if (!t) return true
-  return /^(hi|hello|hey|مرحبا|أهلا|اهلا|السلام عليكم|صباح الخير|مساء الخير|good\s+(morning|evening|afternoon)|howdy)[\s!.?؟]*$/i.test(
+  return /^(hi|hello|hey|bonjour|salut|bonsoir|مرحبا|أهلا|اهلا|السلام عليكم|صباح الخير|مساء الخير|good\s+(morning|evening|afternoon)|howdy|مرحبا\s*بيلامو)[\s!.?؟]*$/i.test(
     t,
   )
+}
+
+function composeDestinationConfirm(
+  locale: BilamoReplyLocale,
+  label: string,
+): { displayText: string; spokenText: string } {
+  if (locale === 'fr') {
+    const displayText = `J'ai compris ${label} — c'est bien ça ?`
+    return { displayText, spokenText: displayText }
+  }
+  if (locale === 'en') {
+    const displayText = `I heard ${label} — is that correct?`
+    return { displayText, spokenText: displayText }
+  }
+  const displayText = `سمعت ${label} — هل هذا صحيح؟`
+  return { displayText, spokenText: displayText }
 }
 
 function shouldDeferToLegacy(intent: string, userText: string): boolean {
@@ -89,7 +113,7 @@ function toAgentMemory(
 function buildConsultantTripPlan(
   requirements: BilamoTurnResult['requirements'],
   search: NonNullable<BilamoTurnResult['search']>,
-  locale: 'ar' | 'en',
+  locale: AgentLocale,
 ): TripPlan {
   const dest = requirements.destination || requirements.destinations[0] || 'Trip'
   const nights = requirements.durationDays ?? 4
@@ -225,9 +249,10 @@ export function bilamoResultToTravelAgentTurn(result: BilamoTurnResult): {
   meta: AgentProviderMeta
   toolBatch: null
 } {
-  const locale = result.memory.locale === 'en' ? 'en' : 'ar'
+  const agentLocale = coerceAgentLocale(result.memory.locale, 'ar')
+  const replyLanguage = coerceReplyLocale(result.memory.replyLanguage, agentLocale === 'en' ? 'en' : 'ar')
   const tripPlan = result.search
-    ? buildConsultantTripPlan(result.requirements, result.search, locale)
+    ? buildConsultantTripPlan(result.requirements, result.search, agentLocale)
     : null
   const memory = toAgentMemory(result.memory, result.requirements, result.phase, tripPlan)
   const bookingOptions = bookingOptionsFromSearch(result.search)
@@ -267,6 +292,7 @@ export function bilamoResultToTravelAgentTurn(result: BilamoTurnResult): {
       search: result.search,
       preferences: { ...result.memory.preferences },
       askedSlots: [...result.memory.askedSlots],
+      replyLanguage,
     } as NonNullable<AgentProviderMeta['bilamo']>,
   }
 
@@ -291,6 +317,14 @@ export async function runBilamoIntelligenceTurn(
     prior: input.priorMemory,
   })
 
+  // Per-turn reply language (includes French). AgentLocale stays ar|en.
+  const replyLanguage = detectReplyLocale(
+    input.userText,
+    coerceReplyLocale(memory.replyLanguage, memory.locale === 'en' ? 'en' : 'ar'),
+  )
+  const agentLocale = replyLocaleToAgentLocale(replyLanguage)
+  memory = { ...memory, locale: agentLocale, replyLanguage }
+
   const extraction = extractBilamoEntities({
     userText: input.userText,
     memory,
@@ -314,19 +348,43 @@ export async function runBilamoIntelligenceTurn(
     }
   }
 
+  const locale = replyLanguage
   memory = {
     ...memory,
-    locale: extraction.locale,
+    locale: agentLocale,
+    replyLanguage: locale,
     agent: {
-      ...(memory.agent.locale ? memory.agent : emptyMemory(extraction.locale)),
-      locale: extraction.locale,
+      ...(memory.agent.locale ? memory.agent : emptyMemory(agentLocale)),
+      locale: agentLocale,
       lastIntent: extraction.intent,
       requirements,
     },
   }
   memory = syncPreferencesFromRequirements(memory, requirements)
 
-  const locale = memory.locale === 'en' ? 'en' : 'ar'
+  // Low-confidence / unknown destination → one confirmation, never invent search.
+  if (requirements.destination) {
+    const destConf = assessDestinationConfidence(requirements.destination)
+    if (destConf.needsConfirm && destConf.label) {
+      const confirm = composeDestinationConfirm(locale, destConf.label)
+      await streamConsultantText({
+        ...confirm,
+        onDelta: input.onDelta,
+        signal: input.signal,
+      })
+      memory = rememberAsked({ ...memory, phase: 'collecting' }, 'destination')
+      return {
+        version: BILAMO_INTELLIGENCE_VERSION,
+        phase: 'collecting',
+        displayText: confirm.displayText,
+        spokenText: confirm.spokenText,
+        memory,
+        search: null,
+        askedSlot: 'destination',
+        requirements,
+      }
+    }
+  }
   // Soft-default solo only for readiness/search — do not persist assumed travelers
   // during collecting, or follow-up turns lose the "assumed solo" acknowledgment.
   const travelersAssumed = requirements.travelers == null
@@ -417,13 +475,17 @@ export async function runBilamoIntelligenceTurn(
     })
   }
   pushProgress(
-    locale === 'ar' ? 'لديّ ما يكفي — أرتّب الآن.' : 'I have enough — arranging now.',
+    locale === 'ar'
+      ? 'لديّ ما يكفي — أرتّب الآن.'
+      : locale === 'fr'
+        ? 'J\'ai assez d\'éléments — j\'organise maintenant.'
+        : 'I have enough — arranging now.',
   )
 
   const search = await runBilamoSearchOrchestrator({
     requirements,
     signal: input.signal,
-    locale,
+    locale: agentLocale,
     onFlightProgress: (message) => {
       // Avoid duplicating the opening line from the orchestrator.
       if (/enough information to search/i.test(message)) return
@@ -464,6 +526,6 @@ export async function runBilamoIntelligenceTurn(
   }
 }
 
-export function emptySessionMemory(locale: 'ar' | 'en' = 'ar'): BilamoConsultantMemory {
+export function emptySessionMemory(locale: AgentLocale = 'ar'): BilamoConsultantMemory {
   return emptyBilamoMemory(locale)
 }

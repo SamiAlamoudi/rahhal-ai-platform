@@ -24,6 +24,11 @@ export type VoiceHttpTraceSnapshot = {
   authProbeCode: string | null
   discardReason: string | null
   lastEvent: VoicePlaybackDiagnostics['lastEvent']
+  language: string | null
+  dialect: string | null
+  transcriptConfidence: number | null
+  normalizedIntent: string | null
+  submitLatencyMs: number | null
 }
 
 let activeCorrelationId: string | null = null
@@ -44,6 +49,11 @@ function emptyTrace(): VoiceHttpTraceSnapshot {
     authProbeCode: null,
     discardReason: null,
     lastEvent: null,
+    language: null,
+    dialect: null,
+    transcriptConfidence: null,
+    normalizedIntent: null,
+    submitLatencyMs: null,
   }
 }
 
@@ -89,6 +99,25 @@ export function noteVoiceAuthProbe(result: {
 export function noteVoiceDiscardReason(reason: string): void {
   if (!/^[a-z0-9_]{3,48}$/i.test(reason)) return
   trace.discardReason = reason
+}
+
+/** Safe speech-understanding diagnostics — never pass raw transcript. */
+export function noteSpeechUnderstandingDiag(input: {
+  language: string
+  dialect?: string | null
+  transcriptConfidence: number
+  normalizedIntent?: string | null
+  submitLatencyMs?: number | null
+}): void {
+  trace.language = input.language
+  trace.dialect = input.dialect ?? null
+  trace.transcriptConfidence = Number(input.transcriptConfidence.toFixed(2))
+  if (input.normalizedIntent && /^[a-z0-9:_.-]{2,64}$/i.test(input.normalizedIntent)) {
+    trace.normalizedIntent = input.normalizedIntent
+  }
+  if (typeof input.submitLatencyMs === 'number' && Number.isFinite(input.submitLatencyMs)) {
+    trace.submitLatencyMs = Math.round(input.submitLatencyMs)
+  }
 }
 
 export function noteVoiceRequestDispatched(route: string): void {
@@ -176,6 +205,12 @@ export function applyVoiceHttpTrace(
     authProbeCode: t.authProbeCode ?? diag.authProbeCode,
     discardReason: t.discardReason ?? diag.discardReason,
     lastEvent: t.lastEvent ?? diag.lastEvent,
+    language: t.language ?? diag.language,
+    dialect: t.dialect ?? diag.dialect,
+    transcriptConfidence: t.transcriptConfidence ?? diag.transcriptConfidence,
+    normalizedIntent: t.normalizedIntent ?? diag.normalizedIntent,
+    submitLatencyMs: t.submitLatencyMs ?? diag.submitLatencyMs,
+    audible: diag.audible || diag.audioPlaybackStarted,
     timestampMs: Date.now(),
   }
 }

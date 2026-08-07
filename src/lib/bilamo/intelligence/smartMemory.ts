@@ -17,6 +17,7 @@ function rememberedOriginCity(): string | null {
 export function emptyBilamoMemory(locale: AgentLocale = 'ar'): BilamoConsultantMemory {
   return {
     locale,
+    replyLanguage: locale === 'en' ? 'en' : 'ar',
     phase: 'greeting',
     agent: emptyMemory(locale),
     askedSlots: [],
@@ -75,8 +76,18 @@ export function hydrateBilamoMemory(input: {
   ]
 
   const req = agent.requirements
+  const replyFromMeta = (() => {
+    for (let i = input.messages.length - 1; i >= 0; i -= 1) {
+      const bilamo = (input.messages[i]?.providerMeta as { bilamo?: { replyLanguage?: string } } | null)?.bilamo
+      if (bilamo?.replyLanguage === 'ar' || bilamo?.replyLanguage === 'en' || bilamo?.replyLanguage === 'fr') {
+        return bilamo.replyLanguage
+      }
+    }
+    return base.replyLanguage
+  })()
   return {
     locale: agent.locale || locale,
+    replyLanguage: replyFromMeta || (agent.locale === 'en' ? 'en' : 'ar'),
     phase: mapPhase(agent.phase, req),
     agent: {
       ...agent,

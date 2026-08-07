@@ -87,6 +87,18 @@ export type VoicePlaybackDiagnostics = {
   classicFallbackHttpStatus: number | null
   discardReason: string | null
   authProbeCode: string | null
+  /** Detected reply language (ar|en|fr) — no transcript. */
+  language: string | null
+  /** Arabic dialect id when language=ar. */
+  dialect: string | null
+  /** 0–1 soft ASR/understanding confidence. */
+  transcriptConfidence: number | null
+  /** Safe intent code e.g. dest:Bali — never raw utterance. */
+  normalizedIntent: string | null
+  firstPartialLatencyMs: number | null
+  finalTranscriptLatencyMs: number | null
+  submitLatencyMs: number | null
+  audible: boolean
 }
 
 export function emptyVoicePlaybackDiagnostics(): VoicePlaybackDiagnostics {
@@ -129,6 +141,14 @@ export function emptyVoicePlaybackDiagnostics(): VoicePlaybackDiagnostics {
     classicFallbackHttpStatus: null,
     discardReason: null,
     authProbeCode: null,
+    language: null,
+    dialect: null,
+    transcriptConfidence: null,
+    normalizedIntent: null,
+    firstPartialLatencyMs: null,
+    finalTranscriptLatencyMs: null,
+    submitLatencyMs: null,
+    audible: false,
   }
 }
 

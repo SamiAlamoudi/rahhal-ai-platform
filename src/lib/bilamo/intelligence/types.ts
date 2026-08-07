@@ -4,6 +4,7 @@
  */
 
 import type { AgentLocale, AgentMemory, TripRequirements } from '../../agent/types'
+import type { BilamoReplyLocale } from '../speech/localeBridge'
 
 export const BILAMO_INTELLIGENCE_VERSION = '1.0.0'
 
@@ -19,6 +20,8 @@ export type BilamoHardSlot = 'destination' | 'dates' | 'travelers'
 
 export interface BilamoConsultantMemory {
   locale: AgentLocale
+  /** Spoken/written consultant language — includes French. */
+  replyLanguage: BilamoReplyLocale
   phase: BilamoPhase
   /** Round-tripped agent memory (never ask twice). */
   agent: AgentMemory

@@ -279,15 +279,38 @@ export function BilamoConversationExperience({
   const [statusLine, setStatusLine] = useState<string | null>(null)
   const [departure, setDeparture] = useState<DepartureResolution | null>(null)
   const [changeAirportOpen, setChangeAirportOpen] = useState(false)
-  const [uiLocale, setUiLocale] = useState<'ar' | 'en'>(() =>
-    typeof navigator !== 'undefined' && navigator.language?.startsWith('ar') ? 'ar' : 'en',
-  )
+  const [uiLocale, setUiLocale] = useState<'ar' | 'en' | 'fr'>(() => {
+    if (typeof navigator === 'undefined') return 'ar'
+    if (navigator.language?.startsWith('ar')) return 'ar'
+    if (navigator.language?.startsWith('fr')) return 'fr'
+    return 'en'
+  })
 
-  const handleSpeechFinal = useCallback((transcript: string) => {
-    const cleaned = sanitizeArabicVoiceTranscript(transcript)
-    if (!cleaned) return
-    void sendRef.current(cleaned)
-  }, [])
+  const handleSpeechFinal = useCallback((transcript: string, normalizedHint?: string | null) => {
+    const submitStarted = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    void import('../../lib/bilamo/speech/speechUnderstanding').then(async ({ understandSpeechTurn }) => {
+      const { noteSpeechUnderstandingDiag } = await import('../../lib/bilamo/voice/voiceHttpTrace')
+      const understood = understandSpeechTurn({
+        transcript,
+        normalizedHint,
+        previousLanguage: uiLocale === 'fr' || uiLocale === 'en' || uiLocale === 'ar' ? uiLocale : 'ar',
+        languagePreference: 'auto',
+      })
+      if (!understood.displayTranscript && !understood.normalizedForExtract) return
+      noteSpeechUnderstandingDiag({
+        language: understood.language,
+        dialect: understood.dialect,
+        transcriptConfidence: understood.transcriptConfidence,
+        normalizedIntent: understood.normalizedIntent,
+        submitLatencyMs: (typeof performance !== 'undefined' ? performance.now() : Date.now()) - submitStarted,
+      })
+      setUiLocale(understood.language)
+      // French replies use Latin TTS voices (VoiceLocale 'en').
+      voiceApiRef.current?.setLocale(understood.language === 'ar' ? 'ar' : 'en')
+      // Planning uses normalized text; UI message still shows cleaned display transcript.
+      void sendRef.current(understood.normalizedForExtract || understood.displayTranscript)
+    })
+  }, [uiLocale])
 
   const voice = useBilamoVoiceSession({
     onFinalUtterance: handleSpeechFinal,
@@ -314,10 +337,11 @@ export function BilamoConversationExperience({
     return 'idle'
   })()
 
-  const displayName = useMemo(() => resolveDisplayName(user, uiLocale), [user, uiLocale])
+  const binaryLocale = uiLocale === 'ar' ? 'ar' as const : 'en' as const
+  const displayName = useMemo(() => resolveDisplayName(user, binaryLocale), [user, binaryLocale])
   const greeting = useMemo(
-    () => greetingForHour(new Date().getHours(), displayName, uiLocale),
-    [displayName, uiLocale],
+    () => greetingForHour(new Date().getHours(), displayName, binaryLocale),
+    [displayName, binaryLocale],
   )
 
   const inConversation = messages.length > 0 || busy || orbState !== 'idle'
@@ -336,7 +360,7 @@ export function BilamoConversationExperience({
         compareTitle: 'مقارنة سريعة',
         compareSelect: 'اختيار',
         selectedStay: 'اختيارك محفوظ — الخيارات ما زالت ظاهرة.',
-        micNeed: 'الميكروفون يحتاج إذناً',
+        micNeed: 'تحقق من الميكروفون',
         tapAgain: 'تحدث بشكل طبيعي — سأتابع تلقائياً عند التوقف',
         somethingWrong: 'حدث خطأ ما',
         thinking: 'أفكّر…',
@@ -348,32 +372,59 @@ export function BilamoConversationExperience({
         changeAirport: 'تغيير المطار',
         audioError: 'تعذر تشغيل الصوت. يمكنك المحاولة مرة أخرى.',
       }
-    : {
-        heroLead: 'Here is what I would choose for you.',
-        emptyFlights: 'I could not find a strong flight match for those dates yet.',
-        emptySuggest: 'Try more flexible dates, another departure city, or a nearby destination.',
-        timeout: 'The provider timed out — we can retry right now.',
-        tryAgain: 'Search again',
-        flexibleDates: 'Flexible dates',
-        nearbyIdeas: 'Suggest alternatives',
-        stale: 'Prices may have shifted — say if you want me to refresh.',
-        backup: 'I used a reliable backup inventory after a brief availability hiccup.',
-        providerError: 'The provider paused for a moment. You can try again.',
-        compareTitle: 'Quick compare',
-        compareSelect: 'Select',
-        selectedStay: 'Your choice is saved — recommendations stay visible.',
-        micNeed: 'Microphone needs permission',
-        tapAgain: 'Speak naturally — I continue automatically when you pause',
-        somethingWrong: 'Something went wrong',
-        thinking: 'Thinking…',
-        type: 'Type',
-        tip: 'Tap once to speak. When you pause, I continue automatically.',
-        retryVoice: 'Retry',
-        continueText: 'Continue in text',
-        classicVoice: 'Simple voice',
-        changeAirport: 'Change airport',
-        audioError: 'Could not play audio. You can try again.',
-      }
+    : uiLocale === 'fr'
+      ? {
+          heroLead: 'Voici ce que je choisirais pour vous.',
+          emptyFlights: 'Je n\'ai pas encore trouvé de vol solide pour ces dates.',
+          emptySuggest: 'Essayez des dates plus souples, une autre ville de départ, ou une destination proche.',
+          timeout: 'Le fournisseur a expiré — nous pouvons réessayer maintenant.',
+          tryAgain: 'Relancer la recherche',
+          flexibleDates: 'Dates flexibles',
+          nearbyIdeas: 'Proposer des alternatives',
+          stale: 'Les tarifs ont pu bouger — dites-moi si vous voulez une mise à jour.',
+          backup: 'J\'ai utilisé un inventaire de secours fiable après un court incident.',
+          providerError: 'Le fournisseur a marqué une pause. Vous pouvez réessayer.',
+          compareTitle: 'Comparaison rapide',
+          compareSelect: 'Choisir',
+          selectedStay: 'Votre choix est enregistré — les options restent visibles.',
+          micNeed: 'Vérifier le microphone',
+          tapAgain: 'Parlez naturellement — je continue automatiquement quand vous vous arrêtez',
+          somethingWrong: 'Une erreur s\'est produite',
+          thinking: 'Je réfléchis…',
+          type: 'Écrire',
+          tip: 'Appuyez une fois pour parler. À la pause, je continue automatiquement.',
+          retryVoice: 'Réessayer',
+          continueText: 'Continuer par texte',
+          classicVoice: 'Voix simple',
+          changeAirport: 'Changer d\'aéroport',
+          audioError: 'Impossible de lire l\'audio. Vous pouvez réessayer.',
+        }
+      : {
+          heroLead: 'Here is what I would choose for you.',
+          emptyFlights: 'I could not find a strong flight match for those dates yet.',
+          emptySuggest: 'Try more flexible dates, another departure city, or a nearby destination.',
+          timeout: 'The provider timed out — we can retry right now.',
+          tryAgain: 'Search again',
+          flexibleDates: 'Flexible dates',
+          nearbyIdeas: 'Suggest alternatives',
+          stale: 'Prices may have shifted — say if you want me to refresh.',
+          backup: 'I used a reliable backup inventory after a brief availability hiccup.',
+          providerError: 'The provider paused for a moment. You can try again.',
+          compareTitle: 'Quick compare',
+          compareSelect: 'Select',
+          selectedStay: 'Your choice is saved — recommendations stay visible.',
+          micNeed: 'Check microphone',
+          tapAgain: 'Speak naturally — I continue automatically when you pause',
+          somethingWrong: 'Something went wrong',
+          thinking: 'Thinking…',
+          type: 'Type',
+          tip: 'Tap once to speak. When you pause, I continue automatically.',
+          retryVoice: 'Try again',
+          continueText: 'Continue by text',
+          classicVoice: 'Simple voice',
+          changeAirport: 'Change airport',
+          audioError: 'Could not play audio. You can try again.',
+        }
 
   const clearSilenceTimer = useCallback(() => {
     if (silenceTimer.current != null) {
@@ -489,7 +540,7 @@ export function BilamoConversationExperience({
               setStatusLine(null)
               const next = resultsFromAssistantMeta(
                 (msg.providerMeta as Record<string, unknown> | undefined) ?? null,
-                uiLocale,
+                binaryLocale,
               )
               // Preserve prior recommendation cards on selection / non-search turns.
               if (next) {
@@ -506,12 +557,21 @@ export function BilamoConversationExperience({
               if (meta?.selectedBookingOptionId) {
                 setSelectedId(meta.selectedBookingOptionId)
               }
-              const locale = meta?.memory?.locale === 'ar' ? 'ar' : uiLocale
-              setUiLocale(locale)
-              voice.setLocale(locale)
+              const bilamoMeta = meta as { bilamo?: { replyLanguage?: string } } | undefined
+              const replyLang =
+                bilamoMeta?.bilamo?.replyLanguage === 'ar'
+                || bilamoMeta?.bilamo?.replyLanguage === 'en'
+                || bilamoMeta?.bilamo?.replyLanguage === 'fr'
+                  ? bilamoMeta.bilamo.replyLanguage
+                  : meta?.memory?.locale === 'ar'
+                    ? 'ar'
+                    : uiLocale
+              setUiLocale(replyLang)
+              const voiceLocale = replyLang === 'ar' ? 'ar' : 'en'
+              voice.setLocale(voiceLocale)
               const spoken = (meta?.spokenText || msg.content || '').trim()
               if (spoken) {
-                const handle = voice.speak(spoken, locale)
+                const handle = voice.speak(spoken, voiceLocale)
                 speakGenerationRef.current = handle.generation
                 void handle.done.finally(() => {
                   if (speakGenerationRef.current === handle.generation) {
@@ -804,7 +864,7 @@ export function BilamoConversationExperience({
         <div
           className="mx-auto flex min-h-[100dvh] w-full max-w-[24rem] flex-col px-8 pb-10 pt-14 sm:max-w-md"
           dir={uiLocale === 'ar' ? 'rtl' : 'ltr'}
-          lang={uiLocale === 'ar' ? 'ar' : 'en'}
+          lang={uiLocale === 'fr' ? 'fr' : uiLocale === 'ar' ? 'ar' : 'en'}
         >
           <header className="relative z-10 text-center">
             <Logo size={inConversation ? 'sm' : 'md'} className="justify-center" />
@@ -976,7 +1036,7 @@ export function BilamoConversationExperience({
                           {displayAssistantContent(
                             msg.content || '',
                             Boolean(results?.flights.length || results?.hotels.length),
-                            uiLocale,
+                            binaryLocale,
                           )}
                           {isLastAssistant ? (
                             <motion.span
@@ -1143,7 +1203,7 @@ export function BilamoConversationExperience({
                     </AnimatePresence>
 
                     {results.flights.map((flight, i) => {
-                      const classified = classifyFlightKind(flight, i, uiLocale)
+                      const classified = classifyFlightKind(flight, i, binaryLocale)
                       const isHero = classified.variant === 'hero'
                       return (
                       <motion.div
@@ -1169,7 +1229,7 @@ export function BilamoConversationExperience({
                           highlighted={isHero && selectedId == null}
                           selected={selectedId === flight.id}
                           variant={classified.variant}
-                          locale={uiLocale}
+                          locale={binaryLocale}
                           onSelect={() => selectFlight(flight.id)}
                           onCompare={() => {
                             setCompareIds((prev) => {
@@ -1234,7 +1294,7 @@ export function BilamoConversationExperience({
                           {...hotel}
                           highlighted={i === 0 && selectedId == null}
                           selected={selectedId === hotel.id}
-                          locale={uiLocale}
+                          locale={binaryLocale}
                           onSelect={() => selectHotel(hotel.id)}
                           onViewDetails={() => {
                             setDetailsId((prev) => (prev === hotel.id ? null : hotel.id))

@@ -4,10 +4,13 @@
  */
 
 import type { TripRequirements } from '../../agent/types'
+import type { BilamoReplyLocale } from '../speech/localeBridge'
 import type { BilamoSearchBundle } from './types'
 
-function money(amount: number, currency: string, locale: 'ar' | 'en'): string {
-  const formatted = amount.toLocaleString(locale === 'ar' ? 'ar-SA' : 'en-US')
+function money(amount: number, currency: string, locale: BilamoReplyLocale): string {
+  const formatted = amount.toLocaleString(
+    locale === 'ar' ? 'ar-SA' : locale === 'fr' ? 'fr-FR' : 'en-US',
+  )
   if (locale === 'ar' && (currency === 'SAR' || currency === 'ر.س')) {
     return `${formatted} ر.س`
   }
@@ -17,7 +20,7 @@ function money(amount: number, currency: string, locale: 'ar' | 'en'): string {
 export function composeRecommendation(input: {
   requirements: TripRequirements
   search: BilamoSearchBundle
-  locale: 'ar' | 'en'
+  locale: BilamoReplyLocale
   /** True when travelers were soft-defaulted to 1 */
   assumedSolo?: boolean
 }): { displayText: string; spokenText: string } {
@@ -55,6 +58,31 @@ export function composeRecommendation(input: {
     return { displayText: lines.join(' '), spokenText }
   }
 
+  if (locale === 'fr') {
+    if (emptyFlights) {
+      const displayText = timedOut
+        ? 'Le fournisseur de vols a marqué une pause. Je peux relancer ou élargir les dates.'
+        : `Je n'ai pas trouvé de vol solide pour ${dest} avec ces critères. Je peux élargir le calendrier.`
+      return {
+        displayText,
+        spokenText: 'Pas encore de vol solide. On élargit les dates ?',
+      }
+    }
+
+    const lines = [
+      `Voici mon choix pour ${dest}.`,
+      input.assumedSolo ? 'J\'ai supposé un voyage en solo — dites-moi si quelqu\'un vous accompagne.' : null,
+      hotel ? `Pour le séjour : ${hotel.name}.` : null,
+      stale ? 'Les tarifs ont pu bouger — dites-moi si vous voulez une mise à jour.' : null,
+    ].filter(Boolean) as string[]
+
+    const spokenText = flight
+      ? `Je retiendrais ${flight.airline} pour ${dest}. ${String(flight.reason || '').split(/[.!?؟]/)[0]}.`
+      : `J'ai préparé des options pour ${dest}.`
+
+    return { displayText: lines.join(' '), spokenText }
+  }
+
   if (emptyFlights) {
     const displayText = timedOut
       ? 'The flight provider paused for a moment. I can retry or search with flexible dates.'
@@ -73,27 +101,36 @@ export function composeRecommendation(input: {
   ].filter(Boolean) as string[]
 
   const spokenText = flight
-    ? `I'd take the ${flight.airline} for ${dest}. ${String(flight.reason || '').split(/[.!?]/)[0]}.`
+    ? `I'd take the ${flight.airline} for ${dest}. ${String(flight.reason || '').split(/[.!?؟]/)[0]}.`
     : `I've shaped options for ${dest}.`
 
   return { displayText: lines.join(' '), spokenText }
 }
 
-export function composeGreeting(locale: 'ar' | 'en'): { displayText: string; spokenText: string } {
+export function composeGreeting(locale: BilamoReplyLocale): { displayText: string; spokenText: string } {
   if (locale === 'ar') {
     const displayText = 'أهلاً بك. أنا بيلامو — مستشارك للسفر الفاخر. إلى أين تتخيّل الرحلة؟'
     return { displayText, spokenText: 'أهلاً بك. إلى أين تتخيّل الرحلة؟' }
+  }
+  if (locale === 'fr') {
+    const displayText = 'Bonjour. Je suis Bilamo — votre conseiller voyage. Où imaginez-vous ce voyage ?'
+    return { displayText, spokenText: 'Bonjour. Où imaginez-vous ce voyage ?' }
   }
   const displayText = 'Welcome. I am Bilamo — your luxury travel consultant. Where are you imagining this trip?'
   return { displayText, spokenText: 'Welcome. Where are you imagining this trip?' }
 }
 
 /** Progressive consultant status lines for perceived responsiveness. */
-export function progressiveConsultantAck(locale: 'ar' | 'en', phase: 0 | 1 | 2): string {
+export function progressiveConsultantAck(locale: BilamoReplyLocale, phase: 0 | 1 | 2): string {
   if (locale === 'ar') {
     if (phase === 0) return 'تمام، فهمت.'
     if (phase === 1) return 'أبحث لك الآن.'
     return 'وجدت خيارات مناسبة.'
+  }
+  if (locale === 'fr') {
+    if (phase === 0) return 'Très bien, j\'ai compris.'
+    if (phase === 1) return 'Je cherche pour vous.'
+    return 'J\'ai trouvé de bonnes options.'
   }
   if (phase === 0) return 'Got it.'
   if (phase === 1) return 'Looking for you now.'

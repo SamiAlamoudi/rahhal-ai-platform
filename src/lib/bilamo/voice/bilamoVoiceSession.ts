@@ -256,6 +256,14 @@ export function createBilamoVoiceSession(
         authProbeCode: playbackDiag.authProbeCode,
         mediaStreamActive: playbackDiag.mediaStreamActive,
         speechRecognitionSupported: playbackDiag.speechRecognitionSupported,
+        language: playbackDiag.language,
+        dialect: playbackDiag.dialect,
+        transcriptConfidence: playbackDiag.transcriptConfidence,
+        normalizedIntent: playbackDiag.normalizedIntent,
+        firstPartialLatencyMs: playbackDiag.firstPartialLatencyMs,
+        finalTranscriptLatencyMs: playbackDiag.finalTranscriptLatencyMs,
+        submitLatencyMs: playbackDiag.submitLatencyMs,
+        audible: playbackDiag.audible || playbackDiag.audioPlaybackStarted,
       }
       playbackDiag = {
         ...playbackDiag,
@@ -297,6 +305,19 @@ export function createBilamoVoiceSession(
         mediaStreamActive: sessionSticky.mediaStreamActive ?? fromTransport.mediaStreamActive,
         speechRecognitionSupported:
           sessionSticky.speechRecognitionSupported ?? fromTransport.speechRecognitionSupported,
+        language: sessionSticky.language || fromTransport.language,
+        dialect: sessionSticky.dialect || fromTransport.dialect,
+        transcriptConfidence: sessionSticky.transcriptConfidence ?? fromTransport.transcriptConfidence,
+        normalizedIntent: sessionSticky.normalizedIntent || fromTransport.normalizedIntent,
+        firstPartialLatencyMs: sessionSticky.firstPartialLatencyMs ?? fromTransport.firstPartialLatencyMs,
+        finalTranscriptLatencyMs:
+          sessionSticky.finalTranscriptLatencyMs ?? fromTransport.finalTranscriptLatencyMs,
+        submitLatencyMs: sessionSticky.submitLatencyMs ?? fromTransport.submitLatencyMs,
+        audible:
+          sessionSticky.audible
+          || Boolean(fromTransport.audible)
+          || playbackDiag.audioPlaybackStarted
+          || Boolean(fromTransport.audioPlaybackStarted),
       }
     }
     playbackDiag.audioContextState = readAudioContextState()
@@ -579,6 +600,7 @@ export function createBilamoVoiceSession(
         clearSilentRealtimeTimer()
         metrics.mark('speak_start')
         playbackDiag.audioPlaybackStarted = true
+        playbackDiag.audible = true
         playbackDiag.lastEvent = 'audioPlaybackStarted'
         playbackDiag.playResult = 'resolved'
         noteVoiceTurnStage('playing')
