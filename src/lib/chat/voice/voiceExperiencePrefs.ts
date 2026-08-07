@@ -239,7 +239,7 @@ export function dialectChatGuidance(dialect: ArabicDialectPreference): string {
  * Keep concise — long instructions add latency without quality.
  */
 export function buildTtsSpeechInstructions(input: {
-  locale: 'ar' | 'en'
+  locale: 'ar' | 'en' | 'fr'
   dialect?: ArabicDialectPreference
   energy?: VoiceEnergyPreference
   speed?: VoiceSpeakingSpeed

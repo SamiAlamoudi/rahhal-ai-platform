@@ -320,7 +320,8 @@ export function BilamoConversationExperience({
         submitLatencyMs: (typeof performance !== 'undefined' ? performance.now() : Date.now()) - submitStarted,
       })
       setUiLocale(understood.language)
-      voiceApiRef.current?.setLocale(understood.language === 'ar' ? 'ar' : 'en')
+      // Keep FR as FR for next-turn ASR (do not collapse to en).
+      voiceApiRef.current?.setLocale(understood.language)
       // Voice finals must use voiceSendRef (not sendWithMicStop soft-cancel).
       void voiceSendRef.current(understood.normalizedForExtract || understood.displayTranscript)
     } catch {
@@ -590,7 +591,10 @@ export function BilamoConversationExperience({
                     ? 'ar'
                     : uiLocale
               setUiLocale(replyLang)
-              const voiceLocale = replyLang === 'ar' ? 'ar' : 'en'
+              // Speak + next ASR must use real reply language (fr stays fr).
+              const voiceLocale = replyLang === 'fr' || replyLang === 'en' || replyLang === 'ar'
+                ? replyLang
+                : 'ar'
               voice.setLocale(voiceLocale)
               const spoken = (meta?.spokenText || msg.content || '').trim()
               if (spoken) {
@@ -693,8 +697,16 @@ export function BilamoConversationExperience({
     bilamoHaptic(6)
     // Unlock during the mic tap gesture (required for later TTS / WebRTC play).
     void unlockAudioPlayback().catch(() => undefined)
-    const locale = uiLocale === 'ar' || navigator.language?.startsWith('ar') ? 'ar' : 'en'
-    if (locale === 'ar') setUiLocale('ar')
+    // Prefer in-conversation reply language (includes French). Do not collapse fr→en.
+    const locale =
+      uiLocale === 'fr' || uiLocale === 'en' || uiLocale === 'ar'
+        ? uiLocale
+        : navigator.language?.startsWith('fr')
+          ? 'fr'
+          : navigator.language?.startsWith('ar')
+            ? 'ar'
+            : 'en'
+    setUiLocale(locale)
     voice.setLocale(locale)
     const ok = await voice.startListening()
     if (!ok) {

@@ -23,9 +23,13 @@ export function replyLocaleToAgentLocale(locale: BilamoReplyLocale): AgentLocale
   return locale === 'ar' ? 'ar' : 'en'
 }
 
-/** TTS transport locale — French uses Latin/en TTS voices (OpenAI nova handles FR). */
+/**
+ * Voice transport locale for ASR + speak.
+ * French must stay `fr` so realtime transcription / classic Web Speech use fr-FR
+ * (collapsing to `en` was the root cause of unreliable French recognition).
+ */
 export function replyLocaleToVoiceLocale(locale: BilamoReplyLocale): VoiceLocale {
-  return locale === 'ar' ? 'ar' : 'en'
+  return locale
 }
 
 export function coerceAgentLocale(

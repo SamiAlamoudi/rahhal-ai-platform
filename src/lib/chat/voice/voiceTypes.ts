@@ -3,7 +3,7 @@
  * No separate conversation/message store. Phone/video calling are out of scope.
  */
 
-export type VoiceLocale = 'ar' | 'en'
+export type VoiceLocale = 'ar' | 'en' | 'fr'
 export type VoiceInputMode = 'push_to_talk' | 'hands_free'
 /** ChatGPT-like voice states (Listening → Thinking → Responding → Speaking). */
 export type VoiceSessionStatus =
@@ -34,6 +34,7 @@ export interface VoiceLocaleConfig {
 export const VOICE_LOCALES: Record<VoiceLocale, VoiceLocaleConfig> = {
   ar: { locale: 'ar', speechLang: 'ar-SA', labelAr: 'العربية', labelEn: 'Arabic' },
   en: { locale: 'en', speechLang: 'en-US', labelAr: 'الإنجليزية', labelEn: 'English' },
+  fr: { locale: 'fr', speechLang: 'fr-FR', labelAr: 'الفرنسية', labelEn: 'French' },
 }
 
 export interface SpeechRecognitionResultEvent {
@@ -100,5 +101,7 @@ export function speechLangForLocale(locale: VoiceLocale): string {
 }
 
 export function normalizeVoiceLocale(value: string | null | undefined): VoiceLocale {
-  return value === 'en' ? 'en' : 'ar'
+  if (value === 'en') return 'en'
+  if (value === 'fr') return 'fr'
+  return 'ar'
 }

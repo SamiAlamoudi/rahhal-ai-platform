@@ -22,6 +22,7 @@ import {
   type RealtimeQualitySnapshot,
 } from './realtimeQualityMetrics'
 import {
+  detectConversationLanguage,
   resolveConversationLanguage,
   type ConversationLanguageCode,
 } from './conversationLanguageLayer'
@@ -119,7 +120,13 @@ export type RealtimeWebRtcSession = {
    * Speak a written assistant draft via Realtime after spoken-dialogue post-processing.
    * Does not change the Realtime engine — only the words fed into it.
    */
-  speakWrittenDraft: (written: string, opts?: { locale?: 'ar' | 'en' }) => void
+  speakWrittenDraft: (written: string, opts?: { locale?: 'ar' | 'en' | 'fr' }) => void
+  /**
+   * Set ASR / conversation input language before listening.
+   * Must be called with the traveler's language (including `fr`) — connect must not
+   * force Arabic when French/English is already preferred.
+   */
+  setInputLanguage: (language: LockedSpeechLanguage) => void
   getStatus: () => RealtimeSessionStatus
   isConnected: () => boolean
   getQualitySnapshot: () => RealtimeQualitySnapshot
@@ -195,6 +202,8 @@ export function createRealtimeWebRtcSession(
    * until the next explicit connect().
    */
   let hardStopped = false
+  /** Preferred ASR language from Bilamo UI (survives connect; includes French). */
+  let preferredInputLanguage: LockedSpeechLanguage | null = null
   /** Active spoken language for this Realtime call (language layer only). */
   let activeLanguage: LockedSpeechLanguage | null = 'ar'
   /** Language frozen for the current assistant response. */
@@ -220,8 +229,27 @@ export function createRealtimeWebRtcSession(
   /** Brief ICE blip timer — avoid tearing down on mobile transient disconnects. */
   let iceRecoveryTimer: ReturnType<typeof setTimeout> | null = null
   /** Queue progressive speakWrittenDraft chunks while a response is already playing. */
-  let speakQueue: Array<{ spoken: string; locale: 'ar' | 'en' }> = []
+  let speakQueue: Array<{ spoken: string; locale: 'ar' | 'en' | 'fr' }> = []
   const playbackDiag = emptyVoicePlaybackDiagnostics()
+
+  const applyInputLanguage = (language: LockedSpeechLanguage, reason: string) => {
+    preferredInputLanguage = language
+    activeLanguage = language
+    telemetry('input_language_set', { language, reason })
+    if (!dc || dc.readyState !== 'open' || hasCancellableResponse()) return
+    sendEvent({
+      type: 'session.update',
+      session: {
+        type: 'realtime',
+        audio: {
+          input: {
+            transcription: transcriptionConfig(language),
+            turn_detection: buildRealtimeTurnDetection(),
+          },
+        },
+      },
+    })
+  }
 
   const transcriptGate = createUserTranscriptGate(() => activeLanguage)
 
@@ -654,14 +682,22 @@ export function createRealtimeWebRtcSession(
       return
     }
     const built = buildInstructions(utterance, activeLanguage)
-    // Arabic session: never auto-switch to EN/CJK/etc from a short unclear fragment.
+    // Arabic session: never auto-switch to CJK/etc from a short unclear fragment.
+    // Confident Latin FR/EN must be allowed — forcing `ar` here broke French ASR.
     const explicitSwitch = utterance
-      ? /\b(?:speak|talk)\s+english\b|بالإنجليزي|بالانجليزي|English\s*please/i.test(utterance)
+      ? /\b(?:speak|talk)\s+english\b|بالإنجليزي|بالانجليزي|English\s*please|en français|parlons français/i.test(utterance)
       : false
+    const detected = utterance ? detectConversationLanguage(utterance) : null
+    const allowLatinSwitch = Boolean(
+      detected
+      && detected.confidence >= 0.4
+      && (detected.language === 'en' || detected.language === 'fr'),
+    )
     if (
       (activeLanguage === 'ar' || activeLanguage == null)
       && built.language !== 'ar'
       && !explicitSwitch
+      && !allowLatinSwitch
     ) {
       activeLanguage = 'ar'
       sendEvent({
@@ -757,7 +793,9 @@ export function createRealtimeWebRtcSession(
         return
       }
       lockedUserTranscript = result.committedTranscript
-      transcriptGate.lockLanguage(activeLanguage === 'en' ? 'en' : 'ar')
+      transcriptGate.lockLanguage(
+        activeLanguage === 'en' || activeLanguage === 'fr' ? activeLanguage : 'ar',
+      )
       logAsrDiagnostics('asr_final_committed', {
         audioDurationMs: result.audioDurationMs,
         interimTranscript: result.interimTranscript.slice(0, 160),
@@ -949,12 +987,13 @@ export function createRealtimeWebRtcSession(
     }
   }
 
-  const startSpeakUtterance = (spoken: string, locale: 'ar' | 'en') => {
+  const startSpeakUtterance = (spoken: string, locale: 'ar' | 'en' | 'fr') => {
     // Speaking must never overlap local capture (no Listening + Speaking).
     stopLocalMicCapture('speak_written_draft')
-    if (locale === 'ar') activeLanguage = 'ar'
-    else activeLanguage = 'en'
+    activeLanguage = locale
+    preferredInputLanguage = locale
     const context = inferSpokenContext(spoken)
+    const languageLabel = locale === 'ar' ? 'Arabic' : locale === 'fr' ? 'French' : 'English'
     assistantBuffer = ''
     // Fresh play diagnostics for this assistant utterance (same text as UI — no second answer).
     playbackDiag.audioPlayRequested = false
@@ -992,7 +1031,7 @@ export function createRealtimeWebRtcSession(
           type: 'input_text',
           text: [
             'Speak the following booking-agent dialogue aloud now, VERBATIM — every sentence to the end.',
-            `Language lock: speak only in ${locale === 'ar' ? 'Arabic' : 'English'}. Do not switch languages.`,
+            `Language lock: speak only in ${languageLabel}. Do not switch languages.`,
             spokenToneCue(context),
             'Do not expand, advise, lecture, or add website referrals.',
             'Do not add extra questions beyond what is written.',
@@ -1234,10 +1273,12 @@ export function createRealtimeWebRtcSession(
       if (gated.accepted && exact) {
         // Unlock gate segment lock so pause-split segments can append.
         // Turn-level lock is `lockedUserTranscript` after silence commit.
+        const segmentLang = gated.lockedLanguage
         transcriptGate.resetTurn()
-        // Keep Arabic transcription locked — do not adopt EN/CJK from a fragment.
-        if (activeLanguage !== 'en') {
-          activeLanguage = 'ar'
+        // Preserve FR/EN ASR language — forcing `ar` here rejected Latin finals next segment.
+        if (segmentLang === 'fr' || segmentLang === 'en' || segmentLang === 'ar') {
+          activeLanguage = segmentLang
+          preferredInputLanguage = segmentLang
         }
         const display = utteranceAssembler.onSegmentFinal(exact)
         callbacks.onUserTranscript?.(display, false)
@@ -1422,10 +1463,10 @@ export function createRealtimeWebRtcSession(
     getQualitySnapshot: () => quality.snapshot(),
     async connect() {
       if (disposed) return
-      // Explicit user start — clear hard Stop latch; lock Arabic transcription.
+      // Explicit user start — clear hard Stop latch; keep preferred FR/EN/AR ASR language.
       hardStopped = false
       sessionGeneration += 1
-      activeLanguage = 'ar'
+      activeLanguage = preferredInputLanguage || activeLanguage || 'ar'
       lockedUserTranscript = null
       utteranceAssembler.reset()
       transcriptGate.resetTurn()
@@ -1677,9 +1718,31 @@ export function createRealtimeWebRtcSession(
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
     },
     disconnect() {
-      // Soft end used by non-Stop paths (e.g. greeting wipe). Still latch hardStopped
-      // so no pending playback callback can reopen listening until explicit connect().
-      hardStopInternal('disconnect')
+      // Soft teardown: tear down peer without latching hardStopped.
+      // Latch was a root cause of silent speakWrittenDraft (speak_blocked_hard_stopped)
+      // after a soft disconnect when the same session object later spoke.
+      if (disposed) return
+      sessionGeneration += 1
+      clearPlaybackTimers()
+      clientRequestedResponse = false
+      speakQueue = []
+      utteranceAssembler.cancelPendingCommit()
+      utteranceAssembler.reset()
+      lockedUserTranscript = null
+      try {
+        disableTurnDetection()
+      } catch {
+        // ignore
+      }
+      muteLocalMic()
+      muteRemote(true)
+      interruptInternal(false, { rearmMic: false })
+      tearDownPeer()
+      status = 'idle'
+      logMicSessionState('IDLE', { source: 'realtime', reason: 'disconnect_soft' })
+      telemetry('disconnect_soft', { hardStopped })
+      callbacks.onStatus?.('idle')
+      callbacks.onDisconnected?.()
     },
     hardStop() {
       hardStopInternal('user_stop')
@@ -1776,16 +1839,23 @@ export function createRealtimeWebRtcSession(
         releaseToIdleInternal('send_text')
       }
     },
+    setInputLanguage(language) {
+      if (disposed) return
+      if (language !== 'ar' && language !== 'en' && language !== 'fr') return
+      applyInputLanguage(language, 'set_input_language')
+    },
     speakWrittenDraft(written, opts) {
       if (hardStopped || disposed) {
         telemetry('speak_blocked_hard_stopped')
         return
       }
-      const locale = opts?.locale === 'en' ? 'en' : 'ar'
+      // French must not collapse to Arabic (previous ternary treated only 'en' as Latin).
+      const locale: 'ar' | 'en' | 'fr' =
+        opts?.locale === 'en' || opts?.locale === 'fr' ? opts.locale : 'ar'
       // Sole Realtime speech path — speak the same text the UI shows.
       // Strip advice/website chrome only; do not invent a shorter second reply.
       const cleaned = toSpokenDialogue(written, {
-        locale,
+        locale: locale === 'ar' ? 'ar' : 'en',
         maxChars: Math.max(280, written.trim().length),
         context: inferSpokenContext(written),
       })

@@ -188,7 +188,7 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
       intentionalStop = false
       const rec = new Ctor()
       recognition = rec
-      rec.lang = locale === 'ar' ? 'ar-SA' : 'en-US'
+      rec.lang = locale === 'ar' ? 'ar-SA' : locale === 'fr' ? 'fr-FR' : 'en-US'
       rec.continuous = true
       rec.interimResults = true
       let reconnectAttempted = false

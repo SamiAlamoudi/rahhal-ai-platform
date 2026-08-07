@@ -17,9 +17,13 @@ function waitForVoices(timeoutMs = 1500): Promise<SpeechSynthesisVoice[]> {
   })
 }
 
-function pickVoice(voices: SpeechSynthesisVoice[], locale: 'ar' | 'en'): SpeechSynthesisVoice | null {
-  const prefix = locale === 'ar' ? 'ar' : 'en'
-  const exact = voices.find((v) => v.lang?.toLowerCase() === (locale === 'ar' ? 'ar-sa' : 'en-us'))
+function pickVoice(
+  voices: SpeechSynthesisVoice[],
+  locale: 'ar' | 'en' | 'fr',
+): SpeechSynthesisVoice | null {
+  const prefix = locale === 'ar' ? 'ar' : locale === 'fr' ? 'fr' : 'en'
+  const exactLang = locale === 'ar' ? 'ar-sa' : locale === 'fr' ? 'fr-fr' : 'en-us'
+  const exact = voices.find((v) => v.lang?.toLowerCase() === exactLang)
   if (exact) return exact
   return voices.find((v) => v.lang?.toLowerCase().startsWith(prefix)) ?? null
 }

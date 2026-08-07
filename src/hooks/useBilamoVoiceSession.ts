@@ -8,6 +8,7 @@ import {
   type BilamoVoiceSession,
   type BilamoVoiceSessionSnapshot,
 } from '../lib/bilamo/voice'
+import type { VoiceLocale } from '../lib/chat/voice/voiceTypes'
 
 export type UseBilamoVoiceSessionOptions = {
   enabled?: boolean
@@ -114,7 +115,7 @@ export function useBilamoVoiceSession(options: UseBilamoVoiceSessionOptions = {}
     transportKind: snapshot.transportKind,
     fellBackToClassic: snapshot.fellBackToClassic,
     toggleMic,
-    speak: (text: string, locale?: 'ar' | 'en') => session.speak(text, locale),
+    speak: (text: string, locale?: VoiceLocale) => session.speak(text, locale),
     interrupt: () => session.interrupt(),
     bargeIn: () => session.bargeIn(),
     startListening: () => session.startListening(),
@@ -127,7 +128,7 @@ export function useBilamoVoiceSession(options: UseBilamoVoiceSessionOptions = {}
     clearError: () => session.clearError(),
     releaseToIdle: (reason?: string) => session.releaseToIdle(reason),
     setConversationId: (id: string | null) => session.setConversationId(id),
-    setLocale: (locale: 'ar' | 'en') => session.setLocale(locale),
+    setLocale: (locale: VoiceLocale) => session.setLocale(locale),
     getMetrics: () => session.getMetrics(),
     getMetricsReport: () => session.getMetricsReport(),
   }

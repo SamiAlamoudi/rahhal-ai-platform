@@ -105,7 +105,13 @@ export function createRealtimeWebRtcBilamoTransport(
           isFinal,
           normalizedForExtract: meta?.normalizedForExtract,
           // French Realtime language still maps to Latin TTS locale ('en').
-          locale: (meta?.conversationLanguage === 'ar' ? 'ar' : 'en') as VoiceLocale,
+          locale: (
+            meta?.conversationLanguage === 'ar'
+              ? 'ar'
+              : meta?.conversationLanguage === 'fr'
+                ? 'fr'
+                : 'en'
+          ) as VoiceLocale,
         }
         if (isFinal) callbacks.onFinalTranscript?.(event)
         else callbacks.onPartialTranscript?.(event)
@@ -193,7 +199,6 @@ export function createRealtimeWebRtcBilamoTransport(
     },
 
     async startListening(locale?: VoiceLocale) {
-      void locale
       if (disposed) return false
       if (!session?.isConnected()) {
         try {
@@ -201,6 +206,11 @@ export function createRealtimeWebRtcBilamoTransport(
         } catch {
           return false
         }
+      }
+      // Root cause: locale was previously ignored (`void locale`), so French/English
+      // ASR stayed locked to Arabic and Latin finals were rejected by the transcript gate.
+      if (locale === 'ar' || locale === 'en' || locale === 'fr') {
+        session!.setInputLanguage(locale)
       }
       // User intent — ensureListening never auto-runs after reply.
       // Await mic acquisition so Safari second-turn cannot claim listening with a dead track.

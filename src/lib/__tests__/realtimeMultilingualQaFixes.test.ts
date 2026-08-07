@@ -88,10 +88,11 @@ describe('user transcript gate — Arabic speech must not show foreign interim',
     expect(rejected.displayText).toBeNull()
   })
 
-  it('hints Arabic transcription language by default', () => {
+  it('hints Arabic transcription language by default (and French as fr)', () => {
     expect(transcriptionLanguageHint(null)).toBe('ar')
     expect(transcriptionLanguageHint('ar')).toBe('ar')
     expect(transcriptionLanguageHint('en')).toBe('en')
+    expect(transcriptionLanguageHint('fr')).toBe('fr')
   })
 
   it('locks language for the user turn and does not flip mid-sentence', () => {
