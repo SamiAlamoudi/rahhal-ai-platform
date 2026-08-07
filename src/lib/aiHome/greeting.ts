@@ -35,11 +35,11 @@ export function buildAiHomeGreeting(input?: {
 
   const welcomeAr = returning
     ? (name ? `مرحباً بعودتك، ${name}.` : 'مرحباً بعودتك.')
-    : (name ? `أهلاً ${name}.` : 'أهلاً بك في رحّال.')
+    : (name ? `أهلاً ${name}.` : 'أهلاً بك في بيلامو.')
 
   const welcomeEn = returning
     ? (name ? `Welcome back, ${name}.` : 'Welcome back.')
-    : (name ? `Welcome, ${name}.` : 'Welcome to Rahhal.')
+    : (name ? `Welcome, ${name}.` : 'Welcome to Bilamo.')
 
   return {
     timeGreetingAr,

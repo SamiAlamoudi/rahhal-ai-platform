@@ -1,10 +1,10 @@
 /**
- * Rahhal luxury travel consultant voice — warm, confident, professional.
+ * Bilamo luxury travel consultant voice — warm, confident, professional.
  */
 
 export const RAHHAL_PERSONALITY = {
-  brandAr: 'رحّال',
-  brandEn: 'Rahhal',
+  brandAr: 'بيلامو',
+  brandEn: 'Bilamo',
   roleAr: 'مستشار السفر الخاص بك',
   roleEn: 'Your private travel consultant',
   dreamTripAr: 'حدّثني عن رحلة أحلامك.',

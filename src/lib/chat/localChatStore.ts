@@ -1,5 +1,5 @@
 /**
- * Rahhal Alpha — local chat persistence fallback.
+ * Bilamo Alpha — local chat persistence fallback.
  * Used when Supabase auth/RLS is unavailable (demo or offline).
  * Does not replace production Supabase persistence.
  */

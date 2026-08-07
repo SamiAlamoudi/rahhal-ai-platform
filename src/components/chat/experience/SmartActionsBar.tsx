@@ -13,7 +13,7 @@ const FALLBACK_ACTIONS: ConversationSuggestedAction[] = [
   { id: 'refund', label: 'View Refund', commandHint: 'View refund' },
   { id: 'change', label: 'Change Flight', commandHint: 'Change flight' },
   { id: 'upgrade', label: 'Upgrade Hotel', commandHint: 'Upgrade hotel' },
-  { id: 'points', label: 'Use Rahhal Points', commandHint: 'Use Rahhal points' },
+  { id: 'points', label: 'Use Bilamo Points', commandHint: 'Use Bilamo points' },
   { id: 'docs', label: 'View Documents', commandHint: 'Download my ticket' },
   { id: 'track', label: 'Track Trip', commandHint: 'My trip' },
 ]

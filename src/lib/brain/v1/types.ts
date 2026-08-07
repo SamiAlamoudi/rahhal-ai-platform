@@ -1,5 +1,5 @@
 /**
- * Sprint 81/82 — Rahhal AI Brain Foundation + Reasoning Engine contracts.
+ * Sprint 81/82 — Bilamo AI Brain Foundation + Reasoning Engine contracts.
  * Architecture-only. Not the production turn owner.
  * Gated by `ai.brain.v1` (OFF by default).
  */

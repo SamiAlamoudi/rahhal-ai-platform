@@ -32,7 +32,7 @@ export function buildResponseSummary(input: {
     return {
       headline: `${route}: no offers to recommend`,
       executiveSummary:
-        'No provider flight offers were available, so Rahhal could not build a recommendation summary.',
+        'No provider flight offers were available, so Bilamo could not build a recommendation summary.',
       bestRecommendationLabel: null,
       keyPoints: [],
     }

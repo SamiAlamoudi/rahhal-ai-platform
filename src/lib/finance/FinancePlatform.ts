@@ -400,7 +400,7 @@ export class FinancePlatform {
     this.ensureDemo()
     this.metrics.recordConversationQuery()
     const amount = this.analytics.revenueThisMonth(currency)
-    return `Rahhal generated ${amount.toFixed(2)} ${currency} in revenue this month.`
+    return `Bilamo generated ${amount.toFixed(2)} ${currency} in revenue this month.`
   }
 
   answerProfitFromDestination(destination: string, currency = 'SAR'): string {

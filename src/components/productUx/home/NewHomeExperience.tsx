@@ -17,7 +17,7 @@ import { BrandMark } from '../BrandMark'
 import { ProductStatePanel } from '../states/ProductStates'
 
 /**
- * Conversation-first home — primary action is talking to Rahhal.
+ * Conversation-first home — primary action is talking to Bilamo.
  * Seeds existing `/chat` spine; no booking search form.
  */
 export function NewHomeExperience() {

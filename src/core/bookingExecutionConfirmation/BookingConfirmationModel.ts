@@ -49,7 +49,7 @@ export function buildBookingConfirmationModel(input: {
 /** Build a simple text payload for download/share actions (no network). */
 export function formatConfirmationShareText(model: BookingConfirmationModel): string {
   const lines = [
-    'Rahhal booking confirmation',
+    'Bilamo booking confirmation',
     model.bookingReference ? `Reference: ${model.bookingReference}` : null,
     model.pnrPlaceholder ? `PNR: ${model.pnrPlaceholder}` : null,
     model.itinerary?.destination ? `Destination: ${model.itinerary.destination}` : null,

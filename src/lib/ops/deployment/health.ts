@@ -58,7 +58,7 @@ export function buildProductionHealthReport(input?: {
 
   const subsystems: SubsystemHealth[] = [
     subsystem('conversation', 'Conversation', 'healthy', 'engine available'),
-    subsystem('rahhal_brain', 'RahhalBrain', 'healthy', 'orchestrator available'),
+    subsystem('rahhal_brain', 'BilamoBrain', 'healthy', 'orchestrator available'),
     subsystem(
       'search',
       'Search',

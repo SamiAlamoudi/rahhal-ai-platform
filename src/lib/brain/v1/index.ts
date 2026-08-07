@@ -1,5 +1,5 @@
 /**
- * Sprint 81/82 — Rahhal AI Brain Foundation + Reasoning Engine
+ * Sprint 81/82 — Bilamo AI Brain Foundation + Reasoning Engine
  *
  * Additive architecture under `src/lib/brain/v1/`.
  * Feature flag `ai.brain.v1` defaults OFF.

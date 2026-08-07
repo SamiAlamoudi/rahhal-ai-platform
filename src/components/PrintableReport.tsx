@@ -40,7 +40,7 @@ function PrintableReportImpl({ rankedOptions, reasoningResults, searchRequest }:
     <div className="print-report hidden print:block" dir="rtl" aria-label="تقرير قابل للطباعة">
       {/* Header */}
       <div className="mb-6 border-b-2 border-slate-800 pb-4">
-        <h1 className="text-2xl font-bold text-slate-900">رحّال — تقرير التوصيات</h1>
+        <h1 className="text-2xl font-bold text-slate-900">بيلامو — تقرير التوصيات</h1>
         <p className="mt-1 text-sm text-slate-500">تاريخ التقرير: {reportDate}</p>
       </div>
 
@@ -83,10 +83,10 @@ function PrintableReportImpl({ rankedOptions, reasoningResults, searchRequest }:
                 التقييم الإجمالي: <span dir="ltr">{report.overallScore}/100</span> — {report.recommendationLabel}
               </p>
 
-              {/* Why Rahhal recommends */}
+              {/* Why Bilamo recommends */}
               {report.whyRahhalRecommends.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-xs font-bold text-slate-600">لماذا يوصي به رحّال:</p>
+                  <p className="text-xs font-bold text-slate-600">لماذا يوصي به بيلامو:</p>
                   <ul className="mt-1 list-inside list-disc text-xs text-slate-700">
                     {report.whyRahhalRecommends.map((text, j) => <li key={j}>{text}</li>)}
                   </ul>
@@ -148,7 +148,7 @@ function PrintableReportImpl({ rankedOptions, reasoningResults, searchRequest }:
 
       {/* Footer */}
       <div className="mt-6 border-t border-slate-300 pt-3 text-center">
-        <p className="text-xs text-slate-400">هذا التقرير تم إنشاؤه بواسطة رحّال — مستشار السفر الذكي</p>
+        <p className="text-xs text-slate-400">هذا التقرير تم إنشاؤه بواسطة بيلامو — مستشار السفر الذكي</p>
       </div>
     </div>
   )

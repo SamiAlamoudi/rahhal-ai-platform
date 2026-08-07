@@ -149,7 +149,7 @@ export class LoyaltyRecommendationEngine {
 
     const reasons = [
       `Net cost ${netCashCost} ${candidate.currency}`,
-      `Earn ~${candidate.estimatedRahhalPoints} Rahhal Points`,
+      `Earn ~${candidate.estimatedRahhalPoints} Bilamo Points`,
       redeemPoints > 0 ? `Redeem ${redeemPoints} points` : null,
       discount.discountPercent > 0 ? `${discount.discountPercent}% member discount` : null,
       preferenceFactor > 0.75 ? 'Matches traveler preferences' : null,

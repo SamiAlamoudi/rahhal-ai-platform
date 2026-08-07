@@ -30,7 +30,7 @@ export function SuggestedDestinations({
       {!destinations.length ? (
         <EmptyState
           title={emptyTitle}
-          description="بعد بضع محادثات أو رحلات سيقترح رحّال وجهات مناسبة."
+          description="بعد بضع محادثات أو رحلات سيقترح بيلامو وجهات مناسبة."
         />
       ) : (
         <div

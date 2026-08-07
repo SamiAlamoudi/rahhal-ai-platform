@@ -1140,7 +1140,7 @@ function LegacyChatPage() {
               المحادثات
             </button>
             <div className="min-w-0">
-              <h1 className="truncate text-base font-bold text-slate-900 dark:text-slate-100">وكيل سفر رحّال</h1>
+              <h1 className="truncate text-base font-bold text-slate-900 dark:text-slate-100">وكيل سفر بيلامو</h1>
               <p className="text-[10px] text-slate-400">
                 {online
                   ? 'محادثة طبيعية · تخطيط · حجز · دفع داخل نفس الجلسة'

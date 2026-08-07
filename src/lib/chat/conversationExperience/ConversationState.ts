@@ -243,7 +243,7 @@ export function detectConversationCommand(userText: string): ConversationCommand
 
   // Sprint 41 — finance / revenue / settlement (before supplier & documents).
   if (
-    /how much revenue|revenue (did|this month)|rahhal generate.*revenue|generate this month/.test(
+    /how much revenue|revenue (did|this month)|(rahhal|bilamo) generate.*revenue|generate this month/.test(
       lower,
     )
     || /كم الإيرادات|إيرادات هذا الشهر/.test(lower)
@@ -353,10 +353,10 @@ export function detectConversationCommand(userText: string): ConversationCommand
 
   // Sprint 38 — loyalty / rewards (before disruption & planning).
   if (
-    /use (my )?(rahhal )?points|redeem (my )?points|pay with points/.test(lower)
-    || /استخدم نقاطي|استخدم نقاط رحّال/.test(lower)
+    /use (my )?((rahhal|bilamo) )?points|redeem (my )?points|pay with points/.test(lower)
+    || /استخدم نقاطي|استخدم نقاط بيلامو/.test(lower)
   ) {
-    return 'use_rahhal_points'
+    return 'use_bilamo_points'
   }
   if (
     /which hotel (gives|has) (me )?the most rewards|most rewards|best (hotel )?rewards|most (hotel )?points/.test(
@@ -379,7 +379,7 @@ export function detectConversationCommand(userText: string): ConversationCommand
     return 'points_earn_estimate'
   }
   if (
-    /how many (rahhal )?points|my (points )?balance|wallet balance|points balance/.test(lower)
+    /how many ((rahhal|bilamo) )?points|my (points )?balance|wallet balance|points balance/.test(lower)
     || /رصيد نقاطي|كم نقطة لدي/.test(lower)
   ) {
     return 'wallet_balance'

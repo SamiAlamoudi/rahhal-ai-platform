@@ -108,7 +108,7 @@ export default memo(function MessageBubble({
       >
         <div className="mb-1 flex flex-wrap items-center gap-2 text-[10px] font-medium opacity-70">
           <span>
-            {isUser ? 'أنت' : 'رحّال'}
+            {isUser ? 'أنت' : 'بيلامو'}
             {message.modality === 'audio' ? ' · صوت' : ''}
             {imageUrl ? ' · صورة' : ''}
             {isStreaming ? ' · يكتب' : ''}

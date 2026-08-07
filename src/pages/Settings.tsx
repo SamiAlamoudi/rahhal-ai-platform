@@ -414,7 +414,7 @@ export default function Settings() {
                     <div className={toggleRowClass}>
                       <div>
                         <p className="text-sm font-medium text-slate-800">تحليلات الاستخدام</p>
-                        <p className="text-xs text-slate-400">المساعدة على تحسين تجربة رحّال</p>
+                        <p className="text-xs text-slate-400">المساعدة على تحسين تجربة بيلامو</p>
                       </div>
                       <input
                         type="checkbox"

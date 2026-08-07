@@ -158,7 +158,7 @@ export function buildTravelCards(
       refundPolicy: locale === 'ar' ? 'حسب سياسة المورد والاسترداد' : 'Per supplier refund policy',
       loyaltyRewards: plan?.loyaltyAligned
         ? (locale === 'ar' ? 'متوافق مع برامج الولاء' : 'Loyalty-aligned option')
-        : (locale === 'ar' ? 'نقاط رحّال عند الإكمال' : 'Rahhal points on completion'),
+        : (locale === 'ar' ? 'نقاط بيلامو عند الإكمال' : 'Bilamo points on completion'),
       price: hotel.nightly,
       currency: hotel.currency,
       area: hotel.area,

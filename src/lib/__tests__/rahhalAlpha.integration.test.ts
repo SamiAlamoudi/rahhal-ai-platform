@@ -48,7 +48,7 @@ describe('Rahhal Alpha — integration', () => {
       providerId: 'alpha-test',
       async *streamReply() {
         yield { type: 'delta', text: 'مرحباً ' }
-        yield { type: 'delta', text: 'من رحّال' }
+        yield { type: 'delta', text: 'من بيلامو' }
         yield {
           type: 'done',
           meta: {
@@ -71,7 +71,7 @@ describe('Rahhal Alpha — integration', () => {
         onDelta: (m) => chunks.push(m.content),
       },
     )
-    expect(assistant.content).toContain('رحّال')
+    expect(assistant.content).toContain('بيلامو')
     expect(assistant.status).toBe('complete')
     const listed = await chatService.listConversations()
     expect(listed.some((c) => c.id === conversation.id)).toBe(true)

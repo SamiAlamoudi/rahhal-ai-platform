@@ -156,7 +156,7 @@ function mapSingleTool(lower: string, commandHint?: string | null): Orchestrator
     return 'travel_documents'
   }
   if (
-    commandHint === 'use_rahhal_points'
+    commandHint === 'use_bilamo_points'
     || commandHint === 'most_rewards_hotel'
     || commandHint === 'upgrade_with_points'
     || commandHint === 'points_earn_estimate'

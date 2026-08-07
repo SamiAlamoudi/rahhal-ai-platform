@@ -126,8 +126,8 @@ export class ResponseGenerator {
 
     if (input.state === 'greeting' || input.state === 'idle') {
       return this.pack(
-        'مرحباً! أنا رحّال. إلى أين تفكر تسافر؟',
-        'Hello! I am Rahhal. Where are you thinking of traveling?',
+        'مرحباً! أنا بيلامو. إلى أين تفكر تسافر؟',
+        'Hello! I am Bilamo. Where are you thinking of traveling?',
         'friendly',
         false,
         1,

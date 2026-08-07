@@ -67,7 +67,7 @@ function samplePaymentSessionRow(overrides: Partial<PaymentSessionRow> = {}): Pa
     provider_reference: 'moy_abc',
     authorization_code: null,
     transaction_id: null,
-    description: 'Rahhal order',
+    description: 'Bilamo order',
     customer_email: 't@example.com',
     customer_name: 'Test',
     metadata: {

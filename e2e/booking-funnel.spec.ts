@@ -9,7 +9,7 @@ import { expect, test } from '@playwright/test'
 test.describe('Booking funnel (browser E2E)', () => {
   test('login → search → results → booking review → payment preparation', async ({ page }) => {
     await page.goto('/login')
-    await expect(page.getByRole('heading', { name: 'رحّال' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Bilamo' })).toBeVisible()
 
     await page.getByTestId('login-demo').click()
     // Authenticated users land on conversation-first Home (/), not /chat.
@@ -41,7 +41,7 @@ test.describe('Booking funnel (browser E2E)', () => {
     await page.getByTestId('booking-continue').click()
     await expect(page).toHaveURL(/\/booking\/review/)
 
-    const pay = page.getByTestId('pay-rahhal')
+    const pay = page.getByTestId('pay-bilamo')
     await expect(pay).toBeVisible({ timeout: 20_000 })
     await pay.click()
     await expect(page).toHaveURL(/\/checkout/)

@@ -148,7 +148,7 @@ describe('Sprint 68 — Production Deployment & Launch Automation', () => {
     expect(SPRINT68_DEPLOYMENT_VERSION).toContain('deploy')
     const artifacts = generateReleaseArtifacts({ profile: 'production' })
     expect(artifacts.version).toBe('1.0.0')
-    expect(artifacts.releaseNotes).toContain('Rahhal V1')
+    expect(artifacts.releaseNotes).toContain('Bilamo V1')
     expect(artifacts.rollbackGuide).toContain('safe mode')
     expect(artifacts.knownLimitations.length).toBeGreaterThan(3)
     expect(buildFeatureMatrix().length).toBeGreaterThan(10)

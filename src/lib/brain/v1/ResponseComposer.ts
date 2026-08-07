@@ -48,8 +48,8 @@ export class ResponseComposer {
 
     if (input.intent === 'general_conversation') {
       return {
-        ar: 'مرحباً! أنا رحّال، مستشارك للسفر. إلى أين تفكر تسافر؟',
-        en: 'Hello! I am Rahhal, your travel consultant. Where are you thinking of going?',
+        ar: 'مرحباً! أنا بيلامو، مستشارك للسفر. إلى أين تفكر تسافر؟',
+        en: 'Hello! I am Bilamo, your travel consultant. Where are you thinking of going?',
         bookingActions: [],
       }
     }

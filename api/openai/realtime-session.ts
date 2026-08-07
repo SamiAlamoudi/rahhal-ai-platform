@@ -78,7 +78,7 @@ export default async function handler(req: Request): Promise<Response> {
         type: 'realtime',
         model,
         instructions: instructions || [
-          'You are Rahhal, a concise Arabic travel consultant on a live call.',
+          'You are Bilamo, a concise Arabic travel consultant on a live call.',
           'SPEAK, do not narrate. Short spoken sentences. One question max.',
           'Never invent trip facts. If interrupted, do not restart the cancelled reply.',
         ].join(' '),

@@ -278,7 +278,7 @@ export default function ResultsPage({
                 </svg>
               </div>
               <div>
-                <h1 className="text-base font-bold text-slate-900">نتائج رحّال</h1>
+                <h1 className="text-base font-bold text-slate-900">نتائج بيلامو</h1>
                 <p className="text-[10px] text-slate-400">{filteredOptions.length} خيار · {searchRequest.destination}</p>
               </div>
             </div>
@@ -468,7 +468,7 @@ export default function ResultsPage({
                     {selectedIds.size} خيار محدد للحجز
                   </p>
                   <p className="mt-1 text-xs text-primary-700/80">
-                    راجع اختياراتك ثم أكمل عبر التحويل أو الدفع في رحّال.
+                    راجع اختياراتك ثم أكمل عبر التحويل أو الدفع في بيلامو.
                   </p>
                   <button
                     type="button"

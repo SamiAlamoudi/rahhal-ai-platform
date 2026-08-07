@@ -90,7 +90,7 @@ export function verifyPreviewEnvironment(
 
   const ok = errors.length === 0 && validation.ok
   const lines = [
-    'Rahhal preview environment check',
+    'Bilamo preview environment check',
     `deployTarget=${deployTarget}`,
     `paymentProvider=${paymentProvider}`,
     `liveProvidersEnabled=${liveProvidersEnabled}`,

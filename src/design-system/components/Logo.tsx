@@ -7,6 +7,8 @@ export interface LogoProps {
   /** @deprecated Mark competes with the Orb — wordmark is the brand signal. */
   markOnly?: boolean
   size?: 'sm' | 'md' | 'lg'
+  /** Render as heading on branded auth/splash surfaces. */
+  as?: 'div' | 'h1' | 'p' | 'span'
 }
 
 const SIZES = {
@@ -19,7 +21,8 @@ const SIZES = {
  * Wordmark only.
  * The Orb is Bilamo’s identity — a mark would dilute it.
  */
-export function Logo({ className, size = 'md' }: LogoProps) {
+export function Logo({ className, size = 'md', as = 'div' }: LogoProps) {
+  const Tag = as
   return (
     <motion.div
       className={cn('inline-flex items-center justify-center', className)}
@@ -27,14 +30,14 @@ export function Logo({ className, size = 'md' }: LogoProps) {
       animate={{ opacity: 1 }}
       transition={{ ...springs.gentle, delay: 0.05 }}
     >
-      <span
+      <Tag
         className={cn(
           'font-medium tracking-[-0.045em] text-[var(--bilamo-text)]',
           SIZES[size],
         )}
       >
         {brand.name}
-      </span>
+      </Tag>
     </motion.div>
   )
 }

@@ -45,7 +45,7 @@ export function AiThinkingRail({
       data-testid="ai-thinking-rail"
       role="status"
       aria-live="polite"
-      aria-label={locale === 'ar' ? 'تقدم رحّال' : 'Rahhal progress'}
+      aria-label={locale === 'ar' ? 'تقدم بيلامو' : 'Bilamo progress'}
     >
       <AnimatePresence mode="wait">
         <motion.div

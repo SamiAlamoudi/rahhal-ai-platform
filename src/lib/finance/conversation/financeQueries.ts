@@ -19,7 +19,7 @@ export function detectFinanceConversationQuery(
   const lower = userText.toLowerCase().trim()
 
   if (
-    /how much revenue|revenue (did|this month)|rahhal generate.*revenue|generate this month/.test(
+    /how much revenue|revenue (did|this month)|(rahhal|bilamo) generate.*revenue|generate this month/.test(
       lower,
     )
     || /كم الإيرادات|إيرادات هذا الشهر/.test(lower)

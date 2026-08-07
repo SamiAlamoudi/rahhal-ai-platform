@@ -22,8 +22,8 @@ const COPY: Record<
   first_use: {
     titleAr: 'ابدأ أول محادثة',
     titleEn: 'Start your first chat',
-    bodyAr: 'أخبر رحّال بوجهتك أو ميزانيتك — بلا نماذج حجز.',
-    bodyEn: 'Tell Rahhal your destination or budget — no booking forms.',
+    bodyAr: 'أخبر بيلامو بوجهتك أو ميزانيتك — بلا نماذج حجز.',
+    bodyEn: 'Tell Bilamo your destination or budget — no booking forms.',
     actionAr: 'ابدأ المحادثة',
     actionEn: 'Start conversation',
   },

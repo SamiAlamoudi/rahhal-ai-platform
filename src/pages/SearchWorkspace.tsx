@@ -167,7 +167,7 @@ export default function SearchWorkspace() {
             </div>
             <div>
               <h1 className="text-base font-bold text-slate-900">مساحة البحث</h1>
-              <p className="text-[10px] text-slate-400">رحّال — مستشار السفر الذكي</p>
+              <p className="text-[10px] text-slate-400">بيلامو — مستشار السفر الذكي</p>
             </div>
           </div>
           <div className="ml-auto flex items-center gap-3">
@@ -283,7 +283,7 @@ export default function SearchWorkspace() {
                   <div className="flex items-center justify-center py-12" aria-label="جاري البحث">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
-                      <p className="text-sm text-slate-500">رحّال يفكر في أفضل خياراتك...</p>
+                      <p className="text-sm text-slate-500">بيلامو يفكر في أفضل خياراتك...</p>
                     </div>
                   </div>
                 )}

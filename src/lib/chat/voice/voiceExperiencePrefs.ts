@@ -235,7 +235,7 @@ export function dialectChatGuidance(dialect: ArabicDialectPreference): string {
 }
 
 /**
- * Stable Rahhal voice persona for TTS instructions.
+ * Stable Bilamo voice persona for TTS instructions.
  * Keep concise — long instructions add latency without quality.
  */
 export function buildTtsSpeechInstructions(input: {
@@ -269,7 +269,7 @@ export function buildTtsSpeechInstructions(input: {
         : 'Natural conversational pace.'
 
   return [
-    'Speak naturally and conversationally in Arabic as Rahhal, an experienced travel consultant.',
+    'Speak naturally and conversationally in Arabic as Bilamo, an experienced travel consultant.',
     'Warm, confident, concise — human live-call tone.',
     'Avoid announcer-style delivery, navigation-system tone, and exaggerated emotion.',
     'Use natural pauses. Vary pitch and stress — never identical cadence.',

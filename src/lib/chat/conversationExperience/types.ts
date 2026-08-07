@@ -61,7 +61,7 @@ export type ConversationCommandKind =
   | 'strike'
   | 'visa_rejection'
   | 'border_restriction'
-  | 'use_rahhal_points'
+  | 'use_bilamo_points'
   | 'most_rewards_hotel'
   | 'upgrade_with_points'
   | 'points_earn_estimate'

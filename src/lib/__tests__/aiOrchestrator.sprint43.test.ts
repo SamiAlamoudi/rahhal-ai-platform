@@ -358,7 +358,7 @@ describe('Sprint 43 orchestrator integration', () => {
   })
 
   it('supports single-tool path when forced via shouldHandle=false route', async () => {
-    const route = routeUserIntent('How many Rahhal points do I have?')
+    const route = routeUserIntent('How many Bilamo points do I have?')
     expect(route.tools.length).toBeGreaterThanOrEqual(1)
     expect(shouldUseOrchestratorForRoute(route)).toBe(false)
   })

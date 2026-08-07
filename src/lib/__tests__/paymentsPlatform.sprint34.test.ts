@@ -51,7 +51,7 @@ function checkoutInput(overrides: Partial<PaymentCheckoutInput> = {}): PaymentCh
     bookingReferenceHint: 'RHL-BKG-TEST01',
     tripReferenceHint: 'RHL-TRP-TEST01',
     customerEmail: 'traveler@example.com',
-    customerName: 'Rahhal Traveler',
+    customerName: 'Bilamo Traveler',
     locale: 'en',
     ...overrides,
   }

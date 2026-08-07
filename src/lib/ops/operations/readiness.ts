@@ -91,7 +91,7 @@ export async function generateBetaOperationsReadinessReport(input?: {
   const betaReady = decision === 'go' || (decision === 'conditional_go' && beta.betaReady)
   const recommendation =
     decision === 'go'
-      ? 'Rahhal Beta Ready — proceed with beta operations'
+      ? 'Bilamo Beta Ready — proceed with beta operations'
       : decision === 'conditional_go'
         ? 'Conditional go — monitor providers and keep mock payments'
         : 'No-go — resolve failing ops gates before beta traffic'

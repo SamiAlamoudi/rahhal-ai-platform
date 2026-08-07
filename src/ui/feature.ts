@@ -1,5 +1,5 @@
 /**
- * Sprint 119 — Rahhal Experience Phase 1 feature flag.
+ * Sprint 119 — Bilamo Experience Phase 1 feature flag.
  * `ui.experience_v1` — default OFF.
  */
 

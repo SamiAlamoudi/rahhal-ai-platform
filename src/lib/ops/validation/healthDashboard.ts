@@ -129,7 +129,7 @@ export function buildHealthDashboard(flows: ValidationFlowResult[]): ProductionH
       ],
       summary:
         overallStatus === 'healthy'
-          ? 'Rahhal V1 production validation healthy'
+          ? 'Bilamo V1 production validation healthy'
           : `Overall status: ${overallStatus}`,
       updatedAt: new Date().toISOString(),
     },

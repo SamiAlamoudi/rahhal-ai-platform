@@ -44,7 +44,7 @@ export default function BookingAssistantConfirmationPage() {
     if (!text) return
     if (typeof navigator !== 'undefined' && 'share' in navigator) {
       try {
-        await navigator.share({ title: 'Rahhal booking', text })
+        await navigator.share({ title: 'Bilamo booking', text })
         return
       } catch {
         // fall through to clipboard
@@ -63,7 +63,7 @@ export default function BookingAssistantConfirmationPage() {
       <header className="border-b border-stone-200/80 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-800">
-            رحّال · Confirmation
+            بيلامو · Confirmation
           </p>
           <div className="flex items-center gap-4">
             <Link to="/chat" className="text-sm text-slate-600 hover:text-slate-900">

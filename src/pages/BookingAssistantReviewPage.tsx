@@ -129,7 +129,7 @@ export default function BookingAssistantReviewPage() {
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 sm:px-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-800">
-              رحّال · Booking Assistant
+              بيلامو · Booking Assistant
             </p>
             <h1 className="mt-1 text-xl font-semibold text-slate-900">
               {step === 'review' ? 'Booking review' : 'Confirm travelers'}

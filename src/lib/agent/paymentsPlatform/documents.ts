@@ -26,7 +26,7 @@ export class DocumentCenter {
     const now = input.now ?? (() => Date.now())
     const id = `doc_${Math.random().toString(36).slice(2, 10)}`
     const body = [
-      `Rahhal — ${input.label}`,
+      `Bilamo — ${input.label}`,
       `Session: ${input.paymentSessionId}`,
       `Type: ${input.kind}`,
       `Issued: ${new Date(now()).toISOString()}`,

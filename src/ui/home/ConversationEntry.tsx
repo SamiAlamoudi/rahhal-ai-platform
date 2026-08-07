@@ -17,8 +17,8 @@ export interface ConversationEntryProps {
 
 export function ConversationEntry({
   onStart,
-  title = 'ابدأ التخطيط مع رحّال',
-  description = 'صف رحلتك بكلماتك — الوجهة، الميزانية، والتواريخ — وسيتولى رحّال الباقي.',
+  title = 'ابدأ التخطيط مع بيلامو',
+  description = 'صف رحلتك بكلماتك — الوجهة، الميزانية، والتواريخ — وسيتولى بيلامو الباقي.',
   ctaLabel = 'ابدأ محادثة جديدة',
   index,
 }: ConversationEntryProps) {

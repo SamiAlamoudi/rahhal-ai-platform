@@ -23,7 +23,7 @@ export function createMockHotelsAdapter(options?: {
 }): HotelProvider {
   return createSandboxHotelProvider({
     metadata: METADATA,
-    brand: 'Rahhal Mock',
+    brand: 'Bilamo Mock',
     rateLimitPerMinute: 120,
     delayMs: options?.delayMs,
     failWith: options?.failWith,

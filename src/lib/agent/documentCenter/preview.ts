@@ -14,7 +14,7 @@ export function generatePreviewUrl(doc: Pick<EnterpriseDocument, 'documentType' 
     return `data:application/json;charset=utf-8,${encodeURIComponent(body)}`
   }
   const text = [
-    `Rahhal Preview — ${doc.title}`,
+    `Bilamo Preview — ${doc.title}`,
     `Type: ${doc.documentType}`,
     `Id: ${doc.documentId}`,
     '',
@@ -43,7 +43,7 @@ export function generateDownloadUrl(input: {
     return `data:application/json;charset=utf-8,${encodeURIComponent(meta)}`
   }
   const body = [
-    `Rahhal — ${input.title}`,
+    `Bilamo — ${input.title}`,
     `Type: ${input.documentType}`,
     `Id: ${input.documentId}`,
     '',

@@ -435,14 +435,14 @@ describe('Conversation loyalty integration', () => {
   afterEach(() => resetFeatureRegistry())
 
   it('detects loyalty conversation commands', () => {
-    expect(detectConversationCommand('Use my Rahhal points.')).toBe('use_rahhal_points')
+    expect(detectConversationCommand('Use my Bilamo points.')).toBe('use_bilamo_points')
     expect(detectConversationCommand('Which hotel gives me the most rewards?')).toBe(
       'most_rewards_hotel',
     )
     expect(detectConversationCommand('Can I upgrade using points?')).toBe('upgrade_with_points')
     expect(detectConversationCommand('How many points will I earn?')).toBe('points_earn_estimate')
     expect(detectConversationCommand('What is my points balance?')).toBe('wallet_balance')
-    expect(detectLoyaltyConversationQuery('Use my Rahhal points.')).toBe('use_rahhal_points')
+    expect(detectLoyaltyConversationQuery('Use my Bilamo points.')).toBe('use_bilamo_points')
   })
 
   it('answers earn estimate and rewards hotel queries', () => {
@@ -454,7 +454,7 @@ describe('Conversation loyalty integration', () => {
       estimateAmount: 2000,
       estimateService: 'hotel',
     })
-    expect(earn).toMatch(/earn about \d+ Rahhal Points/i)
+    expect(earn).toMatch(/earn about \d+ Bilamo Points/i)
 
     const hotel = answerLoyaltyQuery({
       kind: 'most_rewards_hotel',
@@ -488,7 +488,7 @@ describe('Conversation loyalty integration', () => {
     })
     expect(turn.commandKind).toBe('points_earn_estimate')
     expect(turn.assistantMessage.meta?.loyaltyPlatform).toBe(true)
-    expect(turn.renderedText).toMatch(/Rahhal Points/i)
+    expect(turn.renderedText).toMatch(/Bilamo Points/i)
   })
 
   it('handles use points and upgrade questions in conversation', async () => {
@@ -510,12 +510,12 @@ describe('Conversation loyalty integration', () => {
     const usePoints = await controller.handleTurn({
       conversationId: 'conv_use_pts',
       userId: 'u2',
-      userText: 'Use my Rahhal points.',
+      userText: 'Use my Bilamo points.',
       locale: 'en',
     })
-    expect(usePoints.commandKind).toBe('use_rahhal_points')
+    expect(usePoints.commandKind).toBe('use_bilamo_points')
     expect(usePoints.assistantMessage.meta?.loyaltyPlatform).toBe(true)
-    expect(usePoints.renderedText).toMatch(/Rahhal Points|Remaining balance/i)
+    expect(usePoints.renderedText).toMatch(/Bilamo Points|Remaining balance/i)
 
     const upgrade = await controller.handleTurn({
       conversationId: 'conv_upgrade',
@@ -536,7 +536,7 @@ describe('Conversation loyalty integration', () => {
     const turn = await controller.handleTurn({
       conversationId: 'conv_flag_off_s38',
       userId: 'u1',
-      userText: 'Use my Rahhal points.',
+      userText: 'Use my Bilamo points.',
       locale: 'en',
     })
     expect(turn.assistantMessage.meta?.loyaltyPlatform).not.toBe(true)
@@ -561,7 +561,7 @@ describe('Wallet snapshot fields', () => {
     expect(Array.isArray(wallet.wallet.history)).toBe(true)
     expect(Array.isArray(wallet.wallet.expirations)).toBe(true)
     expect(wallet.wallet.campaignBonuses.length).toBeGreaterThan(0)
-    expect(wallet.explanation).toContain('Rahhal Points balance')
+    expect(wallet.explanation).toContain('Bilamo Points balance')
   })
 })
 
@@ -636,7 +636,7 @@ describe('Benefits and upgrade helpers', () => {
       platform,
       userId: 'u_ben',
     })
-    expect(balance).toContain('Rahhal Points balance')
+    expect(balance).toContain('Bilamo Points balance')
   })
 
   it('handles Arabic earn estimate locale', () => {
@@ -699,7 +699,7 @@ describe('Edge cases', () => {
   })
 
   it('detects all loyalty conversation query kinds', () => {
-    expect(detectLoyaltyConversationQuery('Redeem my points')).toBe('use_rahhal_points')
+    expect(detectLoyaltyConversationQuery('Redeem my points')).toBe('use_bilamo_points')
     expect(detectLoyaltyConversationQuery('Which hotel gives me the most rewards?')).toBe(
       'most_rewards_hotel',
     )

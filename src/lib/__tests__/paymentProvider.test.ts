@@ -9,7 +9,7 @@ function samplePaymentRequest(overrides: Partial<PaymentRequest> = {}): PaymentR
     orderNumber: 'RH-20260713-AB123',
     amount: 6800,
     currency: 'SAR',
-    description: 'Rahhal Order RH-20260713-AB123',
+    description: 'Bilamo Order RH-20260713-AB123',
     customerEmail: 'test@example.com',
     customerName: 'Test User',
     returnUrl: 'https://rahhal.app/checkout/success',

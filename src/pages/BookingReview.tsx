@@ -344,7 +344,7 @@ export default function BookingReview() {
         },
       })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'تعذر بدء الدفع عبر رحّال')
+      setError(e instanceof Error ? e.message : 'تعذر بدء الدفع عبر بيلامو')
     }
   }
 
@@ -388,7 +388,7 @@ export default function BookingReview() {
 
         {saved && (
           <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            تم حفظ الرحلة في رحّال
+            تم حفظ الرحلة في بيلامو
           </div>
         )}
 
@@ -473,7 +473,7 @@ export default function BookingReview() {
                 <span>{formatPrice(summary.subtotal, summary.currency)}</span>
               </div>
               <div className="flex justify-between text-slate-600">
-                <span>رسوم رحّال</span>
+                <span>رسوم بيلامو</span>
                 <span>{formatPrice(summary.fees, summary.currency)}</span>
               </div>
               <div className="border-t border-slate-100 pt-2 flex justify-between font-bold text-slate-900">
@@ -487,7 +487,7 @@ export default function BookingReview() {
         {/* Payment path notice */}
         <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
           <p className="text-sm text-sky-800">
-            يمكنك التحويل لإتمام الحجز لدى المزود، أو متابعة الدفع التجريبي عبر رحّال (وضع mock افتراضياً).
+            يمكنك التحويل لإتمام الحجز لدى المزود، أو متابعة الدفع التجريبي عبر بيلامو (وضع mock افتراضياً).
           </p>
         </div>
 
@@ -533,10 +533,10 @@ export default function BookingReview() {
               type="button"
               onClick={handlePayViaRahhal}
               disabled={session.items.length === 0}
-              data-testid="pay-rahhal"
+              data-testid="pay-bilamo"
               className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              الدفع عبر رحّال
+              الدفع عبر بيلامو
             </button>
             <button
               type="button"
@@ -556,7 +556,7 @@ export default function BookingReview() {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h2 className="text-lg font-bold text-slate-900 mb-3">تأكيد التحويل</h2>
             <p className="text-sm text-slate-600 leading-relaxed mb-5">
-              سيتم تحويلك إلى <span className="font-bold text-slate-900">{redirectAction.providerName}</span> لإتمام الحجز والدفع. ستبقى رحلتك محفوظة في رحّال.
+              سيتم تحويلك إلى <span className="font-bold text-slate-900">{redirectAction.providerName}</span> لإتمام الحجز والدفع. ستبقى رحلتك محفوظة في بيلامو.
             </p>
             <div className="flex gap-3 justify-end">
               <button

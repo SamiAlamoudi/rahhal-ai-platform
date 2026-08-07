@@ -200,12 +200,12 @@ export default function DecisionProfile({ session, onSessionChange, onContinuePr
         </div>
       </div>
 
-      {/* ما استنتجه رحّال */}
+      {/* ما استنتجه بيلامو */}
       {inferredItems.length > 0 && (
         <div className="mb-5">
           <div className="mb-3 flex items-center gap-2">
             <span className="h-4 w-1 rounded-full bg-amber-400" />
-            <h3 className="text-sm font-bold text-slate-700">ما استنتجه رحّال</h3>
+            <h3 className="text-sm font-bold text-slate-700">ما استنتجه بيلامو</h3>
           </div>
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {inferredItems.map(field => {

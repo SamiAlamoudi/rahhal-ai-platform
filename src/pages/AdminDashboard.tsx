@@ -51,7 +51,7 @@ export default function AdminDashboard() {
   return (
     <AdminShell
       title="لوحة التحكم"
-      subtitle="رحّال — إدارة النظام والصلاحيات"
+      subtitle="بيلامو — إدارة النظام والصلاحيات"
       onRefresh={() => void load()}
       refreshing={loading}
     >

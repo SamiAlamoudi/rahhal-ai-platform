@@ -124,7 +124,7 @@ export default function CheckoutPage() {
             </button>
             <div>
               <h1 className="text-base font-bold text-slate-900">الدفع الموحد</h1>
-              <p className="text-[10px] text-slate-400">راجع طلبك وادفع داخل رحّال</p>
+              <p className="text-[10px] text-slate-400">راجع طلبك وادفع داخل بيلامو</p>
             </div>
           </div>
         </div>

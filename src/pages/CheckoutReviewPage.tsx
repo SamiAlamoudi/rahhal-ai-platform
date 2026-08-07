@@ -228,7 +228,7 @@ export default function CheckoutReviewPage() {
               className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
             />
             <span className="text-sm text-slate-700">
-              أوافق على <span className="font-medium text-primary-600">الشروط والأحكام</span> وسياسة الخصوصية الخاصة برحّال، وأؤكد صحة البيانات المدخلة.
+              أوافق على <span className="font-medium text-primary-600">الشروط والأحكام</span> وسياسة الخصوصية الخاصة ببيلامو، وأؤكد صحة البيانات المدخلة.
             </span>
           </label>
         </div>
