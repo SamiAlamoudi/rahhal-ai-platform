@@ -126,33 +126,54 @@ export function createBilamoVoiceSession(
   let activeSpeakTransportGen = -1
   let onFinalUtterance: ((event: BilamoTranscriptEvent) => void) | null =
     options.onFinalUtterance ?? null
+  /** Stable snapshot reference for useSyncExternalStore (must not allocate every read). */
+  let snapshot: BilamoVoiceSessionSnapshot = {
+    state: 'idle',
+    connection: 'idle',
+    transportKind: null,
+    partialTranscript: '',
+    finalTranscript: null,
+    normalizedForExtract: null,
+    generation: 0,
+    error: null,
+    fellBackToClassic: false,
+    locale,
+    conversationId,
+    listening: false,
+    speaking: false,
+  }
+
+  const refreshSnapshot = () => {
+    snapshot = {
+      state,
+      connection,
+      transportKind,
+      partialTranscript,
+      finalTranscript,
+      normalizedForExtract,
+      generation,
+      error,
+      fellBackToClassic,
+      locale,
+      conversationId,
+      listening: transport?.isListening() ?? false,
+      speaking: transport?.isSpeaking() ?? false,
+    }
+  }
 
   const emit = () => {
-    const snap = getSnapshot()
-    for (const listener of listeners) listener(snap)
+    refreshSnapshot()
+    for (const listener of listeners) listener(snapshot)
   }
 
   const setState = (next: BilamoVoiceSessionState) => {
     if (disposed) return
+    if (state === next) return
     state = next
     emit()
   }
 
-  const getSnapshot = (): BilamoVoiceSessionSnapshot => ({
-    state,
-    connection,
-    transportKind,
-    partialTranscript,
-    finalTranscript,
-    normalizedForExtract,
-    generation,
-    error,
-    fellBackToClassic,
-    locale,
-    conversationId,
-    listening: transport?.isListening() ?? false,
-    speaking: transport?.isSpeaking() ?? false,
-  })
+  const getSnapshot = (): BilamoVoiceSessionSnapshot => snapshot
 
   const wireTransport = (t: BilamoVoiceTransport) => {
     transport = t
@@ -227,7 +248,6 @@ export function createBilamoVoiceSession(
     getSnapshot,
     subscribe(listener) {
       listeners.add(listener)
-      listener(getSnapshot())
       return () => listeners.delete(listener)
     },
     setConversationId(id) {

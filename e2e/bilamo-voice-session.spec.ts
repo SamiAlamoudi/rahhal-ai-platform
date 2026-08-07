@@ -8,7 +8,6 @@ import { expect, test } from '@playwright/test'
 test.describe('Bilamo voice session (mocked WebRTC)', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      // Mock WebRTC so browsers without live audio still exercise the path.
       class FakePC {
         connectionState = 'new'
         onconnectionstatechange: (() => void) | null = null
@@ -47,9 +46,6 @@ test.describe('Bilamo voice session (mocked WebRTC)', () => {
       }
       // @ts-expect-error test shim
       window.RTCPeerConnection = FakePC
-      // Force classic transport for deterministic demo (no paid realtime credentials).
-      // @ts-expect-error vite env shim
-      window.__BILAMO_VOICE_TRANSPORT__ = 'classic'
     })
   })
 
@@ -59,21 +55,19 @@ test.describe('Bilamo voice session (mocked WebRTC)', () => {
     await page.getByTestId('login-demo').click()
     await expect(page).toHaveURL(/\/$/)
 
-    // Open composer and send a text turn — voice must not block text.
-    const typeBtn = page.getByRole('button', { name: /Type|اكتب/i }).first()
-    if (await typeBtn.isVisible().catch(() => false)) {
-      await typeBtn.click()
-    }
+    // Orb surface must load (voice session must not crash the page).
+    await expect(page.getByRole('button', { name: 'Speak' })).toBeVisible({ timeout: 15_000 })
 
-    const input = page.locator('textarea, input[type="text"]').first()
-    await expect(input).toBeVisible({ timeout: 15_000 })
+    // Open composer — Arabic locale in Playwright config uses "اكتب".
+    await page.getByRole('button', { name: /^(Type|اكتب)$/ }).click()
+    const input = page.getByLabel('Message')
+    await expect(input).toBeVisible({ timeout: 10_000 })
     await input.fill('I want to visit Tokyo from Riyadh')
-    await input.press('Enter')
+    await expect(input).toHaveValue(/Tokyo/)
 
-    // Assistant reply or thinking presence — conversation spine still works.
-    await expect(page.locator('body')).toContainText(/Tokyo|طوكيو|Bilamo|أفكّر|Thinking/i, {
-      timeout: 60_000,
-    })
+    // Submit — voice must not block text. Optimistic user bubble is enough proof.
+    await page.getByLabel('Send').click()
+    await expect(page.getByText(/Tokyo|طوكيو/i).first()).toBeVisible({ timeout: 30_000 })
   })
 
   test('no OpenAI secrets exposed in client page source', async ({ page }) => {
@@ -90,14 +84,9 @@ test.describe('Bilamo voice session (mocked WebRTC)', () => {
     await page.getByTestId('login-demo').click()
     await expect(page).toHaveURL(/\/$/)
 
-    // Same orb surface on Home.
-    await expect(page.getByRole('button', { name: /Speak|Stop|تحدث/i }).or(
-      page.locator('[aria-label="Speak"], [aria-label="Stop"]'),
-    ).first()).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('button', { name: 'Speak' })).toBeVisible({ timeout: 15_000 })
 
     await page.goto('/chat')
-    await expect(page.getByRole('button', { name: /Speak|Stop|تحدث/i }).or(
-      page.locator('[aria-label="Speak"], [aria-label="Stop"]'),
-    ).first()).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('button', { name: 'Speak' })).toBeVisible({ timeout: 15_000 })
   })
 })
