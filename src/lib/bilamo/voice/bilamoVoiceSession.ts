@@ -1,0 +1,425 @@
+/**
+ * Shared Bilamo VoiceSession — single owner for Home + Conversation surfaces.
+ *
+ * Owns connection, mic lifecycle, transcripts, speaking/interrupt generation,
+ * reconnect counters, and conversation id. UI maps session state → OrbState.
+ */
+
+import type { VoiceLocale } from '../../chat/voice/voiceTypes'
+import { createBilamoVoiceMetrics, type BilamoVoiceMetrics } from './bilamoVoiceMetrics'
+import { createBilamoVoiceTransport } from './createBilamoVoiceTransport'
+import type {
+  BilamoSpeakHandle,
+  BilamoTranscriptEvent,
+  BilamoVoiceConnectionState,
+  BilamoVoiceTransport,
+  BilamoVoiceTransportMode,
+} from './bilamoVoiceTransport'
+
+/** Canonical session state machine (maps onto Orb visuals). */
+export type BilamoVoiceSessionState =
+  | 'idle'
+  | 'connecting'
+  | 'listening'
+  | 'processing'
+  | 'speaking'
+  | 'interrupted'
+  | 'reconnecting'
+  | 'error'
+
+export type BilamoVoiceSessionListener = (snapshot: BilamoVoiceSessionSnapshot) => void
+
+export type BilamoVoiceSessionSnapshot = {
+  state: BilamoVoiceSessionState
+  connection: BilamoVoiceConnectionState
+  transportKind: BilamoVoiceTransport['kind'] | null
+  partialTranscript: string
+  finalTranscript: string | null
+  normalizedForExtract: string | null
+  generation: number
+  error: string | null
+  fellBackToClassic: boolean
+  locale: VoiceLocale
+  conversationId: string | null
+  listening: boolean
+  speaking: boolean
+}
+
+export type BilamoVoiceSession = {
+  getSnapshot: () => BilamoVoiceSessionSnapshot
+  subscribe: (listener: BilamoVoiceSessionListener) => () => void
+  setConversationId: (id: string | null) => void
+  setLocale: (locale: VoiceLocale) => void
+  /** Mutable final-utterance sink (Home/Conversation bind via React). */
+  setOnFinalUtterance: (handler: ((event: BilamoTranscriptEvent) => void) | null) => void
+  prepare: () => Promise<void>
+  connect: () => Promise<void>
+  disconnect: () => void
+  startListening: () => Promise<boolean>
+  stopListening: () => void
+  /** User-intent barge-in: stop playback, invalidate generation, start listening. */
+  bargeIn: () => Promise<boolean>
+  speak: (text: string, locale?: VoiceLocale) => BilamoSpeakHandle
+  interrupt: () => void
+  /** Switch to classic without tearing down conversation context. */
+  switchToClassic: () => Promise<void>
+  clearError: () => void
+  clearTranscripts: () => void
+  getMetrics: () => ReturnType<BilamoVoiceMetrics['snapshot']>
+  dispose: () => void
+}
+
+export type CreateBilamoVoiceSessionOptions = {
+  mode?: BilamoVoiceTransportMode
+  locale?: VoiceLocale
+  conversationId?: string | null
+  createTransport?: typeof createBilamoVoiceTransport
+  onFinalUtterance?: (event: BilamoTranscriptEvent) => void
+}
+
+let sharedSession: BilamoVoiceSession | null = null
+
+export function getSharedBilamoVoiceSession(): BilamoVoiceSession | null {
+  return sharedSession
+}
+
+export function resetSharedBilamoVoiceSessionForTests() {
+  sharedSession?.dispose()
+  sharedSession = null
+}
+
+/**
+ * Returns the process-wide shared session (Home + Conversation).
+ * Creates on first call.
+ */
+export function obtainSharedBilamoVoiceSession(
+  options: CreateBilamoVoiceSessionOptions = {},
+): BilamoVoiceSession {
+  if (sharedSession) return sharedSession
+  sharedSession = createBilamoVoiceSession(options)
+  return sharedSession
+}
+
+export function createBilamoVoiceSession(
+  options: CreateBilamoVoiceSessionOptions = {},
+): BilamoVoiceSession {
+  const metrics = createBilamoVoiceMetrics()
+  const createTransport = options.createTransport ?? createBilamoVoiceTransport
+  const listeners = new Set<BilamoVoiceSessionListener>()
+
+  let transport: BilamoVoiceTransport | null = null
+  let state: BilamoVoiceSessionState = 'idle'
+  let connection: BilamoVoiceConnectionState = 'idle'
+  let transportKind: BilamoVoiceTransport['kind'] | null = null
+  let partialTranscript = ''
+  let finalTranscript: string | null = null
+  let normalizedForExtract: string | null = null
+  let generation = 0
+  let error: string | null = null
+  let fellBackToClassic = false
+  let locale: VoiceLocale = options.locale ?? 'en'
+  let conversationId: string | null = options.conversationId ?? null
+  let disposed = false
+  let prepared = false
+  let lastFinalKey = ''
+  /** Transport speak generation currently allowed to drive speaking state. */
+  let activeSpeakTransportGen = -1
+  let onFinalUtterance: ((event: BilamoTranscriptEvent) => void) | null =
+    options.onFinalUtterance ?? null
+
+  const emit = () => {
+    const snap = getSnapshot()
+    for (const listener of listeners) listener(snap)
+  }
+
+  const setState = (next: BilamoVoiceSessionState) => {
+    if (disposed) return
+    state = next
+    emit()
+  }
+
+  const getSnapshot = (): BilamoVoiceSessionSnapshot => ({
+    state,
+    connection,
+    transportKind,
+    partialTranscript,
+    finalTranscript,
+    normalizedForExtract,
+    generation,
+    error,
+    fellBackToClassic,
+    locale,
+    conversationId,
+    listening: transport?.isListening() ?? false,
+    speaking: transport?.isSpeaking() ?? false,
+  })
+
+  const wireTransport = (t: BilamoVoiceTransport) => {
+    transport = t
+    transportKind = t.kind
+    metrics.setTransportKind(t.kind)
+    t.setCallbacks({
+      onPartialTranscript: (event) => {
+        if (disposed) return
+        partialTranscript = event.text
+        metrics.mark('partial_transcript')
+        if (state === 'listening' || state === 'processing') emit()
+        else {
+          setState('listening')
+        }
+      },
+      onFinalTranscript: (event) => {
+        if (disposed) return
+        const key = event.text.trim()
+        if (!key || key === lastFinalKey) return
+        lastFinalKey = key
+        finalTranscript = event.text
+        normalizedForExtract = event.normalizedForExtract ?? null
+        partialTranscript = ''
+        metrics.mark('final_transcript')
+        setState('processing')
+        onFinalUtterance?.(event)
+      },
+      onSpeakingStart: (gen) => {
+        if (disposed || gen !== activeSpeakTransportGen) return
+        metrics.mark('speak_start')
+        metrics.mark('first_audio')
+        setState('speaking')
+      },
+      onSpeakingEnd: (gen) => {
+        if (disposed || gen !== activeSpeakTransportGen) return
+        activeSpeakTransportGen = -1
+        metrics.mark('speak_end')
+        // No auto-relisten after natural speak end — idle until user taps.
+        if (state === 'speaking' || state === 'interrupted') setState('idle')
+      },
+      onAudioChunk: (info) => {
+        if (info.generation === activeSpeakTransportGen) metrics.mark('first_audio')
+      },
+      onConnectionStateChange: (next) => {
+        connection = next
+        if (next === 'connecting') setState('connecting')
+        else if (next === 'reconnecting') {
+          metrics.mark('reconnect_start')
+          setState('reconnecting')
+        } else if (next === 'error') setState('error')
+        else if (next === 'connected' && (state === 'connecting' || state === 'reconnecting')) {
+          if (state === 'reconnecting') metrics.mark('reconnect_ok')
+          // Reconnect must not reopen mic — return to idle.
+          setState('idle')
+        }
+        emit()
+      },
+      onError: (message) => {
+        error = message
+        setState('error')
+      },
+      onListeningChange: (listening) => {
+        if (listening && state !== 'speaking') setState('listening')
+        else if (!listening && state === 'listening') {
+          emit()
+        }
+      },
+    })
+  }
+
+  const session: BilamoVoiceSession = {
+    getSnapshot,
+    subscribe(listener) {
+      listeners.add(listener)
+      listener(getSnapshot())
+      return () => listeners.delete(listener)
+    },
+    setConversationId(id) {
+      conversationId = id
+      emit()
+    },
+    setLocale(next) {
+      locale = next
+      emit()
+    },
+    setOnFinalUtterance(handler) {
+      onFinalUtterance = handler
+    },
+    async prepare() {
+      if (disposed || prepared) return
+      metrics.mark('connect_start')
+      const result = await createTransport({ mode: options.mode })
+      fellBackToClassic = result.fellBack
+      wireTransport(result.transport)
+      prepared = true
+      if (result.fellBack && result.reason === 'realtime_unavailable') {
+        // Quiet fallback — only surface if user asked for realtime explicitly later.
+      }
+      emit()
+    },
+    async connect() {
+      if (disposed) return
+      if (!prepared) await session.prepare()
+      metrics.mark('connect_start')
+      setState('connecting')
+      try {
+        await transport!.connect()
+        metrics.mark('connect_ok')
+        error = null
+        setState('idle')
+      } catch {
+        metrics.mark('connect_fail')
+        // Auto-fallback to classic if realtime connect fails.
+        if (transport?.kind === 'realtime_webrtc') {
+          await session.switchToClassic()
+          try {
+            await transport!.connect()
+            metrics.mark('connect_ok')
+            error = null
+            setState('idle')
+            return
+          } catch {
+            /* fall through */
+          }
+        }
+        error = 'Could not start voice. You can type instead.'
+        setState('error')
+      }
+    },
+    disconnect() {
+      transport?.disconnect()
+      setState('idle')
+    },
+    async startListening() {
+      if (disposed) return false
+      if (!prepared) await session.prepare()
+      if (!transport?.isConnected()) {
+        await session.connect()
+      }
+      // Never start listening while speaking without barge-in.
+      if (transport?.isSpeaking()) {
+        return session.bargeIn()
+      }
+      error = null
+      partialTranscript = ''
+      finalTranscript = null
+      lastFinalKey = ''
+      metrics.mark('listen_start')
+      const ok = await transport!.startListening(locale)
+      if (ok) setState('listening')
+      else {
+        error = 'Microphone needs permission'
+        setState('error')
+      }
+      return ok
+    },
+    stopListening() {
+      transport?.stopListening()
+      if (state === 'listening') setState('idle')
+    },
+    async bargeIn() {
+      if (disposed) return false
+      if (!prepared) await session.prepare()
+      metrics.mark('interrupt')
+      generation += 1
+      activeSpeakTransportGen = -1
+      transport?.interrupt()
+      setState('interrupted')
+      // User intent: start listening after interrupt — not auto-relisten after reply end.
+      partialTranscript = ''
+      finalTranscript = null
+      lastFinalKey = ''
+      metrics.mark('listen_start')
+      const ok = await transport!.startListening(locale)
+      if (ok) setState('listening')
+      else setState('idle')
+      return ok
+    },
+    speak(text, speakLocale) {
+      generation += 1
+      const sessionGen = generation
+      if (text.trim()) setState('speaking')
+
+      const done = (async () => {
+        if (!prepared) await session.prepare()
+        if (disposed || generation !== sessionGen || !transport) return
+        const handle = transport.speak({
+          text,
+          locale: speakLocale ?? locale,
+        })
+        if (generation !== sessionGen) {
+          transport.interrupt()
+          return
+        }
+        activeSpeakTransportGen = handle.generation
+        await handle.done
+        if (
+          generation === sessionGen
+          && activeSpeakTransportGen === handle.generation
+          && (state === 'speaking' || state === 'interrupted')
+        ) {
+          activeSpeakTransportGen = -1
+          setState('idle')
+        }
+      })()
+
+      return { generation: sessionGen, done }
+    },
+    interrupt() {
+      metrics.mark('interrupt')
+      generation += 1
+      activeSpeakTransportGen = -1
+      transport?.interrupt()
+      if (state === 'speaking' || state === 'interrupted') setState('idle')
+    },
+    async switchToClassic() {
+      transport?.dispose()
+      const result = await createTransport({ mode: 'classic', forceClassic: true })
+      fellBackToClassic = true
+      wireTransport(result.transport)
+      prepared = true
+      emit()
+    },
+    clearError() {
+      error = null
+      if (state === 'error') setState('idle')
+      else emit()
+    },
+    clearTranscripts() {
+      partialTranscript = ''
+      finalTranscript = null
+      normalizedForExtract = null
+      lastFinalKey = ''
+      emit()
+    },
+    getMetrics: () => metrics.snapshot(),
+    dispose() {
+      disposed = true
+      transport?.dispose()
+      transport = null
+      listeners.clear()
+      if (sharedSession === session) sharedSession = null
+    },
+  }
+
+  return session
+}
+
+/** Orb visuals used by Bilamo UI (no redesign — maps from session FSM). */
+export type BilamoOrbVoiceState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'completed'
+
+/** Map session state → existing Orb visual states (no UI redesign). */
+export function orbStateFromVoiceSession(state: BilamoVoiceSessionState): BilamoOrbVoiceState {
+  switch (state) {
+    case 'listening':
+      return 'listening'
+    case 'speaking':
+      return 'speaking'
+    case 'connecting':
+    case 'reconnecting':
+    case 'processing':
+      return 'thinking'
+    case 'interrupted':
+      return 'listening'
+    case 'error':
+    case 'idle':
+    default:
+      return 'idle'
+  }
+}
