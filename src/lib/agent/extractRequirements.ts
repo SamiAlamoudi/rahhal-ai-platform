@@ -18,6 +18,7 @@ const DESTINATION_ALIASES: Array<{ keys: string[]; value: string }> = [
   { keys: ['phuket', 'بوكيت', 'فوكت', 'بوكيت تايلند'], value: 'Phuket' },
   { keys: ['osaka', 'اوساكا', 'أوساكا'], value: 'Osaka' },
   { keys: ['kyoto', 'كيوتو'], value: 'Kyoto' },
+  { keys: ['yemen', 'sanaa', 'اليمن', 'صنعاء'], value: 'اليمن' },
   { keys: ['japan', 'اليابان'], value: 'Japan' },
   { keys: ['sapporo', 'hokkaido', 'سابورو', 'هوكايدو'], value: 'Sapporo' },
   { keys: ['switzerland', 'zurich', 'سويسرا', 'زوريخ'], value: 'Switzerland' },

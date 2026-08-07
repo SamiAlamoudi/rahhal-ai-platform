@@ -23,6 +23,8 @@ export interface BilamoExtraction {
 
 /** Compact destination aliases for Arabic clitic forms (لليابان، لباريس…). */
 const BILAMO_DESTINATION_KEYS: Array<{ keys: string[]; value: string }> = [
+  // Yemen before Japan — ASR sometimes confuses اليمن / اليابان.
+  { keys: ['yemen', 'اليمن', 'صنعاء', 'sanaa'], value: 'اليمن' },
   { keys: ['japan', 'اليابان', 'يابان', 'طوكيو', 'tokyo'], value: 'Japan' },
   { keys: ['paris', 'باريس', 'فرنسا'], value: 'Paris' },
   { keys: ['istanbul', 'اسطنبول', 'إسطنبول', 'تركيا'], value: 'Istanbul' },

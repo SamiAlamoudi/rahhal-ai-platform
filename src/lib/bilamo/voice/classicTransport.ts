@@ -10,6 +10,7 @@ import {
 import { createTextToSpeechProvider } from '../../chat/voice/voiceProviderFactory'
 import type { TextToSpeechProvider, VoiceLocale } from '../../chat/voice/voiceTypes'
 import { normalizeArabicAsrForExtraction } from '../../chat/voice/arabicAsrNormalize'
+import { sanitizeArabicVoiceTranscript } from '../../chat/voice/sanitizeArabicVoiceTranscript'
 import type {
   BilamoSpeakHandle,
   BilamoSpeakRequest,
@@ -76,17 +77,27 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
       finalBuffer = piece
       return
     }
-    // Avoid duplicating if interim is already contained in finals.
-    if (!finalBuffer.includes(piece)) {
-      finalBuffer = `${finalBuffer} ${piece}`.trim()
+    // Final replaces interim — never append both (duplicate chat lines).
+    if (
+      finalBuffer.includes(piece)
+      || piece.includes(finalBuffer)
+      || piece.startsWith(finalBuffer)
+    ) {
+      finalBuffer = piece.length >= finalBuffer.length ? piece : finalBuffer
+      return
     }
+    finalBuffer = piece.length >= finalBuffer.length ? piece : finalBuffer
   }
 
   const emitFinalIfNeeded = () => {
     if (finalEmitted) return
     promoteInterimToFinal()
-    const transcript = finalBuffer.trim()
+    let transcript = finalBuffer.trim()
     finalBuffer = ''
+    interimBuffer = ''
+    if (listenLocale === 'ar') {
+      transcript = sanitizeArabicVoiceTranscript(transcript)
+    }
     if (!transcript) return
     finalEmitted = true
     const normalized = listenLocale === 'ar'
@@ -320,10 +331,10 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
         }
         const engine = ensureTts()
         if (!engine?.isSupported()) {
-          callbacks.onError?.('تعذر تشغيل الصوت. سأكمل معك بالنص الآن.', {
-            code: 'playback_unsupported',
-            recoverable: true,
-          })
+          callbacks.onError?.('تعذر تشغيل الصوت.', {
+              code: 'playback_unsupported',
+              recoverable: true,
+            })
           if (speakGen === generation) {
             speaking = false
             callbacks.onSpeakingEnd?.(generation)
@@ -369,7 +380,7 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
           })
           if (speakGen === generation && !playbackStarted) {
             // Speak resolved without an audible start (Safari autoplay / empty buffer).
-            callbacks.onError?.('تعذر تشغيل الصوت. سأكمل معك بالنص الآن.', {
+            callbacks.onError?.('تعذر تشغيل الصوت.', {
               code: 'playback_blocked',
               recoverable: true,
             })
@@ -378,8 +389,8 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
           const message = err instanceof Error ? err.message : String(err)
           callbacks.onError?.(
             /تشغيل|autoplay|NotAllowed|play/i.test(message)
-              ? 'تعذر تشغيل الصوت. سأكمل معك بالنص الآن.'
-              : 'تعذر توليد الصوت. سأكمل معك بالنص الآن.',
+              ? 'تعذر تشغيل الصوت.'
+              : 'تعذر توليد الصوت.',
             { code: 'playback_blocked', recoverable: true },
           )
         } finally {

@@ -38,8 +38,9 @@ const USER_SAFE_ERRORS = {
   reconnect: 'Connection lost. You can retry or type instead.',
   device: 'Microphone disconnected. Tap to try again, or type instead.',
   unsupported: 'Voice is unavailable in this browser. You can type instead.',
-  playback: 'تعذر تشغيل الصوت. سأكمل معك بالنص الآن.',
-  fallback: 'سأكمل معك بصوت مبسّط.',
+  /** Only after reconnect + classic TTS both fail — never “continue in text”. */
+  playback: 'تعذر تشغيل الصوت. اضغط الميكروفون لإعادة المحاولة.',
+  fallback: 'أعيد تشغيل الصوت بصوت أوضح…',
 } as const
 
 /** Canonical session state machine (maps onto Orb visuals). */
@@ -177,6 +178,8 @@ export function createBilamoVoiceSession(
   let watchdogTimer: ReturnType<typeof setTimeout> | null = null
   let silentRealtimeTimer: ReturnType<typeof setTimeout> | null = null
   let classicFallbackInFlight = false
+  /** One realtime reconnect attempt per speak generation before classic TTS. */
+  let playbackReconnectAttempted = false
   let playbackDiag = emptyVoicePlaybackDiagnostics()
   /** Stable snapshot reference for useSyncExternalStore (must not allocate every read). */
   let snapshot: BilamoVoiceSessionSnapshot = {
@@ -350,7 +353,7 @@ export function createBilamoVoiceSession(
 
   const getSnapshot = (): BilamoVoiceSessionSnapshot => snapshot
 
-  /** Internal: silent realtime → classic TTS for the same spoken text. */
+  /** Internal: silent/blocked realtime → reconnect once → classic TTS (same text). */
   let pendingClassicFallbackText: { gen: number; text: string; locale: VoiceLocale } | null = null
 
   const runClassicFallback = async (failedGen: number) => {
@@ -362,8 +365,9 @@ export function createBilamoVoiceSession(
     try {
       transport?.interrupt()
       activeSpeakTransportGen = -1
+      // Do not surface “continue in text” — classic TTS must speak the same reply.
+      error = null
       if (transportKind !== 'classic_tts') {
-        error = USER_SAFE_ERRORS.fallback
         transport?.dispose()
         const result = await createTransport({ mode: 'classic', forceClassic: true })
         fellBackToClassic = true
@@ -380,12 +384,101 @@ export function createBilamoVoiceSession(
         releaseToIdle('silent_realtime_no_text')
         return
       }
-      // Re-enter speak on classic — session.speak bumps generation.
       const handle = session.speak(spoken, pending.locale)
       await handle.done
+      if (!playbackDiag.audioPlaybackStarted) {
+        // Classic also silent — last-resort user guidance (still not text-only reply).
+        error = USER_SAFE_ERRORS.playback
+        lastSafeErrorCode = 'playback_exhausted'
+        setState('idle')
+      } else {
+        error = null
+      }
     } finally {
       classicFallbackInFlight = false
     }
+  }
+
+  /**
+   * Mandatory audible recovery:
+   * realtime play fail → reconnect once → classic TTS.
+   * Never leave the traveler with text-only after a spoken reply was prepared.
+   */
+  const recoverAudiblePlayback = async (failedGen: number) => {
+    if (disposed || classicFallbackInFlight) return
+    const pending = pendingClassicFallbackText
+    if (!pending || pending.gen !== failedGen) return
+
+    clearSilentRealtimeTimer()
+    playbackDiag.audioPlaybackFailed = true
+
+    // Already on classic (or already recovered once) — one retry then stop (no text-only path).
+    if (transportKind === 'classic_tts' || fellBackToClassic) {
+      if (playbackReconnectAttempted) {
+        error = USER_SAFE_ERRORS.playback
+        lastSafeErrorCode = 'playback_exhausted'
+        activeSpeakTransportGen = -1
+        setState('idle')
+        return
+      }
+      playbackReconnectAttempted = true
+      const spoken = pending.text.trim()
+      const loc = pending.locale
+      pendingClassicFallbackText = null
+      const handle = session.speak(spoken, loc)
+      await handle.done
+      if (!playbackDiag.audioPlaybackStarted) {
+        error = USER_SAFE_ERRORS.playback
+        lastSafeErrorCode = 'playback_exhausted'
+        setState('idle')
+      } else {
+        error = null
+      }
+      return
+    }
+
+    if (transportKind === 'realtime_webrtc' && !playbackReconnectAttempted) {
+      playbackReconnectAttempted = true
+      playbackDiag.lastEvent = 'audioPlaybackFailed'
+      lastSafeErrorCode = 'playback_reconnect'
+      emit()
+      try {
+        transport?.interrupt()
+        activeSpeakTransportGen = -1
+        await transport?.connect()
+        const spoken = pending.text.trim()
+        const loc = pending.locale
+        pendingClassicFallbackText = null
+        const handle = session.speak(spoken, loc)
+        await Promise.race([
+          handle.done,
+          new Promise<void>((resolve) => {
+            globalThis.setTimeout(resolve, 5_000)
+          }),
+        ])
+        if (playbackDiag.audioPlaybackStarted || state === 'speaking') {
+          error = null
+          return
+        }
+        // speak() re-arms pending synchronously; CF analysis cannot see the mutation.
+        const armed = pendingClassicFallbackText as {
+          gen: number
+          text: string
+          locale: VoiceLocale
+        } | null
+        if (armed) {
+          await runClassicFallback(armed.gen)
+        } else {
+          pendingClassicFallbackText = { gen: handle.generation, text: spoken, locale: loc }
+          await runClassicFallback(handle.generation)
+        }
+        return
+      } catch {
+        // Fall through to classic.
+      }
+    }
+
+    await runClassicFallback(failedGen)
   }
 
   const wireTransport = (t: BilamoVoiceTransport) => {
@@ -408,8 +501,13 @@ export function createBilamoVoiceSession(
       },
       onFinalTranscript: (event) => {
         if (disposed) return
+        // Generation owns this transcript — ignore duplicates / late interim echoes.
         const key = event.text.trim()
         if (!key || key === lastFinalKey) return
+        if (state === 'processing' || state === 'speaking') {
+          // Already handed off this turn — never double-submit.
+          if (lastFinalKey) return
+        }
         lastFinalKey = key
         finalTranscript = event.text
         normalizedForExtract = event.normalizedForExtract ?? null
@@ -433,6 +531,8 @@ export function createBilamoVoiceSession(
         metrics.mark('speak_start')
         playbackDiag.audioPlaybackStarted = true
         playbackDiag.lastEvent = 'audioPlaybackStarted'
+        playbackReconnectAttempted = false
+        error = null
         // first_audio is marked on real audio chunk / playback — not assumed here.
         setState('speaking')
       },
@@ -461,7 +561,7 @@ export function createBilamoVoiceSession(
         playbackDiag.audioPlaybackFailed = true
         playbackDiag.lastEvent = 'silentRealtimeTimeout'
         playbackDiag.lastSafeErrorCode = detail.code
-        void runClassicFallback(detail.generation)
+        void recoverAudiblePlayback(detail.generation)
       },
       onConnectionStateChange: (next) => {
         connection = next
@@ -488,12 +588,22 @@ export function createBilamoVoiceSession(
         } else if (code === 'device_lost' || code === 'audio_device_lost') {
           error = USER_SAFE_ERRORS.device
         } else if (code === 'playback_blocked' || code === 'playback_unsupported' || /تشغيل الصوت/i.test(message)) {
-          error = USER_SAFE_ERRORS.playback
+          // Mandatory audio: reconnect once → classic TTS. Never “continue in text”.
           playbackDiag.audioPlaybackFailed = true
           playbackDiag.lastEvent = 'audioPlaybackFailed'
-          // Playback blocked — keep text usable; never stay stuck in speaking/processing.
-          activeSpeakTransportGen = -1
+          const gen =
+            activeSpeakTransportGen >= 0
+              ? activeSpeakTransportGen
+              : pendingClassicFallbackText?.gen ?? -1
           clearSilentRealtimeTimer()
+          if (gen >= 0 && pendingClassicFallbackText) {
+            error = null
+            void recoverAudiblePlayback(gen)
+            return
+          }
+          // No pending spoken text (unexpected) — idle without text-fallback copy.
+          error = USER_SAFE_ERRORS.playback
+          activeSpeakTransportGen = -1
           setState('idle')
           return
         } else if (code.startsWith('reconnect') || code === 'connect_failed') {
@@ -614,6 +724,7 @@ export function createBilamoVoiceSession(
       playbackDiag.audioPlaybackEnded = false
       playbackDiag.playResult = null
       playbackDiag.lastEvent = null
+      playbackReconnectAttempted = false
       metrics.mark('listen_start')
       const ok = await transport!.startListening(locale)
       if (ok) {
@@ -695,6 +806,8 @@ export function createBilamoVoiceSession(
       playbackDiag.audioPlaybackFailed = false
       playbackDiag.audioPlaybackEnded = false
       playbackDiag.lastEvent = 'audioPlayRequested'
+      // Do not reset playbackReconnectAttempted here — that caused reconnect loops
+      // when the post-reconnect speak also failed. Reset on listen start / audible start.
       // Stay in processing until onSpeakingStart proves audible playback began.
       if (state !== 'listening' && state !== 'interrupted') setState('processing')
 
@@ -730,12 +843,13 @@ export function createBilamoVoiceSession(
         }
         activeSpeakTransportGen = handle.generation
         // Never claim speaking from isSpeaking() alone — wait for onSpeakingStart (audible).
+        // Arm audible recovery for realtime AND classic (classic recovers via retry path).
+        pendingClassicFallbackText = {
+          gen: handle.generation,
+          text: trimmed,
+          locale: speakLocale ?? locale,
+        }
         if (transport.kind === 'realtime_webrtc' && !fellBackToClassic) {
-          pendingClassicFallbackText = {
-            gen: handle.generation,
-            text: trimmed,
-            locale: speakLocale ?? locale,
-          }
           clearSilentRealtimeTimer()
           silentRealtimeTimer = globalThis.setTimeout(() => {
             if (disposed || generation !== sessionGen) return
@@ -743,7 +857,7 @@ export function createBilamoVoiceSession(
             lastSafeErrorCode = 'silent_realtime_timeout'
             playbackDiag.lastEvent = 'silentRealtimeTimeout'
             playbackDiag.audioPlaybackFailed = true
-            void runClassicFallback(handle.generation)
+            void recoverAudiblePlayback(handle.generation)
           }, SILENT_REALTIME_FALLBACK_MS)
         }
         return handle

@@ -17,8 +17,16 @@ import {
 import { greetingForHour, resolveDisplayName } from '../../design-system/greeting'
 import { useBilamoVoiceSession } from '../../hooks/useBilamoVoiceSession'
 import { useAuth } from '../../lib/auth'
+import {
+  BILAMO_DEPARTURE_AIRPORTS,
+  rememberDeparture,
+  resolveDepartureAirport,
+  type BilamoDepartureAirport,
+  type DepartureResolution,
+} from '../../lib/bilamo/departure/departureLocator'
 import { progressiveConsultantAck } from '../../lib/bilamo/intelligence/consultantComposer'
 import { unlockAudioPlayback } from '../../lib/chat/voice/audioElementTextToSpeechProvider'
+import { sanitizeArabicVoiceTranscript } from '../../lib/chat/voice/sanitizeArabicVoiceTranscript'
 import { chatEngine } from '../../lib/chat/chatEngine'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import { validateUserMessage } from '../../lib/chat/chatHelpers'
@@ -248,6 +256,8 @@ export function BilamoConversationExperience({
   const bottomRef = useRef<HTMLDivElement>(null)
   const sendRef = useRef<(raw: string) => Promise<void>>(async () => {})
   const speakGenerationRef = useRef(0)
+  const sendLockRef = useRef(false)
+  const lastSentRef = useRef<{ text: string; at: number } | null>(null)
   /** Classic end-of-speech silence window — only after speech has started. */
   const SILENCE_FINALIZE_MS = 1600
 
@@ -266,12 +276,16 @@ export function BilamoConversationExperience({
   const [detailsId, setDetailsId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [statusLine, setStatusLine] = useState<string | null>(null)
+  const [departure, setDeparture] = useState<DepartureResolution | null>(null)
+  const [changeAirportOpen, setChangeAirportOpen] = useState(false)
   const [uiLocale, setUiLocale] = useState<'ar' | 'en'>(() =>
     typeof navigator !== 'undefined' && navigator.language?.startsWith('ar') ? 'ar' : 'en',
   )
 
   const handleSpeechFinal = useCallback((transcript: string) => {
-    void sendRef.current(transcript)
+    const cleaned = sanitizeArabicVoiceTranscript(transcript)
+    if (!cleaned) return
+    void sendRef.current(cleaned)
   }, [])
 
   const voice = useBilamoVoiceSession({
@@ -329,6 +343,7 @@ export function BilamoConversationExperience({
         tip: 'اضغط مرة واحدة للتحدث. عند التوقف أكمل تلقائياً.',
         retryVoice: 'أعد المحاولة',
         classicVoice: 'صوت مبسّط',
+        changeAirport: 'تغيير المطار',
       }
     : {
         heroLead: 'Here is what I would choose for you.',
@@ -352,6 +367,7 @@ export function BilamoConversationExperience({
         tip: 'Tap once to speak. When you pause, I continue automatically.',
         retryVoice: 'Retry',
         classicVoice: 'Simple voice',
+        changeAirport: 'Change airport',
       }
 
   const clearSilenceTimer = useCallback(() => {
@@ -386,12 +402,18 @@ export function BilamoConversationExperience({
 
   const send = useCallback(
     async (raw: string) => {
-      const content = raw.trim()
+      const content = sanitizeArabicVoiceTranscript(raw.trim()) || raw.trim()
       const validation = validateUserMessage(content)
       if (validation) {
         setError(validation)
         return
       }
+      // Generation-owned send — never double-submit the same voice final.
+      if (sendLockRef.current || busy) return
+      const last = lastSentRef.current
+      if (last && last.text === content && Date.now() - last.at < 5_000) return
+      sendLockRef.current = true
+      lastSentRef.current = { text: content, at: Date.now() }
 
       // Immediate barge-in: kill TTS + mic before the new turn starts.
       speakGenerationRef.current += 1
@@ -514,10 +536,34 @@ export function BilamoConversationExperience({
         for (const t of ackTimers) window.clearTimeout(t)
         if (abortRef.current === controller) abortRef.current = null
         setBusy(false)
+        sendLockRef.current = false
       }
     },
-    [copy.somethingWrong, stopListeningHard, uiLocale, upsertMessage, voice],
+    [busy, copy.somethingWrong, stopListeningHard, uiLocale, upsertMessage, voice],
   )
+
+  // Smart departure: geolocation → nearest airport → remembered. Never interrogate for origin.
+  useEffect(() => {
+    let cancelled = false
+    void resolveDepartureAirport({ requestGeolocation: true }).then((resolved) => {
+      if (cancelled || !resolved) return
+      setDeparture(resolved)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const applyDepartureAirport = useCallback((airport: BilamoDepartureAirport) => {
+    rememberDeparture(airport)
+    setDeparture({
+      airport,
+      source: 'remembered',
+      assumptionLineAr: `سأعتبر ${airport.cityAr} نقطة الانطلاق.`,
+      assumptionLineEn: `I'll take ${airport.cityEn} as your departure point.`,
+    })
+    setChangeAirportOpen(false)
+  }, [])
 
   sendRef.current = send
 
@@ -796,6 +842,35 @@ export function BilamoConversationExperience({
                 ) : null}
               </AnimatePresence>
             </div>
+
+            {departure && !transcript ? (
+              <div className="mt-4 max-w-[18rem] space-y-2 text-center">
+                <p className="text-[13px] leading-relaxed text-[var(--bilamo-muted)]">
+                  {uiLocale === 'ar' ? departure.assumptionLineAr : departure.assumptionLineEn}
+                </p>
+                <button
+                  type="button"
+                  className="text-[12.5px] text-[var(--bilamo-text)]/80 underline-offset-2 hover:underline"
+                  onClick={() => setChangeAirportOpen((v) => !v)}
+                >
+                  {copy.changeAirport}
+                </button>
+                {changeAirportOpen ? (
+                  <div className="flex flex-wrap justify-center gap-2 pt-1">
+                    {BILAMO_DEPARTURE_AIRPORTS.slice(0, 6).map((airport) => (
+                      <button
+                        key={airport.code}
+                        type="button"
+                        className="rounded-full border border-[var(--bilamo-border)] px-3 py-1 text-[12px] text-[var(--bilamo-text)]/85"
+                        onClick={() => applyDepartureAirport(airport)}
+                      >
+                        {uiLocale === 'ar' ? airport.cityAr : airport.cityEn}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <AnimatePresence>
               {(voiceError || error) && (

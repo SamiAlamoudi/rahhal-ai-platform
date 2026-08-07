@@ -127,12 +127,13 @@ describe('consultant trip-fact gathering policy', () => {
       previousLanguage: 'ar',
       languageFallback: 'ar',
     })
-    expect(instructions).toMatch(/origin city\/airport/i)
+    expect(instructions).toMatch(/نقطة الانطلاق|تغيير المطار|destination/i)
     expect(instructions).toMatch(/ONE follow-up question/i)
     expect(instructions).toMatch(/Sukhumvit|Chaweng|neighborhood/i)
     expect(instructions).toMatch(/BOOKING AGENT/i)
     expect(instructions).toMatch(/never switch mid-reply/i)
     expect(instructions).toMatch(/Do NOT invent live prices|invent live prices/i)
+    expect(instructions).not.toMatch(/تمام، من أي مدينة؟/)
   })
 })
 

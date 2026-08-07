@@ -536,9 +536,8 @@ export function createRealtimeWebRtcSession(
           : 'playback_blocked'
       quality.markAudioRestart()
       emitQuality()
-      callbacks.onError?.(
-        'تعذر تشغيل الصوت. سأكمل معك بالنص الآن.',
-      )
+      // Structured recovery is owned by BilamoVoiceSession (reconnect → classic TTS).
+      callbacks.onError?.('تعذر تشغيل الصوت.')
       return false
     }
   }

@@ -152,7 +152,7 @@ function makeMockTransport(
         if (opts?.silent || opts?.playReject) {
           queueMicrotask(() => {
             if (opts.playReject) {
-              callbacks.onError?.('تعذر تشغيل الصوت. سأكمل معك بالنص الآن.', {
+              callbacks.onError?.('تعذر تشغيل الصوت.', {
                 code: 'playback_blocked',
                 recoverable: true,
               })
@@ -314,7 +314,10 @@ describe('Safari voice stabilize — session FSM', () => {
     await new Promise((r) => setTimeout(r, 20))
     expect(session.getSnapshot().state).toBe('idle')
     expect(session.getSnapshot().error).toMatch(/تشغيل الصوت/)
-    expect(session.getSnapshot().lastSafeErrorCode).toBe('playback_blocked')
+    // After mandatory retry, exhausted code means we did not silently continue in text.
+    expect(['playback_blocked', 'playback_exhausted']).toContain(
+      session.getSnapshot().lastSafeErrorCode,
+    )
     expect(session.getSnapshot().secondTurnReady).toBe(true)
     session.dispose()
   })

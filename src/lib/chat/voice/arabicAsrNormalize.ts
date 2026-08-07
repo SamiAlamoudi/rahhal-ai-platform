@@ -50,6 +50,8 @@ export function normalizeArabicAsrForExtraction(text: string): string {
   // Common ASR spacing / hamza variants that break city + cabin matchers.
   out = out
     .replace(/ال\s+رياض/g, 'الرياض')
+    .replace(/ال\s+يمن/g, 'اليمن')
+    .replace(/ال\s+يابان/g, 'اليابان')
     .replace(/طو\s*كيو/g, 'طوكيو')
     .replace(/بان\s*كوك/g, 'بانكوك')
     .replace(/بو\s*كيت/g, 'بوكيت')
@@ -62,6 +64,11 @@ export function normalizeArabicAsrForExtraction(text: string): string {
     .replace(/عايز\s+أسافر|عايز\s+اسافر|عاوز\s+أسافر/g, 'أريد السفر')
     .replace(/بدي\s+رحلة|بِدي\s+رحلة/g, 'أريد رحلة')
     .replace(/بغيت\s+نمشي/g, 'أريد السفر')
+
+  // Yemen must stay Yemen — never let English "Japan" win when اليمن is present.
+  if (/اليمن/.test(out)) {
+    out = out.replace(/\b(?:japan|tokyo)\b/gi, ' ').replace(/\s+/g, ' ').trim()
+  }
 
   return out
 }

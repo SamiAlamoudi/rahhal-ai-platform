@@ -109,7 +109,11 @@ export function createRealtimeWebRtcBilamoTransport(
         else callbacks.onPartialTranscript?.(event)
       },
       onError: (message) => {
-        callbacks.onError?.(message, { code: 'realtime_error', recoverable: true })
+        const playback = /تشغيل الصوت|playback/i.test(message)
+        callbacks.onError?.(message, {
+          code: playback ? 'playback_blocked' : 'realtime_error',
+          recoverable: true,
+        })
       },
       onConnected: () => {
         reconnectAttempts = 0

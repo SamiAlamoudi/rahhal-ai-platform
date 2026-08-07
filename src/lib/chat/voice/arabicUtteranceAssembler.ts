@@ -7,6 +7,7 @@ import {
   assessAsrCompleteness,
   normalizeArabicAsrForExtraction,
 } from './arabicAsrNormalize'
+import { sanitizeArabicVoiceTranscript } from './sanitizeArabicVoiceTranscript'
 import { isConfirmedUserUtterance } from './userTranscriptGate'
 
 /**
@@ -83,11 +84,23 @@ export function createArabicUtteranceAssembler(options: {
     }
   }
 
+  /**
+   * Display text for the open utterance.
+   * Final/segment owns the turn — never append interim on top of an equivalent segment
+   * (that produced duplicated chat lines like "أريد… أريد…").
+   */
   const joinDisplay = (): string => {
-    const parts = [...segments]
+    const base = segments.join(' ').replace(/\s+/g, ' ').trim()
     const i = interim.trim()
-    if (i) parts.push(i)
-    return parts.join(' ').replace(/\s+/g, ' ').trim()
+    if (!base) return sanitizeArabicVoiceTranscript(i)
+    if (!i) return sanitizeArabicVoiceTranscript(base)
+    if (base === i || base.includes(i) || i.includes(base)) {
+      const preferred = i.length >= base.length ? i : base
+      return sanitizeArabicVoiceTranscript(preferred)
+    }
+    if (i.startsWith(base)) return sanitizeArabicVoiceTranscript(i)
+    // New clause only — still prefer not to glue duplicate hypotheses.
+    return sanitizeArabicVoiceTranscript(`${base} ${i}`)
   }
 
   const durationMs = (now: number): number => {
@@ -100,8 +113,15 @@ export function createArabicUtteranceAssembler(options: {
     commitTimer = null
     if (committed) return
     const lang = options.conversationLanguage() || 'ar'
-    // Include interim — Safari/Realtime often only has interim when silence lands.
-    const display = joinDisplay()
+    // Segment finals replace interim. Use interim ONLY when no segment exists.
+    const segmentText = segments.join(' ').replace(/\s+/g, ' ').trim()
+    const interimText = interim.trim()
+    let display = segmentText
+    if (!display) display = interimText
+    else if (interimText && interimText.startsWith(segmentText) && interimText.length > segmentText.length) {
+      display = interimText
+    }
+    display = sanitizeArabicVoiceTranscript(display)
     const audioMs = durationMs(options.nowMs())
     interim = ''
 

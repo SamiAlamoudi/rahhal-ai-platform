@@ -54,7 +54,8 @@ export function buildSecurityHeaders(
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     // microphone=(self) for Web Speech STT; autoplay=(self) for TTS HTMLAudioElement after gesture.
-    'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), autoplay=(self)',
+    // geolocation=(self) — smart departure airport (nearest city) when traveler allows.
+    'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(self), autoplay=(self)',
     'Cross-Origin-Opener-Policy': 'same-origin',
     'X-DNS-Prefetch-Control': 'off',
   }

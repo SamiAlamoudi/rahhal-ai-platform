@@ -464,6 +464,6 @@ export async function runBilamoIntelligenceTurn(
   }
 }
 
-export function emptySessionMemory(locale: 'ar' | 'en' = 'en'): BilamoConsultantMemory {
+export function emptySessionMemory(locale: 'ar' | 'en' = 'ar'): BilamoConsultantMemory {
   return emptyBilamoMemory(locale)
 }
