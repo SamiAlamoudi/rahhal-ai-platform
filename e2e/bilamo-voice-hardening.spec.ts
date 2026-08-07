@@ -56,10 +56,10 @@ test.describe('Bilamo voice hardening (fake media)', () => {
     await page.goto('/login')
     await page.getByTestId('login-demo').click()
     await expect(page).toHaveURL(/\/$/)
-    await expect(page.getByRole('button', { name: 'Speak' })).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('button', { name: /^(Speak|تحدث)$/ })).toBeVisible({ timeout: 15_000 })
 
     // Tap orb — classic path may start SpeechRecognition or surface recovery; must not crash.
-    await page.getByRole('button', { name: 'Speak' }).click()
+    await page.getByRole('button', { name: /^(Speak|تحدث)$/ }).click()
     await page.waitForTimeout(800)
     await expect(page.getByRole('heading', { name: /Something went wrong/i })).toHaveCount(0)
 
@@ -80,11 +80,11 @@ test.describe('Bilamo voice hardening (fake media)', () => {
   test('Home and /chat keep single Speak surface after navigation', async ({ page }) => {
     await page.goto('/login')
     await page.getByTestId('login-demo').click()
-    await expect(page.getByRole('button', { name: 'Speak' })).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('button', { name: /^(Speak|تحدث)$/ })).toBeVisible({ timeout: 15_000 })
     await page.goto('/chat')
-    await expect(page.getByRole('button', { name: 'Speak' })).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('button', { name: /^(Speak|تحدث)$/ })).toBeVisible({ timeout: 15_000 })
     // Still one orb — no crash from shared session remount.
-    await expect(page.getByRole('button', { name: 'Speak' })).toHaveCount(1)
+    await expect(page.getByRole('button', { name: /^(Speak|تحدث)$/ })).toHaveCount(1)
   })
 
   test('no permanent OpenAI secrets in client bundle HTML', async ({ page }) => {

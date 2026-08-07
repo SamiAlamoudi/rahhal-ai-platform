@@ -104,6 +104,7 @@ async function searchFlights(
     signal?: AbortSignal
     provider?: FlightSearchProvider
     onProgress?: (message: string) => void
+    locale?: 'ar' | 'en'
   },
 ): Promise<{
   flights: BilamoFlightOption[]
@@ -130,6 +131,7 @@ async function searchFlights(
     mode: result.mode,
     error: result.error,
     stale: Boolean(result.error && result.ok),
+    locale: options?.locale === 'en' ? 'en' : 'ar',
   })
 
   if (!recommendation) {
@@ -300,8 +302,10 @@ export async function runBilamoSearchOrchestrator(input: {
   signal?: AbortSignal
   flightProvider?: FlightSearchProvider
   onFlightProgress?: (message: string) => void
+  locale?: 'ar' | 'en'
 }): Promise<BilamoSearchBundle> {
   const req = input.requirements
+  const locale = input.locale === 'en' ? 'en' : 'ar'
   const [
     flightPack,
     hotels,
@@ -315,6 +319,7 @@ export async function runBilamoSearchOrchestrator(input: {
       signal: input.signal,
       provider: input.flightProvider,
       onProgress: input.onFlightProgress,
+      locale,
     }),
     searchHotels(req),
     searchTransfer(req),

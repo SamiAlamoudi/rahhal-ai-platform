@@ -56,7 +56,7 @@ test.describe('Bilamo voice session (mocked WebRTC)', () => {
     await expect(page).toHaveURL(/\/$/)
 
     // Orb surface must load (voice session must not crash the page).
-    await expect(page.getByRole('button', { name: 'Speak' })).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('button', { name: /^(Speak|تحدث)$/ })).toBeVisible({ timeout: 15_000 })
 
     // Open composer — Arabic locale in Playwright config uses "اكتب".
     await page.getByRole('button', { name: /^(Type|اكتب)$/ }).click()
@@ -84,9 +84,9 @@ test.describe('Bilamo voice session (mocked WebRTC)', () => {
     await page.getByTestId('login-demo').click()
     await expect(page).toHaveURL(/\/$/)
 
-    await expect(page.getByRole('button', { name: 'Speak' })).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('button', { name: /^(Speak|تحدث)$/ })).toBeVisible({ timeout: 15_000 })
 
     await page.goto('/chat')
-    await expect(page.getByRole('button', { name: 'Speak' })).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('button', { name: /^(Speak|تحدث)$/ })).toBeVisible({ timeout: 15_000 })
   })
 })
