@@ -13,8 +13,9 @@ describe('voiceProviderFactory', () => {
 
   it('maps locales to speech tags', () => {
     expect(normalizeVoiceLocale('en')).toBe('en')
-    expect(normalizeVoiceLocale('fr')).toBe('ar')
+    expect(normalizeVoiceLocale('fr')).toBe('fr')
     expect(speechLangForLocale('ar')).toBe('ar-SA')
     expect(speechLangForLocale('en')).toBe('en-US')
+    expect(speechLangForLocale('fr')).toBe('fr-FR')
   })
 })
