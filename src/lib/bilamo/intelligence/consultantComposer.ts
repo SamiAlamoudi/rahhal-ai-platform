@@ -1,44 +1,33 @@
 /**
  * Consultant response composer — explain, recommend, offer alternatives.
- * Keep prose tight; cards carry secondary options.
+ * Keep prose tight; cards carry secondary options (source of truth).
  */
 
 import type { TripRequirements } from '../../agent/types'
+import type { BilamoReplyLocale } from '../speech/localeBridge'
 import type { BilamoSearchBundle } from './types'
 
-function money(amount: number, currency: string): string {
-  return `${currency} ${amount.toLocaleString('en-US')}`
-}
-
-function explainFlight(flight: BilamoSearchBundle['flights'][number], locale: 'ar' | 'en'): string {
-  const bits: string[] = []
-  if (flight.reason) bits.push(flight.reason.replace(/\.$/, ''))
-  if (flight.stopsLabel === 'Nonstop' || /غير متوقف|مباشر/i.test(flight.stopsLabel)) {
-    bits.push(locale === 'ar' ? 'بدون توقف' : 'no connection risk')
+function money(amount: number, currency: string, locale: BilamoReplyLocale): string {
+  const formatted = amount.toLocaleString(
+    locale === 'ar' ? 'ar-SA' : locale === 'fr' ? 'fr-FR' : 'en-US',
+  )
+  if (locale === 'ar' && (currency === 'SAR' || currency === 'ر.س')) {
+    return `${formatted} ر.س`
   }
-  if (flight.baggageSummary) {
-    bits.push(locale === 'ar' ? `أمتعة ${flight.baggageSummary}` : `bags ${flight.baggageSummary}`)
-  }
-  if (flight.score != null) {
-    bits.push(locale === 'ar' ? `درجة بيلامو ${flight.score}` : `Bilamo Score ${flight.score}/100`)
-  }
-  return bits.join(' · ')
+  return `${currency} ${formatted}`
 }
 
 export function composeRecommendation(input: {
   requirements: TripRequirements
   search: BilamoSearchBundle
-  locale: 'ar' | 'en'
+  locale: BilamoReplyLocale
   /** True when travelers were soft-defaulted to 1 */
   assumedSolo?: boolean
 }): { displayText: string; spokenText: string } {
   const dest = input.requirements.destination || input.requirements.destinations[0] || 'your destination'
   const flight = input.search.flights[0]
-  const altFlight = input.search.flights[1]
   const hotel = input.search.hotels[0]
-  const ctx = input.search.context
   const locale = input.locale
-  const origin = input.requirements.origin
   const emptyFlights = !input.search.flights.length
   const flightsMeta = input.search.flightsMeta
   const timedOut = /timeout/i.test(String(flightsMeta?.error || ''))
@@ -46,13 +35,9 @@ export function composeRecommendation(input: {
 
   if (locale === 'ar') {
     if (emptyFlights) {
-      const displayText = [
-        timedOut
-          ? `تعذّر الوصول لمزوّد الرحلات لحظة — لم أتركك بدون مسار.`
-          : `لم أجد رحلة قوية لـ ${dest} بهذه التواريخ بعد.`,
-        'أقترح: تواريخ أكثر مرونة، أو مغادرة من مدينة أخرى، أو وجهة قريبة بنفس الروح.',
-        'قل لي أي مسار تفضّل وسأعيد البحث فوراً.',
-      ].join('\n\n')
+      const displayText = timedOut
+        ? 'تعذّر الوصول لمزوّد الرحلات لحظة. أقدر أبحث مجدداً أو بتواريخ مرنة.'
+        : `لم أجد رحلة مناسبة لـ ${dest} بهذه الشروط. أقدر أبحث بتوقيت مرن.`
       return {
         displayText,
         spokenText: 'لم أجد رحلة مناسبة بعد. هل نجرّب تواريخ أوسع؟',
@@ -60,40 +45,48 @@ export function composeRecommendation(input: {
     }
 
     const lines = [
-      `توصيتي لـ ${dest}${origin ? ` من ${origin}` : ''}:`,
-      input.assumedSolo
-        ? 'افترضت أنك تسافر لوحدك — قل لي إن كان معك أحد.'
-        : null,
-      flight
-        ? `${flight.kindLabel || 'الأفضل عموماً'} — ${flight.airline}، ${flight.stopsLabel}، ${money(flight.price, flight.currency)}.\nلماذا: ${explainFlight(flight, 'ar')}.`
-        : null,
-      altFlight
-        ? `بديل: ${altFlight.airline} — ${money(altFlight.price, altFlight.currency)}. ${altFlight.reason || ''}`.trim()
-        : null,
-      hotel
-        ? `للإقامة: ${hotel.name} في ${hotel.area} — ${money(hotel.price, hotel.currency)}. ${hotel.reason || ''}`.trim()
-        : null,
-      stale ? 'قد تكون الأسعار تحرّكت قليلاً — أخبرني إن أردت تحديثاً.' : null,
-      ctx.weather ? `الطقس: ${ctx.weather}` : null,
-      !origin ? 'إن كان مطار المغادرة غير الرياض، قل لي وسأعيد الترتيب.' : null,
-      'اختر بطاقة، أو قارن، وسنكمل من هناك.',
+      `هذا ما أختاره لك إلى ${dest}.`,
+      input.assumedSolo ? 'افترضت أنك تسافر لوحدك — قل لي إن كان معك أحد.' : null,
+      hotel ? `وللإقامة: ${hotel.name}.` : null,
+      stale ? 'قد تكون الأسعار تحرّكت — قل لي إن أردت تحديثاً.' : null,
     ].filter(Boolean) as string[]
 
     const spokenText = flight
-      ? `أقترح ${flight.airline} لـ ${dest}. هل يناسبك؟`
+      ? `أقترح ${flight.airline} لـ ${dest}. ${String(flight.reason || '').split(/[.!?؟]/)[0]}.`
       : `رتّبت خيارات لـ ${dest}.`
 
-    return { displayText: lines.join('\n\n'), spokenText }
+    return { displayText: lines.join(' '), spokenText }
+  }
+
+  if (locale === 'fr') {
+    if (emptyFlights) {
+      const displayText = timedOut
+        ? 'Le fournisseur de vols a marqué une pause. Je peux relancer ou élargir les dates.'
+        : `Je n'ai pas trouvé de vol solide pour ${dest} avec ces critères. Je peux élargir le calendrier.`
+      return {
+        displayText,
+        spokenText: 'Pas encore de vol solide. On élargit les dates ?',
+      }
+    }
+
+    const lines = [
+      `Voici mon choix pour ${dest}.`,
+      input.assumedSolo ? 'J\'ai supposé un voyage en solo — dites-moi si quelqu\'un vous accompagne.' : null,
+      hotel ? `Pour le séjour : ${hotel.name}.` : null,
+      stale ? 'Les tarifs ont pu bouger — dites-moi si vous voulez une mise à jour.' : null,
+    ].filter(Boolean) as string[]
+
+    const spokenText = flight
+      ? `Je retiendrais ${flight.airline} pour ${dest}. ${String(flight.reason || '').split(/[.!?؟]/)[0]}.`
+      : `J'ai préparé des options pour ${dest}.`
+
+    return { displayText: lines.join(' '), spokenText }
   }
 
   if (emptyFlights) {
-    const displayText = [
-      timedOut
-        ? `The flight provider paused for a moment — I will not leave you without a path.`
-        : `I could not find a strong flight match for ${dest} on those dates yet.`,
-      'I suggest: more flexible dates, a different departure city, or a nearby destination with the same spirit.',
-      'Tell me which path you prefer and I will search again immediately.',
-    ].join('\n\n')
+    const displayText = timedOut
+      ? 'The flight provider paused for a moment. I can retry or search with flexible dates.'
+      : `I could not find a strong flight for ${dest} with those constraints. I can search with flexible timing.`
     return {
       displayText,
       spokenText: 'No strong flight yet. Shall we try more flexible dates?',
@@ -101,39 +94,47 @@ export function composeRecommendation(input: {
   }
 
   const lines = [
-    `My pick for ${dest}${origin ? ` from ${origin}` : ''}:`,
-    input.assumedSolo
-      ? 'I assumed you are traveling solo — tell me if someone is joining.'
-      : null,
-    flight
-      ? `${flight.kindLabel || 'Best overall'} — ${flight.airline}, ${flight.stopsLabel}, ${money(flight.price, flight.currency)}.\nWhy: ${explainFlight(flight, 'en')}.`
-      : null,
-    altFlight
-      ? `Alternative: ${altFlight.airline} — ${money(altFlight.price, altFlight.currency)}. ${altFlight.reason || ''}`.trim()
-      : null,
-    hotel
-      ? `Stay: ${hotel.name} in ${hotel.area} — ${money(hotel.price, hotel.currency)}. ${hotel.reason || ''}`.trim()
-      : null,
-    stale ? 'Prices may have shifted slightly — say if you want a refresh.' : null,
-    ctx.weather ? `Weather: ${ctx.weather}` : null,
-    !origin ? 'If you are not departing from Riyadh, tell me your city and I will re-rank.' : null,
-    'Select a card, or compare — we continue from there.',
+    `Here is my pick for ${dest}.`,
+    input.assumedSolo ? 'I assumed you are traveling solo — tell me if someone is joining.' : null,
+    hotel ? `For the stay: ${hotel.name}.` : null,
+    stale ? 'Prices may have shifted — say if you want a refresh.' : null,
   ].filter(Boolean) as string[]
 
   const spokenText = flight
-    ? `I'd take the ${flight.airline} for ${dest}. ${String(flight.reason || '').split('.')[0]}.`
+    ? `I'd take the ${flight.airline} for ${dest}. ${String(flight.reason || '').split(/[.!?؟]/)[0]}.`
     : `I've shaped options for ${dest}.`
 
-  return { displayText: lines.join('\n\n'), spokenText }
+  return { displayText: lines.join(' '), spokenText }
 }
 
-export function composeGreeting(locale: 'ar' | 'en'): { displayText: string; spokenText: string } {
+export function composeGreeting(locale: BilamoReplyLocale): { displayText: string; spokenText: string } {
   if (locale === 'ar') {
     const displayText = 'أهلاً بك. أنا بيلامو — مستشارك للسفر الفاخر. إلى أين تتخيّل الرحلة؟'
     return { displayText, spokenText: 'أهلاً بك. إلى أين تتخيّل الرحلة؟' }
   }
+  if (locale === 'fr') {
+    const displayText = 'Bonjour. Je suis Bilamo — votre conseiller voyage. Où imaginez-vous ce voyage ?'
+    return { displayText, spokenText: 'Bonjour. Où imaginez-vous ce voyage ?' }
+  }
   const displayText = 'Welcome. I am Bilamo — your luxury travel consultant. Where are you imagining this trip?'
   return { displayText, spokenText: 'Welcome. Where are you imagining this trip?' }
+}
+
+/** Progressive consultant status lines for perceived responsiveness. */
+export function progressiveConsultantAck(locale: BilamoReplyLocale, phase: 0 | 1 | 2): string {
+  if (locale === 'ar') {
+    if (phase === 0) return 'تمام، فهمت.'
+    if (phase === 1) return 'أبحث لك الآن.'
+    return 'وجدت خيارات مناسبة.'
+  }
+  if (locale === 'fr') {
+    if (phase === 0) return 'Très bien, j\'ai compris.'
+    if (phase === 1) return 'Je cherche pour vous.'
+    return 'J\'ai trouvé de bonnes options.'
+  }
+  if (phase === 0) return 'Got it.'
+  if (phase === 1) return 'Looking for you now.'
+  return 'I found solid options.'
 }
 
 /** Stream consultant text in natural phrase chunks (tuned for perceived speed). */
@@ -156,4 +157,9 @@ export async function streamConsultantText(input: {
     await new Promise((r) => setTimeout(r, 12))
   }
   input.onDelta({ displayText: input.displayText, spokenText: input.spokenText })
+}
+
+/** @deprecated kept for callers that still format money in prose */
+export function formatConsultantMoney(amount: number, currency: string, locale: 'ar' | 'en'): string {
+  return money(amount, currency, locale)
 }

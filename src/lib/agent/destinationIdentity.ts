@@ -26,6 +26,8 @@ const PLACES: PlaceRow[] = [
   { keys: ['osaka', 'اوساكا', 'أوساكا'], city: 'Osaka', country: 'Japan', label: 'Osaka' },
   { keys: ['kyoto', 'كيوتو'], city: 'Kyoto', country: 'Japan', label: 'Kyoto' },
   { keys: ['sapporo', 'هوكايدو', 'hokkaido', 'سابورو'], city: 'Sapporo', country: 'Japan', label: 'Sapporo' },
+  // Yemen BEFORE Japan — avoid any accidental substring / ASR confusion path.
+  { keys: ['yemen', 'sanaa', 'sana\'a', 'اليمن', 'صنعاء'], city: null, country: 'Yemen', label: 'اليمن' },
   { keys: ['japan', 'اليابان'], city: null, country: 'Japan', label: 'Japan' },
   { keys: ['riyadh', 'الرياض'], city: 'Riyadh', country: 'Saudi Arabia', label: 'Riyadh' },
   { keys: ['jeddah', 'جدة'], city: 'Jeddah', country: 'Saudi Arabia', label: 'Jeddah' },

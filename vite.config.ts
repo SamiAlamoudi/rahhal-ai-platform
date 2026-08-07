@@ -47,7 +47,7 @@ function securityHeaders(development: boolean): Record<string, string> {
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     // microphone=(self) for STT; autoplay=(self) for HTMLAudioElement TTS after gesture.
-    'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), autoplay=(self)',
+    'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(self), autoplay=(self)',
     'Cross-Origin-Opener-Policy': 'same-origin',
     'X-DNS-Prefetch-Control': 'off',
   }

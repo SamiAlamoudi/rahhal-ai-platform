@@ -125,14 +125,22 @@ describe('Bilamo Recommendation Engine V1', () => {
         airline: 'Qatar Airways',
       }),
     ]
-    const set = recommendFlights(cohort, { preferredAirlines: ['Saudia'], directOnly: false })
-    expect(set).not.toBeNull()
-    expect(set!.best.kind).toBe('best')
-    expect(set!.cheapest.offer.offerId).toBe('cheap')
-    expect(set!.fastest.offer.offerId).toBe('fast')
-    expect(set!.best.reason.toLowerCase()).toMatch(/recommend|direct|score|balance/)
-    expect(set!.best.reason.toLowerCase()).not.toMatch(/\bmock\b/)
-    expect(set!.display[0].offer.offerId).toBe(set!.best.offer.offerId)
+    const setAr = recommendFlights(cohort, { preferredAirlines: ['Saudia'], directOnly: false })
+    expect(setAr).not.toBeNull()
+    expect(setAr!.best.kind).toBe('best')
+    expect(setAr!.cheapest.offer.offerId).toBe('cheap')
+    expect(setAr!.fastest.offer.offerId).toBe('fast')
+    // Default locale is Arabic for Bilamo cards.
+    expect(setAr!.best.reason).toMatch(/أنصح|مباشر|أفضل/)
+    expect(setAr!.best.reason.toLowerCase()).not.toMatch(/\bmock\b/)
+    expect(setAr!.display[0].offer.offerId).toBe(setAr!.best.offer.offerId)
+
+    const setEn = recommendFlights(
+      cohort,
+      { preferredAirlines: ['Saudia'], directOnly: false },
+      { locale: 'en' },
+    )
+    expect(setEn!.best.reason.toLowerCase()).toMatch(/recommend|direct|score|balance/)
 
     const scored = scoreFlightOffer(cohort[0]!, cohort, {}, BILAMO_FLIGHT_SCORE_WEIGHTS)
     expect(scored.score).toBeGreaterThan(0)

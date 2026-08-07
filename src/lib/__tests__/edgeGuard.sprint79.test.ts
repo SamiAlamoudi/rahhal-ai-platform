@@ -4,6 +4,7 @@ import {
   buildCorsHeaders,
   checkEdgeRateLimit,
   guardEdgeRequest,
+  isAllowedVercelPreviewOrigin,
   readServerOpenAiApiKey,
   resolveCorsAllowlist,
   verifySupabaseAccessToken,
@@ -44,6 +45,63 @@ describe('Sprint 79 P0 edgeGuard', () => {
     const { allowed, headers } = buildCorsHeaders(req, {})
     expect(allowed).toBe(true)
     expect(headers['Access-Control-Allow-Origin']).toBe('https://rahhal-ai-platform.vercel.app')
+  })
+
+  it('allows Vercel Preview git-alias Origin (P0 CORS)', () => {
+    const prod = 'https://rahhal-ai-platform.vercel.app'
+    const prodHost = new URL(prod).hostname
+    const prodBase = prodHost.replace(/\.vercel\.app$/, '')
+    const projectBase = prodBase.replace(/platform$/, 'project')
+    const preview = `https://${prodBase}-git-cursor-bilamo-s-3bb9d3-${projectBase}.vercel.app`
+    expect(isAllowedVercelPreviewOrigin(preview)).toBe(true)
+    expect(isAllowedVercelPreviewOrigin('https://evil.vercel.app')).toBe(false)
+    expect(isAllowedVercelPreviewOrigin(`http://${projectBase}.vercel.app`)).toBe(false)
+
+    const req = new Request(`${preview}/api/openai/realtime-call`, {
+      method: 'POST',
+      headers: { Origin: preview },
+    })
+    const { allowed, headers } = buildCorsHeaders(req, {})
+    expect(allowed).toBe(true)
+    expect(headers['Access-Control-Allow-Origin']).toBe(preview)
+  })
+
+  it('includes VERCEL_BRANCH_URL in allowlist', () => {
+    const prod = 'https://rahhal-ai-platform.vercel.app'
+    const prodHost = new URL(prod).hostname
+    const prodBase = prodHost.replace(/\.vercel\.app$/, '')
+    const projectBase = prodBase.replace(/platform$/, 'project')
+    const branchHost = `${prodBase}-git-cursor-bilamo-s-3bb9d3-${projectBase}.vercel.app`
+    const list = resolveCorsAllowlist({
+      VERCEL_BRANCH_URL: branchHost,
+    })
+    expect(list).toContain(`https://${branchHost}`)
+  })
+
+  it('returns CORS_ORIGIN_DENIED code for blocked Origin', async () => {
+    const gate = await guardEdgeRequest(
+      new Request('https://rahhal-ai-platform.vercel.app/api/openai/tts', {
+        method: 'POST',
+        headers: {
+          Origin: 'https://evil.example',
+          Authorization: 'Bearer real-jwt',
+        },
+      }),
+      {
+        bucket: 'test.cors',
+        limit: 10,
+        env: {
+          SUPABASE_URL: 'https://example.supabase.co',
+          SUPABASE_ANON_KEY: 'anon',
+        },
+      },
+    )
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) {
+      expect(gate.response.status).toBe(403)
+      const body = await gate.response.json() as { code?: string }
+      expect(body.code).toBe('CORS_ORIGIN_DENIED')
+    }
   })
 
   it('reads only server OPENAI_API_KEY (never VITE_*)', () => {

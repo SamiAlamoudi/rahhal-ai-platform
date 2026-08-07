@@ -307,7 +307,8 @@ function LegacyChatPage() {
       draft,
       modality: composerMode,
       voiceMode,
-      voiceLocale,
+      // Legacy chat recovery is ar|en only; French is owned by Bilamo conversation.
+      voiceLocale: voiceLocale === 'en' ? 'en' : 'ar',
       pinnedIds,
     })
   }, [activeId, draft, composerMode, voiceMode, voiceLocale, pinnedIds])

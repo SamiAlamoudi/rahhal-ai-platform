@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { createMockTextToSpeechProvider } from '../chat/voice/mockTextToSpeechProvider'
-import type { BilamoVoiceTransport } from '../bilamo/voice/bilamoVoiceTransport'
+import type {
+  BilamoVoiceConnectionState,
+  BilamoVoiceTransport,
+  BilamoVoiceTransportCallbacks,
+} from '../bilamo/voice/bilamoVoiceTransport'
 import { greetingForHour, resolveDisplayName } from '../../design-system/greeting'
 
 /**
  * Voice stabilization contracts for Bilamo classic TTS transport.
- * Realtime WebRTC will implement the same BilamoVoiceTransport surface.
+ * Realtime WebRTC implements the same BilamoVoiceTransport surface.
  */
 
 function makeTransport(): BilamoVoiceTransport & {
@@ -16,41 +20,78 @@ function makeTransport(): BilamoVoiceTransport & {
   let gen = 0
   let speaking = false
   let stopped = 0
+  let callbacks: BilamoVoiceTransportCallbacks = {}
+  let connection: BilamoVoiceConnectionState = 'idle'
   const spoken: string[] = []
 
-  return {
+  const transport: BilamoVoiceTransport & { spoken: string[]; stopped: number } = {
     kind: 'classic_tts',
     spoken,
     get stopped() {
       return stopped
     },
+    setCallbacks(next) {
+      callbacks = next || {}
+    },
+    async connect() {
+      connection = 'connected'
+      callbacks.onConnectionStateChange?.('connected')
+    },
+    disconnect() {
+      connection = 'disconnected'
+      speaking = false
+    },
+    async startListening() {
+      return false
+    },
+    stopListening() {},
     speak({ text, locale }) {
       const generation = ++gen
       speaking = true
-      // Interrupt prior: mock stop increments
       mock.stop()
       stopped += 1
+      callbacks.onSpeakingStart?.(generation)
       const done = (async () => {
         if (!text.trim()) {
           speaking = false
+          callbacks.onSpeakingEnd?.(generation)
           return
         }
         await mock.speak({ text, locale, interrupt: true })
         spoken.push(text)
-        if (gen === generation) speaking = false
+        if (gen === generation) {
+          speaking = false
+          callbacks.onSpeakingEnd?.(generation)
+        }
       })()
       return { generation, done }
     },
-    stop() {
+    interrupt() {
       gen += 1
       speaking = false
       mock.stop()
       stopped += 1
     },
+    stop() {
+      transport.interrupt()
+    },
     isSpeaking() {
       return speaking
     },
+    isListening() {
+      return false
+    },
+    isConnected() {
+      return connection === 'connected'
+    },
+    getConnectionState() {
+      return connection
+    },
+    dispose() {
+      transport.disconnect()
+    },
   }
+  return transport
 }
 
 describe('Bilamo voice stabilization', () => {
@@ -77,8 +118,7 @@ describe('Bilamo voice stabilization', () => {
     const t = makeTransport()
     const handle = t.speak({ text: 'Done', locale: 'en' })
     await handle.done
-    // No listen() API on transport — contract is speak/stop only.
-    expect('listen' in t).toBe(false)
+    expect(t.isListening()).toBe(false)
     expect(t.kind).toBe('classic_tts')
   })
 })

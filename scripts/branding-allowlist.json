@@ -237,6 +237,12 @@
       "reason": "Persisted key, wire contract, format id, or deploy allow-list"
     },
     {
+      "path": "src/lib/__tests__/bilamo.voiceIncidentP0.test.ts",
+      "token": "https://rahhal-ai-platform.vercel.app",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
       "path": "src/lib/__tests__/edgeGuard.sprint79.test.ts",
       "token": "https://rahhal-ai-platform.vercel.app",
       "classification": "Compatibility",

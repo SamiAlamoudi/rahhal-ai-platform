@@ -16,7 +16,7 @@ export type SpeechRecognitionErrorKind =
   | 'user-cancelled'
   | null
 
-export type SpeechLang = 'ar-SA' | 'en-US'
+export type SpeechLang = 'ar-SA' | 'en-US' | 'fr-FR'
 
 type SpeechRecognitionLike = {
   lang: string
@@ -109,7 +109,7 @@ export function isSpeechRecognitionSupported(): boolean {
   return getSpeechRecognitionCtor() !== null
 }
 
-/** Detect ar-SA vs en-US from browser / document language. */
+/** Detect ar-SA / fr-FR / en-US from browser / document language. */
 export function detectSpeechLang(navigatorLang?: string): SpeechLang {
   const raw =
     navigatorLang ??
@@ -119,6 +119,9 @@ export function detectSpeechLang(navigatorLang?: string): SpeechLang {
   const lower = raw.toLowerCase()
   if (lower.startsWith('ar') || lower.includes('ar-sa')) {
     return 'ar-SA'
+  }
+  if (lower.startsWith('fr')) {
+    return 'fr-FR'
   }
   return 'en-US'
 }
