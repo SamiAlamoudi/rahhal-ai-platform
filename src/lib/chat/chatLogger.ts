@@ -1,6 +1,6 @@
 type LogLevel = 'debug' | 'warn' | 'error'
 
-const PREFIX = '[rahhal-chat]'
+const PREFIX = '[conversation]'
 
 export function logChat(
   level: LogLevel,

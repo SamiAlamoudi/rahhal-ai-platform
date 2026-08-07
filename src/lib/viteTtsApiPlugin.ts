@@ -39,7 +39,7 @@ async function synthesizeChunk(text: string, locale: string): Promise<Buffer> {
 
 export function ttsApiPlugin(): Plugin {
   return {
-    name: 'rahhal-tts-api',
+    name: 'platform-tts-api',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/api/tts')) {

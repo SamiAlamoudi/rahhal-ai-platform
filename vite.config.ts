@@ -62,7 +62,7 @@ function applyHeaders(res: { setHeader: (k: string, v: string) => void }, header
 /** Attach security headers for vite preview / middleware mode (Phase X). */
 function securityHeadersPlugin(): Plugin {
   return {
-    name: 'rahhal-security-headers',
+    name: 'platform-security-headers',
     configurePreviewServer(server) {
       const headers = securityHeaders(false)
       server.middlewares.use((_req, res, next) => {

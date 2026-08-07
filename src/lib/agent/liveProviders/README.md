@@ -1,6 +1,6 @@
 # Sprint 56 — Live Travel Provider Layer
 
-Provider-agnostic live integrations for Rahhal. Structured offers only —
+Provider-agnostic live integrations for Bilamo. Structured offers only —
 Conversation Brain authors traveler-facing text; Booking Intelligence ranks;
 Autonomous Agent orchestrates.
 

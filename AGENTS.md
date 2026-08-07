@@ -4,10 +4,12 @@
 
 Bilamo (بيلامو) is a single-page React 19 + Vite 8 + TypeScript app (Arabic RTL) for AI-style travel planning. Backend is Supabase (Auth + Postgres + RLS). The conversation/scoring/search engine is rule-based and runs client-side against **mock** provider adapters by default (no external API keys needed).
 
-Standard scripts live in `package.json` (`dev`, `build`, `lint`, `test:run`, `typecheck`, `providers:check`). CI steps are in `.github/workflows/ci.yml`. The update script already runs `npm ci`.
+Standard scripts live in `package.json` (`dev`, `build`, `lint`, `test:run`, `typecheck`, `providers:check`, `branding:check`). CI steps are in `.github/workflows/ci.yml`. The update script already runs `npm ci`.
+
+Brand vs domain naming: see `docs/DOMAIN_NAMING_POLICY.md`. Legacy Rahhal technical tokens are allowlisted via `npm run branding:check` (do not expand without review).
 
 ### Running tests / lint / typecheck / build
-- `npm run lint`, `npm run typecheck`, `npm run test:run`, and `npm run build` all work with **no** `.env.local` present (this is exactly how CI runs). Do this for quick verification.
+- `npm run lint`, `npm run typecheck`, `npm run test:run`, `npm run branding:check`, and `npm run build` all work with **no** `.env.local` present (this is exactly how CI runs). Do this for quick verification.
 - Do **not** run tests with a broad `.env.local` copied from `.env.example`. Several provider tests assert the default (mock) adapter selection and **fail** if provider-related `VITE_*` vars are set. If you need `.env.local` for the dev server, keep it to only `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
 
 ### Running the app in dev (`npm run dev`) — required caveats

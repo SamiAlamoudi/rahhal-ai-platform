@@ -12,7 +12,7 @@ export type OrchestratorLogSink = (entry: Record<string, unknown>) => void
 
 const defaultSink: OrchestratorLogSink = (entry) => {
   if (typeof console !== 'undefined' && typeof console.info === 'function') {
-    console.info('[rahhal-ai-orchestrator]', entry)
+    console.info('[agent-runtime]', entry)
   }
 }
 

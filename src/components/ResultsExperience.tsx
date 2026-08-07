@@ -264,13 +264,13 @@ function NonFlightCard({ option, badges }: NonFlightCardProps) {
   )
 }
 
-interface RahhalPanelProps {
+interface RecommendationPanelProps {
   bestOption: NormalizedTravelOption
   report: OptionReport
   allOptions: NormalizedTravelOption[]
 }
 
-function RahhalRecommendationPanel({ bestOption, report, allOptions }: RahhalPanelProps) {
+function RecommendationPanel({ bestOption, report, allOptions }: RecommendationPanelProps) {
   const confidence = bestOption.decisionScore?.confidence ?? 0
   const confidenceStars = scoreToStars(confidence)
   const { visual, label } = formatStars(confidenceStars)
@@ -566,7 +566,7 @@ export default function ResultsExperience({ rankedOptions, reasoningResults }: P
       </div>
 
       {/* Bilamo Recommendation Panel */}
-      <RahhalRecommendationPanel bestOption={bestOption} report={bestReport} allOptions={rankedOptions} />
+      <RecommendationPanel bestOption={bestOption} report={bestReport} allOptions={rankedOptions} />
 
       {/* Sort bar */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">

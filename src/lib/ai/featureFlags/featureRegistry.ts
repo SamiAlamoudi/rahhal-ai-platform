@@ -119,7 +119,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     id: 'ai.executive_os',
     name: 'Executive Operating System (Sprint 52)',
     description:
-      'Sprint 52 — Rahhal Executive OS: global knowledge, decision/multi-objective optimizers, travel graph, prediction, negotiation, goal planning, strategy, explanation v2, and self-review via RahhalBrain.',
+      'Sprint 52 — Executive OS: global knowledge, decision/multi-objective optimizers, travel graph, prediction, negotiation, goal planning, strategy, explanation v2, and self-review via the reasoning/brain orchestrator.',
     lifecycle: 'beta',
     enabled: true,
     dependsOn: ['ai.executive_platform'],
@@ -385,7 +385,7 @@ const DEFAULT_FEATURES: FeatureDefinition[] = [
     id: 'ai.live_flight_search',
     name: 'Live Flight Search (Amadeus)',
     description:
-      'Sprint 105 — first real Amadeus Flight Offers Search via Provider Gateway. Validates criteria, maps GatewayResponse into Rahhal flight offers for Decision Engine. Default OFF — legacy/mock search paths unchanged.',
+      'Sprint 105 — first real Amadeus Flight Offers Search via Provider Gateway. Validates criteria, maps GatewayResponse into platform flight offers for Decision Engine. Default OFF — legacy/mock search paths unchanged.',
     lifecycle: 'experimental',
     enabled: false,
     dependsOn: ['providers.amadeus.enabled'],

@@ -2,7 +2,7 @@
  * Booking ↔ payment bridge (library-level only — no UI changes).
  *
  * Maps BookingSession items into CheckoutInitInput so BookingReview / saved
- * booking cart payloads can enter Rahhal hosted checkout without altering
+ * booking cart payloads can enter hosted checkout without altering
  * TripPlan APIs or the BookingReview UI in this phase.
  */
 

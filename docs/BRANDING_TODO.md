@@ -1,20 +1,21 @@
-# Branding — Bilamo (complete for user-facing surfaces)
+# Branding status — Bilamo
 
-Product brand is **Bilamo / بيلامو**. User-facing UI, voice prompts, payment copy, and Playwright expectations use Bilamo.
+Product brand is **Bilamo / بيلامو**. Active UI, voice, payment copy, and Playwright expectations use Bilamo.
 
-## Technical identifiers intentionally kept as `rahhal` / `Rahhal*`
+## Program documents
 
-Do **not** rename these without a dedicated migration (would break storage, feature flags, CORS, and APIs):
+| Doc | Purpose |
+|-----|---------|
+| [`DOMAIN_NAMING_POLICY.md`](./DOMAIN_NAMING_POLICY.md) | Brand vs domain-driven naming boundaries |
+| [`BRAND_SEPARATION_MIGRATION_ROADMAP.md`](./BRAND_SEPARATION_MIGRATION_ROADMAP.md) | Staged P0–P8 compatibility migration plan |
+| `scripts/branding-inventory.mjs` | CI guardrail + inventory classifier |
+| `scripts/branding-allowlist.json` | Reviewed allowlist for legacy technical tokens |
+
+## Do not rename without a migration PR
 
 - Feature flag ids such as `ai.rahhal_brain` and related TypeScript APIs (`RahhalBrain`, `RahhalOrder`, …)
-- localStorage / session keys prefixed `rahhal.`
+- localStorage / session keys prefixed `rahhal.` / `rahhal_`
 - CSS compatibility aliases `--rahhal-*`
 - Webhook / response headers (`x-rahhal-webhook-secret`, `X-Rahhal-*`)
 - Deployed origin allow-list entries (`rahhal-ai-platform.vercel.app`)
-- Vite plugin internal names, migration filenames, and historical sprint docs
-
-## Remaining product polish (optional)
-
-1. Domain / social handles if still on legacy names
-2. Package-lock historical `rahhal-app` name sync (package.json is `bilamo-app`)
-3. Curious / external boards metadata
+- Applied SQL migration filenames and historical sprint docs

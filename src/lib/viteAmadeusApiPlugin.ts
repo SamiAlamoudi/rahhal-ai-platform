@@ -74,7 +74,7 @@ async function requireUserJwt(req: IncomingMessage): Promise<{ ok: true; userId:
 
 export function amadeusApiPlugin(): Plugin {
   return {
-    name: 'rahhal-amadeus-api',
+    name: 'platform-amadeus-api',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url?.split('?')[0] ?? ''
