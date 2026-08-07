@@ -126,6 +126,23 @@ afterEach(() => {
 })
 
 describe('Bilamo voice hardening — metrics', () => {
+  it('publishes transportKind after prepare for staging console checks', async () => {
+    const mock = makeMockTransport('realtime_webrtc')
+    const session = createBilamoVoiceSession({
+      createTransport: async () => ({
+        transport: mock,
+        mode: 'realtime',
+        selected: 'realtime_webrtc',
+        fellBack: false,
+        reason: null,
+      }),
+    })
+    await session.prepare()
+    const published = readPublishedBilamoVoiceMetrics()
+    expect(published?.transportKind).toBe('realtime_webrtc')
+    session.dispose()
+  })
+
   it('records interruption latency as interrupt→ack (not speak duration)', () => {
     const m = createBilamoVoiceMetrics()
     m.mark('speak_start')

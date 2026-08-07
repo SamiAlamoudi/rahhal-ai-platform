@@ -301,6 +301,8 @@ export function createBilamoVoiceSession(
       if (result.fellBack && result.reason === 'realtime_unavailable') {
         // Quiet fallback — only surface if user asked for realtime explicitly later.
       }
+      // Staging: publish early so transportKind is readable before first utterance.
+      publishBilamoVoiceMetrics(metrics.report())
       emit()
     },
     async connect() {
@@ -313,6 +315,7 @@ export function createBilamoVoiceSession(
         metrics.mark('connect_ok')
         error = null
         setState('idle')
+        publishBilamoVoiceMetrics(metrics.report())
       } catch {
         metrics.mark('connect_fail')
         // Auto-fallback to classic if realtime connect fails.
@@ -323,6 +326,7 @@ export function createBilamoVoiceSession(
             metrics.mark('connect_ok')
             error = null
             setState('idle')
+            publishBilamoVoiceMetrics(metrics.report())
             return
           } catch {
             /* fall through */
@@ -330,6 +334,7 @@ export function createBilamoVoiceSession(
         }
         error = USER_SAFE_ERRORS.connect
         setState('error')
+        publishBilamoVoiceMetrics(metrics.report())
       }
     },
     disconnect() {
