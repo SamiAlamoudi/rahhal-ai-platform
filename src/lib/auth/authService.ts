@@ -43,7 +43,7 @@ export const authService = {
   async signUp(email: string, password: string): Promise<SignUpResult> {
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) {
-      return { success: false, error: error.message, needsVerification: false }
+      return { success: false, error: mapAuthErrorMessage(error), needsVerification: false }
     }
     if (data.user && !data.session) {
       return { success: true, error: null, needsVerification: true }
@@ -60,7 +60,7 @@ export const authService = {
   async signIn(email: string, password: string): Promise<SignInResult> {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      return { success: false, error: error.message }
+      return { success: false, error: mapAuthErrorMessage(error) }
     }
     clearDemoSession()
     try {
@@ -93,7 +93,7 @@ export const authService = {
   async resetPassword(email: string): Promise<ForgotPasswordResult> {
     const { error } = await supabase.auth.resetPasswordForEmail(email)
     if (error) {
-      return { success: false, error: error.message }
+      return { success: false, error: mapAuthErrorMessage(error) }
     }
     return { success: true, error: null }
   },
@@ -101,7 +101,7 @@ export const authService = {
   async resendVerification(email: string): Promise<{ success: boolean; error: string | null }> {
     const { error } = await supabase.auth.resend({ type: 'signup', email })
     if (error) {
-      return { success: false, error: error.message }
+      return { success: false, error: mapAuthErrorMessage(error) }
     }
     return { success: true, error: null }
   },

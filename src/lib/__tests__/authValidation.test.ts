@@ -5,6 +5,7 @@ import {
   validateSignUpForm,
   validateSignInForm,
   mapAuthErrorMessage,
+  isAuthNetworkError,
 } from '../auth/authValidation'
 
 describe('Auth Validation: validateEmail', () => {
@@ -71,10 +72,30 @@ describe('Auth: mapAuthErrorMessage', () => {
   it('maps rate limit', () => {
     expect(mapAuthErrorMessage({ message: 'rate limit exceeded' })).toContain('لاحقاً')
   })
+  it('maps browser Failed to fetch to a reachable auth message', () => {
+    expect(mapAuthErrorMessage('Failed to fetch')).toContain('تعذر الاتصال')
+    expect(mapAuthErrorMessage({ message: 'Failed to fetch', name: 'TypeError' })).toContain('تعذر الاتصال')
+    expect(mapAuthErrorMessage({ message: 'fetch failed', name: 'AuthRetryableFetchError', status: 0 }))
+      .toContain('تعذر الاتصال')
+  })
+  it('maps missing supabase env errors', () => {
+    expect(mapAuthErrorMessage('Missing required auth env: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set'))
+      .toContain('VITE_SUPABASE_URL')
+  })
   it('passes through unknown errors', () => {
     expect(mapAuthErrorMessage({ message: 'something weird' })).toBe('something weird')
   })
   it('handles non-object errors', () => {
     expect(mapAuthErrorMessage(null)).toContain('غير متوقع')
+  })
+})
+
+describe('Auth: isAuthNetworkError', () => {
+  it('detects Failed to fetch', () => {
+    expect(isAuthNetworkError('Failed to fetch')).toBe(true)
+    expect(isAuthNetworkError({ message: 'Failed to fetch', name: 'TypeError' })).toBe(true)
+  })
+  it('does not treat credential errors as network failures', () => {
+    expect(isAuthNetworkError({ message: 'Invalid login credentials' })).toBe(false)
   })
 })
