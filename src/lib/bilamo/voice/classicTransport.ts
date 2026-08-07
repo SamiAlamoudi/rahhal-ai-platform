@@ -268,8 +268,7 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
     speak(request: BilamoSpeakRequest): BilamoSpeakHandle {
       const trimmed = request.text.trim()
       const generation = ++speakGen
-      speaking = Boolean(trimmed)
-      if (speaking) callbacks.onSpeakingStart?.(generation)
+      // Speaking state flips only when playback actually starts (onAudioChunk / play).
 
       const done = (async () => {
         if (!trimmed || disposed) {
@@ -281,6 +280,10 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
         }
         const engine = ensureTts()
         if (!engine?.isSupported()) {
+          callbacks.onError?.('تعذر تشغيل الصوت. سأكمل معك بالنص الآن.', {
+            code: 'playback_unsupported',
+            recoverable: true,
+          })
           if (speakGen === generation) {
             speaking = false
             callbacks.onSpeakingEnd?.(generation)
@@ -304,6 +307,8 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
             speed: locale === 'ar' ? 0.98 : 1,
           })
           if (speakGen !== generation) return
+          speaking = true
+          callbacks.onSpeakingStart?.(generation)
           callbacks.onAudioChunk?.({ generation })
           await engine.speak({
             text: trimmed,
@@ -312,13 +317,24 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
             dialect: locale === 'ar' ? 'saudi' : undefined,
             format: 'wav',
             speed: locale === 'ar' ? 0.98 : 1,
+            onAudioPlaybackStart: () => {
+              if (speakGen === generation) {
+                callbacks.onAudioChunk?.({ generation })
+              }
+            },
             instructions:
               locale === 'ar'
                 ? 'Speak warm Saudi-Gulf Arabic, natural consultant pacing, no theatrical accent.'
                 : undefined,
           })
-        } catch {
-          /* soft-fail */
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          callbacks.onError?.(
+            /تشغيل|autoplay|NotAllowed|play/i.test(message)
+              ? 'تعذر تشغيل الصوت. سأكمل معك بالنص الآن.'
+              : 'تعذر توليد الصوت. سأكمل معك بالنص الآن.',
+            { code: 'playback_blocked', recoverable: true },
+          )
         } finally {
           if (speakGen === generation) {
             speaking = false

@@ -28,6 +28,8 @@ const USER_SAFE_ERRORS = {
   reconnect: 'Connection lost. You can retry or type instead.',
   device: 'Microphone disconnected. Tap to try again, or type instead.',
   unsupported: 'Voice is unavailable in this browser. You can type instead.',
+  playback: 'تعذر تشغيل الصوت. سأكمل معك بالنص الآن.',
+  fallback: 'سأكمل معك بصوت مبسّط.',
 } as const
 
 /** Canonical session state machine (maps onto Orb visuals). */
@@ -141,6 +143,8 @@ export function createBilamoVoiceSession(
   let lastFinalKey = ''
   /** Transport speak generation currently allowed to drive speaking state. */
   let activeSpeakTransportGen = -1
+  /** True while transport.speak() may fire synchronous onSpeakingStart. */
+  let armingSpeak = false
   let onFinalUtterance: ((event: BilamoTranscriptEvent) => void) | null =
     options.onFinalUtterance ?? null
   let guardsAttached = false
@@ -220,7 +224,13 @@ export function createBilamoVoiceSession(
         onFinalUtterance?.(event)
       },
       onSpeakingStart: (gen) => {
-        if (disposed || gen !== activeSpeakTransportGen) return
+        if (disposed) return
+        // Accept sync start that fires inside transport.speak() before we arm the gen.
+        if (armingSpeak) {
+          activeSpeakTransportGen = gen
+        } else if (gen !== activeSpeakTransportGen) {
+          return
+        }
         metrics.mark('speak_start')
         metrics.mark('first_audio')
         setState('speaking')
@@ -230,10 +240,14 @@ export function createBilamoVoiceSession(
         activeSpeakTransportGen = -1
         metrics.mark('speak_end')
         // No auto-relisten after natural speak end — idle until user taps.
-        if (state === 'speaking' || state === 'interrupted') setState('idle')
+        if (state === 'speaking' || state === 'interrupted' || state === 'processing') {
+          setState('idle')
+        }
       },
       onAudioChunk: (info) => {
-        if (info.generation === activeSpeakTransportGen) metrics.mark('first_audio')
+        if (info.generation === activeSpeakTransportGen || armingSpeak) {
+          metrics.mark('first_audio')
+        }
       },
       onConnectionStateChange: (next) => {
         connection = next
@@ -257,6 +271,11 @@ export function createBilamoVoiceSession(
           error = USER_SAFE_ERRORS.unsupported
         } else if (code === 'device_lost' || code === 'audio_device_lost') {
           error = USER_SAFE_ERRORS.device
+        } else if (code === 'playback_blocked' || code === 'playback_unsupported' || /تشغيل الصوت/i.test(message)) {
+          error = USER_SAFE_ERRORS.playback
+          // Playback blocked — stay conversational via text; do not hard-error the orb.
+          emit()
+          return
         } else if (code.startsWith('reconnect') || code === 'connect_failed') {
           error = USER_SAFE_ERRORS.reconnect
         } else {
@@ -298,9 +317,8 @@ export function createBilamoVoiceSession(
       fellBackToClassic = result.fellBack
       wireTransport(result.transport)
       prepared = true
-      if (result.fellBack && result.reason === 'realtime_unavailable') {
-        // Quiet fallback — only surface if user asked for realtime explicitly later.
-      }
+      // Quiet prepare fallback — surface a neutral note only after an explicit
+      // realtime connect failure (see connect → switchToClassic).
       // Staging: publish early so transportKind is readable before first utterance.
       publishBilamoVoiceMetrics(metrics.report())
       emit()
@@ -324,7 +342,7 @@ export function createBilamoVoiceSession(
           try {
             await transport!.connect()
             metrics.mark('connect_ok')
-            error = null
+            error = USER_SAFE_ERRORS.fallback
             setState('idle')
             publishBilamoVoiceMetrics(metrics.report())
             return
@@ -400,31 +418,61 @@ export function createBilamoVoiceSession(
       const sessionGen = generation
       if (text.trim()) {
         metrics.mark('response_start')
-        setState('speaking')
+        // Stay in processing until onSpeakingStart proves audible playback began.
+        if (state !== 'listening' && state !== 'interrupted') setState('processing')
       }
 
-      const done = (async () => {
-        if (!prepared) await session.prepare()
-        if (disposed || generation !== sessionGen || !transport) return
-        const handle = transport.speak({
-          text,
-          locale: speakLocale ?? locale,
-        })
-        if (generation !== sessionGen) {
-          transport.interrupt()
-          return
-        }
-        activeSpeakTransportGen = handle.generation
+      const finishSpeak = async (handle: BilamoSpeakHandle) => {
         await handle.done
         if (
           generation === sessionGen
           && activeSpeakTransportGen === handle.generation
-          && (state === 'speaking' || state === 'interrupted')
+          && (state === 'speaking' || state === 'interrupted' || state === 'processing')
         ) {
           activeSpeakTransportGen = -1
           setState('idle')
         }
         publishBilamoVoiceMetrics(metrics.report())
+      }
+
+      const armAndSpeak = (): BilamoSpeakHandle | null => {
+        if (disposed || generation !== sessionGen || !transport) return null
+        armingSpeak = true
+        let handle: BilamoSpeakHandle
+        try {
+          handle = transport.speak({
+            text,
+            locale: speakLocale ?? locale,
+          })
+        } finally {
+          armingSpeak = false
+        }
+        if (generation !== sessionGen) {
+          transport.interrupt()
+          return null
+        }
+        activeSpeakTransportGen = handle.generation
+        if (transport.isSpeaking() && state === 'processing') {
+          setState('speaking')
+        }
+        return handle
+      }
+
+      // Sync path when already prepared — lets onSpeakingStart arm immediately.
+      if (prepared && transport) {
+        const handle = armAndSpeak()
+        if (!handle) {
+          return { generation: sessionGen, done: Promise.resolve() }
+        }
+        return { generation: sessionGen, done: finishSpeak(handle) }
+      }
+
+      const done = (async () => {
+        if (!prepared) await session.prepare()
+        if (disposed || generation !== sessionGen || !transport) return
+        const handle = armAndSpeak()
+        if (!handle) return
+        await finishSpeak(handle)
       })()
 
       return { generation: sessionGen, done }

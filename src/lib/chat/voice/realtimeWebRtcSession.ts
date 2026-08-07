@@ -424,16 +424,75 @@ export function createRealtimeWebRtcSession(
     })
   }
 
+  /**
+   * Stop audible remote playback without latching the MediaStreamTrack muted.
+   * Historically muteRemote(true) set remoteTrack.enabled=false and, when
+   * rearmMic was false (send barge-in / interrupt), never re-enabled it — so the
+   * next speakWrittenDraft produced silent "speaking" with no audible audio.
+   */
+  const stopRemotePlayback = () => {
+    try {
+      if (remoteAudio) {
+        remoteAudio.pause()
+        try {
+          remoteAudio.currentTime = 0
+        } catch {
+          /* ignore */
+        }
+      }
+      // Keep the track live so the next assistant response can play.
+      if (remoteTrack) remoteTrack.enabled = true
+    } catch {
+      // ignore
+    }
+  }
+
+  const ensureRemoteAudible = async (): Promise<boolean> => {
+    if (!remoteAudio) return false
+    try {
+      if (remoteTrack) remoteTrack.enabled = true
+      remoteAudio.muted = false
+      remoteAudio.volume = 1
+      // Best-effort unlock (no-op if already unlocked outside a gesture).
+      try {
+        const { unlockAudioPlayback } = await import('./audioElementTextToSpeechProvider')
+        await unlockAudioPlayback()
+      } catch {
+        /* ignore */
+      }
+      await remoteAudio.play()
+      return true
+    } catch {
+      quality.markAudioRestart()
+      emitQuality()
+      callbacks.onError?.(
+        'تعذر تشغيل الصوت. سأكمل معك بالنص الآن.',
+      )
+      return false
+    }
+  }
+
   const muteRemote = (muted: boolean) => {
     try {
-      if (remoteTrack) remoteTrack.enabled = !muted
       if (remoteAudio) {
         if (muted) {
           remoteAudio.pause()
-          remoteAudio.currentTime = 0
+          try {
+            remoteAudio.currentTime = 0
+          } catch {
+            /* ignore */
+          }
         } else {
+          if (remoteTrack) remoteTrack.enabled = true
           void remoteAudio.play().catch(() => undefined)
         }
+      }
+      // Only disable the track on hard teardown paths that call muteRemote(true)
+      // immediately before tearDownPeer. Interrupt/barge-in must use stopRemotePlayback.
+      if (muted && (hardStopped || disposed)) {
+        if (remoteTrack) remoteTrack.enabled = false
+      } else if (!muted && remoteTrack) {
+        remoteTrack.enabled = true
       }
     } catch {
       // ignore
@@ -792,17 +851,20 @@ export function createRealtimeWebRtcSession(
         activeResponse.cancelled = true
         telemetry('response_cancelled', { responseId: activeResponse.id, source: fromBargeIn ? 'barge_in' : 'manual' })
       }
-      muteRemote(true)
+      // Stop current audio but keep the remote track enabled for the next reply.
+      stopRemotePlayback()
       if (rearmMic) {
         queueMicrotask(() => {
           if (hardStopped || disposed || gen !== sessionGeneration) return
-          muteRemote(false)
+          void ensureRemoteAudible()
           ensureLocalMicLive()
         })
       }
     } else {
       // Skip network cancel entirely — harmless local no-op.
       telemetry('response_cancel_skipped_no_active', { fromBargeIn })
+      // Still clear any residual latch so a later speak can be heard.
+      stopRemotePlayback()
       if (rearmMic) ensureLocalMicLive()
     }
 
@@ -830,6 +892,13 @@ export function createRealtimeWebRtcSession(
     else activeLanguage = 'en'
     const context = inferSpokenContext(spoken)
     assistantBuffer = ''
+    // Ensure prior interrupt did not leave the remote track muted.
+    if (remoteTrack) remoteTrack.enabled = true
+    if (remoteAudio) {
+      remoteAudio.muted = false
+      remoteAudio.volume = 1
+      void ensureRemoteAudible()
+    }
     setStatus('thinking')
     sendEvent({
       type: 'conversation.item.create',
@@ -1341,18 +1410,30 @@ export function createRealtimeWebRtcSession(
       remoteAudio = document.createElement('audio')
       remoteAudio.autoplay = true
       remoteAudio.setAttribute('playsinline', 'true')
-      remoteAudio.style.display = 'none'
+      remoteAudio.setAttribute('webkit-playsinline', 'true')
+      remoteAudio.muted = false
+      remoteAudio.volume = 1
+      remoteAudio.style.cssText =
+        'position:fixed;width:0;height:0;opacity:0;pointer-events:none;left:-9999px;'
       document.body.appendChild(remoteAudio)
+
+      // Unlock AudioContext during connect (must be called from a user gesture).
+      try {
+        const { unlockAudioPlayback } = await import('./audioElementTextToSpeechProvider')
+        await unlockAudioPlayback()
+      } catch {
+        /* best-effort */
+      }
 
       pc.ontrack = (e) => {
         if (!remoteAudio) return
         const stream = e.streams[0] ?? null
         remoteAudio.srcObject = stream
         remoteTrack = stream?.getAudioTracks()?.[0] ?? e.track ?? null
-        void remoteAudio.play().catch(() => {
-          quality.markAudioRestart()
-          emitQuality()
-        })
+        if (remoteTrack) remoteTrack.enabled = true
+        remoteAudio.muted = false
+        remoteAudio.volume = 1
+        void ensureRemoteAudible()
         setStatus('listening')
       }
 

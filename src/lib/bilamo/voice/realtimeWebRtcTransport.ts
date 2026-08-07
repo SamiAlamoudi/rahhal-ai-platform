@@ -53,9 +53,13 @@ export function createRealtimeWebRtcBilamoTransport(
           listening = true
           callbacks.onListeningChange?.(true)
         } else if (status === 'speaking') {
-          speaking = true
-          callbacks.onSpeakingStart?.(speakGen)
-          callbacks.onAudioChunk?.({ generation: speakGen })
+          // Only mark audible speaking once the session reports speaking
+          // (set after remote audio / response audio events — not on speak() call).
+          if (!speaking) {
+            speaking = true
+            callbacks.onSpeakingStart?.(speakGen)
+            callbacks.onAudioChunk?.({ generation: speakGen })
+          }
         } else if (status === 'idle' || status === 'error') {
           if (listening) {
             listening = false
@@ -195,8 +199,7 @@ export function createRealtimeWebRtcBilamoTransport(
     speak(request: BilamoSpeakRequest): BilamoSpeakHandle {
       const trimmed = request.text.trim()
       const generation = ++speakGen
-      speaking = Boolean(trimmed)
-      if (speaking) callbacks.onSpeakingStart?.(generation)
+      // Do NOT claim speaking until remote audio actually starts (onStatus speaking).
 
       let resolveDone!: () => void
       const done = new Promise<void>((resolve) => {
