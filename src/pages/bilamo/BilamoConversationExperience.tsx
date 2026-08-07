@@ -17,6 +17,8 @@ import {
 import { greetingForHour, resolveDisplayName } from '../../design-system/greeting'
 import { useBilamoVoiceSession } from '../../hooks/useBilamoVoiceSession'
 import { useAuth } from '../../lib/auth'
+import { progressiveConsultantAck } from '../../lib/bilamo/intelligence/consultantComposer'
+import { unlockAudioPlayback } from '../../lib/chat/voice/audioElementTextToSpeechProvider'
 import { chatEngine } from '../../lib/chat/chatEngine'
 import type { ChatMessage } from '../../lib/chat/chatTypes'
 import { validateUserMessage } from '../../lib/chat/chatHelpers'
@@ -68,14 +70,59 @@ type BilamoResultsView = {
   flightsStatus: BilamoFlightsStatus | null
 }
 
-function moneyLabel(amount: unknown, currency: unknown): string {
+function moneyLabel(amount: unknown, currency: unknown, locale: 'ar' | 'en' = 'en'): string {
   const cur = typeof currency === 'string' && currency.trim() ? currency : 'SAR'
   const n = typeof amount === 'number' && Number.isFinite(amount) ? amount : null
   if (n == null) return cur
-  return `${cur} ${n.toLocaleString('en-US')}`
+  const formatted = n.toLocaleString(locale === 'ar' ? 'ar-SA' : 'en-US')
+  if (locale === 'ar' && (cur === 'SAR' || cur === 'ر.س')) return `${formatted} ر.س`
+  return `${cur} ${formatted}`
 }
 
-function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefined): BilamoResultsView | null {
+function classifyFlightKind(
+  flight: BilamoFlightCard,
+  index: number,
+  locale: 'ar' | 'en',
+): { kindLabel: string; variant: 'hero' | 'alternative' } {
+  const raw = (flight.kindLabel || '').toLowerCase()
+  if (index === 0) {
+    return {
+      kindLabel: flight.kindLabel
+        || (locale === 'ar' ? 'أفضل خيار' : 'Best overall'),
+      variant: 'hero',
+    }
+  }
+  if (/cheap|lowest|سعر|أرخص/.test(raw) || index === 1) {
+    return {
+      kindLabel: flight.kindLabel || (locale === 'ar' ? 'الأرخص' : 'Cheapest'),
+      variant: 'alternative',
+    }
+  }
+  return {
+    kindLabel: flight.kindLabel || (locale === 'ar' ? 'الأسرع' : 'Fastest'),
+    variant: 'alternative',
+  }
+}
+
+/** Prefer a short consultant line when visual cards carry the details. */
+function displayAssistantContent(
+  content: string,
+  hasResults: boolean,
+  locale: 'ar' | 'en',
+): string {
+  const trimmed = content.trim()
+  if (!trimmed) return trimmed
+  if (!hasResults) return trimmed
+  // Avoid duplicating card facts as a text wall.
+  const firstLine = trimmed.split(/\n+/)[0]?.trim() || trimmed
+  if (firstLine.length <= 160) return firstLine
+  return locale === 'ar' ? 'هذا ما أختاره لك.' : 'Here is what I would choose for you.'
+}
+
+function resultsFromAssistantMeta(
+  meta: Record<string, unknown> | null | undefined,
+  locale: 'ar' | 'en' = 'en',
+): BilamoResultsView | null {
   if (!meta || typeof meta !== 'object') return null
   const bilamo = meta.bilamo as {
     search?: {
@@ -97,6 +144,7 @@ function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefin
   const hasFlightIssue = Boolean(errorStr || flightsMeta?.stale)
   if (!search?.flights?.length && !search?.hotels?.length && !hasFlightIssue) return null
 
+  // Hero + at most 2 alternatives (cheapest / fastest).
   const flights: BilamoFlightCard[] = (search?.flights || []).slice(0, 3).map((f, i) => ({
     id: String(f.id ?? `f-${i}`),
     airline: String(f.airline ?? 'Flight'),
@@ -106,7 +154,7 @@ function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefin
     arriveTime: String(f.arriveTime ?? '—'),
     duration: String(f.duration ?? '—'),
     stopsLabel: String(f.stopsLabel ?? 'Nonstop'),
-    priceLabel: moneyLabel(f.price, f.currency),
+    priceLabel: moneyLabel(f.price, f.currency, locale),
     reason: typeof f.reason === 'string' ? f.reason : undefined,
     kindLabel: typeof f.kindLabel === 'string' ? f.kindLabel : null,
     score: typeof f.score === 'number' ? f.score : null,
@@ -119,7 +167,7 @@ function resultsFromAssistantMeta(meta: Record<string, unknown> | null | undefin
     area: String(h.area ?? 'City center'),
     rating: typeof h.rating === 'number' ? h.rating : 4.6,
     nightsLabel: String(h.nightsLabel ?? 'Stay'),
-    priceLabel: moneyLabel(h.price, h.currency),
+    priceLabel: moneyLabel(h.price, h.currency, locale),
     reason: typeof h.reason === 'string' ? h.reason : undefined,
   }))
 
@@ -200,6 +248,7 @@ export function BilamoConversationExperience({
   const [compareIds, setCompareIds] = useState<string[]>([])
   const [detailsId, setDetailsId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [statusLine, setStatusLine] = useState<string | null>(null)
   const [uiLocale, setUiLocale] = useState<'ar' | 'en'>(() =>
     typeof navigator !== 'undefined' && navigator.language?.startsWith('ar') ? 'ar' : 'en',
   )
@@ -319,12 +368,23 @@ export function BilamoConversationExperience({
       voice.interrupt()
       stopListeningHard()
 
+      // Unlock audio during the user gesture so the later reply can play.
+      void unlockAudioPlayback().catch(() => undefined)
+      void voice.connect().catch(() => undefined)
+
       setError(null)
       setBusy(true)
       setChatOrb('thinking')
       setDraft('')
       // Sticky composer — stay open across turns once the traveler is typing.
       setComposerOpen(true)
+
+      // Immediate perceived-speed feedback (not a fake final answer).
+      setStatusLine(progressiveConsultantAck(uiLocale, 0))
+      const ackTimers = [
+        window.setTimeout(() => setStatusLine(progressiveConsultantAck(uiLocale, 1)), 420),
+        window.setTimeout(() => setStatusLine(progressiveConsultantAck(uiLocale, 2)), 900),
+      ]
 
       abortRef.current?.abort()
       const controller = new AbortController()
@@ -355,14 +415,17 @@ export function BilamoConversationExperience({
             onAssistantCreate: (msg) => {
               // Text streaming uses thinking — speaking is reserved for audible TTS.
               setChatOrb('thinking')
+              setStatusLine(null)
               upsertMessage(msg)
             },
             onDelta: upsertMessage,
             onComplete: (msg) => {
               upsertMessage(msg)
               setChatOrb('completed')
+              setStatusLine(null)
               const next = resultsFromAssistantMeta(
                 (msg.providerMeta as Record<string, unknown> | undefined) ?? null,
+                uiLocale,
               )
               // Preserve prior recommendation cards on selection / non-search turns.
               if (next) {
@@ -416,7 +479,9 @@ export function BilamoConversationExperience({
         }
         voice.interrupt()
         setChatOrb(null)
+        setStatusLine(null)
       } finally {
+        for (const t of ackTimers) window.clearTimeout(t)
         if (abortRef.current === controller) abortRef.current = null
         setBusy(false)
       }
@@ -448,6 +513,8 @@ export function BilamoConversationExperience({
     voice.interrupt()
     setChatOrb(null)
     bilamoHaptic(6)
+    // Unlock during the mic tap gesture (required for later TTS / WebRTC play).
+    void unlockAudioPlayback().catch(() => undefined)
     const locale = uiLocale === 'ar' || navigator.language?.startsWith('ar') ? 'ar' : 'en'
     if (locale === 'ar') setUiLocale('ar')
     voice.setLocale(locale)
@@ -612,7 +679,11 @@ export function BilamoConversationExperience({
   return (
     <BilamoShell>
       <LayoutGroup>
-        <div className="mx-auto flex min-h-[100dvh] w-full max-w-[24rem] flex-col px-8 pb-10 pt-14 sm:max-w-md">
+        <div
+          className="mx-auto flex min-h-[100dvh] w-full max-w-[24rem] flex-col px-8 pb-10 pt-14 sm:max-w-md"
+          dir={uiLocale === 'ar' ? 'rtl' : 'ltr'}
+          lang={uiLocale === 'ar' ? 'ar' : 'en'}
+        >
           <header className="relative z-10 text-center">
             <Logo size={inConversation ? 'sm' : 'md'} className="justify-center" />
             <AnimatePresence mode="wait">
@@ -643,7 +714,11 @@ export function BilamoConversationExperience({
                 bands={bands}
                 size={inConversation ? 140 : 248}
                 onClick={toggleOrb}
-                label={orbState === 'listening' ? 'Stop' : 'Speak'}
+                label={
+                  orbState === 'listening'
+                    ? (uiLocale === 'ar' ? 'إيقاف' : 'Stop')
+                    : (uiLocale === 'ar' ? 'تحدث' : 'Speak')
+                }
               />
             </motion.div>
 
@@ -744,11 +819,15 @@ export function BilamoConversationExperience({
                         </p>
                       ) : (
                         <p className="max-w-[98%] text-[16.5px] leading-[1.72] tracking-[-0.02em] whitespace-pre-wrap text-[var(--bilamo-text)]/93">
-                          {msg.content || (isLastAssistant ? '' : '')}
+                          {displayAssistantContent(
+                            msg.content || '',
+                            Boolean(results?.flights.length || results?.hotels.length),
+                            uiLocale,
+                          )}
                           {isLastAssistant ? (
                             <motion.span
                               aria-hidden
-                              className="ml-1 inline-block h-1.5 w-1.5 translate-y-[-0.1em] rounded-full bg-[var(--bilamo-secondary)] align-middle"
+                              className="ms-1 inline-block h-1.5 w-1.5 translate-y-[-0.1em] rounded-full bg-[var(--bilamo-secondary)] align-middle"
                               animate={{ opacity: [0.2, 0.9, 0.2], scale: [0.85, 1.05, 0.85] }}
                               transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
                             />
@@ -758,6 +837,19 @@ export function BilamoConversationExperience({
                     </motion.div>
                   )
                 })}
+
+                {statusLine && busy && orbState === 'thinking' ? (
+                  <motion.p
+                    key={statusLine}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={springs.soft}
+                    className="px-1 text-[13.5px] leading-relaxed text-[var(--bilamo-muted)]"
+                  >
+                    {statusLine}
+                  </motion.p>
+                ) : null}
 
                 {busy && orbState === 'thinking' && !results ? (
                   <motion.div
@@ -896,7 +988,10 @@ export function BilamoConversationExperience({
                       ) : null}
                     </AnimatePresence>
 
-                    {results.flights.map((flight, i) => (
+                    {results.flights.map((flight, i) => {
+                      const classified = classifyFlightKind(flight, i, uiLocale)
+                      const isHero = classified.variant === 'hero'
+                      return (
                       <motion.div
                         key={flight.id}
                         layout
@@ -913,12 +1008,13 @@ export function BilamoConversationExperience({
                           duration={flight.duration}
                           stopsLabel={flight.stopsLabel}
                           priceLabel={flight.priceLabel}
-                          reason={flight.reason}
-                          kindLabel={flight.kindLabel}
+                          reason={isHero ? flight.reason : flight.reason}
+                          kindLabel={classified.kindLabel}
                           score={flight.score}
                           baggageSummary={flight.baggageSummary}
-                          highlighted={i === 0 && selectedId == null}
+                          highlighted={isHero && selectedId == null}
                           selected={selectedId === flight.id}
+                          variant={classified.variant}
                           locale={uiLocale}
                           onSelect={() => selectFlight(flight.id)}
                           onCompare={() => {
@@ -949,16 +1045,29 @@ export function BilamoConversationExperience({
                                     : 'This recommendation balances price, comfort, and schedule fit.')}
                               </p>
                               <p className="mt-1 text-[12px] text-[var(--bilamo-muted)]">
-                                {[flight.duration, flight.stopsLabel, flight.baggageSummary]
+                                {[
+                                  flight.duration,
+                                  flight.stopsLabel,
+                                  flight.baggageSummary
+                                    ? (uiLocale === 'ar'
+                                      ? `أمتعة ${flight.baggageSummary}`
+                                      : `Bags ${flight.baggageSummary}`)
+                                    : null,
+                                  flight.score != null
+                                    ? (uiLocale === 'ar'
+                                      ? `درجة بيلامو ${flight.score}`
+                                      : `Bilamo Score ${flight.score}`)
+                                    : null,
+                                ]
                                   .filter(Boolean)
                                   .join(' · ')}
-                                {flight.score != null ? ` · Score ${flight.score}` : ''}
                               </p>
                             </motion.div>
                           ) : null}
                         </AnimatePresence>
                       </motion.div>
-                    ))}
+                      )
+                    })}
                     {results.hotels.map((hotel, i) => (
                       <motion.div
                         key={hotel.id}
@@ -1030,7 +1139,7 @@ export function BilamoConversationExperience({
             </motion.p>
           )}
 
-          <div className="relative z-10 mt-6 flex flex-col items-center">
+          <div className="sticky bottom-0 z-20 mt-6 flex flex-col items-center bg-gradient-to-t from-[var(--bilamo-bg)] via-[var(--bilamo-bg)] to-transparent pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-3">
             <AnimatePresence mode="wait">
               {!composerOpen ? (
                 <motion.button
@@ -1040,7 +1149,7 @@ export function BilamoConversationExperience({
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   onClick={() => setComposerOpen(true)}
-                  className="text-[12px] tracking-[-0.01em] text-[var(--bilamo-muted)]/40 transition-colors hover:text-[var(--bilamo-muted)]/75"
+                  className="min-h-11 text-[12px] tracking-[-0.01em] text-[var(--bilamo-muted)]/40 transition-colors hover:text-[var(--bilamo-muted)]/75"
                 >
                   {copy.type}
                 </motion.button>
