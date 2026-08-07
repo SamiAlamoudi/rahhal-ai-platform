@@ -423,6 +423,7 @@ export async function runBilamoIntelligenceTurn(
   const search = await runBilamoSearchOrchestrator({
     requirements,
     signal: input.signal,
+    locale,
     onFlightProgress: (message) => {
       // Avoid duplicating the opening line from the orchestrator.
       if (/enough information to search/i.test(message)) return

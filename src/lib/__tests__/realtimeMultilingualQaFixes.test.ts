@@ -173,12 +173,28 @@ describe('realtime cancel-only-when-active lifecycle', () => {
       stop: vi.fn(),
       getSettings: () => ({ sampleRate: 48000, channelCount: 1 }),
     }
+    const remoteTrack = {
+      kind: 'audio',
+      enabled: true,
+      readyState: 'live' as const,
+      muted: false,
+      stop: vi.fn(),
+      getSettings: () => ({ sampleRate: 48000, channelCount: 1 }),
+    }
+    const remoteStream = {
+      getTracks: () => [remoteTrack],
+      getAudioTracks: () => [remoteTrack],
+      clone: () => remoteStream,
+    }
     const stream = {
       getTracks: () => [track],
       getAudioTracks: () => [track],
       clone: () => stream,
     }
-    const holder: { channel: FakeChannel | null } = { channel: null }
+    const holder: {
+      channel: FakeChannel | null
+      remoteTrack: typeof remoteTrack
+    } = { channel: null, remoteTrack }
 
     class FakeRTCPeerConnection {
       connectionState = 'new'
@@ -211,6 +227,10 @@ describe('realtime cancel-only-when-active lifecycle', () => {
       setRemoteDescription = vi.fn(async () => {
         this.connectionState = 'connected'
         this.iceConnectionState = 'connected'
+        // Simulate remote audio track attach (OpenAI answer).
+        queueMicrotask(() => {
+          this.ontrack?.({ streams: [remoteStream], track: remoteTrack })
+        })
       })
       getSenders = vi.fn(() => [{ track, replaceTrack: vi.fn(async () => undefined) }])
       getStats = vi.fn(async () => new Map())
@@ -245,8 +265,9 @@ describe('realtime cancel-only-when-active lifecycle', () => {
     const session = createRealtimeWebRtcSession(onError ? { onError } : {})
     await session.connect()
     await new Promise<void>((r) => setTimeout(r, 0))
+    await new Promise<void>((r) => setTimeout(r, 0))
     if (!holder.channel) throw new Error('expected data channel')
-    return { session, channel: holder.channel }
+    return { session, channel: holder.channel, remoteTrack: holder.remoteTrack }
   }
 
   function cancelCalls(channel: FakeChannel) {
@@ -274,7 +295,7 @@ describe('realtime cancel-only-when-active lifecycle', () => {
 
   it('sends response.cancel only after response.created (active response)', async () => {
     const errors: string[] = []
-    const { session, channel } = await bootSession((m) => errors.push(m))
+    const { session, channel, remoteTrack } = await bootSession((m) => errors.push(m))
     expect(channel.onmessage).toBeTypeOf('function')
 
     channel.send.mockClear()
@@ -289,8 +310,12 @@ describe('realtime cancel-only-when-active lifecycle', () => {
     })
     expect(session.getStatus()).toBe('speaking')
 
+    // Simulate a latched-mute bug condition, then interrupt must restore audibility.
+    remoteTrack.enabled = false
     session.interrupt()
     expect(cancelCalls(channel).length).toBeGreaterThanOrEqual(1)
+    // P0: interrupt must NOT leave the remote track muted for the next reply.
+    expect(remoteTrack.enabled).toBe(true)
 
     channel.onmessage!({
       data: JSON.stringify({
