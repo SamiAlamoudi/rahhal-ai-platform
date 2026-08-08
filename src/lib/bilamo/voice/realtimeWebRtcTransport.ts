@@ -275,7 +275,10 @@ export function createRealtimeWebRtcBilamoTransport(
       silentTimers.set(
         generation,
         globalThis.setTimeout(() => {
-          if (!pendingSpeak.has(generation) || speaking) return
+          if (!pendingSpeak.has(generation)) return
+          // Do not treat transport "speaking" latch as audible proof — session decides.
+          const diag = session?.getPlaybackDiagnostics?.()
+          if (diag?.audioPlaybackStarted && diag?.audible) return
           callbacks.onSilentPlayback?.({
             generation,
             code: 'silent_realtime_timeout',

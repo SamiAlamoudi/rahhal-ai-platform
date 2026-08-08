@@ -85,6 +85,10 @@ export type BilamoVoiceSessionSnapshot = {
   speaking: boolean
   /** True when user can start a new voice turn immediately (idle + not speaking). */
   secondTurnReady: boolean
+  /** Persistent hands-free session (survives PLAYING → LISTENING). */
+  voiceSessionActive: boolean
+  /** Explicit user stop — only this (or fatal mic) ends the session. */
+  manuallyStopped: boolean
   audioContextState: string | null
   playback: VoicePlaybackDiagnostics
 }
@@ -117,11 +121,13 @@ export type BilamoVoiceSession = {
   clearTranscripts: () => void
   /** ChatGPT-Voice parity: after first orb tap, re-arm mic when playback ends. */
   setContinuousListening: (enabled: boolean) => void
+  /** Explicit traveler stop — ends persistent session (SESSION_OFF). */
+  stopVoiceSession: () => void
   getMetrics: () => ReturnType<BilamoVoiceMetrics['snapshot']>
   getMetricsReport: () => BilamoVoiceMetricsReport
   /** Attach document visibility / device-loss hardening (idempotent). */
   attachReliabilityGuards: () => () => void
-  /** Force idle after terminal errors — never auto-listen. */
+  /** Force idle after terminal errors — auto-relisten if session still active. */
   releaseToIdle: (reason?: string) => void
   dispose: () => void
 }
@@ -194,8 +200,11 @@ export function createBilamoVoiceSession(
   let classicFallbackInFlight = false
   /** One realtime reconnect attempt per speak generation before classic TTS. */
   let playbackReconnectAttempted = false
-  /** After first user orb tap — re-arm mic when assistant playback ends. */
+  /** After first user orb tap — persistent hands-free session. */
   let continuousListening = false
+  let voiceSessionActive = false
+  let manuallyStopped = false
+  let autoRelistenTimer: ReturnType<typeof setTimeout> | null = null
   let playbackDiag = emptyVoicePlaybackDiagnostics()
   /** Stable snapshot reference for useSyncExternalStore (must not allocate every read). */
   let snapshot: BilamoVoiceSessionSnapshot = {
@@ -215,6 +224,8 @@ export function createBilamoVoiceSession(
     listening: false,
     speaking: false,
     secondTurnReady: true,
+    voiceSessionActive: false,
+    manuallyStopped: false,
     audioContextState: null,
     playback: emptyVoicePlaybackDiagnostics(),
   }
@@ -273,6 +284,10 @@ export function createBilamoVoiceSession(
         finalTranscriptLatencyMs: playbackDiag.finalTranscriptLatencyMs,
         submitLatencyMs: playbackDiag.submitLatencyMs,
         audible: playbackDiag.audible || playbackDiag.audioPlaybackStarted,
+        voiceSessionActive: playbackDiag.voiceSessionActive,
+        manuallyStopped: playbackDiag.manuallyStopped,
+        autoRelistenTriggered: playbackDiag.autoRelistenTriggered,
+        turnId: playbackDiag.turnId,
       }
       playbackDiag = {
         ...playbackDiag,
@@ -336,9 +351,11 @@ export function createBilamoVoiceSession(
     playbackDiag = applyVoiceHttpTrace(playbackDiag)
     const secondTurnReady =
       !disposed
-      && (state === 'idle' || state === 'error')
+      && (state === 'idle' || state === 'error' || state === 'listening')
       && !transportSpeaking
       && activeSpeakTransportGen < 0
+    playbackDiag.voiceSessionActive = voiceSessionActive
+    playbackDiag.manuallyStopped = manuallyStopped
     snapshot = {
       state,
       connection,
@@ -353,9 +370,11 @@ export function createBilamoVoiceSession(
       fellBackToClassic,
       locale,
       conversationId,
-      listening: transportListening,
+      listening: transportListening || state === 'listening',
       speaking: transportSpeaking || state === 'speaking',
       secondTurnReady,
+      voiceSessionActive,
+      manuallyStopped,
       audioContextState: playbackDiag.audioContextState,
       playback: { ...playbackDiag },
     }
@@ -373,6 +392,52 @@ export function createBilamoVoiceSession(
     }
   }
 
+  const clearAutoRelistenTimer = () => {
+    if (autoRelistenTimer != null) {
+      clearTimeout(autoRelistenTimer)
+      autoRelistenTimer = null
+    }
+  }
+
+  const scheduleAutoRelisten = (reason: string) => {
+    // continuousListening stays aliased to voiceSessionActive for ChatGPT-parity callers.
+    if (disposed || (!voiceSessionActive && !continuousListening) || manuallyStopped) return
+    if (reason === 'manual_stop' || reason === 'pagehide') return
+    clearAutoRelistenTimer()
+    autoRelistenTimer = globalThis.setTimeout(() => {
+      autoRelistenTimer = null
+      if (disposed || !voiceSessionActive || manuallyStopped) return
+      if (
+        state === 'listening'
+        || state === 'speaking'
+        || state === 'processing'
+        || state === 'connecting'
+        || state === 'reconnecting'
+      ) {
+        return
+      }
+      playbackDiag.autoRelistenTriggered = true
+      playbackDiag.lastEvent = 'AUTO_RELISTEN_TRIGGERED'
+      playbackDiag.lastFsmTransition = `${state}->listening:${reason}`
+      emit()
+      void session.startListening().then((ok) => {
+        if (!ok && voiceSessionActive && !manuallyStopped) {
+          // One reconnect attempt then stay idle (session still active).
+          void session.connect()
+            .then(() => session.startListening())
+            .then((retryOk) => {
+              if (!retryOk) {
+                error = USER_SAFE_ERRORS.mic
+                lastSafeErrorCode = 'auto_relisten_failed'
+                emit()
+              }
+            })
+            .catch(() => undefined)
+        }
+      })
+    }, 180)
+  }
+
   const releaseToIdle = (reason = 'release_to_idle') => {
     if (disposed) return
     clearWatchdog()
@@ -386,6 +451,8 @@ export function createBilamoVoiceSession(
     } else if (reason === 'empty_finalize') {
       playbackDiag.lastEvent = 'emptyFinalizeIdle'
       lastSafeErrorCode = 'empty_finalize'
+    } else if (reason === 'manual_stop') {
+      playbackDiag.lastEvent = 'VOICE_SESSION_STOPPED'
     }
     noteVoiceTurnStage('idle')
     playbackDiag.turnStage = 'idle'
@@ -393,17 +460,12 @@ export function createBilamoVoiceSession(
       state = 'idle'
     }
     emit()
+    // Hands-free: every recoverable idle → LISTENING while session active.
+    scheduleAutoRelisten(reason)
   }
 
   const rearmContinuousListening = () => {
-    if (disposed || !continuousListening) return
-    if (state !== 'idle') return
-    void session.startListening().then((ok) => {
-      if (!ok && continuousListening) {
-        // Stay idle — traveler can tap; do not latch error forever.
-        releaseToIdle('continuous_rearm_failed')
-      }
-    })
+    scheduleAutoRelisten('speaking_end')
   }
 
   const armStuckWatchdog = () => {
@@ -425,7 +487,7 @@ export function createBilamoVoiceSession(
       }
       if (generation !== genAtArm) return
       if (state !== stateAtArm && state !== 'processing' && state !== 'speaking') return
-      // No legitimate active operation — recover to idle without auto-listen.
+      // No legitimate active operation — recover; auto-relisten if session active.
       playbackDiag.stuckWatchdogCount += 1
       releaseToIdle('watchdog')
     }, STUCK_STATE_WATCHDOG_MS)
@@ -498,11 +560,13 @@ export function createBilamoVoiceSession(
         error = USER_SAFE_ERRORS.playback
         lastSafeErrorCode = 'playback_exhausted'
         setState('idle')
+        scheduleAutoRelisten('classic_silent')
       } else {
         logChat('debug', 'voice', 'REALTIME_AUDIO_FAILED → CLASSIC_TTS_OK', {
           generation: failedGen,
         })
         error = null
+        scheduleAutoRelisten('classic_ok')
       }
     } finally {
       classicFallbackInFlight = false
@@ -529,6 +593,7 @@ export function createBilamoVoiceSession(
         lastSafeErrorCode = 'playback_exhausted'
         activeSpeakTransportGen = -1
         setState('idle')
+        scheduleAutoRelisten('playback_exhausted')
         return
       }
       playbackReconnectAttempted = true
@@ -541,8 +606,10 @@ export function createBilamoVoiceSession(
         error = USER_SAFE_ERRORS.playback
         lastSafeErrorCode = 'playback_exhausted'
         setState('idle')
+        scheduleAutoRelisten('classic_retry_silent')
       } else {
         error = null
+        scheduleAutoRelisten('classic_retry_ok')
       }
       return
     }
@@ -625,6 +692,7 @@ export function createBilamoVoiceSession(
         partialTranscript = ''
         playbackDiag.finalTranscriptReceived = true
         playbackDiag.inputCommitted = true
+        playbackDiag.turnId = generation
         playbackDiag.lastEvent = 'finalTranscriptReceived'
         noteVoiceTurnStage('requesting')
         playbackDiag.turnStage = 'requesting'
@@ -658,21 +726,21 @@ export function createBilamoVoiceSession(
         setState('speaking')
       },
       onSpeakingEnd: (gen) => {
-        if (disposed || gen !== activeSpeakTransportGen) return
+        // Accept end even if recover cleared activeSpeakTransportGen (silent→classic race).
+        if (disposed) return
+        if (activeSpeakTransportGen >= 0 && gen !== activeSpeakTransportGen) return
         activeSpeakTransportGen = -1
         clearSilentRealtimeTimer()
         metrics.mark('speak_end')
         playbackDiag.audioPlaybackEnded = true
-        playbackDiag.lastEvent = 'audioPlaybackEnded'
+        playbackDiag.lastEvent = 'PLAYBACK_ENDED'
         noteVoiceTurnStage('idle')
         playbackDiag.turnStage = 'idle'
         if (state === 'speaking' || state === 'interrupted' || state === 'processing') {
           setState('idle')
         }
-        // ChatGPT-Voice parity: next turn without a second orb tap.
-        if (continuousListening) {
-          globalThis.setTimeout(() => rearmContinuousListening(), 120)
-        }
+        // Persistent session: PLAYING → LISTENING automatically.
+        rearmContinuousListening()
       },
       onAudioChunk: (info) => {
         if (info.generation === activeSpeakTransportGen || armingSpeak) {
@@ -839,13 +907,23 @@ export function createBilamoVoiceSession(
     },
     async startListening() {
       if (disposed) return false
+      if (manuallyStopped && !voiceSessionActive) {
+        // Caller must re-arm session via setContinuousListening(true).
+      }
       if (!prepared) await session.prepare()
       if (!transport?.isConnected()) {
         await session.connect()
       }
-      // Never start listening while speaking without barge-in.
-      if (transport?.isSpeaking()) {
+      // Only barge when we are truly mid-speak — never kill stale isSpeaking() during auto-relisten.
+      if (transport?.isSpeaking() && state === 'speaking') {
         return session.bargeIn()
+      }
+      if (transport?.isSpeaking() && state === 'idle') {
+        try {
+          transport.interrupt()
+        } catch {
+          /* ignore */
+        }
       }
       error = null
       partialTranscript = ''
@@ -853,18 +931,33 @@ export function createBilamoVoiceSession(
       lastFinalKey = ''
       // Fresh turn diagnostics — sticky EOS/commit flags must not block the next finalize.
       const correlationId = beginVoiceTurnCorrelation()
-      playbackDiag = {
-        ...emptyVoicePlaybackDiagnostics(),
-        correlationId,
-        turnStage: 'listening',
-        speechRecognitionSupported: speechRecognitionSupported(),
+      const prevSession = {
+        voiceSessionActive,
+        manuallyStopped,
+        autoRelistenTriggered: playbackDiag.autoRelistenTriggered,
+        stuckWatchdogCount: playbackDiag.stuckWatchdogCount,
         peerConnectionState: playbackDiag.peerConnectionState,
         iceConnectionState: playbackDiag.iceConnectionState,
         audioElementAttached: playbackDiag.audioElementAttached,
         remoteTrackReceived: playbackDiag.remoteTrackReceived,
         remoteTrackMuted: playbackDiag.remoteTrackMuted,
         remoteTrackReadyState: playbackDiag.remoteTrackReadyState,
-        stuckWatchdogCount: playbackDiag.stuckWatchdogCount,
+      }
+      playbackDiag = {
+        ...emptyVoicePlaybackDiagnostics(),
+        correlationId,
+        turnStage: 'listening',
+        speechRecognitionSupported: speechRecognitionSupported(),
+        peerConnectionState: prevSession.peerConnectionState,
+        iceConnectionState: prevSession.iceConnectionState,
+        audioElementAttached: prevSession.audioElementAttached,
+        remoteTrackReceived: prevSession.remoteTrackReceived,
+        remoteTrackMuted: prevSession.remoteTrackMuted,
+        remoteTrackReadyState: prevSession.remoteTrackReadyState,
+        stuckWatchdogCount: prevSession.stuckWatchdogCount,
+        voiceSessionActive: prevSession.voiceSessionActive,
+        manuallyStopped: prevSession.manuallyStopped,
+        autoRelistenTriggered: prevSession.autoRelistenTriggered,
         timestampMs: Date.now(),
       }
       void probeVoiceAuth().catch(() => undefined)
@@ -945,18 +1038,63 @@ export function createBilamoVoiceSession(
     },
     setContinuousListening(enabled) {
       continuousListening = enabled
+      voiceSessionActive = enabled
+      if (enabled) {
+        manuallyStopped = false
+        playbackDiag.voiceSessionActive = true
+        playbackDiag.manuallyStopped = false
+        playbackDiag.lastEvent = 'VOICE_SESSION_STARTED'
+      } else {
+        manuallyStopped = true
+        playbackDiag.voiceSessionActive = false
+        playbackDiag.manuallyStopped = true
+        playbackDiag.lastEvent = 'VOICE_SESSION_STOPPED'
+        clearAutoRelistenTimer()
+      }
       emit()
+    },
+    stopVoiceSession() {
+      manuallyStopped = true
+      voiceSessionActive = false
+      continuousListening = false
+      clearAutoRelistenTimer()
+      clearSilentRealtimeTimer()
+      clearEmptyFinalizeTimer()
+      generation += 1
+      activeSpeakTransportGen = -1
+      try {
+        transport?.interrupt()
+      } catch {
+        /* ignore */
+      }
+      try {
+        transport?.stopListening()
+      } catch {
+        /* ignore */
+      }
+      playbackDiag.lastEvent = 'VOICE_SESSION_STOPPED'
+      playbackDiag.voiceSessionActive = false
+      playbackDiag.manuallyStopped = true
+      releaseToIdle('manual_stop')
     },
     async bargeIn() {
       if (disposed) return false
+      // Barge-in must NOT end the persistent session.
+      manuallyStopped = false
+      if (!voiceSessionActive) {
+        voiceSessionActive = true
+        continuousListening = true
+      }
       if (!prepared) await session.prepare()
       metrics.mark('interrupt')
       generation += 1
       activeSpeakTransportGen = -1
+      clearAutoRelistenTimer()
+      clearSilentRealtimeTimer()
       transport?.interrupt()
       metrics.mark('interrupt_ack')
+      playbackDiag.interruptAcknowledged = true
       setState('interrupted')
-      // User intent: start listening after interrupt — not auto-relisten after reply end.
       partialTranscript = ''
       finalTranscript = null
       lastFinalKey = ''
@@ -965,6 +1103,9 @@ export function createBilamoVoiceSession(
       if (ok) {
         metrics.mark('mic_ready')
         setState('listening')
+      } else if (voiceSessionActive && !manuallyStopped) {
+        setState('idle')
+        scheduleAutoRelisten('barge_in_mic_retry')
       } else {
         setState('idle')
       }
@@ -1004,10 +1145,14 @@ export function createBilamoVoiceSession(
         if (activeSpeakTransportGen === handle.generation) {
           activeSpeakTransportGen = -1
         }
+        playbackDiag.audioPlaybackEnded = true
+        playbackDiag.lastEvent = 'PLAYBACK_ENDED'
         if (state === 'speaking' || state === 'interrupted' || state === 'processing') {
           setState('idle')
         }
         publishBilamoVoiceMetrics(metrics.report())
+        // Dual-path safety: onSpeakingEnd may have already armed; debounce handles it.
+        scheduleAutoRelisten('speak_done')
       }
 
       const armAndSpeak = (): BilamoSpeakHandle | null => {
@@ -1038,7 +1183,8 @@ export function createBilamoVoiceSession(
           clearSilentRealtimeTimer()
           silentRealtimeTimer = globalThis.setTimeout(() => {
             if (disposed || generation !== sessionGen) return
-            if (state === 'speaking' || playbackDiag.audioPlaybackStarted) return
+            // SPEAKING / play() alone is NOT proof — require audible flag from real start.
+            if (playbackDiag.audible && playbackDiag.audioPlaybackStarted) return
             lastSafeErrorCode = 'silent_realtime_timeout'
             playbackDiag.lastEvent = 'silentRealtimeTimeout'
             playbackDiag.audioPlaybackFailed = true
@@ -1075,15 +1221,16 @@ export function createBilamoVoiceSession(
       return { generation: sessionGen, done }
     },
     interrupt() {
+      // Soft interrupt — does NOT end the persistent voice session.
       metrics.mark('interrupt')
       generation += 1
       activeSpeakTransportGen = -1
       clearSilentRealtimeTimer()
+      clearAutoRelistenTimer()
       transport?.interrupt()
       metrics.mark('interrupt_ack')
       playbackDiag.interruptAcknowledged = true
       playbackDiag.lastEvent = 'interruptAcknowledged'
-      // Always clear transitional states — processing latch was the Safari second-turn deadlock.
       if (
         state === 'speaking'
         || state === 'interrupted'
@@ -1093,6 +1240,9 @@ export function createBilamoVoiceSession(
         setState('idle')
       }
       publishBilamoVoiceMetrics(metrics.report())
+      if (voiceSessionActive && !manuallyStopped) {
+        scheduleAutoRelisten('soft_interrupt')
+      }
     },
     async switchToClassic() {
       transport?.dispose()
@@ -1126,37 +1276,58 @@ export function createBilamoVoiceSession(
 
       const onVisibility = () => {
         if (!document.hidden) {
-          // Foreground: resume AudioContext if suspended — never auto-relisten.
           void import('../../chat/voice/audioElementTextToSpeechProvider')
             .then((m) => m.unlockAudioPlayback())
             .catch(() => undefined)
-            .finally(() => emit())
+            .finally(() => {
+              emit()
+              if (voiceSessionActive && !manuallyStopped && state === 'idle') {
+                scheduleAutoRelisten('visibility_resume')
+              }
+            })
           return
         }
-        // Background: soft-stop capture / playback; never auto-submit or auto-relisten.
+        // Background: soft-stop capture / playback; keep session active.
         if (state === 'listening') {
           transport?.stopListening()
           setState('idle')
         } else if (state === 'speaking' || state === 'processing') {
-          session.interrupt()
+          try {
+            transport?.interrupt()
+          } catch {
+            /* ignore */
+          }
+          setState('idle')
         }
       }
 
       const onPageHide = () => {
+        // Page exit may end the session.
+        manuallyStopped = true
+        voiceSessionActive = false
+        continuousListening = false
+        clearAutoRelistenTimer()
         if (state === 'listening' || state === 'speaking' || state === 'processing') {
-          session.interrupt()
+          try {
+            transport?.interrupt()
+          } catch {
+            /* ignore */
+          }
           transport?.stopListening()
           releaseToIdle('pagehide')
         }
       }
 
       const onDeviceChange = () => {
-        // Device loss while listening — surface recovery, do not auto-reopen mic.
         if (state === 'listening' || transport?.isListening()) {
           transport?.stopListening()
           error = USER_SAFE_ERRORS.device
           lastSafeErrorCode = 'audio_device_lost'
           setState('error')
+          // Recoverable: keep session, try relisten after brief pause.
+          if (voiceSessionActive && !manuallyStopped) {
+            globalThis.setTimeout(() => scheduleAutoRelisten('devicechange'), 400)
+          }
         }
       }
 
@@ -1179,8 +1350,13 @@ export function createBilamoVoiceSession(
     },
     dispose() {
       disposed = true
+      voiceSessionActive = false
+      manuallyStopped = true
+      continuousListening = false
       clearWatchdog()
       clearSilentRealtimeTimer()
+      clearAutoRelistenTimer()
+      clearEmptyFinalizeTimer()
       transport?.dispose()
       transport = null
       listeners.clear()

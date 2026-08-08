@@ -36,6 +36,10 @@ export type VoicePlaybackDiagEvent =
   | 'CLASSIC_FALLBACK_FAILED'
   | 'TURN_IDLE'
   | 'AUTH_PROBE'
+  | 'AUTO_RELISTEN_TRIGGERED'
+  | 'VOICE_SESSION_STARTED'
+  | 'VOICE_SESSION_STOPPED'
+  | 'PLAYBACK_ENDED'
 
 export type VoiceTurnStage =
   | 'idle'
@@ -100,6 +104,14 @@ export type VoicePlaybackDiagnostics = {
   finalTranscriptLatencyMs: number | null
   submitLatencyMs: number | null
   audible: boolean
+  /** Hands-free session still active across turns. */
+  voiceSessionActive: boolean
+  /** User explicitly stopped the persistent session. */
+  manuallyStopped: boolean
+  /** Last auto-relisten after playback / idle recovery was armed. */
+  autoRelistenTriggered: boolean
+  /** Turn id / generation that was committed (no transcript). */
+  turnId: number | null
 }
 
 export function emptyVoicePlaybackDiagnostics(): VoicePlaybackDiagnostics {
@@ -150,6 +162,10 @@ export function emptyVoicePlaybackDiagnostics(): VoicePlaybackDiagnostics {
     finalTranscriptLatencyMs: null,
     submitLatencyMs: null,
     audible: false,
+    voiceSessionActive: false,
+    manuallyStopped: false,
+    autoRelistenTriggered: false,
+    turnId: null,
   }
 }
 

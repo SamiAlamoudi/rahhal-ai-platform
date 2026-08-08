@@ -634,7 +634,17 @@ function matchDuration(lower: string, original: string): number | null {
   }
   if (/\bfortnight\b/.test(lower)) return 14
   if (/أسبوعين|اسبوعين/.test(original)) return 14
-  if (/\bone week\b|أسبوع|اسبوع/.test(lower) || /أسبوع|اسبوع/.test(original)) return 7
+  // Do not treat "الأسبوع الجاي/القادم" date phrases as a 7-day duration.
+  if (
+    /الأسبوع\s*القادم|الاسبوع\s*القادم|الأسبوع\s*المقبل|الاسبوع\s*المقبل|الأسبوع\s*الجاي|الاسبوع\s*الجاي/.test(
+      original,
+    )
+    || /\bnext\s+week\b|\bla\s+semaine\s+prochaine\b/.test(lower)
+  ) {
+    /* date phrase — not duration */
+  } else if (/\bone week\b|أسبوع|اسبوع/.test(lower) || /أسبوع|اسبوع/.test(original)) {
+    return 7
+  }
   // Word forms: "seven days", "لمدة سبعة أيام"
   const dayWordEn = lower.match(
     /\b(one|two|three|four|five|six|seven|eight|nine|ten|a|an)\s+-?\s*days?\b/,
@@ -942,11 +952,88 @@ function matchDates(
     return { start: formatUtcIso(addUtcMonths(now, 1)), end: null }
   }
 
+  // Weekday relatives: "الجمعة الجاية" / "يوم الجمعة" / "next Friday"
+  const weekdayIso = matchNextWeekdayDate(text, lower, now)
+  if (weekdayIso) return { start: weekdayIso, end: null }
+
   // "3 Aug to 13 Aug" / "3 August – 13 August 2026" / "Aug 3 to Aug 13"
   const parsedDayMonth = parseDayMonthDateRange(lower, now)
   if (parsedDayMonth) return parsedDayMonth
 
   return { start: null, end: null }
+}
+
+/** Next occurrence of a weekday (UTC date). Today → next week. */
+function nextUtcWeekdayIso(now: Date, weekday: number): string {
+  const current = now.getUTCDay()
+  let delta = (weekday - current + 7) % 7
+  if (delta === 0) delta = 7
+  return formatUtcIso(addUtcDays(now, delta))
+}
+
+/**
+ * Parse "الجمعة الجاية" / "يوم الجمعة" / "next Friday" → ISO start date.
+ * Exported via extractFromUserText coverage only.
+ */
+function matchNextWeekdayDate(text: string, lower: string, now: Date): string | null {
+  const arNext =
+    /(?:يوم\s*)?(الأحد|الاحد|الإثنين|الاثنين|الثلاثاء|الأربعاء|الاربعاء|الخميس|الجمعة|السبت)\s*(?:الجاية|القادمة|القادم|الجاي)?/
+  const arMatch = text.match(arNext)
+  if (arMatch) {
+    const map: Record<string, number> = {
+      الأحد: 0,
+      الاحد: 0,
+      الإثنين: 1,
+      الاثنين: 1,
+      الاثنین: 1,
+      الثلاثاء: 2,
+      الأربعاء: 3,
+      الاربعاء: 3,
+      الخميس: 4,
+      الجمعة: 5,
+      السبت: 6,
+    }
+    const wd = map[arMatch[1]!]
+    if (typeof wd === 'number') return nextUtcWeekdayIso(now, wd)
+  }
+
+  const en = lower.match(
+    /\b(?:next\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/,
+  )
+  if (en) {
+    const map: Record<string, number> = {
+      sunday: 0,
+      monday: 1,
+      tuesday: 2,
+      wednesday: 3,
+      thursday: 4,
+      friday: 5,
+      saturday: 6,
+    }
+    const wd = map[en[1]!]
+    if (typeof wd === 'number') return nextUtcWeekdayIso(now, wd)
+  }
+
+  const fr = lower.match(
+    /\b(?:(?:le|la)\s+)?(?:prochain(?:e)?\s+)?(dimanche|lundi|mardi|mercredi|jeudi|vendredi|samedi)\b/,
+  ) || lower.match(
+    /\b(dimanche|lundi|mardi|mercredi|jeudi|vendredi|samedi)\s+prochain(?:e)?\b/,
+  )
+  if (fr) {
+    const map: Record<string, number> = {
+      dimanche: 0,
+      lundi: 1,
+      mardi: 2,
+      mercredi: 3,
+      jeudi: 4,
+      vendredi: 5,
+      samedi: 6,
+    }
+    const wd = map[fr[1]!]
+    if (typeof wd === 'number') return nextUtcWeekdayIso(now, wd)
+  }
+
+  return null
 }
 
 const MONTH_NAME_TO_NUM: Record<string, number> = {

@@ -110,6 +110,23 @@ export default function BilamoVoiceDiagnostics() {
         </header>
 
         <dl className="bilamo-glass space-y-3 rounded-[1.25rem] px-5 py-4 text-[13.5px]">
+          <Row label="VOICE_SESSION_ACTIVE" value={yn(snap.voiceSessionActive || playback.voiceSessionActive)} />
+          <Row label="MANUALLY_STOPPED" value={yn(snap.manuallyStopped || playback.manuallyStopped)} />
+          <Row label="STATE" value={snap.state} />
+          <Row label="MIC_ACTIVE" value={yn(snap.listening || playback.mediaStreamActive)} />
+          <Row label="EOS_DETECTED" value={yn(playback.endOfSpeechDetected)} />
+          <Row label="TURN_COMMITTED" value={yn(playback.finalTranscriptReceived || playback.inputCommitted)} />
+          <Row label="TURN_ID" value={playback.turnId == null ? '—' : String(playback.turnId)} />
+          <Row label="TRANSCRIPT_FINAL" value={yn(playback.finalTranscriptReceived)} />
+          <Row label="REALTIME_SESSION" value={yn(playback.realtimeSessionCreated)} />
+          <Row label="REMOTE_AUDIO_TRACK" value={yn(playback.remoteTrackReceived)} />
+          <Row label="REMOTE_AUDIO_PLAYING" value={yn(playback.audioPlaybackStarted && snap.state === 'speaking')} />
+          <Row label="CLASSIC_TTS_HTTP" value={playback.classicFallbackHttpStatus == null ? '—' : String(playback.classicFallbackHttpStatus)} />
+          <Row label="CLASSIC_TTS_BYTES" value={playback.classicFallbackInvoked ? 'invoked' : '—'} />
+          <Row label="CLASSIC_TTS_PLAYING" value={yn(snap.fellBackToClassic && playback.audioPlaybackStarted)} />
+          <Row label="PLAYBACK_ENDED" value={yn(playback.audioPlaybackEnded)} />
+          <Row label="AUTO_RELISTEN_TRIGGERED" value={yn(playback.autoRelistenTriggered)} />
+          <Row label="LAST_ERROR" value={snap.lastSafeErrorCode || playback.lastSafeErrorCode || snap.error || '—'} />
           <Row label="Timestamp (ms)" value={String(playback.timestampMs ?? '—')} />
           <Row label="Correlation ID" value={playback.correlationId || '—'} />
           <Row label="Turn stage" value={playback.turnStage || '—'} />

@@ -517,6 +517,14 @@ export function createRealtimeWebRtcSession(
       } catch {
         /* ignore */
       }
+      if (remoteTrack && (remoteTrack.readyState === 'ended' || remoteTrack.muted)) {
+        playbackDiag.playResult = 'rejected'
+        playbackDiag.audioPlaybackFailed = true
+        playbackDiag.lastEvent = 'playRejected'
+        playbackDiag.lastSafeErrorCode = 'remote_track_not_live'
+        return false
+      }
+      if (remoteTrack) remoteTrack.enabled = true
       await remoteAudio.play()
       // play() resolved ⇒ browser allowed playback. Reject only explicit mute/zero volume
       // (do not require !paused/srcObject — jsdom stubs and some Safari timings keep paused
@@ -529,6 +537,8 @@ export function createRealtimeWebRtcSession(
         return false
       }
       playbackDiag.playResult = 'resolved'
+      // Mark play requested/resolved — BilamoVoiceSession only treats audible after
+      // onSpeakingStart which is gated on this path AND audio buffer/delta events.
       playbackDiag.audioPlaybackStarted = true
       playbackDiag.audioPlaybackFailed = false
       playbackDiag.lastEvent = 'audioPlaybackStarted'

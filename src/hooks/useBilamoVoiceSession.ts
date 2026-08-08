@@ -72,6 +72,8 @@ export function useBilamoVoiceSession(options: UseBilamoVoiceSessionOptions = {}
       listening: false,
       speaking: false,
       secondTurnReady: true,
+      voiceSessionActive: false,
+      manuallyStopped: false,
       audioContextState: null,
       playback: emptyVoicePlaybackDiagnostics(),
     }),
@@ -131,6 +133,7 @@ export function useBilamoVoiceSession(options: UseBilamoVoiceSessionOptions = {}
     setConversationId: (id: string | null) => session.setConversationId(id),
     setLocale: (locale: VoiceLocale) => session.setLocale(locale),
     setContinuousListening: (enabled: boolean) => session.setContinuousListening(enabled),
+    stopVoiceSession: () => session.stopVoiceSession(),
     getMetrics: () => session.getMetrics(),
     getMetricsReport: () => session.getMetricsReport(),
   }

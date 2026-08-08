@@ -600,19 +600,6 @@ export function BilamoConversationExperience({
     }
   }, [])
 
-  const stopListeningHard = useCallback(() => {
-    clearSilenceTimer()
-    // Prefer finalizeListening (realtime commits ASR; classic emits final once).
-    const api = voiceApiRef.current
-    if (typeof api?.finalizeListening === 'function') {
-      api.finalizeListening()
-    } else if (api?.session && typeof api.session.finalizeListening === 'function') {
-      api.session.finalizeListening()
-    } else {
-      api?.stopListening()
-    }
-  }, [clearSilenceTimer])
-
   /** Typed send: cancel mic without emitting a voice final (no duplicate turn). */
   const cancelListeningSoft = useCallback(() => {
     clearSilenceTimer()
@@ -852,11 +839,6 @@ export function BilamoConversationExperience({
 
   voiceSendRef.current = send
 
-  const stopListening = useCallback(() => {
-    stopListeningHard()
-    setChatOrb(null)
-  }, [stopListeningHard])
-
   // Typed composer only — soft-cancel mic (no voice final). Voice finals use voiceSendRef.
   const sendWithMicStop = useCallback(
     async (raw: string) => {
@@ -870,8 +852,6 @@ export function BilamoConversationExperience({
   const startListening = useCallback(async () => {
     setError(null)
     voice.clearError()
-    speakGenerationRef.current += 1
-    voice.interrupt()
     setChatOrb(null)
     bilamoHaptic(6)
     // Unlock during the mic tap gesture (required for later TTS / WebRTC play).
@@ -879,15 +859,32 @@ export function BilamoConversationExperience({
     const locale = isBilamoReplyLocale(uiLocale) ? uiLocale : 'ar'
     setUiLocale(locale)
     voice.setLocale(replyLocaleToVoiceLocale(locale))
-    // First orb tap owns continuous conversation (ChatGPT-Voice parity).
+    // First orb tap owns persistent hands-free session (survives every turn).
     voice.setContinuousListening(true)
     const ok = await voice.startListening()
     if (!ok) {
       setError(voice.lastError || copy.micNeed)
       setComposerOpen(true)
-      voice.setContinuousListening(false)
+      // Keep session active — auto-relisten / retry; only explicit stop ends it.
     }
   }, [copy.micNeed, uiLocale, voice])
+
+  const stopVoiceSession = useCallback(() => {
+    clearSilenceTimer()
+    silenceFinalizeOnceRef.current = false
+    speechStartedRef.current = false
+    speakGenerationRef.current += 1
+    setChatOrb(null)
+    const api = voiceApiRef.current
+    if (typeof api?.session?.stopVoiceSession === 'function') {
+      api.session.stopVoiceSession()
+    } else {
+      voice.setContinuousListening(false)
+      voice.stopListening()
+      voice.interrupt()
+      voice.releaseToIdle('manual_stop')
+    }
+  }, [clearSilenceTimer, voice])
 
   const toggleOrb = useCallback(() => {
     bilamoHaptic(orbState === 'listening' ? 4 : 8)
@@ -902,28 +899,36 @@ export function BilamoConversationExperience({
       orbState,
     }
 
-    // EOS → processing → submit: ignore second tap (previous "stuck" bargeIn dropped requests).
+    const sessionActive = Boolean(
+      voice.snapshot.voiceSessionActive
+      || voice.snapshot.playback?.voiceSessionActive,
+    )
+
+    // While session is active: orb = STOP session (EOS is automatic silence).
+    if (sessionActive && (orbState === 'listening' || orbState === 'idle')) {
+      if (orbState === 'listening' || voice.snapshot.listening) {
+        stopVoiceSession()
+        return
+      }
+    }
+
+    // EOS → processing → submit: ignore second tap (do not barge-in / drop request).
     if (shouldIgnoreOrbTapDuringVoiceSubmit(gate) && orbState !== 'listening' && orbState !== 'speaking') {
+      // Active session + thinking: treat as stop, not ignore forever.
+      if (sessionActive && (orbState === 'thinking' || busy)) {
+        stopVoiceSession()
+      }
       return
     }
 
-    if (orbState === 'listening') {
-      // Intentional end — finalize once (not soft cancel).
-      clearSilenceTimer()
-      silenceFinalizeOnceRef.current = true
-      const api = voiceApiRef.current
-      if (typeof api?.finalizeListening === 'function') api.finalizeListening()
-      else if (api?.session) api.session.finalizeListening()
-      else stopListening()
-      return
-    }
     if (shouldBargeInFromOrb(gate)) {
+      // Barge-in keeps the persistent session alive.
       speakGenerationRef.current += 1
       setChatOrb(null)
       void voice.bargeIn()
       return
     }
-    // Empty ASR / stuck thinking with no live submit — recover without reload.
+    // Empty ASR / stuck thinking with no live submit — recover without ending session.
     if (shouldRecoverStuckThinking(gate)) {
       voice.releaseToIdle('orb_stuck_recover')
       setChatOrb(null)
@@ -931,10 +936,11 @@ export function BilamoConversationExperience({
       return
     }
     if (orbState === 'thinking' || busy) {
+      if (sessionActive) stopVoiceSession()
       return
     }
     void startListening()
-  }, [busy, clearSilenceTimer, orbState, startListening, stopListening, voice])
+  }, [busy, orbState, startListening, stopVoiceSession, voice])
 
   const partial = voice.partialTranscript
 
