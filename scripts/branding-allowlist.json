@@ -757,6 +757,18 @@
       "token": "X-Rahhal-TTS-Format",
       "classification": "Compatibility",
       "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/openaiTts.route.test.ts",
+      "token": "https://rahhal-ai-platform.vercel.app/api/openai/tts",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/openaiTts.route.test.ts",
+      "token": "https://rahhal-ai-platform.vercel.app",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
     }
   ]
 }
