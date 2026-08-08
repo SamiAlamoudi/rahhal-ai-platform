@@ -210,7 +210,7 @@ async function primeElementForSafari(el: HTMLAudioElement): Promise<void> {
     return
   }
 
-  const prevSrc = el.src
+  const prevSrc = el.getAttribute('src') || el.src || ''
   const prevMuted = el.muted
   const prevVolume = el.volume
   try {
@@ -227,15 +227,24 @@ async function primeElementForSafari(el: HTMLAudioElement): Promise<void> {
       // ignore
     }
   } finally {
-    // Restore — next speak sets a real blob URL.
-    if (prevSrc && !prevSrc.startsWith('data:')) {
+    // Never restore a revoked blob: URL — that poisons turn-2+ playback.
+    // data: silent WAV and empty src are fine to clear.
+    const restoreable =
+      Boolean(prevSrc)
+      && !prevSrc.startsWith('data:')
+      && !prevSrc.startsWith('blob:')
+    if (restoreable) {
       try {
         el.src = prevSrc
       } catch {
         el.removeAttribute('src')
       }
     } else {
-      el.removeAttribute('src')
+      try {
+        el.removeAttribute('src')
+      } catch {
+        /* ignore */
+      }
     }
     el.muted = prevMuted
     el.volume = prevVolume
@@ -244,6 +253,15 @@ async function primeElementForSafari(el: HTMLAudioElement): Promise<void> {
 
 export async function unlockAudioPlayback(): Promise<void> {
   if (typeof window === 'undefined' || typeof Audio === 'undefined') return
+
+  // Already unlocked under a prior user gesture — do NOT re-prime with silent WAV.
+  // Re-priming outside a gesture (auto-relisten → speak) poisons Safari sticky unlock
+  // and makes turn 2+ classic TTS silent while turn 1 still worked.
+  if (unlocked) {
+    await resumeAudioContext()
+    preconnectOpenAiTtsRoute()
+    return
+  }
 
   await resumeAudioContext()
   preconnectOpenAiTtsRoute()
@@ -428,6 +446,10 @@ async function fetchSpeechAudio(
             mime,
           })
           noteVoiceLifecycleStage('CLASSIC_TTS_HTTP_OK')
+          noteVoiceLifecycleStage('TTS_HTTP_STATUS', { status: openaiRes.status })
+          noteVoiceLifecycleStage('TTS_BYTES', {
+            bytes: Math.min(blob.size, 9_999_999),
+          })
         } catch {
           /* ignore */
         }
@@ -505,21 +527,49 @@ async function synthesizeViaEdgeBrowser(text: string, locale: VoiceLocale): Prom
   throw new Error('empty_edge_audio')
 }
 
+function clearElementSrcSoft(audio: HTMLAudioElement): void {
+  try {
+    audio.pause()
+  } catch {
+    /* ignore */
+  }
+  try {
+    audio.removeAttribute('src')
+  } catch {
+    /* ignore */
+  }
+  // Do NOT call load() — Safari drops sticky unlock after load().
+}
+
 function playBlobOnElement(
   audio: HTMLAudioElement,
   blob: Blob,
   useB: boolean,
   onPlaybackStart?: () => void,
+  onObjectUrlAssigned?: (objectUrl: string) => void,
 ): Promise<void> {
+  // Per-turn: soft-reset persistent element, then assign THIS turn's object URL only.
+  try {
+    audio.pause()
+  } catch {
+    /* ignore */
+  }
   if (useB) revokeActiveUrlB()
   else revokeActiveUrl()
   const objectUrl = URL.createObjectURL(blob)
   if (useB) activeObjectUrlB = objectUrl
   else activeObjectUrl = objectUrl
   audio.src = objectUrl
-  audio.currentTime = 0
+  try {
+    audio.currentTime = 0
+  } catch {
+    /* ignore */
+  }
   audio.muted = false
   audio.volume = 1
+  audio.setAttribute('playsinline', 'true')
+  audio.setAttribute('webkit-playsinline', 'true')
+  onObjectUrlAssigned?.(objectUrl)
 
   return new Promise<void>((resolve, reject) => {
     let settled = false
@@ -535,6 +585,7 @@ function playBlobOnElement(
       if (err) {
         if (useB) revokeActiveUrlB()
         else revokeActiveUrl()
+        clearElementSrcSoft(audio)
         reject(err)
       } else {
         resolve()
@@ -560,8 +611,10 @@ function playBlobOnElement(
         playbackStarted = true
         onPlaybackStart?.()
       }
+      // Revoke ONLY this turn's object URL after playback actually finished.
       if (useB) revokeActiveUrlB()
       else revokeActiveUrl()
+      clearElementSrcSoft(audio)
       finish()
     }
     audio.onerror = () => finish(new Error('تعذر تشغيل الصوت'))
@@ -700,7 +753,13 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
         } catch {
           // ignore
         }
-        await playBlobOnElement(audio, blob, bufferB, () => options.onAudioPlaybackStart?.())
+        await playBlobOnElement(
+          audio,
+          blob,
+          bufferB,
+          () => options.onAudioPlaybackStart?.(),
+          () => options.onObjectUrlAssigned?.(),
+        )
       } finally {
         if (token === generation) speaking = false
       }
@@ -720,6 +779,9 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
       activePlayFinish = null
       revokeActiveUrl()
       revokeActiveUrlB()
+      // Soft-clear persistent elements — keep them alive for Safari unlock.
+      if (sharedAudio) clearElementSrcSoft(sharedAudio)
+      if (sharedAudioB) clearElementSrcSoft(sharedAudioB)
     },
     isSpeaking() {
       return speaking
@@ -730,4 +792,36 @@ export function createAudioElementTextToSpeechProvider(): TextToSpeechProvider {
 /** Test helper — default voice used when prefs are unset. */
 export function defaultOpenAiVoiceForLocale(locale: VoiceLocale): OpenAiTtsVoiceId | 'nova' {
   return locale === 'ar' ? DEFAULT_VOICE_PREFS.voiceId : 'nova'
+}
+
+/** @internal Vitest helper — reset persistent element + unlock latch between tests. */
+export function __resetAudioElementTtsForTests(): void {
+  unlocked = false
+  preconnected = false
+  useBufferB = false
+  activePlayFinish = null
+  prefetchCache.clear()
+  try {
+    sharedAudio?.pause()
+    sharedAudioB?.pause()
+    unlockWarmAudio?.pause()
+    primedRemoteAudio?.pause()
+  } catch {
+    /* ignore */
+  }
+  revokeActiveUrl()
+  revokeActiveUrlB()
+  if (sharedAudio?.parentNode) sharedAudio.parentNode.removeChild(sharedAudio)
+  if (sharedAudioB?.parentNode) sharedAudioB.parentNode.removeChild(sharedAudioB)
+  if (primedRemoteAudio?.parentNode) primedRemoteAudio.parentNode.removeChild(primedRemoteAudio)
+  sharedAudio = null
+  sharedAudioB = null
+  unlockWarmAudio = null
+  primedRemoteAudio = null
+  try {
+    void audioContext?.close()
+  } catch {
+    /* ignore */
+  }
+  audioContext = null
 }

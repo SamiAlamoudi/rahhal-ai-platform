@@ -93,6 +93,9 @@ describe('realtime session config — force audio output', () => {
     expect(src).toMatch(/Never wipe a live remote WebRTC stream/)
     expect(src).toMatch(/liveStream/)
     expect(src).toMatch(/resumeSharedAudioContext/)
+    // Multi-turn: already-unlocked must not re-prime silent WAV (poisons turn 2+).
+    expect(src).toMatch(/Already unlocked under a prior user gesture/)
+    expect(src).toMatch(/Never restore a revoked blob/)
   })
 
   it('realtime ensureRemoteAudible requires progression, not bare play()', () => {

@@ -57,6 +57,12 @@ export type VoicePlaybackDiagEvent =
   | 'CLASSIC_TTS_REQUESTED'
   | 'CLASSIC_TTS_HTTP_OK'
   | 'CLASSIC_TTS_PLAYBACK_STARTED'
+  | 'TTS_REQUEST_STARTED'
+  | 'TTS_HTTP_STATUS'
+  | 'TTS_BYTES'
+  | 'TTS_OBJECT_URL_ASSIGNED'
+  | 'PLAYBACK_STARTED'
+  | 'PLAYBACK_BLOCKED'
   | 'MODEL_RESPONSE_STARTED'
   | 'MODEL_RESPONSE_COMPLETED'
   | 'CLASSIC_FALLBACK_STARTED'
@@ -150,6 +156,17 @@ export type VoicePlaybackDiagnostics = {
   classicFallbackBytes: number | null
   classicFallbackMime: string | null
   realtimeAudioRequested: boolean
+  /** Per-turn classic TTS request id (non-secret). */
+  ttsRequestId: string | null
+  /** Per-turn TTS HTTP status when known. */
+  ttsHttpStatus: number | null
+  /** Per-turn TTS audio bytes when known. */
+  ttsBytes: number | null
+  /** True after this turn's object URL was assigned to the persistent element. */
+  ttsObjectUrlAssigned: boolean
+  /** Per-turn playback started / ended (independent of sticky session audible). */
+  turnPlaybackStarted: boolean
+  turnPlaybackEnded: boolean
 }
 
 export function emptyVoicePlaybackDiagnostics(): VoicePlaybackDiagnostics {
@@ -210,6 +227,12 @@ export function emptyVoicePlaybackDiagnostics(): VoicePlaybackDiagnostics {
     classicFallbackBytes: null,
     classicFallbackMime: null,
     realtimeAudioRequested: false,
+    ttsRequestId: null,
+    ttsHttpStatus: null,
+    ttsBytes: null,
+    ttsObjectUrlAssigned: false,
+    turnPlaybackStarted: false,
+    turnPlaybackEnded: false,
   }
 }
 

@@ -38,6 +38,7 @@ import {
   shouldRecoverStuckThinking,
 } from '../../lib/bilamo/speech/voiceSubmitGate'
 import { captureMicFromUserGesture } from '../../lib/bilamo/voice/micGestureCapture'
+import { prepareSpokenTextForTts } from '../../lib/bilamo/voice/spokenTextHygiene'
 import {
   noteSpeechUnderstandingDiag,
   noteVoiceLifecycleStage,
@@ -476,9 +477,10 @@ export function BilamoConversationExperience({
           understood.confirmDestinationLabel,
           understood.language,
         )
+        const confirmLocale = replyLocaleToVoiceLocale(understood.language)
         const handle = voiceApiRef.current?.speak(
-          confirm.spokenText,
-          replyLocaleToVoiceLocale(understood.language),
+          prepareSpokenTextForTts(confirm.spokenText, confirmLocale),
+          confirmLocale,
         )
         if (handle) {
           speakGenerationRef.current = handle.generation
@@ -719,7 +721,8 @@ export function BilamoConversationExperience({
       const isSelectTurn = /^select\s+(flight|hotel)\s+/i.test(content)
 
       const armSpeakOnce = (spokenRaw: string, voiceLocale: ReturnType<typeof replyLocaleToVoiceLocale>) => {
-        const spoken = spokenRaw.trim()
+        // Arabic voice: strip English template pollution; keep consultant-length summary.
+        const spoken = prepareSpokenTextForTts(spokenRaw, voiceLocale)
         if (!spoken || spokenArmedRef.current) return
         spokenArmedRef.current = true
         // Stay thinking until VoiceSession reports audible SPEAKING (play started).

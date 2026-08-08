@@ -107,6 +107,8 @@ export interface TextToSpeechSpeakOptions {
   onTtsResponseComplete?: () => void
   onAudioDecodeComplete?: () => void
   onAudioPlaybackStart?: () => void
+  /** Fired when this turn's object URL is assigned to the persistent element. */
+  onObjectUrlAssigned?: () => void
 }
 
 export interface TextToSpeechProvider {

@@ -57,8 +57,13 @@ export interface VoiceExperiencePrefs {
 
 export const VOICE_PREFS_STORAGE_KEY = 'rahhal.voiceExperience.v1'
 
-/** Default selected after Arabic voice comparison pack (see artifacts). */
-export const DEFAULT_VOICE_ID: OpenAiTtsVoiceId = 'coral'
+/**
+ * Default Arabic TTS voice.
+ * OpenAI recommends marin/cedar for natural quality; marin is the female Arabic
+ * eval candidate that best matches Bilamo's warm consultant tone (was coral —
+ * reported robotic on physical iPhone Safari).
+ */
+export const DEFAULT_VOICE_ID: OpenAiTtsVoiceId = 'marin'
 
 export const DEFAULT_VOICE_PREFS: VoiceExperiencePrefs = {
   voiceId: DEFAULT_VOICE_ID,
@@ -269,15 +274,14 @@ export function buildTtsSpeechInstructions(input: {
         : 'Natural conversational pace.'
 
   return [
-    'Speak naturally and conversationally in Arabic as Bilamo, an experienced travel consultant.',
-    'Warm, confident, concise — human live-call tone.',
-    'Avoid announcer-style delivery, navigation-system tone, and exaggerated emotion.',
-    'Use natural pauses. Vary pitch and stress — never identical cadence.',
+    'Speak in natural modern Arabic with a warm, confident, human travel-consultant tone.',
+    'Use natural pauses, conversational rhythm, and expressive but restrained intonation.',
+    'Avoid robotic pacing, over-enunciation, and announcer-style delivery.',
+    'Pronounce Arabic naturally and preserve English proper nouns only when needed.',
+    'Never invent English template fragments. Absolutely no English filler words.',
     energy,
     pace,
-    'Do not sound like a text reader.',
     dialectLine,
     'If a strong regional accent would sound unnatural, use clear natural Arabic instead of a poor imitation.',
-    'Never insert English words.',
   ].join(' ')
 }

@@ -303,6 +303,13 @@ export function createBilamoVoiceSession(
         classicFallbackBytes: playbackDiag.classicFallbackBytes,
         classicFallbackMime: playbackDiag.classicFallbackMime,
         realtimeAudioRequested: playbackDiag.realtimeAudioRequested,
+        // Per-turn classic TTS / playback latches — session owns these across transport merges.
+        ttsRequestId: playbackDiag.ttsRequestId,
+        ttsHttpStatus: playbackDiag.ttsHttpStatus,
+        ttsBytes: playbackDiag.ttsBytes,
+        ttsObjectUrlAssigned: playbackDiag.ttsObjectUrlAssigned,
+        turnPlaybackStarted: playbackDiag.turnPlaybackStarted,
+        turnPlaybackEnded: playbackDiag.turnPlaybackEnded,
       }
       playbackDiag = {
         ...playbackDiag,
@@ -365,6 +372,15 @@ export function createBilamoVoiceSession(
           sessionSticky.realtimeAudioRequested
           || Boolean(fromTransport.realtimeAudioRequested)
           || Boolean(fromTransport.audioPlayRequested),
+        ttsRequestId: sessionSticky.ttsRequestId || fromTransport.ttsRequestId || null,
+        ttsHttpStatus: sessionSticky.ttsHttpStatus ?? fromTransport.ttsHttpStatus ?? null,
+        ttsBytes: sessionSticky.ttsBytes ?? fromTransport.ttsBytes ?? null,
+        ttsObjectUrlAssigned:
+          sessionSticky.ttsObjectUrlAssigned || Boolean(fromTransport.ttsObjectUrlAssigned),
+        turnPlaybackStarted:
+          sessionSticky.turnPlaybackStarted || Boolean(fromTransport.turnPlaybackStarted),
+        turnPlaybackEnded:
+          sessionSticky.turnPlaybackEnded || Boolean(fromTransport.turnPlaybackEnded),
       }
     }
     playbackDiag.audioContextState = readAudioContextState()
@@ -775,9 +791,11 @@ export function createBilamoVoiceSession(
         clearSilentRealtimeTimer()
         metrics.mark('speak_start')
         playbackDiag.audioPlaybackStarted = true
+        playbackDiag.turnPlaybackStarted = true
+        playbackDiag.turnPlaybackEnded = false
         playbackDiag.audible = true
         playbackDiag.realtimeAudioRequested = true
-        playbackDiag.lastEvent = 'audioPlaybackStarted'
+        playbackDiag.lastEvent = 'PLAYBACK_STARTED'
         playbackDiag.playResult = 'resolved'
         noteVoiceTurnStage('playing')
         playbackDiag.turnStage = 'playing'
@@ -797,13 +815,14 @@ export function createBilamoVoiceSession(
         clearSilentRealtimeTimer()
         metrics.mark('speak_end')
         playbackDiag.audioPlaybackEnded = true
+        playbackDiag.turnPlaybackEnded = true
         playbackDiag.lastEvent = 'PLAYBACK_ENDED'
         noteVoiceTurnStage('idle')
         playbackDiag.turnStage = 'idle'
         if (state === 'speaking' || state === 'interrupted' || state === 'processing') {
           setState('idle')
         }
-        // Persistent session: PLAYING → LISTENING automatically.
+        // Persistent session: PLAYING → LISTENING automatically (keep unlock + element).
         rearmContinuousListening()
       },
       onAudioChunk: (info) => {
@@ -1327,10 +1346,19 @@ export function createBilamoVoiceSession(
       }
 
       metrics.mark('response_start')
+      // Per-turn playback latch — never reuse sticky audible / consumed flags across turns.
+      playbackDiag.audible = false
       playbackDiag.audioPlayRequested = true
       playbackDiag.audioPlaybackStarted = false
       playbackDiag.audioPlaybackFailed = false
       playbackDiag.audioPlaybackEnded = false
+      playbackDiag.turnPlaybackStarted = false
+      playbackDiag.turnPlaybackEnded = false
+      playbackDiag.ttsObjectUrlAssigned = false
+      playbackDiag.ttsRequestId = null
+      playbackDiag.ttsHttpStatus = null
+      playbackDiag.ttsBytes = null
+      playbackDiag.turnId = sessionGen
       playbackDiag.assistantResponseCreated = true
       playbackDiag.lastEvent = 'MODEL_RESPONSE_STARTED'
       noteVoiceTurnStage('response_ready')

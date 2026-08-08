@@ -31,6 +31,12 @@ export type VoiceHttpTraceSnapshot = {
   transcriptConfidence: number | null
   normalizedIntent: string | null
   submitLatencyMs: number | null
+  /** Per-turn classic TTS meta (never secrets / transcripts). */
+  ttsRequestId: string | null
+  ttsHttpStatus: number | null
+  ttsBytes: number | null
+  ttsObjectUrlAssigned: boolean
+  turnId: number | null
 }
 
 let activeCorrelationId: string | null = null
@@ -58,6 +64,11 @@ function emptyTrace(): VoiceHttpTraceSnapshot {
     transcriptConfidence: null,
     normalizedIntent: null,
     submitLatencyMs: null,
+    ttsRequestId: null,
+    ttsHttpStatus: null,
+    ttsBytes: null,
+    ttsObjectUrlAssigned: false,
+    turnId: null,
   }
 }
 
@@ -188,15 +199,54 @@ export function noteVoiceHttpResult(opts: {
   }
 }
 
+export type VoiceLifecycleDetail = {
+  code?: string | null
+  turnId?: number | null
+  requestId?: string | null
+  status?: number | null
+  bytes?: number | null
+}
+
+/** Only treat real failure / auth codes as safeServerErrorCode — never TTS request ids. */
+function isSafeServerErrorCode(code: string): boolean {
+  return /^(HTTP_[45]|AUTH_|PLAYBACK_|CREDIT_|OPENAI_|MIC_|LIFECYCLE_|UNSUPPORTED|TTS_UNAVAILABLE)/i.test(
+    code,
+  )
+}
+
 /** Stage-by-stage Safari lifecycle — no silent stalls. */
 export function noteVoiceLifecycleStage(
   stage: VoicePlaybackDiagnostics['lastEvent'],
-  detail?: { code?: string | null },
+  detail?: VoiceLifecycleDetail,
 ): void {
   if (!stage) return
   trace.lastEvent = stage
-  if (detail?.code && /^[A-Z0-9_]{3,48}$/i.test(detail.code)) {
-    trace.safeServerErrorCode = detail.code
+  if (detail?.code && isSafeServerErrorCode(detail.code)) {
+    trace.safeServerErrorCode = detail.code.toUpperCase()
+  }
+  if (typeof detail?.turnId === 'number' && Number.isFinite(detail.turnId)) {
+    trace.turnId = detail.turnId
+  }
+  if (stage === 'TTS_REQUEST_STARTED') {
+    if (typeof detail?.requestId === 'string' && detail.requestId.trim()) {
+      trace.ttsRequestId = detail.requestId.trim()
+    }
+    // New TTS request — reset per-turn TTS meta for this speak.
+    trace.ttsHttpStatus = null
+    trace.ttsBytes = null
+    trace.ttsObjectUrlAssigned = false
+  }
+  if (stage === 'TTS_HTTP_STATUS' && typeof detail?.status === 'number') {
+    trace.ttsHttpStatus = detail.status
+  }
+  if (stage === 'TTS_BYTES' && typeof detail?.bytes === 'number') {
+    trace.ttsBytes = detail.bytes
+  }
+  if (stage === 'TTS_OBJECT_URL_ASSIGNED') {
+    trace.ttsObjectUrlAssigned = true
+    if (typeof detail?.requestId === 'string' && detail.requestId.trim()) {
+      trace.ttsRequestId = detail.requestId.trim()
+    }
   }
 }
 
@@ -255,6 +305,11 @@ export function applyVoiceHttpTrace(
     submitLatencyMs: t.submitLatencyMs ?? diag.submitLatencyMs,
     // Never promote bare play()/audioPlaybackStarted into audible.
     audible: diag.audible,
+    ttsRequestId: t.ttsRequestId ?? diag.ttsRequestId,
+    ttsHttpStatus: t.ttsHttpStatus ?? diag.ttsHttpStatus,
+    ttsBytes: t.ttsBytes ?? diag.ttsBytes,
+    ttsObjectUrlAssigned: diag.ttsObjectUrlAssigned || t.ttsObjectUrlAssigned,
+    turnId: diag.turnId ?? t.turnId,
     timestampMs: Date.now(),
   }
 }

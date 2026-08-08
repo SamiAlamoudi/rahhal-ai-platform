@@ -4,9 +4,12 @@
  */
 
 import {
+  isAudioPlaybackUnlocked,
   preconnectOpenAiTtsRoute,
+  resumeSharedAudioContext,
   unlockAudioPlayback,
 } from '../../chat/voice/audioElementTextToSpeechProvider'
+import { buildTtsSpeechInstructions, DEFAULT_VOICE_ID } from '../../chat/voice/voiceExperiencePrefs'
 import { createTextToSpeechProvider } from '../../chat/voice/voiceProviderFactory'
 import type { TextToSpeechProvider, VoiceLocale } from '../../chat/voice/voiceTypes'
 import { speechLangForLocale } from '../../chat/voice/voiceTypes'
@@ -19,6 +22,30 @@ import type {
   BilamoVoiceTransport,
   BilamoVoiceTransportCallbacks,
 } from './bilamoVoiceTransport'
+import { prepareSpokenTextForTts } from './spokenTextHygiene'
+import { noteVoiceLifecycleStage } from './voiceHttpTrace'
+
+/** Safari prefers mp3 (matches diagnostics harness); keeps sticky unlock reliable. */
+function classicTtsFormat(): 'mp3' | 'wav' {
+  if (typeof navigator === 'undefined') return 'mp3'
+  const ua = navigator.userAgent || ''
+  const safari = /Safari/i.test(ua) && !/Chrome|CriOS|FxiOS|Edg/i.test(ua)
+  return safari ? 'mp3' : 'mp3'
+}
+
+function classicTtsVoice(locale: VoiceLocale): string {
+  // Documented voice change: marin (was implicit coral via prefs) for natural Arabic.
+  return locale === 'ar' ? DEFAULT_VOICE_ID : 'nova'
+}
+
+function classicTtsInstructions(locale: VoiceLocale): string {
+  return buildTtsSpeechInstructions({
+    locale,
+    dialect: locale === 'ar' ? 'saudi' : undefined,
+    energy: 'natural',
+    speed: 'natural',
+  })
+}
 
 type BrowserSpeechRecognition = {
   lang: string
@@ -343,8 +370,11 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
     },
 
     speak(request: BilamoSpeakRequest): BilamoSpeakHandle {
-      const trimmed = request.text.trim()
+      const locale = request.locale
+      const trimmed = prepareSpokenTextForTts(request.text, locale)
       const generation = ++speakGen
+      const turnId = generation
+      const ttsRequestId = `tts_${turnId}_${Date.now().toString(36)}`
       // Speaking state flips only when playback actually starts (onAudioChunk / play).
 
       const done = (async () => {
@@ -373,43 +403,91 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
           } catch {
             /* ignore */
           }
-          await unlockAudioPlayback().catch(() => undefined)
+          // Per-turn: only unlock under a gesture if not already unlocked.
+          // Never re-prime silent WAV after auto-relisten (poisons Safari turn 2+).
+          if (!isAudioPlaybackUnlocked()) {
+            await unlockAudioPlayback().catch(() => undefined)
+          } else {
+            await resumeSharedAudioContext().catch(() => undefined)
+            preconnectOpenAiTtsRoute()
+          }
           if (speakGen !== generation) return
-          const locale = request.locale
+
+          const format = classicTtsFormat()
+          const voice = classicTtsVoice(locale)
+          const instructions = classicTtsInstructions(locale)
+          const speed = 1
+
+          noteVoiceLifecycleStage('TTS_REQUEST_STARTED', {
+            turnId,
+            requestId: ttsRequestId,
+          })
           engine.prefetch?.({
             text: trimmed,
             locale,
+            voice,
             dialect: locale === 'ar' ? 'saudi' : undefined,
-            format: 'wav',
-            speed: locale === 'ar' ? 0.98 : 1,
+            format,
+            speed,
+            instructions,
           })
           if (speakGen !== generation) return
           let playbackStarted = false
+          let objectUrlAssigned = false
           await engine.speak({
             text: trimmed,
             locale,
             interrupt: true,
+            voice,
             dialect: locale === 'ar' ? 'saudi' : undefined,
-            format: 'wav',
-            speed: locale === 'ar' ? 0.98 : 1,
+            format,
+            speed,
+            instructions,
+            onTtsRequestStart: () => {
+              if (speakGen !== generation) return
+              noteVoiceLifecycleStage('TTS_REQUEST_STARTED', {
+                turnId,
+                requestId: ttsRequestId,
+              })
+            },
+            onObjectUrlAssigned: () => {
+              if (speakGen !== generation) return
+              objectUrlAssigned = true
+              noteVoiceLifecycleStage('TTS_OBJECT_URL_ASSIGNED', {
+                turnId,
+                requestId: ttsRequestId,
+              })
+            },
             onAudioPlaybackStart: () => {
               if (speakGen !== generation) return
               playbackStarted = true
               speaking = true
+              noteVoiceLifecycleStage('PLAYBACK_STARTED', {
+                turnId,
+                requestId: ttsRequestId,
+              })
               callbacks.onSpeakingStart?.(generation)
               callbacks.onAudioChunk?.({ generation })
             },
-            instructions:
-              locale === 'ar'
-                ? 'Speak warm Saudi-Gulf Arabic, natural consultant pacing, no theatrical accent.'
-                : undefined,
           })
-          if (speakGen === generation && !playbackStarted) {
-            // Speak resolved without an audible start (Safari autoplay / empty buffer).
-            callbacks.onError?.('تعذر تشغيل الصوت.', {
-              code: 'playback_blocked',
-              recoverable: true,
-            })
+          if (speakGen === generation) {
+            if (playbackStarted) {
+              noteVoiceLifecycleStage('PLAYBACK_ENDED', {
+                turnId,
+                requestId: ttsRequestId,
+              })
+            } else {
+              // Speak resolved without an audible start (Safari autoplay / empty buffer).
+              noteVoiceLifecycleStage('PLAYBACK_BLOCKED', {
+                code: 'PLAYBACK_BLOCKED',
+                turnId,
+                requestId: ttsRequestId,
+              })
+              callbacks.onError?.('تعذر تشغيل الصوت.', {
+                code: 'playback_blocked',
+                recoverable: true,
+              })
+            }
           }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
