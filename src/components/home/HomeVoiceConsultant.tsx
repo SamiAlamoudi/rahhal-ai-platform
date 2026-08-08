@@ -19,6 +19,7 @@ export interface HomeVoiceConsultantProps {
  * Renders nothing and never opens microphone or realtime sessions.
  */
 export function HomeVoiceConsultant(_props: HomeVoiceConsultantProps = {}) {
+  // Quarantined: never mount. Product voice = BilamoConversationExperience only.
   if (import.meta.env.DEV) {
     console.warn(
       '[bilamo] HomeVoiceConsultant is quarantined. Use BilamoConversationExperience.',

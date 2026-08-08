@@ -1,7 +1,7 @@
-# Bilamo Voice — Human Staging Checklist (PR #343)
+# Bilamo Voice — Human Staging Checklist (PR #348)
 
-**Goal:** Prove realtime duplex on real devices before merge.  
-**Do not merge** until every required row is checked and latency numbers are recorded.
+**Goal:** Prove audible Bilamo voice on real devices (iPhone Safari) before merge.  
+**Do not merge** until a human confirms device speaker audio. CI green is not sufficient.
 
 ## Environment (required)
 

@@ -1,3 +1,10 @@
+/**
+ * QUARANTINED — not mounted by the router.
+ *
+ * Product `/` and `/chat` use `BilamoChat` → `BilamoConversationExperience`
+ * → `BilamoVoiceSession` only. This file retains the legacy chat/voice museum
+ * for historical tests; do not wire it back into routes.
+ */
 import {
   lazy,
   Suspense,
@@ -84,7 +91,7 @@ function VoiceComposer(props: Omit<ComponentProps<typeof VoiceComposerLazy>, 'le
 /**
  * Recovery Phase 1 — ONE Chat UI.
  * Sprint 80 P1-1 deleted the quarantined ProductionConversationScreen museum.
- * Default path is always LegacyChatPage → chatEngine → planTurn.
+ * Unmounted museum. Live product path is BilamoChat → BilamoConversationExperience.
  */
 
 type ComposerMode = 'text' | 'voice'
