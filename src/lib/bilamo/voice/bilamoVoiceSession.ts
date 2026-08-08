@@ -1085,9 +1085,11 @@ export function createBilamoVoiceSession(
           voiceSessionActive: prevSession.voiceSessionActive,
           manuallyStopped: prevSession.manuallyStopped,
           autoRelistenTriggered: prevSession.autoRelistenTriggered,
-          mediaStreamActive: true,
+          mediaStreamActive: Boolean(
+            gestureStream?.getAudioTracks?.().some((t) => t.readyState === 'live'),
+          ),
           timestampMs: Date.now(),
-          lastEvent: 'MEDIASTREAM_ACTIVE',
+          lastEvent: gestureStream ? 'MEDIASTREAM_ACTIVE' : 'GESTURE_RECEIVED',
         }
 
         setState('connecting')
