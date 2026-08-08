@@ -20,7 +20,7 @@ const ENV = {
 }
 
 function authFetchStub() {
-  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  return vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
     if (url.includes('/auth/v1/user')) {
       return new Response(JSON.stringify({ id: 'user-1' }), { status: 200 })

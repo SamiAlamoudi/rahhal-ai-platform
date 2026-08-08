@@ -242,8 +242,11 @@ export default async function handler(req: Request): Promise<Response> {
 
   stages.push('TTS_RESPONSE_READY')
   const contentType = contentTypeForFormat(responseFormat)
+  // Copy into a concrete ArrayBuffer for Edge BodyInit typing.
+  const audioBytes = new Uint8Array(bytes.byteLength)
+  audioBytes.set(bytes)
 
-  return new Response(bytes, {
+  return new Response(audioBytes, {
     status: 200,
     headers: {
       ...corsHeaders,
@@ -254,7 +257,7 @@ export default async function handler(req: Request): Promise<Response> {
       'X-Rahhal-TTS-Format': responseFormat,
       'X-Rahhal-TTS-Safe-Code': 'TTS_RESPONSE_READY',
       'X-Rahhal-TTS-Stages': stages.slice(-12).join(','),
-      'X-Rahhal-TTS-Bytes': String(bytes.byteLength),
+      'X-Rahhal-TTS-Bytes': String(audioBytes.byteLength),
     },
   })
 }
