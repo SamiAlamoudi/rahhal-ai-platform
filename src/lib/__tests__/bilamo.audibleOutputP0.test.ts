@@ -230,15 +230,19 @@ describe('SPEAKING only after audible play', () => {
   })
 })
 
-describe('direct probe uses primed playback element', () => {
-  it('probe imports obtainPrimedTtsPlaybackElement', () => {
+describe('direct probe uses persistent diagnostic audio element', () => {
+  it('probe unlocks one persistent element before async TTS fetch', () => {
     const src = readFileSync(
       resolve(__dirname, '../bilamo/voice/directAudioProbe.ts'),
       'utf8',
     )
-    expect(src).toMatch(/obtainPrimedTtsPlaybackElement/)
+    expect(src).toMatch(/obtainDiagnosticAudioElement/)
+    expect(src).toMatch(/unlockDiagnosticAudioElement/)
     expect(src).toMatch(/DIRECT_AUDIO_PROBE_TEXT/)
-    expect(src).not.toMatch(/document\.createElement\('audio'\)/)
+    expect(src).toMatch(/DIAGNOSTIC_TTS_FORMAT/)
+    expect(src).toMatch(/mp3/)
+    // Must reuse unlocked element after fetch — never invent a new one.
+    expect(src).toMatch(/unlockedElement/)
   })
 })
 
