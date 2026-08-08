@@ -24,6 +24,8 @@ import {
 vi.mock('../chat/voice/audioElementTextToSpeechProvider', () => ({
   unlockAudioPlayback: vi.fn(async () => undefined),
   preconnectOpenAiTtsRoute: vi.fn(),
+  isAudioPlaybackUnlocked: vi.fn(() => true),
+  resumeSharedAudioContext: vi.fn(async () => undefined),
 }))
 
 afterEach(() => {
