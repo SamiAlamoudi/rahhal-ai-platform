@@ -37,6 +37,8 @@ export interface BilamoTranscriptEvent {
   /** Parser-only enrichment (Arabic ASR normalize). Never rewrite display. */
   normalizedForExtract?: string
   locale?: VoiceLocale
+  /** Pre-normalize ASR text (diagnostics). */
+  rawText?: string
 }
 
 export interface BilamoVoiceTransportCallbacks {

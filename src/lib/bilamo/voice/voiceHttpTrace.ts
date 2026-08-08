@@ -19,6 +19,8 @@ export type VoiceHttpTraceSnapshot = {
   safeServerErrorCode: string | null
   realtimeSessionCreated: boolean | null
   classicFallbackHttpStatus: number | null
+  classicFallbackBytes: number | null
+  classicFallbackMime: string | null
   authenticatedUser: boolean | null
   supabaseSessionAvailable: boolean | null
   authProbeCode: string | null
@@ -44,6 +46,8 @@ function emptyTrace(): VoiceHttpTraceSnapshot {
     safeServerErrorCode: null,
     realtimeSessionCreated: null,
     classicFallbackHttpStatus: null,
+    classicFallbackBytes: null,
+    classicFallbackMime: null,
     authenticatedUser: null,
     supabaseSessionAvailable: null,
     authProbeCode: null,
@@ -134,6 +138,8 @@ export function noteVoiceHttpResult(opts: {
   status: number
   bodyCode?: string | null
   kind?: 'realtime' | 'realtime_session' | 'tts' | 'other'
+  bytes?: number | null
+  mime?: string | null
 }): void {
   const code = safeHttpErrorCode(opts.status, opts.bodyCode ?? null)
   trace.httpRoute = opts.route
@@ -150,7 +156,11 @@ export function noteVoiceHttpResult(opts: {
       trace.lastEvent = 'VOICE_REQUEST_ACCEPTED'
     } else if (opts.kind === 'tts') {
       trace.classicFallbackHttpStatus = opts.status
-      trace.lastEvent = 'CLASSIC_FALLBACK_OK'
+      if (typeof opts.bytes === 'number') trace.classicFallbackBytes = opts.bytes
+      if (opts.mime) trace.classicFallbackMime = opts.mime
+      trace.lastEvent = opts.bytes != null && opts.bytes <= 0
+        ? 'CLASSIC_FALLBACK_FAILED'
+        : 'CLASSIC_FALLBACK_OK'
     } else {
       trace.lastEvent = 'VOICE_REQUEST_ACCEPTED'
     }
@@ -158,6 +168,8 @@ export function noteVoiceHttpResult(opts: {
   if (opts.status >= 400) {
     if (opts.kind === 'tts') {
       trace.classicFallbackHttpStatus = opts.status
+      if (typeof opts.bytes === 'number') trace.classicFallbackBytes = opts.bytes
+      if (opts.mime) trace.classicFallbackMime = opts.mime
       trace.lastEvent = 'CLASSIC_FALLBACK_FAILED'
     }
   }
@@ -200,6 +212,8 @@ export function applyVoiceHttpTrace(
     safeServerErrorCode: t.safeServerErrorCode ?? diag.safeServerErrorCode,
     realtimeSessionCreated: t.realtimeSessionCreated ?? diag.realtimeSessionCreated,
     classicFallbackHttpStatus: t.classicFallbackHttpStatus ?? diag.classicFallbackHttpStatus,
+    classicFallbackBytes: t.classicFallbackBytes ?? diag.classicFallbackBytes,
+    classicFallbackMime: t.classicFallbackMime ?? diag.classicFallbackMime,
     authenticatedUser: t.authenticatedUser ?? diag.authenticatedUser,
     supabaseSessionAvailable: t.supabaseSessionAvailable ?? diag.supabaseSessionAvailable,
     authProbeCode: t.authProbeCode ?? diag.authProbeCode,
@@ -210,7 +224,8 @@ export function applyVoiceHttpTrace(
     transcriptConfidence: t.transcriptConfidence ?? diag.transcriptConfidence,
     normalizedIntent: t.normalizedIntent ?? diag.normalizedIntent,
     submitLatencyMs: t.submitLatencyMs ?? diag.submitLatencyMs,
-    audible: diag.audible || diag.audioPlaybackStarted,
+    // Never promote bare play()/audioPlaybackStarted into audible.
+    audible: diag.audible,
     timestampMs: Date.now(),
   }
 }

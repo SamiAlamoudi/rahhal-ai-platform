@@ -3,6 +3,8 @@
  * Enrich structured extraction only — never rewrite the displayed / committed transcript.
  */
 
+import { normalizeBilamoAssistantName } from './bilamoBrandAsr'
+
 /** Eastern Arabic / Persian digits → Western digits for parsers. */
 export function easternDigitsToAscii(text: string): string {
   const map: Record<string, string> = {
@@ -32,10 +34,12 @@ const ARABIC_DAY_WORDS: Array<{ re: RegExp; day: number }> = [
 
 /**
  * Normalize Arabic ASR text for requirement parsers only.
- * Display / committed transcript must stay the original exact string.
+ * Display / committed transcript must stay the original exact string
+ * (except Bilamo brand repair, which is also applied on the display sanitize path).
  */
 export function normalizeArabicAsrForExtraction(text: string): string {
   let out = easternDigitsToAscii(text || '')
+  out = normalizeBilamoAssistantName(out).normalized
 
   // Word-number days before month names: "ثلاثة أغسطس" → "3 أغسطس"
   const monthAr = 'يناير|فبراير|مارس|أبريل|ابريل|مايو|يونيو|يوليو|أغسطس|اغسطس|سبتمبر|أكتوبر|اكتوبر|نوفمبر|ديسمبر'

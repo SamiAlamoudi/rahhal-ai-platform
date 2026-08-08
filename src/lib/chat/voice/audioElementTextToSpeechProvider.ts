@@ -134,6 +134,8 @@ async function resumeAudioContext(): Promise<void> {
     if (!audioContext || audioContext.state === 'closed') {
       audioContext = new AC()
     }
+    // Publish for session diagnostics (suspended vs running).
+    ;(window as Window & { __bilamoAudioCtx?: AudioContext }).__bilamoAudioCtx = audioContext
     if (audioContext.state === 'suspended') {
       await audioContext.resume()
     }
@@ -147,6 +149,11 @@ async function resumeAudioContext(): Promise<void> {
   } catch {
     // Best-effort.
   }
+}
+
+/** Public resume for realtime play path — must NOT wipe remote srcObject. */
+export async function resumeSharedAudioContext(): Promise<void> {
+  await resumeAudioContext()
 }
 
 /** DNS/TLS warm-up for the TTS route — does not synthesize audio. */
@@ -190,12 +197,27 @@ export function preconnectOpenAiTtsRoute(): void {
  * (not only a throwaway element), or later TTS play() stays NotAllowed.
  */
 async function primeElementForSafari(el: HTMLAudioElement): Promise<void> {
+  // CRITICAL (iPhone Safari): setting el.src clears MediaStream srcObject.
+  // Never wipe a live remote WebRTC stream during unlock / visibility resume.
+  const liveStream = el.srcObject
+  if (liveStream) {
+    el.muted = false
+    el.volume = 1
+    el.setAttribute('playsinline', 'true')
+    el.setAttribute('webkit-playsinline', 'true')
+    // Soft warm only — do not replace src/srcObject.
+    await el.play().catch(() => undefined)
+    return
+  }
+
   const prevSrc = el.src
   const prevMuted = el.muted
   const prevVolume = el.volume
   try {
     el.muted = false
     el.volume = 1
+    el.setAttribute('playsinline', 'true')
+    el.setAttribute('webkit-playsinline', 'true')
     el.src = SILENT_WAV
     await el.play().catch(() => undefined)
     el.pause()
@@ -238,8 +260,11 @@ export async function unlockAudioPlayback(): Promise<void> {
     b.volume = 1
     remote.muted = false
     remote.volume = 1
+    remote.setAttribute('playsinline', 'true')
+    remote.setAttribute('webkit-playsinline', 'true')
     await primeElementForSafari(a)
     await primeElementForSafari(b)
+    // Prime remote only when it has no live stream (srcObject-safe).
     await primeElementForSafari(remote)
   } catch {
     // ignore
@@ -384,6 +409,19 @@ async function fetchSpeechAudio(
       if (openaiRes.ok) {
         const blob = await openaiRes.blob()
         hooks?.onTtsResponseComplete?.()
+        const mime = blob.type || openaiRes.headers.get('content-type') || request.format
+        try {
+          const { noteVoiceHttpResult } = await import('../../bilamo/voice/voiceHttpTrace')
+          noteVoiceHttpResult({
+            route: '/api/openai/tts',
+            status: openaiRes.status,
+            kind: 'tts',
+            bytes: blob.size,
+            mime,
+          })
+        } catch {
+          /* ignore */
+        }
         if (blob.size >= 64) {
           logChat('debug', 'tts', 'openai_tts_ok', {
             bytes: blob.size,

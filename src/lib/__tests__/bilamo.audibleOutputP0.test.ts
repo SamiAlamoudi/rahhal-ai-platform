@@ -89,6 +89,43 @@ describe('realtime session config — force audio output', () => {
     expect(src).toMatch(/primeElementForSafari/)
     expect(src).toMatch(/visibilitychange/)
     expect(src).toMatch(/pageshow/)
+    // Must never wipe live WebRTC srcObject during unlock.
+    expect(src).toMatch(/Never wipe a live remote WebRTC stream/)
+    expect(src).toMatch(/liveStream/)
+    expect(src).toMatch(/resumeSharedAudioContext/)
+  })
+
+  it('realtime ensureRemoteAudible requires progression, not bare play()', () => {
+    const src = readFileSync(
+      resolve(__dirname, '../chat/voice/realtimeWebRtcSession.ts'),
+      'utf8',
+    )
+    expect(src).toMatch(/waitForRemotePlaybackEvidence/)
+    expect(src).toMatch(/play_resolved_no_progression/)
+    expect(src).toMatch(/resumeSharedAudioContext/)
+    expect(src).toMatch(/NEVER full unlock/)
+    expect(src).toMatch(/BILAMO_TRANSCRIPTION_PROMPT/)
+  })
+
+  it('session never promotes audioPlaybackStarted into audible', () => {
+    const sessionSrc = readFileSync(
+      resolve(__dirname, '../bilamo/voice/bilamoVoiceSession.ts'),
+      'utf8',
+    )
+    const traceSrc = readFileSync(
+      resolve(__dirname, '../bilamo/voice/voiceHttpTrace.ts'),
+      'utf8',
+    )
+    expect(sessionSrc).toMatch(/Never promote bare play\(\)\/audioPlaybackStarted into audible/)
+    expect(traceSrc).toMatch(/Never promote bare play\(\)\/audioPlaybackStarted into audible/)
+    expect(traceSrc).not.toMatch(/audible: diag\.audible \|\| diag\.audioPlaybackStarted/)
+  })
+
+  it('server realtime transcription prompt biases Bilamo/بيلامو', () => {
+    const src = readFileSync(resolve(__dirname, '../../../api/openai/realtime-call.ts'), 'utf8')
+    expect(src).toMatch(/بيلامو/)
+    expect(src).toMatch(/prompt:/)
+    expect(src).toMatch(/not بلال/)
   })
 })
 

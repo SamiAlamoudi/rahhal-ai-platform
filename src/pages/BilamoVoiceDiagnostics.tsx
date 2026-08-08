@@ -65,41 +65,32 @@ export default function BilamoVoiceDiagnostics() {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
   const iosMatch = ua.match(/OS (\d+)[_.](\d+)/)
   const failureBundle = [
+    `RAW_ASR=${playback.rawAsr || '—'}`,
+    `NORMALIZED_ASR=${playback.normalizedAsr || '—'}`,
+    `ASR_CONFIDENCE=${playback.transcriptConfidence ?? '—'}`,
+    `ASSISTANT_NAME_MATCH=${yn(playback.assistantNameMatch)}`,
+    `TURN_ID=${playback.turnId == null ? '—' : String(playback.turnId)}`,
     `correlationId=${playback.correlationId || '—'}`,
-    `turnId=${playback.turnId == null ? '—' : String(playback.turnId)}`,
+    `REALTIME_AUDIO_REQUESTED=${yn(playback.realtimeAudioRequested || playback.audioPlayRequested)}`,
+    `REMOTE_AUDIO_TRACK=${yn(playback.remoteTrackReceived)}`,
+    `REMOTE_AUDIO_MUTED=${playback.remoteTrackMuted == null ? '—' : String(playback.remoteTrackMuted)}`,
+    `REMOTE_AUDIO_PLAYING=${yn(playback.audible && playback.audioPlaybackStarted)}`,
+    `AUDIO_CONTEXT_STATE=${snap.audioContextState || playback.audioContextState || '—'}`,
+    `CLASSIC_TTS_REQUEST=${yn(playback.classicFallbackInvoked || snap.fellBackToClassic)}`,
+    `CLASSIC_TTS_HTTP=${playback.classicFallbackHttpStatus ?? '—'}`,
+    `CLASSIC_TTS_MIME=${playback.classicFallbackMime || '—'}`,
+    `CLASSIC_TTS_BYTES=${playback.classicFallbackBytes ?? '—'}`,
+    `CLASSIC_TTS_PLAYING=${yn(snap.fellBackToClassic && playback.audible)}`,
+    `FINAL_VOICE_STATE=${snap.state}`,
+    `LAST_ERROR=${snap.lastSafeErrorCode || playback.lastSafeErrorCode || snap.error || '—'}`,
     `browser=${/Safari/i.test(ua) && !/Chrome|CriOS|FxiOS/i.test(ua) ? 'Safari' : (ua.slice(0, 80) || '—')}`,
     `iosVersion=${iosMatch ? `${iosMatch[1]}.${iosMatch[2]}` : '—'}`,
     `authStatus=${playback.authenticatedUser ? 'authenticated' : (playback.supabaseSessionAvailable ? 'session' : 'none')}`,
-    `authProbe=${playback.authProbeCode || '—'}`,
     `micPermission=${micPermission}`,
-    `sttState=${playback.speechRecognitionSupported == null ? '—' : (playback.speechRecognitionSupported ? 'supported' : 'unsupported')}`,
-    `detectedLanguage=${playback.language || '—'}`,
-    `dialect=${playback.dialect || '—'}`,
-    `finalTranscript=${yn(playback.finalTranscriptReceived)}`,
-    `eosLatencyMs=${playback.finalTranscriptLatencyMs ?? '—'}`,
-    `llmLatencyMs=${playback.submitLatencyMs ?? '—'}`,
-    `realtimeConnection=${snap.connection}`,
-    `remoteTrack=${yn(playback.remoteTrackReceived)}`,
-    `remoteTrackMuted=${playback.remoteTrackMuted == null ? '—' : String(playback.remoteTrackMuted)}`,
-    `remoteTrackReadyState=${playback.remoteTrackReadyState || '—'}`,
-    `audioPlayAttempt=${yn(playback.audioPlayRequested)}`,
-    `audioPlaying=${yn(playback.audioPlaybackStarted)}`,
-    `playbackProgression=${yn(playback.audible || playback.audioPlaybackStarted)}`,
-    `playbackEnded=${yn(playback.audioPlaybackEnded)}`,
-    `realtimeFailureReason=${snap.lastSafeErrorCode || playback.lastSafeErrorCode || '—'}`,
-    `classicFallbackAttempted=${yn(playback.classicFallbackInvoked || snap.fellBackToClassic)}`,
-    `classicHttpStatus=${playback.classicFallbackHttpStatus ?? '—'}`,
-    `classicMime=${playback.httpRoute || '—'}`,
-    `classicBytes=${playback.classicFallbackInvoked ? 'invoked' : '—'}`,
-    `classicPlaybackState=${snap.fellBackToClassic ? (playback.audioPlaybackStarted ? 'playing_or_played' : 'attempted') : 'n/a'}`,
-    `autoRelisten=${yn(playback.autoRelistenTriggered)}`,
-    `voiceSessionActive=${yn(snap.voiceSessionActive || playback.voiceSessionActive)}`,
-    `finalVoiceState=${snap.state}`,
-    `turnStage=${playback.turnStage || '—'}`,
-    `pc=${playback.peerConnectionState || '—'}`,
-    `ice=${playback.iceConnectionState || '—'}`,
     `playResult=${playback.playResult || '—'}`,
     `event=${playback.lastEvent || '—'}`,
+    `autoRelisten=${yn(playback.autoRelistenTriggered)}`,
+    `voiceSessionActive=${yn(snap.voiceSessionActive || playback.voiceSessionActive)}`,
     `ts=${playback.timestampMs ?? Date.now()}`,
   ].join('\n')
 
@@ -112,25 +103,32 @@ export default function BilamoVoiceDiagnostics() {
             Voice diagnostics
           </h1>
           <p className="text-[13px] text-[var(--bilamo-muted)]">
-            Staging only — no transcripts, keys, or raw payloads.
+            Staging only — last-turn ASR + audio evidence. Never paste tokens.
           </p>
         </header>
 
         <dl className="bilamo-glass space-y-3 rounded-[1.25rem] px-5 py-4 text-[13.5px]">
+          <Row label="RAW_ASR" value={playback.rawAsr || '—'} />
+          <Row label="NORMALIZED_ASR" value={playback.normalizedAsr || '—'} />
+          <Row label="ASR_CONFIDENCE" value={playback.transcriptConfidence == null ? '—' : String(playback.transcriptConfidence)} />
+          <Row label="ASSISTANT_NAME_MATCH" value={yn(playback.assistantNameMatch)} />
+          <Row label="TURN_ID" value={playback.turnId == null ? '—' : String(playback.turnId)} />
           <Row label="VOICE_SESSION_ACTIVE" value={yn(snap.voiceSessionActive || playback.voiceSessionActive)} />
           <Row label="MANUALLY_STOPPED" value={yn(snap.manuallyStopped || playback.manuallyStopped)} />
-          <Row label="STATE" value={snap.state} />
+          <Row label="FINAL_VOICE_STATE" value={snap.state} />
           <Row label="MIC_ACTIVE" value={yn(snap.listening || playback.mediaStreamActive)} />
           <Row label="EOS_DETECTED" value={yn(playback.endOfSpeechDetected)} />
           <Row label="TURN_COMMITTED" value={yn(playback.finalTranscriptReceived || playback.inputCommitted)} />
-          <Row label="TURN_ID" value={playback.turnId == null ? '—' : String(playback.turnId)} />
-          <Row label="TRANSCRIPT_FINAL" value={yn(playback.finalTranscriptReceived)} />
-          <Row label="REALTIME_SESSION" value={yn(playback.realtimeSessionCreated)} />
+          <Row label="REALTIME_AUDIO_REQUESTED" value={yn(playback.realtimeAudioRequested || playback.audioPlayRequested)} />
           <Row label="REMOTE_AUDIO_TRACK" value={yn(playback.remoteTrackReceived)} />
-          <Row label="REMOTE_AUDIO_PLAYING" value={yn(playback.audioPlaybackStarted && snap.state === 'speaking')} />
+          <Row label="REMOTE_AUDIO_MUTED" value={playback.remoteTrackMuted == null ? '—' : String(playback.remoteTrackMuted)} />
+          <Row label="REMOTE_AUDIO_PLAYING" value={yn(playback.audible && playback.audioPlaybackStarted)} />
+          <Row label="AUDIO_CONTEXT_STATE" value={snap.audioContextState || playback.audioContextState || '—'} />
+          <Row label="CLASSIC_TTS_REQUEST" value={yn(playback.classicFallbackInvoked || snap.fellBackToClassic)} />
           <Row label="CLASSIC_TTS_HTTP" value={playback.classicFallbackHttpStatus == null ? '—' : String(playback.classicFallbackHttpStatus)} />
-          <Row label="CLASSIC_TTS_BYTES" value={playback.classicFallbackInvoked ? 'invoked' : '—'} />
-          <Row label="CLASSIC_TTS_PLAYING" value={yn(snap.fellBackToClassic && playback.audioPlaybackStarted)} />
+          <Row label="CLASSIC_TTS_MIME" value={playback.classicFallbackMime || '—'} />
+          <Row label="CLASSIC_TTS_BYTES" value={playback.classicFallbackBytes == null ? '—' : String(playback.classicFallbackBytes)} />
+          <Row label="CLASSIC_TTS_PLAYING" value={yn(snap.fellBackToClassic && playback.audible)} />
           <Row label="PLAYBACK_ENDED" value={yn(playback.audioPlaybackEnded)} />
           <Row label="AUTO_RELISTEN_TRIGGERED" value={yn(playback.autoRelistenTriggered)} />
           <Row label="LAST_ERROR" value={snap.lastSafeErrorCode || playback.lastSafeErrorCode || snap.error || '—'} />

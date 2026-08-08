@@ -19,6 +19,8 @@ export const ARABIC_UTTERANCE_COMMIT_MS = 450
 export type AssembledUtteranceCommit = {
   /** Exact ASR text for display + conversation message (never rewritten). */
   committedTranscript: string
+  /** Pre-sanitize ASR (diagnostics). */
+  rawTranscript?: string
   /** Parser-only enrichment (digits / cabin aliases). */
   normalizedForExtract: string
   audioDurationMs: number
@@ -121,6 +123,7 @@ export function createArabicUtteranceAssembler(options: {
     else if (interimText && interimText.startsWith(segmentText) && interimText.length > segmentText.length) {
       display = interimText
     }
+    const rawAsr = display
     display = sanitizeArabicVoiceTranscript(display)
     const audioMs = durationMs(options.nowMs())
     interim = ''
@@ -168,6 +171,7 @@ export function createArabicUtteranceAssembler(options: {
     const gen = generation
     options.onCommit({
       committedTranscript: display,
+      rawTranscript: rawAsr,
       normalizedForExtract: normalizeArabicAsrForExtraction(display),
       audioDurationMs: audioMs,
       completionReason: 'silence_commit',

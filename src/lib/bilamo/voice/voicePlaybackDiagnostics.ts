@@ -114,6 +114,13 @@ export type VoicePlaybackDiagnostics = {
   autoRelistenTriggered: boolean
   /** Turn id / generation that was committed (no transcript). */
   turnId: number | null
+  /** Last-turn ASR (staging diagnostics only — gated by /voice-diagnostics). */
+  rawAsr: string | null
+  normalizedAsr: string | null
+  assistantNameMatch: boolean | null
+  classicFallbackBytes: number | null
+  classicFallbackMime: string | null
+  realtimeAudioRequested: boolean
 }
 
 export function emptyVoicePlaybackDiagnostics(): VoicePlaybackDiagnostics {
@@ -168,6 +175,12 @@ export function emptyVoicePlaybackDiagnostics(): VoicePlaybackDiagnostics {
     manuallyStopped: false,
     autoRelistenTriggered: false,
     turnId: null,
+    rawAsr: null,
+    normalizedAsr: null,
+    assistantNameMatch: null,
+    classicFallbackBytes: null,
+    classicFallbackMime: null,
+    realtimeAudioRequested: false,
   }
 }
 

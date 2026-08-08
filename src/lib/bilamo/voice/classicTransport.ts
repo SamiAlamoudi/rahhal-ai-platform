@@ -93,7 +93,8 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
   const emitFinalIfNeeded = () => {
     if (finalEmitted) return
     promoteInterimToFinal()
-    let transcript = finalBuffer.trim()
+    const rawText = finalBuffer.trim()
+    let transcript = rawText
     finalBuffer = ''
     interimBuffer = ''
     if (listenLocale === 'ar') {
@@ -107,6 +108,7 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
     callbacks.onFinalTranscript?.({
       text: transcript,
       isFinal: true,
+      rawText: rawText || undefined,
       normalizedForExtract: normalized && normalized !== transcript ? normalized : undefined,
       locale: listenLocale,
     })

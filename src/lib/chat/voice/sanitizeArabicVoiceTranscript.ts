@@ -1,8 +1,11 @@
 /**
  * Arabic voice transcript hygiene — display + commit path.
  * Strips English ASR pollution, dedupes interim/final overlap, protects Yemen vs Japan.
+ * Context-sensitive Bilamo brand repair (بيلامو vs person بلال).
  * Never invents destinations; never logs raw audio.
  */
+
+import { normalizeBilamoAssistantName } from './bilamoBrandAsr'
 
 const ARABIC_RE = /[\u0600-\u06FF]/
 const LATIN_WORD_RE = /[A-Za-z\u00C0-\u024F]+/g
@@ -102,6 +105,7 @@ export function sanitizeArabicVoiceTranscript(text: string): string {
   out = stripEnglishTokenPollution(out)
   out = protectArabicDestinations(out)
   out = collapseDuplicatedTranscript(out)
+  out = normalizeBilamoAssistantName(out).normalized
   return out.replace(/\s+/g, ' ').trim()
 }
 

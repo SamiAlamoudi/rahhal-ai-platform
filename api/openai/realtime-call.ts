@@ -52,6 +52,11 @@ export function buildSessionConfig(input: {
         transcription: {
           model: 'gpt-4o-mini-transcribe',
           language: 'ar',
+          // Bias ASR toward the product name Bilamo/بيلامو (not person بلال).
+          prompt:
+            'The assistant product name is Bilamo (بيلامو). '
+            + 'When the traveler greets or addresses the assistant, transcribe بيلامو / Bilamo — not بلال. '
+            + 'Keep بلال only when it is clearly a person name (e.g. اسمي بلال، مع بلال).',
         },
         turn_detection: {
           type: 'semantic_vad',

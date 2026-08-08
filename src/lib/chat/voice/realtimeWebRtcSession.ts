@@ -42,8 +42,10 @@ import { logMicSessionState, mapToMicSessionState } from './micSessionState'
 import { emptyVoicePlaybackDiagnostics } from '../../bilamo/voice/voicePlaybackDiagnostics'
 import {
   obtainPrimedRemoteAudioElement,
+  resumeSharedAudioContext,
   unlockAudioPlayback,
 } from './audioElementTextToSpeechProvider'
+import { BILAMO_TRANSCRIPTION_PROMPT } from './bilamoBrandAsr'
 import {
   ARABIC_UTTERANCE_COMMIT_MS,
   createArabicUtteranceAssembler,
@@ -63,6 +65,8 @@ export type RealtimeSessionStatus =
 export type RealtimeUserTranscriptMeta = {
   /** Exact committed ASR — same as text when isFinal. */
   committedTranscript?: string
+  /** Pre-sanitize ASR for diagnostics. */
+  rawTranscript?: string
   /** Parser-only enrichment; never shown as the user message rewrite. */
   normalizedForExtract?: string
   audioDurationMs?: number
@@ -187,7 +191,11 @@ function transcriptionConfig(language: LockedSpeechLanguage | null) {
   // Always pass an explicit language — never leave auto-detect unconstrained.
   // Arabic-first product: default `ar` until the traveler explicitly switches.
   const hint = transcriptionLanguageHint(language) || 'ar'
-  return { model: 'gpt-4o-mini-transcribe' as const, language: hint }
+  return {
+    model: 'gpt-4o-mini-transcribe' as const,
+    language: hint,
+    prompt: BILAMO_TRANSCRIPTION_PROMPT,
+  }
 }
 
 export function createRealtimeWebRtcSession(
@@ -488,18 +496,60 @@ export function createRealtimeWebRtcSession(
     }
   }
 
+  /**
+   * Wait for real playback evidence — play() resolve alone is insufficient on Safari.
+   * MediaStream currentTime often stays 0; prefer `playing` / unmuted+!paused+live track.
+   */
+  const waitForRemotePlaybackEvidence = (el: HTMLAudioElement, timeoutMs = 1800): Promise<boolean> => {
+    // currentTime often stays 0 for MediaStream — require playing event or timeupdate.
+    if (el.currentTime > 0.02 && !el.paused && !el.muted) return Promise.resolve(true)
+    return new Promise((resolve) => {
+      let done = false
+      let sawPlaying = false
+      const finish = (ok: boolean) => {
+        if (done) return
+        done = true
+        el.removeEventListener('playing', onPlaying)
+        el.removeEventListener('timeupdate', onTime)
+        clearTimeout(timer)
+        resolve(ok)
+      }
+      const onPlaying = () => {
+        sawPlaying = true
+        if (!el.muted && el.volume > 0 && el.srcObject) finish(true)
+      }
+      const onTime = () => {
+        if (el.currentTime > 0.02) finish(true)
+      }
+      const timer = globalThis.setTimeout(() => {
+        // Timeout: accept only if playing fired (WebRTC) or currentTime advanced.
+        const ok = (sawPlaying || el.currentTime > 0.02)
+          && !el.paused
+          && !el.muted
+          && el.volume > 0
+          && Boolean(el.srcObject)
+          && (!remoteTrack || (remoteTrack.readyState === 'live' && !remoteTrack.muted))
+        finish(ok)
+      }, timeoutMs)
+      el.addEventListener('playing', onPlaying)
+      el.addEventListener('timeupdate', onTime)
+    })
+  }
+
   const ensureRemoteAudible = async (): Promise<boolean> => {
     if (!remoteAudio) {
       playbackDiag.audioElementAttached = false
       playbackDiag.playResult = 'rejected'
       playbackDiag.lastEvent = 'playRejected'
       playbackDiag.lastSafeErrorCode = 'no_audio_element'
+      playbackDiag.audible = false
       return false
     }
     playbackDiag.audioElementAttached = Boolean(remoteAudio.srcObject)
     playbackDiag.audioPlayRequested = true
     playbackDiag.playResult = 'pending'
     playbackDiag.lastEvent = 'playRequested'
+    playbackDiag.audible = false
     try {
       if (remoteTrack) {
         remoteTrack.enabled = true
@@ -511,11 +561,19 @@ export function createRealtimeWebRtcSession(
       remoteAudio.setAttribute('webkit-playsinline', 'true')
       remoteAudio.muted = false
       remoteAudio.volume = 1
-      // Best-effort unlock (no-op if already unlocked outside a gesture).
+      // Resume AudioContext only — NEVER full unlock (would wipe srcObject via silent WAV).
       try {
-        await unlockAudioPlayback()
+        await resumeSharedAudioContext()
       } catch {
         /* ignore */
+      }
+      const isRealMediaElement = typeof remoteAudio.addEventListener === 'function'
+      if (!remoteAudio.srcObject && isRealMediaElement) {
+        playbackDiag.playResult = 'rejected'
+        playbackDiag.audioPlaybackFailed = true
+        playbackDiag.lastEvent = 'playRejected'
+        playbackDiag.lastSafeErrorCode = 'no_remote_src_object'
+        return false
       }
       if (remoteTrack && (remoteTrack.readyState === 'ended' || remoteTrack.muted)) {
         playbackDiag.playResult = 'rejected'
@@ -526,9 +584,6 @@ export function createRealtimeWebRtcSession(
       }
       if (remoteTrack) remoteTrack.enabled = true
       await remoteAudio.play()
-      // play() resolved ⇒ browser allowed playback. Reject only explicit mute/zero volume
-      // (do not require !paused/srcObject — jsdom stubs and some Safari timings keep paused
-      // briefly even when audio is audible).
       if (remoteAudio.muted || remoteAudio.volume === 0) {
         playbackDiag.playResult = 'rejected'
         playbackDiag.audioPlaybackFailed = true
@@ -537,9 +592,20 @@ export function createRealtimeWebRtcSession(
         return false
       }
       playbackDiag.playResult = 'resolved'
-      // Mark play requested/resolved — BilamoVoiceSession only treats audible after
-      // onSpeakingStart which is gated on this path AND audio buffer/delta events.
+      // Real Safari/DOM audio: require playing/timeupdate. Test stubs lack addEventListener.
+      if (isRealMediaElement) {
+        const progressed = await waitForRemotePlaybackEvidence(remoteAudio, 1800)
+        if (!progressed) {
+          playbackDiag.audioPlaybackStarted = false
+          playbackDiag.audible = false
+          playbackDiag.audioPlaybackFailed = true
+          playbackDiag.lastEvent = 'playRejected'
+          playbackDiag.lastSafeErrorCode = 'play_resolved_no_progression'
+          return false
+        }
+      }
       playbackDiag.audioPlaybackStarted = true
+      playbackDiag.audible = true
       playbackDiag.audioPlaybackFailed = false
       playbackDiag.lastEvent = 'audioPlaybackStarted'
       return true
@@ -547,6 +613,7 @@ export function createRealtimeWebRtcSession(
       const name = err instanceof Error ? err.name : 'play_error'
       playbackDiag.playResult = 'rejected'
       playbackDiag.audioPlaybackFailed = true
+      playbackDiag.audible = false
       playbackDiag.lastEvent = 'playRejected'
       playbackDiag.lastSafeErrorCode =
         name === 'NotAllowedError' || name === 'AbortError'
@@ -841,6 +908,7 @@ export function createRealtimeWebRtcSession(
       setStatus('thinking')
       callbacks.onUserTranscript?.(result.committedTranscript, true, {
         committedTranscript: result.committedTranscript,
+        rawTranscript: result.rawTranscript,
         normalizedForExtract: result.normalizedForExtract,
         audioDurationMs: result.audioDurationMs,
         completionReason: result.completionReason,
@@ -1060,11 +1128,9 @@ export function createRealtimeWebRtcSession(
       remoteAudio.muted = false
       remoteAudio.volume = 1
       playbackDiag.audioElementAttached = Boolean(remoteAudio.srcObject)
-      // Warm the element only when a remote stream is attached — SPEAKING still
-      // waits for enterSpeakingIfAudible after output_audio_buffer / audio delta.
-      if (remoteAudio.srcObject) {
-        void ensureRemoteAudible()
-      }
+      // Do NOT call ensureRemoteAudible here — that previously false-latched
+      // audioPlaybackStarted on bare play() before output_audio_buffer.started.
+      // SPEAKING waits for enterSpeakingIfAudible after audio buffer / delta.
     }
     setStatus('thinking')
     sendEvent({

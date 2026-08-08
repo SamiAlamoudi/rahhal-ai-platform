@@ -65,8 +65,12 @@ export function createRealtimeWebRtcBilamoTransport(
           listening = true
           callbacks.onListeningChange?.(true)
         } else if (status === 'speaking') {
-          // Only mark audible speaking once the session reports speaking
-          // (set after remote audio play() succeeds — not on speak() call).
+          // Only latch after remote audible evidence (diag.audible). Bare play() is not enough.
+          const diag = session?.getPlaybackDiagnostics?.()
+          if (!diag?.audible) {
+            // Keep silent timer armed so BilamoVoiceSession can classic-fallback.
+            return
+          }
           if (!speaking) {
             speaking = true
             clearSilentTimer(speakGen)
@@ -104,6 +108,7 @@ export function createRealtimeWebRtcBilamoTransport(
         const event = {
           text,
           isFinal,
+          rawText: meta?.rawTranscript,
           normalizedForExtract: meta?.normalizedForExtract,
           // French Realtime language still maps to Latin TTS locale ('en').
           locale: (meta?.conversationLanguage || 'en') as VoiceLocale,
@@ -276,9 +281,9 @@ export function createRealtimeWebRtcBilamoTransport(
         generation,
         globalThis.setTimeout(() => {
           if (!pendingSpeak.has(generation)) return
-          // Do not treat transport "speaking" latch as audible proof — session decides.
+          // Audible progression only — SPEAKING / play() / audioPlaybackStarted insufficient.
           const diag = session?.getPlaybackDiagnostics?.()
-          if (diag?.audioPlaybackStarted && diag?.audible) return
+          if (diag?.audible) return
           callbacks.onSilentPlayback?.({
             generation,
             code: 'silent_realtime_timeout',

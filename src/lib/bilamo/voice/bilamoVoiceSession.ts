@@ -286,11 +286,18 @@ export function createBilamoVoiceSession(
         firstPartialLatencyMs: playbackDiag.firstPartialLatencyMs,
         finalTranscriptLatencyMs: playbackDiag.finalTranscriptLatencyMs,
         submitLatencyMs: playbackDiag.submitLatencyMs,
-        audible: playbackDiag.audible || playbackDiag.audioPlaybackStarted,
+        // Never promote bare play()/audioPlaybackStarted into audible.
+        audible: playbackDiag.audible,
         voiceSessionActive: playbackDiag.voiceSessionActive,
         manuallyStopped: playbackDiag.manuallyStopped,
         autoRelistenTriggered: playbackDiag.autoRelistenTriggered,
         turnId: playbackDiag.turnId,
+        rawAsr: playbackDiag.rawAsr,
+        normalizedAsr: playbackDiag.normalizedAsr,
+        assistantNameMatch: playbackDiag.assistantNameMatch,
+        classicFallbackBytes: playbackDiag.classicFallbackBytes,
+        classicFallbackMime: playbackDiag.classicFallbackMime,
+        realtimeAudioRequested: playbackDiag.realtimeAudioRequested,
       }
       playbackDiag = {
         ...playbackDiag,
@@ -340,11 +347,19 @@ export function createBilamoVoiceSession(
         finalTranscriptLatencyMs:
           sessionSticky.finalTranscriptLatencyMs ?? fromTransport.finalTranscriptLatencyMs,
         submitLatencyMs: sessionSticky.submitLatencyMs ?? fromTransport.submitLatencyMs,
-        audible:
-          sessionSticky.audible
-          || Boolean(fromTransport.audible)
-          || playbackDiag.audioPlaybackStarted
-          || Boolean(fromTransport.audioPlaybackStarted),
+        audible: sessionSticky.audible || Boolean(fromTransport.audible),
+        rawAsr: sessionSticky.rawAsr || fromTransport.rawAsr || null,
+        normalizedAsr: sessionSticky.normalizedAsr || fromTransport.normalizedAsr || null,
+        assistantNameMatch:
+          sessionSticky.assistantNameMatch ?? fromTransport.assistantNameMatch ?? null,
+        classicFallbackBytes:
+          sessionSticky.classicFallbackBytes ?? fromTransport.classicFallbackBytes ?? null,
+        classicFallbackMime:
+          sessionSticky.classicFallbackMime || fromTransport.classicFallbackMime || null,
+        realtimeAudioRequested:
+          sessionSticky.realtimeAudioRequested
+          || Boolean(fromTransport.realtimeAudioRequested)
+          || Boolean(fromTransport.audioPlayRequested),
       }
     }
     playbackDiag.audioContextState = readAudioContextState()
@@ -654,7 +669,8 @@ export function createBilamoVoiceSession(
             globalThis.setTimeout(resolve, 5_000)
           }),
         ])
-        if (playbackDiag.audioPlaybackStarted || state === 'speaking') {
+        // SPEAKING / play() alone is NOT success — require audible progression evidence.
+        if (playbackDiag.audible && playbackDiag.audioPlaybackStarted) {
           error = null
           return
         }
@@ -714,6 +730,9 @@ export function createBilamoVoiceSession(
         playbackDiag.finalTranscriptReceived = true
         playbackDiag.inputCommitted = true
         playbackDiag.turnId = generation
+        playbackDiag.rawAsr = event.rawText?.trim() || key
+        playbackDiag.normalizedAsr = key
+        playbackDiag.assistantNameMatch = /بيلامو|Bilamo/i.test(key)
         playbackDiag.lastEvent = 'finalTranscriptReceived'
         noteVoiceTurnStage('requesting')
         playbackDiag.turnStage = 'requesting'
@@ -729,10 +748,23 @@ export function createBilamoVoiceSession(
         } else if (gen !== activeSpeakTransportGen) {
           return
         }
+        // Only trust transport speaking when diagnostics confirm audible progression
+        // (realtime ensureRemoteAudible / classic onPlaybackStart). Bare play() must not latch.
+        const transportAudible = Boolean(transport?.getPlaybackDiagnostics?.()?.audible)
+        const confirmed = transportAudible || fellBackToClassic || transportKind === 'classic_tts'
+        if (!confirmed && transportKind === 'realtime_webrtc') {
+          // Keep silent fallback armed — do not clear timer / claim SPEAKING yet.
+          playbackDiag.realtimeAudioRequested = true
+          playbackDiag.lastEvent = 'playRequested'
+          lastSafeErrorCode = 'speaking_without_audible_evidence'
+          emit()
+          return
+        }
         clearSilentRealtimeTimer()
         metrics.mark('speak_start')
         playbackDiag.audioPlaybackStarted = true
         playbackDiag.audible = true
+        playbackDiag.realtimeAudioRequested = true
         playbackDiag.lastEvent = 'audioPlaybackStarted'
         playbackDiag.playResult = 'resolved'
         noteVoiceTurnStage('playing')
@@ -743,7 +775,6 @@ export function createBilamoVoiceSession(
           transport: transportKind,
           generation: gen,
         })
-        // first_audio is marked on real audio chunk / playback — not assumed here.
         setState('speaking')
       },
       onSpeakingEnd: (gen) => {
@@ -1236,11 +1267,12 @@ export function createBilamoVoiceSession(
           clearSilentRealtimeTimer()
           silentRealtimeTimer = globalThis.setTimeout(() => {
             if (disposed || generation !== sessionGen) return
-            // SPEAKING / play() alone is NOT proof — require audible flag from real start.
-            if (playbackDiag.audible && playbackDiag.audioPlaybackStarted) return
+            // SPEAKING / play() / audioPlaybackStarted alone are NOT proof.
+            if (playbackDiag.audible) return
             lastSafeErrorCode = 'silent_realtime_timeout'
             playbackDiag.lastEvent = 'silentRealtimeTimeout'
             playbackDiag.audioPlaybackFailed = true
+            playbackDiag.realtimeAudioRequested = true
             void recoverAudiblePlayback(handle.generation)
           }, SILENT_REALTIME_FALLBACK_MS)
         }
@@ -1329,8 +1361,9 @@ export function createBilamoVoiceSession(
 
       const onVisibility = () => {
         if (!document.hidden) {
+          // Resume AudioContext only — full unlock can wipe remote srcObject mid-session.
           void import('../../chat/voice/audioElementTextToSpeechProvider')
-            .then((m) => m.unlockAudioPlayback())
+            .then((m) => m.resumeSharedAudioContext())
             .catch(() => undefined)
             .finally(() => {
               emit()
