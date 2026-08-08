@@ -110,7 +110,48 @@ function emptyHarness(): DiagnosticAudioHarnessState {
   }
 }
 
+/**
+ * Stable empty snapshot for SSR / getServerSnapshot.
+ * Must never be mutated — React compares with Object.is.
+ */
+const EMPTY_SERVER_SNAPSHOT: DiagnosticAudioHarnessState = Object.freeze({
+  busy: false,
+  verdict: 'NOT_RUN' as const,
+  failureStage: null,
+  stages: Object.freeze([]) as unknown as string[],
+  lastStage: null,
+  latest: null,
+  updatedAtMs: null,
+  elementId: null,
+})
+
 let harness: DiagnosticAudioHarnessState = emptyHarness()
+
+/**
+ * Cached client snapshot for useSyncExternalStore.
+ * getSnapshot MUST return a stable reference until harness data changes,
+ * otherwise React prod hits error #185 (maximum update depth) and the
+ * /voice-diagnostics page crashes behind AppErrorBoundary.
+ */
+let cachedSnapshot: DiagnosticAudioHarnessState = {
+  ...harness,
+  stages: [...harness.stages],
+  latest: null,
+}
+
+function cloneHarnessState(state: DiagnosticAudioHarnessState): DiagnosticAudioHarnessState {
+  return {
+    ...state,
+    stages: [...state.stages],
+    latest: state.latest
+      ? { ...state.latest, stages: [...state.latest.stages] }
+      : null,
+  }
+}
+
+function rebuildCachedSnapshot(): void {
+  cachedSnapshot = cloneHarnessState(harness)
+}
 
 function emptyResult(correlationId: string, mode: DiagnosticAudioMode): DirectAudioProbeResult {
   return {
@@ -157,6 +198,7 @@ function emptyResult(correlationId: string, mode: DiagnosticAudioMode): DirectAu
 }
 
 function emit(): void {
+  rebuildCachedSnapshot()
   for (const l of listeners) {
     try {
       l()
@@ -231,10 +273,14 @@ export function createAudibleBeepWavDataUri(
   const bytes = new Uint8Array(buffer)
   let binary = ''
   for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]!)
-  const b64 =
-    typeof btoa === 'function'
-      ? btoa(binary)
-      : Buffer.from(bytes).toString('base64')
+  let b64: string
+  if (typeof btoa === 'function') {
+    b64 = btoa(binary)
+  } else if (typeof Buffer !== 'undefined') {
+    b64 = Buffer.from(bytes).toString('base64')
+  } else {
+    throw new Error('DIAGNOSTICS_INIT_FAILED: no base64 encoder')
+  }
   return `data:audio/wav;base64,${b64}`
 }
 
@@ -377,11 +423,12 @@ function sniffFileSignature(bytes: Uint8Array): string | null {
 }
 
 export function getDiagnosticAudioHarnessState(): DiagnosticAudioHarnessState {
-  return {
-    ...harness,
-    stages: [...harness.stages],
-    latest: harness.latest ? { ...harness.latest, stages: [...harness.latest.stages] } : null,
-  }
+  return cachedSnapshot
+}
+
+/** Stable SSR snapshot — never allocates a new object per call. */
+export function getDiagnosticAudioHarnessServerSnapshot(): DiagnosticAudioHarnessState {
+  return EMPTY_SERVER_SNAPSHOT
 }
 
 export function subscribeDiagnosticAudioHarness(listener: () => void): () => void {
@@ -389,6 +436,41 @@ export function subscribeDiagnosticAudioHarness(listener: () => void): () => voi
   return () => {
     listeners.delete(listener)
   }
+}
+
+/**
+ * Record a harness/bootstrap failure without throwing out of React render.
+ * Page stays interactive: reset + local/TTS controls remain usable.
+ */
+export function markDiagnosticInitFailed(error?: unknown): DiagnosticAudioHarnessState {
+  const name =
+    error && typeof error === 'object' && 'name' in error && typeof (error as { name: unknown }).name === 'string'
+      ? (error as { name: string }).name
+      : 'Error'
+  const message =
+    error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string'
+      ? (error as { message: string }).message.slice(0, 160)
+      : String(error ?? 'unknown').slice(0, 160)
+  const correlationId = newCorrelationId()
+  const out = emptyResult(correlationId, null)
+  out.stage = 'DIAGNOSTICS_INIT_FAILED'
+  out.stages = ['DIAGNOSTICS_INIT_FAILED']
+  out.verdict = 'FAIL'
+  out.result = 'VOICE_OUTPUT_FAILED'
+  out.failureStage = 'DIAGNOSTICS_INIT_FAILED'
+  out.playError = name
+  out.playErrorMessage = message
+  harness = emptyHarness()
+  harness.busy = false
+  harness.verdict = 'FAIL'
+  harness.failureStage = 'DIAGNOSTICS_INIT_FAILED'
+  harness.stages = ['DIAGNOSTICS_INIT_FAILED']
+  harness.lastStage = 'DIAGNOSTICS_INIT_FAILED'
+  harness.latest = out
+  harness.updatedAtMs = Date.now()
+  harness.elementId = diagnosticAudio ? diagnosticElementId : null
+  emit()
+  return cachedSnapshot
 }
 
 export function resetDiagnosticAudioHarness(): void {
@@ -424,6 +506,7 @@ export function __resetDiagnosticAudioHarnessForTests(): void {
   diagnosticAudio = null
   revokeDiagnosticObjectUrl()
   harness = emptyHarness()
+  rebuildCachedSnapshot()
 }
 
 export function formatAudioTestBanner(state: DiagnosticAudioHarnessState): string {
@@ -616,13 +699,31 @@ function beginRun(mode: DiagnosticAudioMode): {
 export async function runLocalAudioProbe(
   deps: DirectAudioProbeDeps = {},
 ): Promise<DirectAudioProbeResult> {
-  const { out, fail, pass } = beginRun('local')
+  let out: DirectAudioProbeResult
+  let fail: (stage: string) => DirectAudioProbeResult
+  let pass: () => DirectAudioProbeResult
+  try {
+    ;({ out, fail, pass } = beginRun('local'))
+  } catch (err) {
+    markDiagnosticInitFailed(err)
+    return getDiagnosticAudioHarnessState().latest
+      ?? emptyResult(newCorrelationId(), 'local')
+  }
   const resumeContext = deps.resumeContext ?? resumeSharedAudioContext
   const obtainAudio = deps.obtainAudio ?? obtainDiagnosticAudioElement
   const progressTimeoutMs = deps.progressTimeoutMs ?? 5_000
-  const localSrc = deps.localAudioSrc ?? createAudibleBeepWavDataUri()
 
   try {
+    // Asset generation must never crash the page — become a FAIL verdict.
+    let localSrc: string
+    try {
+      localSrc = deps.localAudioSrc ?? createAudibleBeepWavDataUri()
+    } catch (err) {
+      out.playError = err instanceof Error ? err.name : 'asset_error'
+      out.playErrorMessage = err instanceof Error ? err.message.slice(0, 80) : 'local_asset_failed'
+      return fail('DIAGNOSTICS_INIT_FAILED')
+    }
+
     noteStage(out, 'DIAGNOSTIC_TTS_GESTURE')
 
     let audio: HTMLAudioElement
@@ -696,7 +797,16 @@ export async function runLocalAudioProbe(
 export async function runDirectAudioProbe(
   deps: DirectAudioProbeDeps = {},
 ): Promise<DirectAudioProbeResult> {
-  const { out, fail, pass } = beginRun('tts')
+  let out: DirectAudioProbeResult
+  let fail: (stage: string) => DirectAudioProbeResult
+  let pass: () => DirectAudioProbeResult
+  try {
+    ;({ out, fail, pass } = beginRun('tts'))
+  } catch (err) {
+    markDiagnosticInitFailed(err)
+    return getDiagnosticAudioHarnessState().latest
+      ?? emptyResult(newCorrelationId(), 'tts')
+  }
   const resumeContext = deps.resumeContext ?? resumeSharedAudioContext
   const obtainAudio = deps.obtainAudio ?? obtainDiagnosticAudioElement
   const progressTimeoutMs = deps.progressTimeoutMs ?? 8_000

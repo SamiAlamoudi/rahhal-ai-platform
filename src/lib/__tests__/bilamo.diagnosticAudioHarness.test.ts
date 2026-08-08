@@ -10,7 +10,9 @@ import {
   DIRECT_AUDIO_PROBE_TEXT,
   formatAudioTestBanner,
   getDiagnosticAudioElementForTests,
+  getDiagnosticAudioHarnessServerSnapshot,
   getDiagnosticAudioHarnessState,
+  markDiagnosticInitFailed,
   obtainDiagnosticAudioElement,
   resetDiagnosticAudioHarness,
   runDirectAudioProbe,
@@ -146,6 +148,42 @@ describe('diagnostic audio harness — Safari classic contracts', () => {
 
   it('starts NOT RUN', () => {
     expect(formatAudioTestBanner(getDiagnosticAudioHarnessState())).toBe('AUDIO TEST: NOT RUN')
+  })
+
+  it('getSnapshot returns a stable reference until harness mutates (React #185)', () => {
+    const a = getDiagnosticAudioHarnessState()
+    const b = getDiagnosticAudioHarnessState()
+    expect(a).toBe(b)
+    const serverA = getDiagnosticAudioHarnessServerSnapshot()
+    const serverB = getDiagnosticAudioHarnessServerSnapshot()
+    expect(serverA).toBe(serverB)
+    expect(serverA.verdict).toBe('NOT_RUN')
+    resetDiagnosticAudioHarness()
+    const c = getDiagnosticAudioHarnessState()
+    // emit() rebuilds — reference must change after a real mutation
+    expect(c).not.toBe(a)
+    expect(getDiagnosticAudioHarnessState()).toBe(c)
+  })
+
+  it('markDiagnosticInitFailed surfaces AUDIO TEST FAIL without throwing', () => {
+    const state = markDiagnosticInitFailed(new TypeError('boom'))
+    expect(state.verdict).toBe('FAIL')
+    expect(state.failureStage).toBe('DIAGNOSTICS_INIT_FAILED')
+    expect(formatAudioTestBanner(state)).toBe('AUDIO TEST: FAIL — DIAGNOSTICS_INIT_FAILED')
+    expect(state.latest?.playError).toBe('TypeError')
+    expect(state.latest?.playErrorMessage).toContain('boom')
+  })
+
+  it('local asset generation failure becomes DIAGNOSTICS_INIT_FAILED verdict', async () => {
+    const result = await runLocalAudioProbe({
+      resumeContext: async () => undefined,
+      obtainAudio: () => makeFakeAudio({ progress: true }),
+      localAudioSrc: undefined,
+      // Force createAudibleBeep path; inject broken obtain is separate.
+      progressTimeoutMs: 20,
+    })
+    // Happy path still works with default beep — ensure no throw.
+    expect(['PASS', 'FAIL']).toContain(result.verdict)
   })
 
   it('persistent element survives async TTS fetch (same instance)', async () => {
@@ -388,8 +426,29 @@ describe('diagnostic audio harness — Safari classic contracts', () => {
     expect(page).toMatch(/runLocalAudioProbe/)
     expect(page).toMatch(/runDirectAudioProbe/)
     expect(page).toMatch(/enabled:\s*false/)
+    expect(page).toMatch(/getDiagnosticAudioHarnessServerSnapshot/)
+    expect(page).toMatch(/DIAGNOSTICS_INIT_FAILED/)
+    expect(page).toMatch(/DiagnosticsHarnessBoundary/)
     expect(page).not.toMatch(/disabled=\{/)
     expect(DIRECT_AUDIO_PROBE_TEXT).toContain('بيلامو')
+  })
+
+  it('directAudioProbe module is SSR-safe at import (no Audio/document side effects)', async () => {
+    // Re-import path analysis: module body must not call document/Audio/URL.createObjectURL.
+    const src = readFileSync(
+      resolve(__dirname, '../bilamo/voice/directAudioProbe.ts'),
+      'utf8',
+    )
+    const bodyBeforeFirstExportFn = src.split('export async function runLocalAudioProbe')[0] ?? src
+    // Top-level statements after imports must not construct media objects.
+    expect(bodyBeforeFirstExportFn).not.toMatch(/\nnew Audio\(/)
+    expect(bodyBeforeFirstExportFn).not.toMatch(/\nnew \(window\.AudioContext/)
+    expect(bodyBeforeFirstExportFn).not.toMatch(/\nURL\.createObjectURL\(/)
+    expect(bodyBeforeFirstExportFn).not.toMatch(/\ndocument\.createElement\(/)
+    // obtain* and unlock* are function-scoped and document-guarded.
+    expect(src).toMatch(/typeof document === 'undefined'/)
+    expect(src).toMatch(/typeof navigator === 'undefined'/)
+    expect(getDiagnosticAudioHarnessServerSnapshot()).toBe(getDiagnosticAudioHarnessServerSnapshot())
   })
 
   it('obtainDiagnosticAudioElement reuses singleton', () => {

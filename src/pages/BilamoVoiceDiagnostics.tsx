@@ -6,16 +6,21 @@
  *  - اختبار صوت محلي (local known audio, no network)
  *  - اختبار TTS (classic OpenAI TTS)
  * Both share one persistent HTMLAudioElement.
+ *
+ * Crash containment: harness / React sync-store failures must never blank the
+ * whole app behind AppErrorBoundary. Show DIAGNOSTICS_INIT_FAILED instead.
  */
 
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { Component, type ErrorInfo, type ReactNode, useEffect, useState, useSyncExternalStore } from 'react'
 import { Navigate } from 'react-router-dom'
 import { BilamoShell, Button, Logo } from '../design-system'
 import { useBilamoVoiceSession } from '../hooks/useBilamoVoiceSession'
 import type { BilamoVoiceMetricsReport } from '../lib/bilamo/voice'
 import {
   formatAudioTestBanner,
+  getDiagnosticAudioHarnessServerSnapshot,
   getDiagnosticAudioHarnessState,
+  markDiagnosticInitFailed,
   resetDiagnosticAudioHarness,
   runDirectAudioProbe,
   runLocalAudioProbe,
@@ -32,8 +37,94 @@ function voiceDiagnosticsEnabled(): boolean {
   return String(import.meta.env.VITE_VOICE_METRICS || '').trim() === '1'
 }
 
+type BoundaryState = { error: Error | null }
+
+/**
+ * Local boundary so a render/store failure leaves the diagnostics shell usable
+ * (reset + copy bundle) instead of the global AppErrorBoundary.
+ */
+class DiagnosticsHarnessBoundary extends Component<
+  { children: ReactNode; onInitFailed: (error: Error) => void },
+  BoundaryState
+> {
+  state: BoundaryState = { error: null }
+
+  static getDerivedStateFromError(error: Error): BoundaryState {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, _info: ErrorInfo): void {
+    this.props.onInitFailed(error)
+  }
+
+  render(): ReactNode {
+    if (this.state.error) {
+      const banner = 'AUDIO TEST: FAIL — DIAGNOSTICS_INIT_FAILED'
+      const name = this.state.error.name || 'Error'
+      const message = (this.state.error.message || 'unknown').slice(0, 160)
+      return (
+        <section className="bilamo-glass space-y-4 rounded-[1.25rem] border border-[color-mix(in_oklab,#c45c4a_50%,transparent)] bg-[color-mix(in_oklab,#c45c4a_10%,transparent)] px-5 py-4">
+          <p className="text-center text-[15px] font-medium tracking-[-0.02em] text-[var(--bilamo-text)]">
+            {banner}
+          </p>
+          <p className="text-center text-[12.5px] text-[var(--bilamo-muted)]">
+            {name}: {message}
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            onClick={() => {
+              resetDiagnosticAudioHarness()
+              this.setState({ error: null })
+            }}
+          >
+            RESET DIAGNOSTICS
+          </Button>
+        </section>
+      )
+    }
+    return this.props.children
+  }
+}
+
 export default function BilamoVoiceDiagnostics() {
   const allowed = voiceDiagnosticsEnabled()
+
+  if (!allowed) {
+    return <Navigate to="/" replace />
+  }
+
+  return (
+    <BilamoShell>
+      <div className="mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col gap-6 px-6 py-10">
+        <header className="space-y-2 text-center">
+          <Logo size="sm" className="justify-center" />
+          <h1 className="text-[1.2rem] font-medium tracking-[-0.03em] text-[var(--bilamo-text)]">
+            Voice diagnostics
+          </h1>
+          <p className="text-[13px] text-[var(--bilamo-muted)]">
+            Staging — isolated Safari audio. Local first, then TTS. Never paste tokens.
+          </p>
+        </header>
+
+        <DiagnosticsHarnessBoundary
+          onInitFailed={(error) => {
+            try {
+              markDiagnosticInitFailed(error)
+            } catch {
+              /* ignore */
+            }
+          }}
+        >
+          <BilamoVoiceDiagnosticsBody />
+        </DiagnosticsHarnessBoundary>
+      </div>
+    </BilamoShell>
+  )
+}
+
+function BilamoVoiceDiagnosticsBody() {
   // Do NOT auto-prepare on mount — capability probe must not look like an audio attempt.
   const voice = useBilamoVoiceSession({ enabled: false })
   const [report, setReport] = useState<BilamoVoiceMetricsReport | null>(null)
@@ -44,21 +135,20 @@ export default function BilamoVoiceDiagnostics() {
   const harness = useSyncExternalStore(
     subscribeDiagnosticAudioHarness,
     getDiagnosticAudioHarnessState,
-    getDiagnosticAudioHarnessState,
+    getDiagnosticAudioHarnessServerSnapshot,
   )
   const probe: DirectAudioProbeResult | null = harness.latest
   const audioBanner = formatAudioTestBanner(harness)
 
   useEffect(() => {
-    if (!allowed) return
     const tick = () => setReport(voice.getMetricsReport())
     tick()
     const id = window.setInterval(tick, 800)
     return () => window.clearInterval(id)
-  }, [allowed, voice])
+  }, [voice])
 
   useEffect(() => {
-    if (!allowed || typeof navigator === 'undefined' || !navigator.permissions?.query) return
+    if (typeof navigator === 'undefined' || !navigator.permissions?.query) return
     void navigator.permissions
       .query({ name: 'microphone' as PermissionName })
       .then((status) => {
@@ -66,18 +156,13 @@ export default function BilamoVoiceDiagnostics() {
         status.onchange = () => setMicPermission(status.state)
       })
       .catch(() => setMicPermission('unavailable'))
-  }, [allowed])
+  }, [])
 
   useEffect(() => {
-    if (!allowed) return
     void probeVoiceAuth()
       .then((r) => setAuthOk(r.ok))
       .catch(() => setAuthOk(false))
-  }, [allowed])
-
-  if (!allowed) {
-    return <Navigate to="/" replace />
-  }
+  }, [])
 
   const snap = voice.snapshot
   const latest = report?.latest
@@ -158,200 +243,192 @@ export default function BilamoVoiceDiagnostics() {
           : 'border-[var(--bilamo-border)] bg-[color-mix(in_oklab,var(--bilamo-text)_4%,transparent)]'
 
   return (
-    <BilamoShell>
-      <div className="mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col gap-6 px-6 py-10">
-        <header className="space-y-2 text-center">
-          <Logo size="sm" className="justify-center" />
-          <h1 className="text-[1.2rem] font-medium tracking-[-0.03em] text-[var(--bilamo-text)]">
-            Voice diagnostics
-          </h1>
-          <p className="text-[13px] text-[var(--bilamo-muted)]">
-            Staging — isolated Safari audio. Local first, then TTS. Never paste tokens.
-          </p>
-        </header>
+    <>
+      <section className={`bilamo-glass space-y-4 rounded-[1.25rem] border px-5 py-4 ${bannerClass}`}>
+        <p className="text-center text-[15px] font-medium tracking-[-0.02em] text-[var(--bilamo-text)]">
+          {audioBanner}
+        </p>
+        <p className="text-center text-[12.5px] text-[var(--bilamo-muted)]">
+          Same persistent audio element for both controls. No mic / realtime / conversation.
+        </p>
 
-        <section className={`bilamo-glass space-y-4 rounded-[1.25rem] border px-5 py-4 ${bannerClass}`}>
-          <p className="text-center text-[15px] font-medium tracking-[-0.02em] text-[var(--bilamo-text)]">
-            {audioBanner}
+        <Button
+          type="button"
+          variant="primary"
+          className="w-full"
+          onClick={() => {
+            void runLocalAudioProbe().catch((err) => {
+              markDiagnosticInitFailed(err)
+            })
+          }}
+        >
+          اختبار صوت محلي
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          className="w-full"
+          onClick={() => {
+            void runDirectAudioProbe().catch((err) => {
+              markDiagnosticInitFailed(err)
+            })
+          }}
+        >
+          اختبار TTS
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full"
+          onClick={resetAll}
+        >
+          RESET DIAGNOSTICS
+        </Button>
+
+        {authOk === false ? (
+          <p className="text-center text-[12px] text-[var(--bilamo-muted)]">
+            Auth probe failed — اختبار TTS may return HTTP 401. Local test still works offline.
           </p>
+        ) : null}
+
+        {probe ? (
+          <dl className="space-y-2 text-[13px]">
+            <Row label="Verdict" value={probe.verdict} />
+            <Row label="Mode" value={probe.mode || '—'} />
+            <Row label="Failure stage" value={probe.failureStage || '—'} />
+            <Row label="Lifecycle" value={probe.stages.join(' → ') || '—'} />
+            <Row label="HTTP status" value={probe.httpStatus == null ? '—' : String(probe.httpStatus)} />
+            <Row label="Safe server error" value={probe.safeServerErrorCode || '—'} />
+            <Row label="Requested format" value={probe.requestedFormat || '—'} />
+            <Row label="MIME" value={probe.contentType || '—'} />
+            <Row label="Bytes" value={String(probe.bytes)} />
+            <Row label="File signature" value={probe.fileSignature || '—'} />
+            <Row label="canPlayType" value={probe.canPlayType || '—'} />
+            <Row label="duration" value={probe.duration == null ? '—' : probe.duration.toFixed(3)} />
+            <Row label="readyState" value={probe.elementReadyState == null ? '—' : String(probe.elementReadyState)} />
+            <Row label="networkState" value={probe.elementNetworkState == null ? '—' : String(probe.elementNetworkState)} />
+            <Row label="paused" value={yn(probe.elementPaused)} />
+            <Row label="muted" value={yn(probe.elementMuted)} />
+            <Row label="volume" value={probe.elementVolume == null ? '—' : String(probe.elementVolume)} />
+            <Row label="currentTime before" value={probe.currentTimeBefore == null ? '—' : probe.currentTimeBefore.toFixed(3)} />
+            <Row label="currentTime after" value={probe.currentTimeAfter == null ? '—' : probe.currentTimeAfter.toFixed(3)} />
+            <Row label="max currentTime" value={probe.maxCurrentTime.toFixed(3)} />
+            <Row label="AudioContext before" value={probe.audioContextStateBefore || '—'} />
+            <Row label="AudioContext after" value={probe.audioContextStateAfter || '—'} />
+            <Row label="play() called" value={yn(probe.playCalled)} />
+            <Row label="play() result" value={probe.playResult || '—'} />
+            <Row label="play() error name" value={probe.playError || '—'} />
+            <Row label="play() error message" value={probe.playErrorMessage || '—'} />
+            <Row label="element attached" value={yn(probe.elementAttached)} />
+            <Row label="has src" value={yn(probe.hasSrc)} />
+            <Row label="has srcObject" value={yn(probe.hasSrcObject)} />
+            <Row label="Safari" value={yn(probe.isSafari)} />
+            <Row label="iOS version" value={probe.iosVersion || '—'} />
+            <Row label="playing event" value={yn(probe.playingEvent)} />
+            <Row label="timeupdate" value={yn(probe.timeupdateSeen)} />
+            <Row label="playback progressed" value={yn(probe.playbackProgressed)} />
+            <Row label="ended" value={yn(probe.ended)} />
+            <Row label="correlation" value={probe.correlationId} />
+          </dl>
+        ) : (
           <p className="text-center text-[12.5px] text-[var(--bilamo-muted)]">
-            Same persistent audio element for both controls. No mic / realtime / conversation.
+            1) Tap اختبار صوت محلي — if silent, Safari/element/gesture is broken.
+            2) Tap اختبار TTS — if local works but TTS fails, MIME/HTTP/blob path is broken.
+            PASS requires currentTime progression, not HTTP 200 or play() alone.
           </p>
+        )}
+      </section>
 
-          <Button
-            type="button"
-            variant="primary"
-            className="w-full"
-            onClick={() => {
-              void runLocalAudioProbe()
-            }}
-          >
-            اختبار صوت محلي
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full"
-            onClick={() => {
-              void runDirectAudioProbe()
-            }}
-          >
-            اختبار TTS
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            className="w-full"
-            onClick={resetAll}
-          >
-            RESET DIAGNOSTICS
-          </Button>
-
-          {authOk === false ? (
-            <p className="text-center text-[12px] text-[var(--bilamo-muted)]">
-              Auth probe failed — اختبار TTS may return HTTP 401. Local test still works offline.
-            </p>
-          ) : null}
-
-          {probe ? (
-            <dl className="space-y-2 text-[13px]">
-              <Row label="Verdict" value={probe.verdict} />
-              <Row label="Mode" value={probe.mode || '—'} />
-              <Row label="Failure stage" value={probe.failureStage || '—'} />
-              <Row label="Lifecycle" value={probe.stages.join(' → ') || '—'} />
-              <Row label="HTTP status" value={probe.httpStatus == null ? '—' : String(probe.httpStatus)} />
-              <Row label="Safe server error" value={probe.safeServerErrorCode || '—'} />
-              <Row label="Requested format" value={probe.requestedFormat || '—'} />
-              <Row label="MIME" value={probe.contentType || '—'} />
-              <Row label="Bytes" value={String(probe.bytes)} />
-              <Row label="File signature" value={probe.fileSignature || '—'} />
-              <Row label="canPlayType" value={probe.canPlayType || '—'} />
-              <Row label="duration" value={probe.duration == null ? '—' : probe.duration.toFixed(3)} />
-              <Row label="readyState" value={probe.elementReadyState == null ? '—' : String(probe.elementReadyState)} />
-              <Row label="networkState" value={probe.elementNetworkState == null ? '—' : String(probe.elementNetworkState)} />
-              <Row label="paused" value={yn(probe.elementPaused)} />
-              <Row label="muted" value={yn(probe.elementMuted)} />
-              <Row label="volume" value={probe.elementVolume == null ? '—' : String(probe.elementVolume)} />
-              <Row label="currentTime before" value={probe.currentTimeBefore == null ? '—' : probe.currentTimeBefore.toFixed(3)} />
-              <Row label="currentTime after" value={probe.currentTimeAfter == null ? '—' : probe.currentTimeAfter.toFixed(3)} />
-              <Row label="max currentTime" value={probe.maxCurrentTime.toFixed(3)} />
-              <Row label="AudioContext before" value={probe.audioContextStateBefore || '—'} />
-              <Row label="AudioContext after" value={probe.audioContextStateAfter || '—'} />
-              <Row label="play() called" value={yn(probe.playCalled)} />
-              <Row label="play() result" value={probe.playResult || '—'} />
-              <Row label="play() error name" value={probe.playError || '—'} />
-              <Row label="play() error message" value={probe.playErrorMessage || '—'} />
-              <Row label="element attached" value={yn(probe.elementAttached)} />
-              <Row label="has src" value={yn(probe.hasSrc)} />
-              <Row label="has srcObject" value={yn(probe.hasSrcObject)} />
-              <Row label="Safari" value={yn(probe.isSafari)} />
-              <Row label="iOS version" value={probe.iosVersion || '—'} />
-              <Row label="playing event" value={yn(probe.playingEvent)} />
-              <Row label="timeupdate" value={yn(probe.timeupdateSeen)} />
-              <Row label="playback progressed" value={yn(probe.playbackProgressed)} />
-              <Row label="ended" value={yn(probe.ended)} />
-              <Row label="correlation" value={probe.correlationId} />
-            </dl>
-          ) : (
-            <p className="text-center text-[12.5px] text-[var(--bilamo-muted)]">
-              1) Tap اختبار صوت محلي — if silent, Safari/element/gesture is broken.
-              2) Tap اختبار TTS — if local works but TTS fails, MIME/HTTP/blob path is broken.
-              PASS requires currentTime progression, not HTTP 200 or play() alone.
-            </p>
-          )}
-        </section>
-
-        <div className="space-y-2">
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full"
-            onClick={() => {
-              void navigator.clipboard?.writeText(failureBundle).then(() => {
-                setCopyHint('Copied failure bundle (safe fields only).')
-                window.setTimeout(() => setCopyHint(null), 2500)
-              })
-            }}
-          >
-            COPY FAILURE BUNDLE
-          </Button>
-          {copyHint ? (
-            <p className="text-[12px] text-[var(--bilamo-muted)]">{copyHint}</p>
-          ) : (
-            <p className="text-[12px] text-[var(--bilamo-muted)]">
-              On failure, copy the bundle (or screenshot). Never paste tokens.
-            </p>
-          )}
-        </div>
-
-        <dl className="bilamo-glass space-y-3 rounded-[1.25rem] px-5 py-4 text-[13.5px]">
-          <p className="pb-1 text-[12px] font-medium uppercase tracking-[0.06em] text-[var(--bilamo-muted)]">
-            Session observation (separate from AUDIO TEST)
+      <div className="space-y-2">
+        <Button
+          type="button"
+          variant="secondary"
+          className="w-full"
+          onClick={() => {
+            void navigator.clipboard?.writeText(failureBundle).then(() => {
+              setCopyHint('Copied failure bundle (safe fields only).')
+              window.setTimeout(() => setCopyHint(null), 2500)
+            })
+          }}
+        >
+          COPY FAILURE BUNDLE
+        </Button>
+        {copyHint ? (
+          <p className="text-[12px] text-[var(--bilamo-muted)]">{copyHint}</p>
+        ) : (
+          <p className="text-[12px] text-[var(--bilamo-muted)]">
+            On failure, copy the bundle (or screenshot). Never paste tokens.
           </p>
-          <Row label="VOICE_SESSION_ACTIVE" value={yn(snap.voiceSessionActive || playback.voiceSessionActive)} />
-          <Row label="FINAL_VOICE_STATE" value={snap.state} />
-          <Row label="Mic permission" value={micPermission} />
-          <Row label="Capability probe only" value={yn(capabilityOnly)} />
-          <Row label="Last session event" value={playback.lastEvent || '—'} />
-          <Row label="HTTP route (session)" value={playback.httpRoute || '—'} />
-          <Row label="Peer connection state" value={playback.peerConnectionState || '—'} />
-          <Row
-            label="First-audio latency"
-            value={formatMs(latest?.timeToFirstAudioMs ?? agg?.timeToFirstAudioMs.last)}
-          />
-        </dl>
-
-        <div className="flex flex-wrap gap-3">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => {
-              noteVoiceLifecycleStage('GESTURE_RECEIVED')
-              void (async () => {
-                try {
-                  await unlockAudioPlayback()
-                } catch {
-                  /* ignore */
-                }
-                const mic = await captureMicFromUserGesture()
-                if (!mic.ok) return
-                await voice.connect({ localStream: mic.stream })
-              })()
-            }}
-          >
-            Connect
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => {
-              void (async () => {
-                try {
-                  await unlockAudioPlayback()
-                } catch {
-                  /* ignore */
-                }
-                const mic = await captureMicFromUserGesture()
-                if (!mic.ok) return
-                voice.setContinuousListening(true)
-                await voice.startListening({ localStream: mic.stream })
-              })()
-            }}
-          >
-            Start mic
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              voice.interrupt()
-            }}
-          >
-            Interrupt
-          </Button>
-        </div>
+        )}
       </div>
-    </BilamoShell>
+
+      <dl className="bilamo-glass space-y-3 rounded-[1.25rem] px-5 py-4 text-[13.5px]">
+        <p className="pb-1 text-[12px] font-medium uppercase tracking-[0.06em] text-[var(--bilamo-muted)]">
+          Session observation (separate from AUDIO TEST)
+        </p>
+        <Row label="VOICE_SESSION_ACTIVE" value={yn(snap.voiceSessionActive || playback.voiceSessionActive)} />
+        <Row label="FINAL_VOICE_STATE" value={snap.state} />
+        <Row label="Mic permission" value={micPermission} />
+        <Row label="Capability probe only" value={yn(capabilityOnly)} />
+        <Row label="Last session event" value={playback.lastEvent || '—'} />
+        <Row label="HTTP route (session)" value={playback.httpRoute || '—'} />
+        <Row label="Peer connection state" value={playback.peerConnectionState || '—'} />
+        <Row
+          label="First-audio latency"
+          value={formatMs(latest?.timeToFirstAudioMs ?? agg?.timeToFirstAudioMs.last)}
+        />
+      </dl>
+
+      <div className="flex flex-wrap gap-3">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            noteVoiceLifecycleStage('GESTURE_RECEIVED')
+            void (async () => {
+              try {
+                await unlockAudioPlayback()
+              } catch {
+                /* ignore */
+              }
+              const mic = await captureMicFromUserGesture()
+              if (!mic.ok) return
+              await voice.connect({ localStream: mic.stream })
+            })()
+          }}
+        >
+          Connect
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            void (async () => {
+              try {
+                await unlockAudioPlayback()
+              } catch {
+                /* ignore */
+              }
+              const mic = await captureMicFromUserGesture()
+              if (!mic.ok) return
+              voice.setContinuousListening(true)
+              await voice.startListening({ localStream: mic.stream })
+            })()
+          }}
+        >
+          Start mic
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => {
+            voice.interrupt()
+          }}
+        >
+          Interrupt
+        </Button>
+      </div>
+    </>
   )
 }
 
