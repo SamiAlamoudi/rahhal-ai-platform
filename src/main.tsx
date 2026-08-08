@@ -27,6 +27,7 @@ const Notifications = lazy(() => import('./pages/Notifications.tsx'))
 const ResultsPage = lazy(() => import('./pages/ResultsPage.tsx'))
 const FlightDetailsPage = lazy(() => import('./pages/FlightDetailsPage.tsx'))
 const IntegrationDiagnostics = lazy(() => import('./pages/IntegrationDiagnostics.tsx'))
+const BilamoVoiceDiagnostics = lazy(() => import('./pages/BilamoVoiceDiagnostics.tsx'))
 const BookingReview = lazy(() => import('./pages/BookingReview.tsx'))
 const BookingAssistantReviewPage = lazy(() => import('./pages/BookingAssistantReviewPage.tsx'))
 const BookingAssistantConfirmationPage = lazy(() => import('./pages/BookingAssistantConfirmationPage.tsx'))
@@ -154,6 +155,12 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/diagnostics" element={
             <ProtectedRoute>
               <IntegrationDiagnostics />
+            </ProtectedRoute>
+          } />
+          {/* Staging-only voice diagnostics (DEV or VITE_VOICE_METRICS=1). */}
+          <Route path="/voice-diagnostics" element={
+            <ProtectedRoute>
+              <BilamoVoiceDiagnostics />
             </ProtectedRoute>
           } />
           <Route path="/booking/review" element={

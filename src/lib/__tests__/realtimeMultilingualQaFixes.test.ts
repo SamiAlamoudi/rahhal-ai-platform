@@ -88,10 +88,11 @@ describe('user transcript gate — Arabic speech must not show foreign interim',
     expect(rejected.displayText).toBeNull()
   })
 
-  it('hints Arabic transcription language by default', () => {
+  it('hints Arabic transcription language by default (and French as fr)', () => {
     expect(transcriptionLanguageHint(null)).toBe('ar')
     expect(transcriptionLanguageHint('ar')).toBe('ar')
     expect(transcriptionLanguageHint('en')).toBe('en')
+    expect(transcriptionLanguageHint('fr')).toBe('fr')
   })
 
   it('locks language for the user turn and does not flip mid-sentence', () => {
@@ -127,12 +128,13 @@ describe('consultant trip-fact gathering policy', () => {
       previousLanguage: 'ar',
       languageFallback: 'ar',
     })
-    expect(instructions).toMatch(/origin city\/airport/i)
+    expect(instructions).toMatch(/نقطة الانطلاق|تغيير المطار|destination/i)
     expect(instructions).toMatch(/ONE follow-up question/i)
     expect(instructions).toMatch(/Sukhumvit|Chaweng|neighborhood/i)
     expect(instructions).toMatch(/BOOKING AGENT/i)
     expect(instructions).toMatch(/never switch mid-reply/i)
     expect(instructions).toMatch(/Do NOT invent live prices|invent live prices/i)
+    expect(instructions).not.toMatch(/تمام، من أي مدينة؟/)
   })
 })
 
@@ -173,12 +175,28 @@ describe('realtime cancel-only-when-active lifecycle', () => {
       stop: vi.fn(),
       getSettings: () => ({ sampleRate: 48000, channelCount: 1 }),
     }
+    const remoteTrack = {
+      kind: 'audio',
+      enabled: true,
+      readyState: 'live' as const,
+      muted: false,
+      stop: vi.fn(),
+      getSettings: () => ({ sampleRate: 48000, channelCount: 1 }),
+    }
+    const remoteStream = {
+      getTracks: () => [remoteTrack],
+      getAudioTracks: () => [remoteTrack],
+      clone: () => remoteStream,
+    }
     const stream = {
       getTracks: () => [track],
       getAudioTracks: () => [track],
       clone: () => stream,
     }
-    const holder: { channel: FakeChannel | null } = { channel: null }
+    const holder: {
+      channel: FakeChannel | null
+      remoteTrack: typeof remoteTrack
+    } = { channel: null, remoteTrack }
 
     class FakeRTCPeerConnection {
       connectionState = 'new'
@@ -211,6 +229,10 @@ describe('realtime cancel-only-when-active lifecycle', () => {
       setRemoteDescription = vi.fn(async () => {
         this.connectionState = 'connected'
         this.iceConnectionState = 'connected'
+        // Simulate remote audio track attach (OpenAI answer).
+        queueMicrotask(() => {
+          this.ontrack?.({ streams: [remoteStream], track: remoteTrack })
+        })
       })
       getSenders = vi.fn(() => [{ track, replaceTrack: vi.fn(async () => undefined) }])
       getStats = vi.fn(async () => new Map())
@@ -245,8 +267,9 @@ describe('realtime cancel-only-when-active lifecycle', () => {
     const session = createRealtimeWebRtcSession(onError ? { onError } : {})
     await session.connect()
     await new Promise<void>((r) => setTimeout(r, 0))
+    await new Promise<void>((r) => setTimeout(r, 0))
     if (!holder.channel) throw new Error('expected data channel')
-    return { session, channel: holder.channel }
+    return { session, channel: holder.channel, remoteTrack: holder.remoteTrack }
   }
 
   function cancelCalls(channel: FakeChannel) {
@@ -274,23 +297,25 @@ describe('realtime cancel-only-when-active lifecycle', () => {
 
   it('sends response.cancel only after response.created (active response)', async () => {
     const errors: string[] = []
-    const { session, channel } = await bootSession((m) => errors.push(m))
+    const { session, channel, remoteTrack } = await bootSession((m) => errors.push(m))
     expect(channel.onmessage).toBeTypeOf('function')
 
     channel.send.mockClear()
     // Authorize speech via sole path (speakWrittenDraft), then create
     session.speakWrittenDraft('ممتاز، خلنا نكمّل الحجز', { locale: 'ar' })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.created', response: { id: 'resp_1' } }) })
-    channel.onmessage!({
-      data: JSON.stringify({
-        type: 'response.output_audio_transcript.delta',
-        delta: 'ممتاز، ',
-      }),
-    })
+    channel.onmessage!({ data: JSON.stringify({ type: 'output_audio_buffer.started' }) })
+    // Speaking is gated on successful remoteAudio.play() (async).
+    await new Promise<void>((r) => setTimeout(r, 0))
+    await new Promise<void>((r) => setTimeout(r, 0))
     expect(session.getStatus()).toBe('speaking')
 
+    // Simulate a latched-mute bug condition, then interrupt must restore audibility.
+    remoteTrack.enabled = false
     session.interrupt()
     expect(cancelCalls(channel).length).toBeGreaterThanOrEqual(1)
+    // P0: interrupt must NOT leave the remote track muted for the next reply.
+    expect(remoteTrack.enabled).toBe(true)
 
     channel.onmessage!({
       data: JSON.stringify({
@@ -314,6 +339,8 @@ describe('realtime cancel-only-when-active lifecycle', () => {
       data: JSON.stringify({ type: 'response.output_audio_transcript.delta', delta: 'خط كامل من الرد المنطوق' }),
     })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.output_audio_transcript.done' }) })
+    await new Promise<void>((r) => setTimeout(r, 0))
+    await new Promise<void>((r) => setTimeout(r, 0))
     expect(session.getStatus()).toBe('speaking')
 
     channel.onmessage!({ data: JSON.stringify({ type: 'response.output_audio.done' }) })

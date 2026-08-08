@@ -3,6 +3,8 @@
  * Enrich structured extraction only — never rewrite the displayed / committed transcript.
  */
 
+import { normalizeBilamoAssistantName } from './bilamoBrandAsr'
+
 /** Eastern Arabic / Persian digits → Western digits for parsers. */
 export function easternDigitsToAscii(text: string): string {
   const map: Record<string, string> = {
@@ -32,10 +34,12 @@ const ARABIC_DAY_WORDS: Array<{ re: RegExp; day: number }> = [
 
 /**
  * Normalize Arabic ASR text for requirement parsers only.
- * Display / committed transcript must stay the original exact string.
+ * Display / committed transcript must stay the original exact string
+ * (except Bilamo brand repair, which is also applied on the display sanitize path).
  */
 export function normalizeArabicAsrForExtraction(text: string): string {
   let out = easternDigitsToAscii(text || '')
+  out = normalizeBilamoAssistantName(out).normalized
 
   // Word-number days before month names: "ثلاثة أغسطس" → "3 أغسطس"
   const monthAr = 'يناير|فبراير|مارس|أبريل|ابريل|مايو|يونيو|يوليو|أغسطس|اغسطس|سبتمبر|أكتوبر|اكتوبر|نوفمبر|ديسمبر'
@@ -50,13 +54,25 @@ export function normalizeArabicAsrForExtraction(text: string): string {
   // Common ASR spacing / hamza variants that break city + cabin matchers.
   out = out
     .replace(/ال\s+رياض/g, 'الرياض')
+    .replace(/ال\s+يمن/g, 'اليمن')
+    .replace(/ال\s+يابان/g, 'اليابان')
     .replace(/طو\s*كيو/g, 'طوكيو')
     .replace(/بان\s*كوك/g, 'بانكوك')
     .replace(/بو\s*كيت/g, 'بوكيت')
     .replace(/درجة\s+الضيافة|على\s+الضيافة|بالضيافة/g, 'درجة اقتصادية')
     .replace(/درجة\s+الأعمال|درجة\s+اعمال/g, 'درجة رجال الأعمال')
     .replace(/أنا\s+وزوجتي|انا\s+وزوجتي|أنا\s+و زوجتي/g, 'لشخصين')
+    // Egyptian / Gulf couple phrasing (parser enrichment only — display stays original).
+    .replace(/أنا\s+ومراتي|انا\s+ومراتي|أنا\s+و مراتي/g, 'لشخصين')
     .replace(/أبغى\s+أسافر|ابغى\s+اسافر/g, 'أريد السفر')
+    .replace(/عايز\s+أسافر|عايز\s+اسافر|عاوز\s+أسافر/g, 'أريد السفر')
+    .replace(/بدي\s+رحلة|بِدي\s+رحلة/g, 'أريد رحلة')
+    .replace(/بغيت\s+نمشي/g, 'أريد السفر')
+
+  // Yemen must stay Yemen — never let English "Japan" win when اليمن is present.
+  if (/اليمن/.test(out)) {
+    out = out.replace(/\b(?:japan|tokyo)\b/gi, ' ').replace(/\s+/g, ' ').trim()
+  }
 
   return out
 }

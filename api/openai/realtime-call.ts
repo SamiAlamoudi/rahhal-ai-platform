@@ -32,7 +32,8 @@ function defaultInstructions(dialectHint?: string): string {
   ].join(' ')
 }
 
-function buildSessionConfig(input: {
+/** Exported for unit tests — keep audio output modalities locked. */
+export function buildSessionConfig(input: {
   voice?: string
   instructions?: string
   dialectHint?: string
@@ -43,11 +44,19 @@ function buildSessionConfig(input: {
     type: 'realtime',
     model: process.env.OPENAI_REALTIME_MODEL?.trim() || REALTIME_VOICE_MODEL,
     instructions,
+    // GA Realtime: audio-only output modalities — text-only responses produce
+    // no remote WebRTC track audio (visible text, silent speaker).
+    output_modalities: ['audio'],
     audio: {
       input: {
         transcription: {
           model: 'gpt-4o-mini-transcribe',
           language: 'ar',
+          // Bias ASR toward the product name Bilamo/بيلامو (not person بلال).
+          prompt:
+            'The assistant product name is Bilamo (بيلامو). '
+            + 'When the traveler greets or addresses the assistant, transcribe بيلامو / Bilamo — not بلال. '
+            + 'Keep بلال only when it is clearly a person name (e.g. اسمي بلال، مع بلال).',
         },
         turn_detection: {
           type: 'semantic_vad',

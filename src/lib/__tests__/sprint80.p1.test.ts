@@ -72,17 +72,18 @@ describe('Sprint 80 P1-6 — TTS unlock does not synthesize warm speech', () => 
   })
 
   it('call sites only invoke unlockAudioPlayback (no local مرحبا TTS warm POST)', () => {
-    const home = readFileSync(
-      resolve(__dirname, '../../components/home/HomeVoiceConsultant.tsx'),
+    // HomeVoiceConsultant is quarantined — classic Bilamo transport is the TTS path.
+    const classic = readFileSync(
+      resolve(__dirname, '../bilamo/voice/classicTransport.ts'),
       'utf8',
     )
     const session = readFileSync(
       resolve(__dirname, '../chat/voice/voiceSession.ts'),
       'utf8',
     )
-    expect(home).toContain('unlockAudioPlayback')
+    expect(classic).toContain('unlockAudioPlayback')
     expect(session).toContain('unlockAudioPlayback')
-    expect(home).not.toContain("text: 'مرحبا'")
+    expect(classic).not.toContain("text: 'مرحبا'")
     expect(session).not.toContain("text: 'مرحبا'")
   })
 

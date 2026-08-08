@@ -25,7 +25,7 @@ describe('Recovery Phase 1 freeze', () => {
   it('documents a single product spine', () => {
     expect(RECOVERY_CONVERSATION).toContain('travel-agent')
     expect(RECOVERY_TURN_OWNER).toBe('travelAgentService.planTurn')
-    expect(RECOVERY_CHAT_UI).toBe('LegacyChatPage')
+    expect(RECOVERY_CHAT_UI).toBe('BilamoChat')
     expect(RECOVERY_PAYMENT).toBe('lib/payment')
     expect(RECOVERY_CONVERSATION_STORE).toContain('chatService')
     expect(RECOVERY_MEMORY).toContain('agent/memory.ts')

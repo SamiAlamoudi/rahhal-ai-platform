@@ -39,6 +39,11 @@ export {
 } from './clarification'
 export { runBilamoSearchOrchestrator } from './searchOrchestrator'
 export {
+  validateFlightRoute,
+  isValidRenderableFlight,
+  canonicalizeAirportCode,
+} from './flightRouteValidation'
+export {
   composeRecommendation,
   composeGreeting,
   streamConsultantText,
