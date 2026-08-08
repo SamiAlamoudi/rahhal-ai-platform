@@ -474,9 +474,6 @@ export async function runDirectAudioProbe(
     if (progressed) {
       return pass()
     }
-    if (out.playResult === 'rejected') {
-      return fail(out.failureStage || `PLAY_REJECTED_${out.playError || 'unknown'}`)
-    }
     if (out.playResult === 'resolved') {
       return fail('PLAY_RESOLVED_NO_PROGRESSION')
     }
