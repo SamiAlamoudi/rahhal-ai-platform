@@ -106,6 +106,16 @@ describe('spokenText hygiene — Arabic-first consultant summaries', () => {
   it('drops English-only residue after template strip on Arabic locale', () => {
     expect(prepareSpokenTextForTts('Understood. When are you free?', 'ar')).toBe('')
   })
+
+  it('strips English templates even when locale mis-detects as en', () => {
+    const spoken = prepareSpokenTextForTts(
+      'Understood. تمام، لقيت خيارات لباريس. When are you free?',
+      'en',
+    )
+    expect(spoken).toMatch(/تمام/)
+    expect(spoken).not.toMatch(/Understood/i)
+    expect(spoken).not.toMatch(/When are/i)
+  })
 })
 
 describe('natural Arabic TTS profile', () => {
@@ -428,7 +438,10 @@ describe('per-turn diagnostics wiring', () => {
     expect(session).toMatch(/playbackDiag\.ttsBytes = null/)
     expect(session).toMatch(/playbackDiag\.ttsObjectUrlAssigned = false/)
     expect(session).toMatch(/playbackDiag\.turnPlaybackStarted = false/)
+    expect(session).toMatch(/playbackDiag\.fallbackUsed = false/)
+    expect(session).toMatch(/playbackDiag\.audibleConfirmed = false/)
     expect(session).toMatch(/turnPlaybackEnded = true/)
+    expect(session).toMatch(/audibleConfirmed = true/)
   })
 
   it('http trace records TTS_HTTP_STATUS / TTS_BYTES without polluting error codes', () => {

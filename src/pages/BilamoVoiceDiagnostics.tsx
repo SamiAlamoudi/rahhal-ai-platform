@@ -212,6 +212,15 @@ function BilamoVoiceDiagnosticsBody() {
     `VOICE_SESSION_ACTIVE=${yn(snap.voiceSessionActive || playback.voiceSessionActive)}`,
     `CAPABILITY_PROBE_ONLY=${yn(capabilityOnly)}`,
     `LAST_VOICE_EVENT=${playback.lastEvent || '—'}`,
+    `TURN_ID=${playback.turnId ?? '—'}`,
+    `TTS_REQUEST_ID=${playback.ttsRequestId || '—'}`,
+    `TTS_HTTP_STATUS=${playback.ttsHttpStatus ?? '—'}`,
+    `TTS_BYTES=${playback.ttsBytes ?? '—'}`,
+    `TTS_OBJECT=${yn(playback.ttsObjectUrlAssigned)}`,
+    `TURN_PLAYBACK_STARTED=${yn(playback.turnPlaybackStarted)}`,
+    `TURN_PLAYBACK_ENDED=${yn(playback.turnPlaybackEnded)}`,
+    `AUDIBLE_CONFIRMED=${yn(playback.audibleConfirmed)}`,
+    `FALLBACK_USED=${yn(playback.fallbackUsed)}`,
     `browser=${/Safari/i.test(ua) && !/Chrome|CriOS|FxiOS/i.test(ua) ? 'Safari' : (ua.slice(0, 80) || '—')}`,
     `iosVersion=${iosMatch ? `${iosMatch[1]}.${iosMatch[2]}` : '—'}`,
     `authOk=${yn(authOk)}`,
@@ -374,6 +383,15 @@ function BilamoVoiceDiagnosticsBody() {
         <Row label="Mic permission" value={micPermission} />
         <Row label="Capability probe only" value={yn(capabilityOnly)} />
         <Row label="Last session event" value={playback.lastEvent || '—'} />
+        <Row label="TURN_ID" value={playback.turnId == null ? '—' : String(playback.turnId)} />
+        <Row label="TTS_REQUEST_STARTED" value={playback.ttsRequestId || '—'} />
+        <Row label="TTS_HTTP_STATUS" value={playback.ttsHttpStatus == null ? '—' : String(playback.ttsHttpStatus)} />
+        <Row label="TTS_BYTES" value={playback.ttsBytes == null ? '—' : String(playback.ttsBytes)} />
+        <Row label="TTS_OBJECT" value={yn(playback.ttsObjectUrlAssigned)} />
+        <Row label="TURN_PLAYBACK_STARTED" value={yn(playback.turnPlaybackStarted)} />
+        <Row label="TURN_PLAYBACK_ENDED" value={yn(playback.turnPlaybackEnded)} />
+        <Row label="AUDIBLE_CONFIRMED" value={yn(playback.audibleConfirmed)} />
+        <Row label="FALLBACK_USED" value={yn(playback.fallbackUsed)} />
         <Row label="HTTP route (session)" value={playback.httpRoute || '—'} />
         <Row label="Peer connection state" value={playback.peerConnectionState || '—'} />
         <Row

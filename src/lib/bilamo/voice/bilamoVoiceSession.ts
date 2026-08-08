@@ -310,6 +310,8 @@ export function createBilamoVoiceSession(
         ttsObjectUrlAssigned: playbackDiag.ttsObjectUrlAssigned,
         turnPlaybackStarted: playbackDiag.turnPlaybackStarted,
         turnPlaybackEnded: playbackDiag.turnPlaybackEnded,
+        fallbackUsed: playbackDiag.fallbackUsed,
+        audibleConfirmed: playbackDiag.audibleConfirmed,
       }
       playbackDiag = {
         ...playbackDiag,
@@ -381,6 +383,9 @@ export function createBilamoVoiceSession(
           sessionSticky.turnPlaybackStarted || Boolean(fromTransport.turnPlaybackStarted),
         turnPlaybackEnded:
           sessionSticky.turnPlaybackEnded || Boolean(fromTransport.turnPlaybackEnded),
+        fallbackUsed: sessionSticky.fallbackUsed || Boolean(fromTransport.fallbackUsed),
+        audibleConfirmed:
+          sessionSticky.audibleConfirmed || Boolean(fromTransport.audibleConfirmed),
       }
     }
     playbackDiag.audioContextState = readAudioContextState()
@@ -600,6 +605,8 @@ export function createBilamoVoiceSession(
         prepared = true
         playbackDiag.lastEvent = 'CLASSIC_FALLBACK_STARTED'
         playbackDiag.classicFallbackInvoked = true
+        // Per-turn latch (session-wide classicFallbackInvoked stays sticky for history).
+        playbackDiag.fallbackUsed = true
         noteVoiceLifecycleStage('CLASSIC_FALLBACK_STARTED')
         emit()
       }
@@ -794,6 +801,7 @@ export function createBilamoVoiceSession(
         playbackDiag.turnPlaybackStarted = true
         playbackDiag.turnPlaybackEnded = false
         playbackDiag.audible = true
+        playbackDiag.audibleConfirmed = true
         playbackDiag.realtimeAudioRequested = true
         playbackDiag.lastEvent = 'PLAYBACK_STARTED'
         playbackDiag.playResult = 'resolved'
@@ -1348,6 +1356,8 @@ export function createBilamoVoiceSession(
       metrics.mark('response_start')
       // Per-turn playback latch — never reuse sticky audible / consumed flags across turns.
       playbackDiag.audible = false
+      playbackDiag.audibleConfirmed = false
+      playbackDiag.fallbackUsed = false
       playbackDiag.audioPlayRequested = true
       playbackDiag.audioPlaybackStarted = false
       playbackDiag.audioPlaybackFailed = false
@@ -1361,6 +1371,10 @@ export function createBilamoVoiceSession(
       playbackDiag.turnId = sessionGen
       playbackDiag.assistantResponseCreated = true
       playbackDiag.lastEvent = 'MODEL_RESPONSE_STARTED'
+      noteVoiceLifecycleStage('TTS_REQUEST_STARTED', {
+        turnId: sessionGen,
+        requestId: `turn_${sessionGen}`,
+      })
       noteVoiceTurnStage('response_ready')
       playbackDiag.turnStage = 'playback_starting'
       noteVoiceTurnStage('playback_starting')

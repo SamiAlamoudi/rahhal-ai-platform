@@ -167,6 +167,13 @@ export type VoicePlaybackDiagnostics = {
   /** Per-turn playback started / ended (independent of sticky session audible). */
   turnPlaybackStarted: boolean
   turnPlaybackEnded: boolean
+  /**
+   * Per-turn classic fallback latch — never a global "already played / already fell back"
+   * guard that blocks the next assistant turn.
+   */
+  fallbackUsed: boolean
+  /** Per-turn audible confirmation (playing/timeupdate evidence for THIS turn). */
+  audibleConfirmed: boolean
 }
 
 export function emptyVoicePlaybackDiagnostics(): VoicePlaybackDiagnostics {
@@ -233,6 +240,8 @@ export function emptyVoicePlaybackDiagnostics(): VoicePlaybackDiagnostics {
     ttsObjectUrlAssigned: false,
     turnPlaybackStarted: false,
     turnPlaybackEnded: false,
+    fallbackUsed: false,
+    audibleConfirmed: false,
   }
 }
 

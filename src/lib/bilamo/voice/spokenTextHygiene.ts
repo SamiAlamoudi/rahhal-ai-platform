@@ -45,7 +45,9 @@ export function prepareSpokenTextForTts(
   let spoken = (text || '').trim()
   if (!spoken) return ''
 
-  if (locale === 'ar' || (!locale && hasArabicScript(spoken))) {
+  // Arabic-first even when locale mis-detects as en/fr but the line has Arabic script
+  // (fixes "Understood" / "When are" pollution mixed into Arabic spokenText).
+  if (locale === 'ar' || hasArabicScript(spoken)) {
     spoken = stripEnglishTemplateFragments(spoken)
     // Drop orphan punctuation / empty residue after English template removal.
     spoken = spoken.replace(/^[\s.!?؟،,;:]+|[\s.!?؟،,;:]+$/g, '').trim()
