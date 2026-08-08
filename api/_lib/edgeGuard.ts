@@ -257,9 +257,10 @@ export async function guardEdgeRequest(
   const { headers: corsHeaders, allowed } = buildCorsHeaders(req, env)
 
   if (req.method === 'OPTIONS') {
+    // 204 must not carry a body — Edge/Runtime throws otherwise (P0 CORS preflight 500).
     return {
       ok: false,
-      response: new Response('ok', { status: 204, headers: corsHeaders }),
+      response: new Response(null, { status: 204, headers: corsHeaders }),
     }
   }
 

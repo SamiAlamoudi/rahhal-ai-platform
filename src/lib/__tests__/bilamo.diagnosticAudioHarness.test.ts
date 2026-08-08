@@ -314,7 +314,7 @@ describe('diagnostic audio harness — Safari classic contracts', () => {
     expect(result.stages).toContain('CLASSIC_TTS_BYTES_4096')
   })
 
-  it('unsupported format produces explicit failure', async () => {
+  it('JSON content-type is never treated as audio', async () => {
     const persistent = makeFakeAudio({ progress: true })
     const result = await runDirectAudioProbe({
       resumeContext: async () => undefined,
@@ -323,6 +323,23 @@ describe('diagnostic audio harness — Safari classic contracts', () => {
         new Response(new Uint8Array([0x00, 0x01, 0x02, 0x03, ...new Uint8Array(100)]), {
           status: 200,
           headers: { 'content-type': 'application/json' },
+        }),
+      progressTimeoutMs: 20,
+    })
+    expect(result.verdict).toBe('FAIL')
+    expect(result.failureStage).toBe('TTS_INVALID_CONTENT_TYPE')
+    expect(result.safeServerErrorCode).toBe('TTS_INVALID_CONTENT_TYPE')
+  })
+
+  it('unsupported non-audio MIME produces explicit failure', async () => {
+    const persistent = makeFakeAudio({ progress: true })
+    const result = await runDirectAudioProbe({
+      resumeContext: async () => undefined,
+      obtainAudio: () => persistent,
+      fetchTts: async () =>
+        new Response(new Uint8Array([0x00, 0x01, 0x02, 0x03, ...new Uint8Array(100)]), {
+          status: 200,
+          headers: { 'content-type': 'text/plain' },
         }),
       progressTimeoutMs: 20,
     })

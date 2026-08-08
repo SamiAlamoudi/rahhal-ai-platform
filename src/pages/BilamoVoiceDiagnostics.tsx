@@ -298,7 +298,10 @@ function BilamoVoiceDiagnosticsBody() {
             <Row label="Failure stage" value={probe.failureStage || '—'} />
             <Row label="Lifecycle" value={probe.stages.join(' → ') || '—'} />
             <Row label="HTTP status" value={probe.httpStatus == null ? '—' : String(probe.httpStatus)} />
-            <Row label="Safe server error" value={probe.safeServerErrorCode || '—'} />
+            <Row
+              label="Safe server error"
+              value={probe.safeServerErrorCode || harness.failureStage || '—'}
+            />
             <Row label="Requested format" value={probe.requestedFormat || '—'} />
             <Row label="MIME" value={probe.contentType || '—'} />
             <Row label="Bytes" value={String(probe.bytes)} />

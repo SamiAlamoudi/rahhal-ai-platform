@@ -904,10 +904,21 @@ export async function runDirectAudioProbe(
     out.httpStatus = res.status
     out.contentType = res.headers.get('content-type')
     noteStage(out, `CLASSIC_TTS_HTTP_${res.status}`)
+    const headerSafe = res.headers.get('X-Rahhal-TTS-Safe-Code')
+      || res.headers.get('x-rahhal-tts-safe-code')
+    if (headerSafe) noteStage(out, `SERVER_${headerSafe}`)
+    const headerStages = res.headers.get('X-Rahhal-TTS-Stages')
+      || res.headers.get('x-rahhal-tts-stages')
+    if (headerStages) {
+      for (const s of headerStages.split(',').map((x) => x.trim()).filter(Boolean)) {
+        if (!out.stages.includes(s)) noteStage(out, s)
+      }
+    }
 
     if (!res.ok) {
       out.safeServerErrorCode = await parseSafeErrorCodeFromResponse(res)
-      return fail(`CLASSIC_TTS_HTTP_${res.status}`)
+      // Prefer stable server code over opaque HTTP_502.
+      return fail(out.safeServerErrorCode || `CLASSIC_TTS_HTTP_${res.status}`)
     }
 
     const buffer = new Uint8Array(await res.arrayBuffer())
@@ -917,6 +928,13 @@ export async function runDirectAudioProbe(
     const mime = headerMime || (DIAGNOSTIC_TTS_FORMAT === 'mp3' ? 'audio/mpeg' : 'audio/wav')
     noteStage(out, `CLASSIC_TTS_MIME_${mime}`)
     noteStage(out, `CLASSIC_TTS_BYTES_${buffer.byteLength}`)
+
+    // JSON error bodies must never be treated as audio.
+    const head = String.fromCharCode(...buffer.slice(0, Math.min(8, buffer.byteLength))).trimStart()
+    if (head.startsWith('{') || head.startsWith('[') || (headerMime.includes('json') && !headerMime.includes('audio'))) {
+      out.safeServerErrorCode = 'TTS_INVALID_CONTENT_TYPE'
+      return fail('TTS_INVALID_CONTENT_TYPE')
+    }
 
     if (buffer.byteLength < 64) {
       return fail('TTS_EMPTY_RESPONSE')

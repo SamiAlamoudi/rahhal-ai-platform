@@ -202,12 +202,19 @@ export function noteVoiceLifecycleStage(
 
 export async function parseSafeErrorCodeFromResponse(res: Response): Promise<string | null> {
   try {
+    const headerCode = res.headers.get('X-Rahhal-TTS-Safe-Code')
+      || res.headers.get('x-rahhal-tts-safe-code')
+    if (headerCode && /^[A-Z0-9_]{3,64}$/i.test(headerCode)) {
+      return headerCode.toUpperCase()
+    }
     const clone = res.clone()
     const ct = clone.headers.get('content-type') || ''
     if (!ct.includes('application/json')) return null
-    const body = (await clone.json()) as { code?: unknown }
-    if (typeof body.code === 'string' && /^[A-Z0-9_]{3,48}$/.test(body.code)) {
-      return body.code
+    const body = (await clone.json()) as { code?: unknown; error?: unknown }
+    for (const candidate of [body.code, body.error]) {
+      if (typeof candidate === 'string' && /^[A-Z0-9_]{3,64}$/i.test(candidate)) {
+        return candidate.toUpperCase()
+      }
     }
   } catch {
     /* ignore */
