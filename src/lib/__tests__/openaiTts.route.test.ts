@@ -171,6 +171,40 @@ describe('POST /api/openai/tts', () => {
     }
   })
 
+  it('surfaces OpenAI credit_balance_exhausted as TTS_UPSTREAM_429 (not opaque 502)', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/auth/v1/user')) {
+        return new Response(JSON.stringify({ id: 'user-1' }), { status: 200 })
+      }
+      return new Response(JSON.stringify({
+        error: {
+          message: 'You have no credits remaining.',
+          type: 'insufficient_quota',
+          code: 'credit_balance_exhausted',
+        },
+      }), { status: 429, headers: { 'Content-Type': 'application/json' } })
+    })
+    const res = await postTts({
+      text: 'مرحباً، أنا بيلامو',
+      locale: 'ar',
+      voice: 'marin',
+      format: 'mp3',
+    })
+    expect(res.status).toBe(429)
+    const body = await res.json() as {
+      code: string
+      upstreamErrorCode?: string
+      stages: string[]
+      firstFailedStage?: string
+    }
+    expect(body.code).toBe('TTS_UPSTREAM_429')
+    expect(body.upstreamErrorCode).toBe('credit_balance_exhausted')
+    expect(body.firstFailedStage).toBe('TTS_UPSTREAM_STATUS_429')
+    expect(body.stages).toContain('TTS_UPSTREAM_ERROR_CODE_credit_balance_exhausted')
+    expect(JSON.stringify(body)).not.toMatch(/sk-/)
+  })
+
   it('maps upstream timeout / network throw', async () => {
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input)
