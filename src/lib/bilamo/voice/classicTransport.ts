@@ -482,9 +482,11 @@ export function createClassicBilamoTransport(): BilamoVoiceTransport {
                 code: 'PLAYBACK_BLOCKED',
                 turnId,
                 requestId: ttsRequestId,
+                // 1 = object URL was assigned but play never started; 0 = never assigned.
+                bytes: objectUrlAssigned ? 1 : 0,
               })
               callbacks.onError?.('تعذر تشغيل الصوت.', {
-                code: 'playback_blocked',
+                code: objectUrlAssigned ? 'playback_blocked' : 'playback_no_src',
                 recoverable: true,
               })
             }

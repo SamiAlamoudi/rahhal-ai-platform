@@ -206,7 +206,8 @@ describe('Safari unlock — no silent re-prime after first gesture', () => {
       return el
     }))
     vi.spyOn(URL, 'createObjectURL').mockImplementation(
-      (blob: Blob) => `blob:test-${blob.size}-${Math.random()}`,
+      (obj: Blob | MediaSource) =>
+        `blob:test-${obj instanceof Blob ? obj.size : 0}-${Math.random()}`,
     )
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
     vi.stubGlobal('fetch', async () => new Response(null, { status: 204 }))
@@ -330,7 +331,8 @@ describe('multi-turn classic speak lifecycle', () => {
       return el
     }))
     vi.spyOn(URL, 'createObjectURL').mockImplementation(
-      (blob: Blob) => `blob:test-${blob.size}-${Math.random()}`,
+      (obj: Blob | MediaSource) =>
+        `blob:test-${obj instanceof Blob ? obj.size : 0}-${Math.random()}`,
     )
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
     vi.doMock('../security/voiceAuthProbe', () => ({
