@@ -247,9 +247,15 @@ describe('Bilamo voice hardening — reliability', () => {
       code: 'realtime_error',
       recoverable: true,
     })
-    expect(session.getSnapshot().error).toBe('Could not start voice. You can type instead.')
-    expect(session.getSnapshot().error).not.toContain('STUN')
-    expect(session.getSnapshot().error).not.toContain('RTCPeerConnection')
+    // Recoverable realtime blips must not sticky-banner travelers (esp. "Connection lost").
+    const snap = session.getSnapshot()
+    expect(snap.error).toBeNull()
+    expect(snap.lastSafeErrorCode).toBe('realtime_error')
+    expect(String(snap.error || '')).not.toContain('STUN')
+    expect(String(snap.error || '')).not.toContain('RTCPeerConnection')
+    expect(String(snap.error || '')).not.toMatch(/Connection lost/)
+    await new Promise((r) => setTimeout(r, 120))
+    expect(session.getSnapshot().state).not.toBe('error')
     session.dispose()
   })
 
