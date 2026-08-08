@@ -1,15 +1,22 @@
 /**
  * Staging-only voice diagnostics — never shows secrets or transcripts.
  * Gated by import.meta.env.DEV or VITE_VOICE_METRICS=1.
+ *
+ * "اختبار الصوت" is an independent classic-TTS harness — does NOT require
+ * mic / realtime / voice session / capability probe.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Navigate } from 'react-router-dom'
 import { BilamoShell, Button, Logo } from '../design-system'
 import { useBilamoVoiceSession } from '../hooks/useBilamoVoiceSession'
 import type { BilamoVoiceMetricsReport } from '../lib/bilamo/voice'
 import {
+  formatAudioTestBanner,
+  getDiagnosticAudioHarnessState,
+  resetDiagnosticAudioHarness,
   runDirectAudioProbe,
+  subscribeDiagnosticAudioHarness,
   type DirectAudioProbeResult,
 } from '../lib/bilamo/voice/directAudioProbe'
 import { captureMicFromUserGesture } from '../lib/bilamo/voice/micGestureCapture'
@@ -24,12 +31,20 @@ function voiceDiagnosticsEnabled(): boolean {
 
 export default function BilamoVoiceDiagnostics() {
   const allowed = voiceDiagnosticsEnabled()
-  const voice = useBilamoVoiceSession({ enabled: allowed })
+  // Do NOT auto-prepare on mount — capability probe must not look like an audio attempt.
+  const voice = useBilamoVoiceSession({ enabled: false })
   const [report, setReport] = useState<BilamoVoiceMetricsReport | null>(null)
   const [micPermission, setMicPermission] = useState<string>('unknown')
   const [copyHint, setCopyHint] = useState<string | null>(null)
-  const [probeBusy, setProbeBusy] = useState(false)
-  const [probe, setProbe] = useState<DirectAudioProbeResult | null>(null)
+  const [authOk, setAuthOk] = useState<boolean | null>(null)
+
+  const harness = useSyncExternalStore(
+    subscribeDiagnosticAudioHarness,
+    getDiagnosticAudioHarnessState,
+    getDiagnosticAudioHarnessState,
+  )
+  const probe: DirectAudioProbeResult | null = harness.latest
+  const audioBanner = formatAudioTestBanner(harness)
 
   useEffect(() => {
     if (!allowed) return
@@ -52,8 +67,10 @@ export default function BilamoVoiceDiagnostics() {
 
   useEffect(() => {
     if (!allowed) return
-    void probeVoiceAuth().catch(() => undefined)
-  }, [allowed, voice.snapshot.state])
+    void probeVoiceAuth()
+      .then((r) => setAuthOk(r.ok))
+      .catch(() => setAuthOk(false))
+  }, [allowed])
 
   if (!allowed) {
     return <Navigate to="/" replace />
@@ -66,35 +83,60 @@ export default function BilamoVoiceDiagnostics() {
 
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
   const iosMatch = ua.match(/OS (\d+)[_.](\d+)/)
+  const capabilityOnly = Boolean(
+    playback.httpRoute === '/api/openai/realtime-session'
+    || playback.lastEvent === 'REALTIME_CAPABILITY_OK'
+    || playback.lastEvent === 'REALTIME_CAPABILITY_FAILED',
+  )
+
   const failureBundle = [
-    `RAW_ASR=${playback.rawAsr || '—'}`,
-    `NORMALIZED_ASR=${playback.normalizedAsr || '—'}`,
-    `ASR_CONFIDENCE=${playback.transcriptConfidence ?? '—'}`,
-    `ASSISTANT_NAME_MATCH=${yn(playback.assistantNameMatch)}`,
-    `TURN_ID=${playback.turnId == null ? '—' : String(playback.turnId)}`,
-    `correlationId=${playback.correlationId || '—'}`,
-    `REALTIME_AUDIO_REQUESTED=${yn(playback.realtimeAudioRequested || playback.audioPlayRequested)}`,
-    `REMOTE_AUDIO_TRACK=${yn(playback.remoteTrackReceived)}`,
-    `REMOTE_AUDIO_MUTED=${playback.remoteTrackMuted == null ? '—' : String(playback.remoteTrackMuted)}`,
-    `REMOTE_AUDIO_PLAYING=${yn(playback.audible && playback.audioPlaybackStarted)}`,
-    `AUDIO_CONTEXT_STATE=${snap.audioContextState || playback.audioContextState || '—'}`,
-    `CLASSIC_TTS_REQUEST=${yn(playback.classicFallbackInvoked || snap.fellBackToClassic)}`,
-    `CLASSIC_TTS_HTTP=${playback.classicFallbackHttpStatus ?? '—'}`,
-    `CLASSIC_TTS_MIME=${playback.classicFallbackMime || '—'}`,
-    `CLASSIC_TTS_BYTES=${playback.classicFallbackBytes ?? '—'}`,
-    `CLASSIC_TTS_PLAYING=${yn(snap.fellBackToClassic && playback.audible)}`,
-    `FINAL_VOICE_STATE=${snap.state}`,
-    `LAST_ERROR=${snap.lastSafeErrorCode || playback.lastSafeErrorCode || snap.error || '—'}`,
+    `AUDIO_TEST=${audioBanner}`,
+    `AUDIO_TEST_VERDICT=${harness.verdict}`,
+    `AUDIO_TEST_FAILURE_STAGE=${harness.failureStage || '—'}`,
+    `AUDIO_TEST_STAGES=${harness.stages.join(' → ') || '—'}`,
+    `AUDIO_TEST_HTTP=${probe?.httpStatus ?? '—'}`,
+    `AUDIO_TEST_MIME=${probe?.contentType || '—'}`,
+    `AUDIO_TEST_BYTES=${probe?.bytes ?? '—'}`,
+    `AUDIO_TEST_PLAY=${probe?.playResult || '—'}`,
+    `AUDIO_TEST_PLAY_ERROR=${probe?.playError || '—'}`,
+    `AUDIO_TEST_PLAY_MSG=${probe?.playErrorMessage || '—'}`,
+    `AUDIO_TEST_PROGRESS=${yn(probe?.playbackProgressed)}`,
+    `VOICE_SESSION_ACTIVE=${yn(snap.voiceSessionActive || playback.voiceSessionActive)}`,
+    `CAPABILITY_PROBE_ONLY=${yn(capabilityOnly)}`,
+    `LAST_VOICE_EVENT=${playback.lastEvent || '—'}`,
     `browser=${/Safari/i.test(ua) && !/Chrome|CriOS|FxiOS/i.test(ua) ? 'Safari' : (ua.slice(0, 80) || '—')}`,
     `iosVersion=${iosMatch ? `${iosMatch[1]}.${iosMatch[2]}` : '—'}`,
-    `authStatus=${playback.authenticatedUser ? 'authenticated' : (playback.supabaseSessionAvailable ? 'session' : 'none')}`,
+    `authOk=${yn(authOk)}`,
     `micPermission=${micPermission}`,
-    `playResult=${playback.playResult || '—'}`,
-    `event=${playback.lastEvent || '—'}`,
-    `autoRelisten=${yn(playback.autoRelistenTriggered)}`,
-    `voiceSessionActive=${yn(snap.voiceSessionActive || playback.voiceSessionActive)}`,
-    `ts=${playback.timestampMs ?? Date.now()}`,
+    `ts=${Date.now()}`,
   ].join('\n')
+
+  const runAudioTest = () => {
+    // Independent of mic / realtime / session. Never gate on those.
+    // Do not disable the button on busy — stuck busy was a physical false-disabled.
+    void runDirectAudioProbe()
+  }
+
+  const resetAll = () => {
+    resetDiagnosticAudioHarness()
+    try {
+      voice.interrupt()
+    } catch {
+      /* ignore */
+    }
+    try {
+      voice.clearError()
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const bannerClass =
+    harness.verdict === 'PASS'
+      ? 'border-[color-mix(in_oklab,var(--bilamo-accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--bilamo-accent)_12%,transparent)]'
+      : harness.verdict === 'FAIL'
+        ? 'border-[color-mix(in_oklab,#c45c4a_50%,transparent)] bg-[color-mix(in_oklab,#c45c4a_10%,transparent)]'
+        : 'border-[var(--bilamo-border)] bg-[color-mix(in_oklab,var(--bilamo-text)_4%,transparent)]'
 
   return (
     <BilamoShell>
@@ -105,137 +147,72 @@ export default function BilamoVoiceDiagnostics() {
             Voice diagnostics
           </h1>
           <p className="text-[13px] text-[var(--bilamo-muted)]">
-            Staging only — last-turn ASR + audio evidence. Never paste tokens.
+            Staging only — independent Safari audio test. Never paste tokens.
           </p>
         </header>
 
-        <dl className="bilamo-glass space-y-3 rounded-[1.25rem] px-5 py-4 text-[13.5px]">
-          <Row label="RAW_ASR" value={playback.rawAsr || '—'} />
-          <Row label="NORMALIZED_ASR" value={playback.normalizedAsr || '—'} />
-          <Row label="ASR_CONFIDENCE" value={playback.transcriptConfidence == null ? '—' : String(playback.transcriptConfidence)} />
-          <Row label="ASSISTANT_NAME_MATCH" value={yn(playback.assistantNameMatch)} />
-          <Row label="TURN_ID" value={playback.turnId == null ? '—' : String(playback.turnId)} />
-          <Row label="VOICE_SESSION_ACTIVE" value={yn(snap.voiceSessionActive || playback.voiceSessionActive)} />
-          <Row label="MANUALLY_STOPPED" value={yn(snap.manuallyStopped || playback.manuallyStopped)} />
-          <Row label="FINAL_VOICE_STATE" value={snap.state} />
-          <Row label="MIC_ACTIVE" value={yn(snap.listening || playback.mediaStreamActive)} />
-          <Row label="EOS_DETECTED" value={yn(playback.endOfSpeechDetected)} />
-          <Row label="TURN_COMMITTED" value={yn(playback.finalTranscriptReceived || playback.inputCommitted)} />
-          <Row label="REALTIME_AUDIO_REQUESTED" value={yn(playback.realtimeAudioRequested || playback.audioPlayRequested)} />
-          <Row label="REMOTE_AUDIO_TRACK" value={yn(playback.remoteTrackReceived)} />
-          <Row label="REMOTE_AUDIO_MUTED" value={playback.remoteTrackMuted == null ? '—' : String(playback.remoteTrackMuted)} />
-          <Row label="REMOTE_AUDIO_PLAYING" value={yn(playback.audible && playback.audioPlaybackStarted)} />
-          <Row label="AUDIO_CONTEXT_STATE" value={snap.audioContextState || playback.audioContextState || '—'} />
-          <Row label="CLASSIC_TTS_REQUEST" value={yn(playback.classicFallbackInvoked || snap.fellBackToClassic)} />
-          <Row label="CLASSIC_TTS_HTTP" value={playback.classicFallbackHttpStatus == null ? '—' : String(playback.classicFallbackHttpStatus)} />
-          <Row label="CLASSIC_TTS_MIME" value={playback.classicFallbackMime || '—'} />
-          <Row label="CLASSIC_TTS_BYTES" value={playback.classicFallbackBytes == null ? '—' : String(playback.classicFallbackBytes)} />
-          <Row label="CLASSIC_TTS_PLAYING" value={yn(snap.fellBackToClassic && playback.audible)} />
-          <Row label="PLAYBACK_ENDED" value={yn(playback.audioPlaybackEnded)} />
-          <Row label="AUTO_RELISTEN_TRIGGERED" value={yn(playback.autoRelistenTriggered)} />
-          <Row label="LAST_ERROR" value={snap.lastSafeErrorCode || playback.lastSafeErrorCode || snap.error || '—'} />
-          <Row label="Timestamp (ms)" value={String(playback.timestampMs ?? '—')} />
-          <Row label="Correlation ID" value={playback.correlationId || '—'} />
-          <Row label="Turn stage" value={playback.turnStage || '—'} />
-          <Row label="Transport requested" value={snap.requestedTransport || '—'} />
-          <Row label="Transport actual" value={snap.transportKind || '—'} />
-          <Row label="Authenticated user" value={yn(playback.authenticatedUser)} />
-          <Row label="Supabase session available" value={yn(playback.supabaseSessionAvailable)} />
-          <Row label="Auth probe code" value={playback.authProbeCode || '—'} />
-          <Row label="Language" value={playback.language || '—'} />
-          <Row label="Dialect" value={playback.dialect || '—'} />
-          <Row
-            label="Transcript confidence"
-            value={playback.transcriptConfidence == null ? '—' : String(playback.transcriptConfidence)}
-          />
-          <Row label="Normalized intent" value={playback.normalizedIntent || '—'} />
-          <Row
-            label="Submit latency"
-            value={playback.submitLatencyMs == null ? '—' : `${playback.submitLatencyMs} ms`}
-          />
-          <Row label="Audible" value={yn(playback.audible || playback.audioPlaybackStarted)} />
-          <Row label="Mic permission" value={micPermission} />
-          <Row label="MediaStream active" value={yn(playback.mediaStreamActive)} />
-          <Row label="Speech recognition supported" value={yn(playback.speechRecognitionSupported)} />
-          <Row label="Speech detected" value={yn(playback.speechDetected)} />
-          <Row label="EOS detected" value={yn(playback.endOfSpeechDetected)} />
-          <Row label="Transcript final received" value={yn(playback.finalTranscriptReceived)} />
-          <Row label="Request dispatched" value={yn(playback.requestDispatched)} />
-          <Row label="HTTP route" value={playback.httpRoute || '—'} />
-          <Row label="HTTP status" value={playback.httpStatus == null ? '—' : String(playback.httpStatus)} />
-          <Row
-            label="Safe server error code"
-            value={playback.safeServerErrorCode || snap.lastSafeErrorCode || playback.lastSafeErrorCode || '—'}
-          />
-          <Row
-            label="Realtime session created"
-            value={yn(
-              playback.realtimeSessionCreated
-              && playback.httpRoute !== '/api/openai/realtime-session',
-            )}
-          />
-          <Row
-            label="Capability probe only"
-            value={yn(
-              playback.httpRoute === '/api/openai/realtime-session'
-              || playback.lastEvent === 'REALTIME_CAPABILITY_OK'
-              || playback.lastEvent === 'REALTIME_CAPABILITY_FAILED',
-            )}
-          />
-          <Row label="FSM current state" value={snap.state} />
-          <Row label="Last FSM transition" value={playback.lastFsmTransition || '—'} />
-          <Row label="Connection" value={snap.connection} />
-          <Row label="Peer connection state" value={playback.peerConnectionState || '—'} />
-          <Row label="ICE state" value={playback.iceConnectionState || '—'} />
-          <Row label="Remote audio track" value={yn(playback.remoteTrackReceived)} />
-          <Row
-            label="Remote track muted"
-            value={
-              playback.remoteTrackMuted == null
-                ? '—'
-                : playback.remoteTrackMuted
-                  ? 'muted'
-                  : 'unmuted'
-            }
-          />
-          <Row label="Remote track readyState" value={playback.remoteTrackReadyState || '—'} />
-          <Row label="Audio element attached" value={yn(playback.audioElementAttached)} />
-          <Row label="play() called" value={yn(playback.audioPlayRequested)} />
-          <Row label="play() result" value={playback.playResult || '—'} />
-          <Row label="Actual playback started" value={yn(playback.audioPlaybackStarted)} />
-          <Row label="Playback ended" value={yn(playback.audioPlaybackEnded)} />
-          <Row label="Audio playback failed" value={yn(playback.audioPlaybackFailed)} />
-          <Row label="Classic fallback attempted" value={yn(playback.classicFallbackInvoked || snap.fellBackToClassic)} />
-          <Row
-            label="Classic fallback HTTP status"
-            value={playback.classicFallbackHttpStatus == null ? '—' : String(playback.classicFallbackHttpStatus)}
-          />
-          <Row label="AudioContext state" value={snap.audioContextState || playback.audioContextState || '—'} />
-          <Row label="Discard reason" value={playback.discardReason || '—'} />
-          <Row label="Interrupt acknowledged" value={yn(playback.interruptAcknowledged)} />
-          <Row label="Speaking (audible only)" value={String(snap.speaking || snap.state === 'speaking')} />
-          <Row label="Second-turn / recovery IDLE" value={yn(snap.secondTurnReady)} />
-          <Row label="Stuck-state watchdog count" value={String(playback.stuckWatchdogCount ?? 0)} />
-          <Row label="Last playback event" value={playback.lastEvent || '—'} />
-          <Row
-            label="First-audio latency"
-            value={formatMs(latest?.timeToFirstAudioMs ?? agg?.timeToFirstAudioMs.last)}
-          />
-          <Row
-            label="First audio p50 / p95"
-            value={`${formatMs(agg?.timeToFirstAudioMs.p50)} / ${formatMs(agg?.timeToFirstAudioMs.p95)}`}
-          />
-          <Row
-            label="Interrupt latency"
-            value={formatMs(latest?.interruptionLatencyMs ?? agg?.interruptionLatencyMs.last)}
-          />
-          <Row label="Connect OK" value={formatMs(latest?.connectionSetupMs)} />
-        </dl>
+        {/* Prominent independent audio-test result */}
+        <section className={`bilamo-glass space-y-4 rounded-[1.25rem] border px-5 py-4 ${bannerClass}`}>
+          <p className="text-center text-[15px] font-medium tracking-[-0.02em] text-[var(--bilamo-text)]">
+            {audioBanner}
+          </p>
+          <p className="text-center text-[12.5px] text-[var(--bilamo-muted)]">
+            Independent classic TTS — no mic, no realtime, no conversation.
+          </p>
+          <Button
+            type="button"
+            variant="primary"
+            className="w-full"
+            onClick={runAudioTest}
+          >
+            {harness.busy ? 'جاري اختبار الصوت…' : 'اختبار الصوت'}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            onClick={resetAll}
+          >
+            RESET DIAGNOSTICS
+          </Button>
+          {authOk === false ? (
+            <p className="text-center text-[12px] text-[var(--bilamo-muted)]">
+              Auth probe failed — TTS may return HTTP 401. Sign in, then tap اختبار الصوت again.
+            </p>
+          ) : null}
+          {probe ? (
+            <dl className="space-y-2 text-[13px]">
+              <Row label="Verdict" value={probe.verdict} />
+              <Row label="Failure stage" value={probe.failureStage || '—'} />
+              <Row label="Lifecycle" value={probe.stages.join(' → ') || '—'} />
+              <Row label="HTTP status" value={probe.httpStatus == null ? '—' : String(probe.httpStatus)} />
+              <Row label="Safe server error" value={probe.safeServerErrorCode || '—'} />
+              <Row label="MIME" value={probe.contentType || '—'} />
+              <Row label="Bytes" value={String(probe.bytes)} />
+              <Row label="AudioContext" value={probe.audioContextState || '—'} />
+              <Row label="play() called" value={yn(probe.playCalled)} />
+              <Row label="play() result" value={probe.playResult || '—'} />
+              <Row label="play() error name" value={probe.playError || '—'} />
+              <Row label="play() error message" value={probe.playErrorMessage || '—'} />
+              <Row label="playing event" value={yn(probe.playingEvent)} />
+              <Row label="timeupdate" value={yn(probe.timeupdateSeen)} />
+              <Row label="max currentTime" value={probe.maxCurrentTime.toFixed(3)} />
+              <Row label="playback progressed" value={yn(probe.playbackProgressed)} />
+              <Row label="ended" value={yn(probe.ended)} />
+              <Row label="correlation" value={probe.correlationId} />
+            </dl>
+          ) : (
+            <p className="text-center text-[12.5px] text-[var(--bilamo-muted)]">
+              Tap اختبار الصوت once. Success requires audible playback progression — not HTTP 200 alone.
+            </p>
+          )}
+        </section>
 
         <div className="space-y-2">
           <Button
             type="button"
             variant="secondary"
+            className="w-full"
             onClick={() => {
               void navigator.clipboard?.writeText(failureBundle).then(() => {
                 setCopyHint('Copied failure bundle (safe fields only).')
@@ -249,54 +226,48 @@ export default function BilamoVoiceDiagnostics() {
             <p className="text-[12px] text-[var(--bilamo-muted)]">{copyHint}</p>
           ) : (
             <p className="text-[12px] text-[var(--bilamo-muted)]">
-              On failure, copy the bundle above (or screenshot this page). Never paste tokens or transcripts.
+              On failure, copy the bundle above (or screenshot this page). Never paste tokens.
             </p>
           )}
         </div>
 
-        <div className="bilamo-glass space-y-3 rounded-[1.25rem] px-5 py-4">
-          <p className="text-[13px] text-[var(--bilamo-muted)]">
-            اختبار الصوت — bypasses STT / conversation / cards. Fixed Arabic TTS only.
+        {/* Secondary: session / realtime observation (not the audio test) */}
+        <dl className="bilamo-glass space-y-3 rounded-[1.25rem] px-5 py-4 text-[13.5px]">
+          <p className="pb-1 text-[12px] font-medium uppercase tracking-[0.06em] text-[var(--bilamo-muted)]">
+            Session observation (separate from AUDIO TEST)
           </p>
-          <Button
-            type="button"
-            variant="primary"
-            disabled={probeBusy}
-            onClick={() => {
-              setProbeBusy(true)
-              setProbe(null)
-              // Must unlock inside this tap gesture before async TTS returns.
-              void unlockAudioPlayback()
-                .catch(() => undefined)
-                .then(() => runDirectAudioProbe())
-                .then((result) => setProbe(result))
-                .finally(() => setProbeBusy(false))
-            }}
-          >
-            اختبار الصوت
-          </Button>
-          {probe ? (
-            <dl className="space-y-2 text-[13px]">
-              <Row label="Probe result" value={probe.result} />
-              <Row label="Failure stage" value={probe.failureStage || '—'} />
-              <Row label="HTTP status" value={probe.httpStatus == null ? '—' : String(probe.httpStatus)} />
-              <Row label="MIME" value={probe.contentType || '—'} />
-              <Row label="Bytes" value={String(probe.bytes)} />
-              <Row label="AudioContext" value={probe.audioContextState || '—'} />
-              <Row label="play() called" value={yn(probe.playCalled)} />
-              <Row label="play() result" value={probe.playResult || '—'} />
-              <Row label="playing event" value={yn(probe.playingEvent)} />
-              <Row label="timeupdate" value={yn(probe.timeupdateSeen)} />
-              <Row label="max currentTime" value={probe.maxCurrentTime.toFixed(3)} />
-              <Row label="ended" value={yn(probe.ended)} />
-              <Row label="readyState" value={probe.elementReadyState == null ? '—' : String(probe.elementReadyState)} />
-              <Row label="paused" value={probe.elementPaused == null ? '—' : yn(probe.elementPaused)} />
-              <Row label="muted" value={probe.elementMuted == null ? '—' : yn(probe.elementMuted)} />
-              <Row label="volume" value={probe.elementVolume == null ? '—' : String(probe.elementVolume)} />
-              <Row label="correlation" value={probe.correlationId} />
-            </dl>
-          ) : null}
-        </div>
+          <Row label="VOICE_SESSION_ACTIVE" value={yn(snap.voiceSessionActive || playback.voiceSessionActive)} />
+          <Row label="MANUALLY_STOPPED" value={yn(snap.manuallyStopped || playback.manuallyStopped)} />
+          <Row label="FINAL_VOICE_STATE" value={snap.state} />
+          <Row label="Mic permission" value={micPermission} />
+          <Row label="MediaStream active" value={yn(playback.mediaStreamActive)} />
+          <Row label="Capability probe only" value={yn(capabilityOnly)} />
+          <Row
+            label="Realtime session created"
+            value={yn(
+              playback.realtimeSessionCreated
+              && playback.httpRoute !== '/api/openai/realtime-session',
+            )}
+          />
+          <Row label="HTTP route (session)" value={playback.httpRoute || '—'} />
+          <Row label="HTTP status (session)" value={playback.httpStatus == null ? '—' : String(playback.httpStatus)} />
+          <Row label="Last session event" value={playback.lastEvent || '—'} />
+          <Row label="Remote audio track" value={yn(playback.remoteTrackReceived)} />
+          <Row label="Audio element attached" value={yn(playback.audioElementAttached)} />
+          <Row label="play() called (session)" value={yn(playback.audioPlayRequested)} />
+          <Row label="Actual playback started (session)" value={yn(playback.audioPlaybackStarted)} />
+          <Row label="Classic fallback attempted" value={yn(playback.classicFallbackInvoked || snap.fellBackToClassic)} />
+          <Row label="Peer connection state" value={playback.peerConnectionState || '—'} />
+          <Row label="ICE state" value={playback.iceConnectionState || '—'} />
+          <Row label="Connection" value={snap.connection} />
+          <Row label="Transport actual" value={snap.transportKind || '—'} />
+          <Row label="Authenticated user" value={yn(playback.authenticatedUser)} />
+          <Row label="Auth probe code" value={playback.authProbeCode || '—'} />
+          <Row
+            label="First-audio latency"
+            value={formatMs(latest?.timeToFirstAudioMs ?? agg?.timeToFirstAudioMs.last)}
+          />
+        </dl>
 
         <div className="flex flex-wrap gap-3">
           <Button
@@ -373,7 +344,9 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 border-b border-[var(--bilamo-border)] pb-2 last:border-0 last:pb-0">
       <dt className="text-[var(--bilamo-muted)]">{label}</dt>
-      <dd className="tabular-nums text-[var(--bilamo-text)]/90">{value}</dd>
+      <dd className="max-w-[60%] break-words text-end tabular-nums text-[var(--bilamo-text)]/90">
+        {value}
+      </dd>
     </div>
   )
 }
