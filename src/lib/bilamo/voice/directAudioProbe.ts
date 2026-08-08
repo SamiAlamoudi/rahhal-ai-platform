@@ -20,7 +20,7 @@ export const DIAGNOSTIC_SILENT_WAV =
   'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='
 
 /** Safari-preferred classic TTS format (OpenAI FM uses mp3 for non-Blink). */
-export const DIAGNOSTIC_TTS_FORMAT: 'mp3' = 'mp3'
+export const DIAGNOSTIC_TTS_FORMAT = 'mp3' as const
 
 export type DiagnosticAudioMode = 'local' | 'tts' | null
 
