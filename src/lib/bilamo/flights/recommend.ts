@@ -132,10 +132,17 @@ export function scoreFlightOffer(
   }
 }
 
+function moneyShort(currency: string, amount: number, locale: 'ar' | 'en'): string {
+  const n = amount.toLocaleString(locale === 'ar' ? 'ar-SA' : 'en-US')
+  if (locale === 'ar' && (currency === 'SAR' || currency === 'ر.س')) return `${n} ر.س`
+  return `${currency} ${n}`
+}
+
 function explainBest(
   best: ScoredFlightOffer,
   cheapest: ScoredFlightOffer,
   fastest: ScoredFlightOffer,
+  locale: 'ar' | 'en' = 'en',
 ): string {
   const b = best.offer
   const priceDelta = b.totalPrice - cheapest.offer.totalPrice
@@ -144,15 +151,32 @@ function explainBest(
     ? fastest.offer.durationMinutes - b.durationMinutes
     : 0
 
+  if (locale === 'ar') {
+    if (b.stops === 0 && priceDelta > 0 && timeSaved >= 60) {
+      const hours = Math.round(timeSaved / 60)
+      return `أنصح بهذه الرحلة لأنها مباشرة وتوفر نحو ${hours} ساعة مقابل فرق بسيط ${moneyShort(b.currency, priceDelta, 'ar')}.`
+    }
+    if (best.offer.offerId === cheapest.offer.offerId && b.stops === 0) {
+      return 'أنصح بهذه الرحلة — الأفضل عموماً والأرخص معاً، وبجدول مباشر.'
+    }
+    if (best.offer.offerId === fastest.offer.offerId && vsCheapestFaster <= 0) {
+      return `أنصح بهذه الرحلة لتوازن التوقيت والراحة — ومن الأسرع عند ${moneyShort(b.currency, b.totalPrice, 'ar')}.`
+    }
+    if (b.stops === 0) {
+      return `أنصح برحلة ${b.airline} المباشرة — وصول أنظف ودرجة بيلامو ${best.score}.`
+    }
+    return `أنصح بخيار ${b.airline} لأفضل توازن بين السعر والوقت والراحة (درجة بيلامو ${best.score}).`
+  }
+
   if (b.stops === 0 && priceDelta > 0 && timeSaved >= 60) {
     const hours = Math.round(timeSaved / 60)
-    return `I recommend this direct flight because it saves about ${hours} hour${hours === 1 ? '' : 's'} of travel for only ${b.currency} ${priceDelta.toLocaleString('en-US')} more than the cheapest option.`
+    return `I recommend this direct flight because it saves about ${hours} hour${hours === 1 ? '' : 's'} of travel for only ${moneyShort(b.currency, priceDelta, 'en')} more than the cheapest option.`
   }
   if (best.offer.offerId === cheapest.offer.offerId && b.stops === 0) {
     return `I recommend this option — it is both the strongest overall choice and the lowest price, with a nonstop schedule.`
   }
   if (best.offer.offerId === fastest.offer.offerId && vsCheapestFaster <= 0) {
-    return `I recommend this flight for the best balance of schedule and comfort — it is also among the fastest options at ${b.currency} ${b.totalPrice.toLocaleString('en-US')}.`
+    return `I recommend this flight for the best balance of schedule and comfort — it is also among the fastest options at ${moneyShort(b.currency, b.totalPrice, 'en')}.`
   }
   if (b.stops === 0) {
     return `I recommend this nonstop ${b.airline} service — cleaner arrival, stronger overall score (${best.score}/100).`
@@ -168,9 +192,11 @@ export function recommendFlights(
     error?: string | null
     stale?: boolean
     weights?: typeof BILAMO_FLIGHT_SCORE_WEIGHTS
+    locale?: 'ar' | 'en'
   },
 ): FlightRecommendationSet | null {
   if (!offers.length) return null
+  const locale = options?.locale === 'en' ? 'en' : 'ar'
   const weights = options?.weights ?? BILAMO_FLIGHT_SCORE_WEIGHTS
   const scored = offers
     .map((o) => scoreFlightOffer(o, offers, request, weights))
@@ -185,18 +211,22 @@ export function recommendFlights(
     ...cheapestBase,
     kind: 'cheapest',
     reason: cheapestBase.offer.offerId === best.offer.offerId
-      ? 'Also the lowest price among strong options.'
-      : `Lowest price at ${cheapestBase.offer.currency} ${cheapestBase.offer.totalPrice.toLocaleString('en-US')}.`,
+      ? (locale === 'ar' ? 'الأرخص أيضاً بين الخيارات القوية.' : 'Also the lowest price among strong options.')
+      : (locale === 'ar'
+        ? `الأرخص عند ${moneyShort(cheapestBase.offer.currency, cheapestBase.offer.totalPrice, 'ar')}.`
+        : `Lowest price at ${moneyShort(cheapestBase.offer.currency, cheapestBase.offer.totalPrice, 'en')}.`),
   }
   const fastest: ScoredFlightOffer = {
     ...fastestBase,
     kind: 'fastest',
     reason: fastestBase.offer.offerId === best.offer.offerId
-      ? 'Also the fastest itinerary.'
-      : `Fastest trip — ${Math.round(fastestBase.offer.durationMinutes / 60)}h ${fastestBase.offer.durationMinutes % 60}m total.`,
+      ? (locale === 'ar' ? 'الأسرع أيضاً في المدة.' : 'Also the fastest itinerary.')
+      : (locale === 'ar'
+        ? `الأسرع — ${Math.round(fastestBase.offer.durationMinutes / 60)}س ${fastestBase.offer.durationMinutes % 60}د.`
+        : `Fastest trip — ${Math.round(fastestBase.offer.durationMinutes / 60)}h ${fastestBase.offer.durationMinutes % 60}m total.`),
   }
 
-  best.reason = explainBest(best, cheapest, fastest)
+  best.reason = explainBest(best, cheapest, fastest, locale)
 
   const display: ScoredFlightOffer[] = [best]
   if (cheapest.offer.offerId !== best.offer.offerId) display.push(cheapest)
@@ -210,7 +240,11 @@ export function recommendFlights(
   for (const row of scored) {
     if (display.length >= 3) break
     if (!display.some((d) => d.offer.offerId === row.offer.offerId)) {
-      display.push({ ...row, kind: null, reason: row.reason || 'A solid alternative.' })
+      display.push({
+        ...row,
+        kind: null,
+        reason: row.reason || (locale === 'ar' ? 'بديل مناسب.' : 'A solid alternative.'),
+      })
     }
   }
 

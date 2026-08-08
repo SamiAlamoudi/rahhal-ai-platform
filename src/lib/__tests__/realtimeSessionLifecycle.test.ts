@@ -120,8 +120,7 @@ describe('realtime session lifecycle contract', () => {
     expect(session.isConnected()).toBe(true)
     expect(session.getStatus()).toBe('listening')
 
-    session.ensureListening()
-    await new Promise<void>((r) => setTimeout(r, 0))
+    await session.ensureListening()
     expect(session.getStatus()).toBe('listening')
 
     session.dispose()
@@ -217,7 +216,7 @@ describe('realtime session lifecycle contract', () => {
     expect(session.getStatus()).toBe('idle')
 
     // Pending auto-listen paths must not resurrect the session.
-    session.ensureListening()
+    await expect(session.ensureListening()).resolves.toBe(false)
     expect(session.getStatus()).toBe('idle')
     expect(session.isConnected()).toBe(false)
 

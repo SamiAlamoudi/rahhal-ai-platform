@@ -237,6 +237,12 @@
       "reason": "Persisted key, wire contract, format id, or deploy allow-list"
     },
     {
+      "path": "src/lib/__tests__/bilamo.voiceIncidentP0.test.ts",
+      "token": "https://rahhal-ai-platform.vercel.app",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
       "path": "src/lib/__tests__/edgeGuard.sprint79.test.ts",
       "token": "https://rahhal-ai-platform.vercel.app",
       "classification": "Compatibility",
@@ -683,6 +689,84 @@
     {
       "path": "src/utils/__tests__/liveSearchOrchestrator.test.ts",
       "token": "https://www.amadeus.com/book/flights?offerId=SV-100&source=rahhal&env=sandbox",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "api/openai/tts.ts",
+      "token": "X-Rahhal-TTS-Safe-Code",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "api/openai/tts.ts",
+      "token": "X-Rahhal-TTS-Stages",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "api/openai/tts.ts",
+      "token": "X-Rahhal-TTS-Bytes",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/bilamo/voice/directAudioProbe.ts",
+      "token": "X-Rahhal-TTS-Safe-Code",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/bilamo/voice/directAudioProbe.ts",
+      "token": "x-rahhal-tts-safe-code",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/bilamo/voice/directAudioProbe.ts",
+      "token": "X-Rahhal-TTS-Stages",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/bilamo/voice/directAudioProbe.ts",
+      "token": "x-rahhal-tts-stages",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/bilamo/voice/voiceHttpTrace.ts",
+      "token": "X-Rahhal-TTS-Safe-Code",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/bilamo/voice/voiceHttpTrace.ts",
+      "token": "x-rahhal-tts-safe-code",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/openaiTts.route.test.ts",
+      "token": "X-Rahhal-TTS-Safe-Code",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/openaiTts.route.test.ts",
+      "token": "X-Rahhal-TTS-Format",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/openaiTts.route.test.ts",
+      "token": "https://rahhal-ai-platform.vercel.app/api/openai/tts",
+      "classification": "Compatibility",
+      "reason": "Persisted key, wire contract, format id, or deploy allow-list"
+    },
+    {
+      "path": "src/lib/__tests__/openaiTts.route.test.ts",
+      "token": "https://rahhal-ai-platform.vercel.app",
       "classification": "Compatibility",
       "reason": "Persisted key, wire contract, format id, or deploy allow-list"
     }

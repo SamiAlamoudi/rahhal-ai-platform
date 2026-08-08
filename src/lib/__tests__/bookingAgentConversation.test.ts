@@ -20,9 +20,10 @@ describe('booking-agent conversation design', () => {
     expect(instructions).toMatch(/Never repeat the traveler/i)
     expect(instructions).toMatch(/I suggest|أنصحك/)
     expect(instructions).toMatch(/Sukhumvit|Chaweng|neighborhood/i)
-    expect(instructions).toMatch(/origin city\/airport/)
+    expect(instructions).toMatch(/نقطة الانطلاق|تغيير المطار|destination/)
     expect(instructions).toMatch(/traveler count/)
     expect(instructions).not.toMatch(/trip purpose.*approximate budget.*flight preferences/i)
+    expect(instructions).not.toMatch(/تمام، من أي مدينة؟/)
   })
 
   it('chat system prompt is booking-agent shaped', () => {

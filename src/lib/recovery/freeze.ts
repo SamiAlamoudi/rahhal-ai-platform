@@ -3,14 +3,19 @@
  *
  * Canonical product spine (do not add parallel owners):
  *
- *   /chat → LegacyChatPage → chatEngine → travel-agent → travelAgentService.planTurn
+ *   / and /chat → BilamoChat / BilamoConversationExperience
+ *     → BilamoVoiceSession (realtime WebRTC + classic TTS fallback)
+ *     → chatEngine → travel-agent → travelAgentService.planTurn
  *
- * Voice = STT → chatEngine → OpenAI Conversation Brain → TTS (same spine).
- * Post-#311: after assistant reply/playback, mic is IDLE (no auto-relisten);
+ * Voice = mic → STT/realtime → language → chatEngine → assistant text
+ *   → realtime audio (or one classic TTS of the same text) → verified playback.
+ *
+ * `src/pages/ChatPage.tsx` (LegacyChatPage) is quarantined / unmounted museum code.
  * Realtime `interrupt_response` stays false (no soft duplex barge-in).
  *
  * @see docs/ARCHITECTURE_CONVERSATION_FIRST.md
  * @see docs/MIGRATION_CONVERSATION_FIRST.md
+ * @see docs/BILAMO_VOICE_STAGING_CHECKLIST.md
  */
 
 /** Sole conversation system for product traffic. */
@@ -19,8 +24,8 @@ export const RECOVERY_CONVERSATION = 'chatEngine+travel-agent' as const
 /** Sole turn owner: user message → planning → execution → response. */
 export const RECOVERY_TURN_OWNER = 'travelAgentService.planTurn' as const
 
-/** Sole chat UI shell. */
-export const RECOVERY_CHAT_UI = 'LegacyChatPage' as const
+/** Sole chat UI shell (router mounts BilamoChat → BilamoConversationExperience). */
+export const RECOVERY_CHAT_UI = 'BilamoChat' as const
 
 /** Sole hosted payment implementation. */
 export const RECOVERY_PAYMENT = 'lib/payment' as const

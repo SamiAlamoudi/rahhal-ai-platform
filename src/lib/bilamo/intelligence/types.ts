@@ -4,6 +4,7 @@
  */
 
 import type { AgentLocale, AgentMemory, TripRequirements } from '../../agent/types'
+import type { BilamoReplyLocale } from '../speech/localeBridge'
 
 export const BILAMO_INTELLIGENCE_VERSION = '1.0.0'
 
@@ -19,6 +20,8 @@ export type BilamoHardSlot = 'destination' | 'dates' | 'travelers'
 
 export interface BilamoConsultantMemory {
   locale: AgentLocale
+  /** Spoken/written consultant language — includes French. */
+  replyLanguage: BilamoReplyLocale
   phase: BilamoPhase
   /** Round-tripped agent memory (never ask twice). */
   agent: AgentMemory
@@ -56,6 +59,10 @@ export interface BilamoFlightOption {
   baggageSummary?: string | null
   refundable?: boolean | null
   fetchedAt?: string | null
+  /** Provenance — never present demo as live. */
+  source?: 'live' | 'demo' | 'unavailable'
+  provider?: string | null
+  confidence?: 'live' | 'demo' | 'unavailable'
 }
 
 export interface BilamoHotelOption {
@@ -68,6 +75,9 @@ export interface BilamoHotelOption {
   currency: string
   reason: string
   score: number
+  source?: 'live' | 'demo' | 'unavailable'
+  provider?: string | null
+  fetchedAt?: string | null
 }
 
 export interface BilamoContextIntel {
@@ -95,6 +105,8 @@ export interface BilamoSearchBundle {
     error: string | null
     stale: boolean
     bestScore: number | null
+    validation?: string | null
+    inventorySource?: 'live' | 'demo' | 'unavailable'
   }
 }
 

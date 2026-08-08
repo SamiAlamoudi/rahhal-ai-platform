@@ -9,6 +9,7 @@ import {
   missingClarificationFields,
 } from '../../agent/clarification'
 import type { TripRequirements } from '../../agent/types'
+import { coerceReplyLocale, type BilamoReplyLocale } from '../speech/localeBridge'
 import type { BilamoHardSlot } from './types'
 import type { BilamoConsultantMemory } from './types'
 
@@ -53,43 +54,62 @@ export function canSearch(requirements: TripRequirements): boolean {
 export function clarificationPrompt(
   slot: BilamoHardSlot,
   requirements: TripRequirements,
-  locale: 'ar' | 'en',
+  locale: BilamoReplyLocale,
 ): { displayText: string; spokenText: string } {
   const dest = requirements.destination || requirements.destinations[0] || null
 
   if (slot === 'destination') {
     const displayText = locale === 'ar'
       ? 'بكل سرور. إلى أين تتخيّل الرحلة؟'
-      : 'Of course. Where are you imagining this trip?'
+      : locale === 'fr'
+        ? 'Avec plaisir. Où imaginez-vous ce voyage ?'
+        : 'Of course. Where are you imagining this trip?'
     return { displayText, spokenText: displayText }
   }
 
   if (slot === 'dates') {
-    const displayText = locale === 'ar'
-      ? (dest
+    if (locale === 'ar') {
+      const displayText = dest
         ? `ممتاز — ${dest}. متى تقريباً، وكم يوم؟`
-        : 'متى تقريباً تتخيّل السفر، وكم يوم؟')
-      : (dest
-        ? `Wonderful — ${dest}. When are you thinking, and roughly how many days?`
-        : 'When are you thinking of traveling, and roughly how many days?')
-    const spokenText = locale === 'ar'
-      ? (dest ? `ممتاز. متى تقريباً لـ ${dest}؟` : 'متى تقريباً تتخيّل السفر؟')
-      : (dest ? `Wonderful. When roughly for ${dest}?` : 'When roughly are you thinking?')
+        : 'متى تقريباً تتخيّل السفر، وكم يوم؟'
+      const spokenText = dest ? `ممتاز. متى تقريباً لـ ${dest}؟` : 'متى تقريباً تتخيّل السفر؟'
+      return { displayText, spokenText }
+    }
+    if (locale === 'fr') {
+      const displayText = dest
+        ? `Parfait — ${dest}. Quand environ, et pour combien de jours ?`
+        : 'Quand environ souhaitez-vous partir, et pour combien de jours ?'
+      const spokenText = dest
+        ? `Parfait. Quand environ pour ${dest} ?`
+        : 'Quand environ souhaitez-vous partir ?'
+      return { displayText, spokenText }
+    }
+    const displayText = dest
+      ? `Wonderful — ${dest}. When are you thinking, and roughly how many days?`
+      : 'When are you thinking of traveling, and roughly how many days?'
+    const spokenText = dest
+      ? `Wonderful. When roughly for ${dest}?`
+      : 'When roughly are you thinking?'
     return { displayText, spokenText }
   }
 
   // travelers (legacy path — normally soft-defaulted)
-  const displayText = locale === 'ar'
-    ? (dest
+  if (locale === 'ar') {
+    const displayText = dest
       ? `حسناً — ${dest}. تسافر لوحدك، أم مع أحد؟`
-      : 'تسافر لوحدك، أم مع أحد؟')
-    : (dest
-      ? `Understood — ${dest}. Traveling solo, or with someone?`
-      : 'Are you traveling solo, or with someone?')
-  const spokenText = locale === 'ar'
-    ? 'تسافر لوحدك، أم مع أحد؟'
-    : 'Solo, or with someone?'
-  return { displayText, spokenText }
+      : 'تسافر لوحدك، أم مع أحد؟'
+    return { displayText, spokenText: 'تسافر لوحدك، أم مع أحد؟' }
+  }
+  if (locale === 'fr') {
+    const displayText = dest
+      ? `D'accord — ${dest}. Vous voyagez seul, ou avec quelqu'un ?`
+      : 'Vous voyagez seul, ou avec quelqu\'un ?'
+    return { displayText, spokenText: 'Seul, ou avec quelqu\'un ?' }
+  }
+  const displayText = dest
+    ? `Understood — ${dest}. Traveling solo, or with someone?`
+    : 'Are you traveling solo, or with someone?'
+  return { displayText, spokenText: 'Solo, or with someone?' }
 }
 
 export function acknowledgeAndAsk(
@@ -97,7 +117,10 @@ export function acknowledgeAndAsk(
   slot: BilamoHardSlot,
   requirements: TripRequirements,
 ): { displayText: string; spokenText: string } {
-  const locale = memory.locale === 'en' ? 'en' : 'ar'
+  const locale = coerceReplyLocale(
+    memory.replyLanguage || memory.locale,
+    memory.locale === 'en' ? 'en' : 'ar',
+  )
   const base = clarificationPrompt(slot, requirements, locale)
   const dest = requirements.destination || requirements.destinations[0]
   const origin = requirements.origin || memory.preferences.origin
@@ -110,6 +133,15 @@ export function acknowledgeAndAsk(
         : `فهمت — ${dest}. `
       return {
         displayText: `${prefix}${base.displayText.replace(/^ممتاز — [^.]+\.\s*/, '')}`,
+        spokenText: base.spokenText,
+      }
+    }
+    if (locale === 'fr') {
+      const prefix = origin
+        ? `Compris — ${dest} depuis ${origin}. `
+        : `Compris — ${dest}. `
+      return {
+        displayText: `${prefix}${base.displayText.replace(/^Parfait — [^.]+\.\s*/, '')}`,
         spokenText: base.spokenText,
       }
     }

@@ -7,6 +7,7 @@ import {
   assessAsrCompleteness,
   normalizeArabicAsrForExtraction,
 } from './arabicAsrNormalize'
+import { sanitizeArabicVoiceTranscript } from './sanitizeArabicVoiceTranscript'
 import { isConfirmedUserUtterance } from './userTranscriptGate'
 
 /**
@@ -18,6 +19,8 @@ export const ARABIC_UTTERANCE_COMMIT_MS = 450
 export type AssembledUtteranceCommit = {
   /** Exact ASR text for display + conversation message (never rewritten). */
   committedTranscript: string
+  /** Pre-sanitize ASR (diagnostics). */
+  rawTranscript?: string
   /** Parser-only enrichment (digits / cabin aliases). */
   normalizedForExtract: string
   audioDurationMs: number
@@ -56,6 +59,8 @@ export type ArabicUtteranceAssembler = {
   /** Clear commit timer without committing (e.g. hard Stop). */
   cancelPendingCommit: () => void
   scheduleCommit: (delayMs: number) => void
+  /** Force silence commit now (includes interim). Exactly-once via committed flag. */
+  forceCommitNow: () => void
 }
 
 export function createArabicUtteranceAssembler(options: {
@@ -81,11 +86,23 @@ export function createArabicUtteranceAssembler(options: {
     }
   }
 
+  /**
+   * Display text for the open utterance.
+   * Final/segment owns the turn — never append interim on top of an equivalent segment
+   * (that produced duplicated chat lines like "أريد… أريد…").
+   */
   const joinDisplay = (): string => {
-    const parts = [...segments]
+    const base = segments.join(' ').replace(/\s+/g, ' ').trim()
     const i = interim.trim()
-    if (i) parts.push(i)
-    return parts.join(' ').replace(/\s+/g, ' ').trim()
+    if (!base) return sanitizeArabicVoiceTranscript(i)
+    if (!i) return sanitizeArabicVoiceTranscript(base)
+    if (base === i || base.includes(i) || i.includes(base)) {
+      const preferred = i.length >= base.length ? i : base
+      return sanitizeArabicVoiceTranscript(preferred)
+    }
+    if (i.startsWith(base)) return sanitizeArabicVoiceTranscript(i)
+    // New clause only — still prefer not to glue duplicate hypotheses.
+    return sanitizeArabicVoiceTranscript(`${base} ${i}`)
   }
 
   const durationMs = (now: number): number => {
@@ -98,7 +115,16 @@ export function createArabicUtteranceAssembler(options: {
     commitTimer = null
     if (committed) return
     const lang = options.conversationLanguage() || 'ar'
-    const display = segments.join(' ').replace(/\s+/g, ' ').trim()
+    // Segment finals replace interim. Use interim ONLY when no segment exists.
+    const segmentText = segments.join(' ').replace(/\s+/g, ' ').trim()
+    const interimText = interim.trim()
+    let display = segmentText
+    if (!display) display = interimText
+    else if (interimText && interimText.startsWith(segmentText) && interimText.length > segmentText.length) {
+      display = interimText
+    }
+    const rawAsr = display
+    display = sanitizeArabicVoiceTranscript(display)
     const audioMs = durationMs(options.nowMs())
     interim = ''
 
@@ -145,6 +171,7 @@ export function createArabicUtteranceAssembler(options: {
     const gen = generation
     options.onCommit({
       committedTranscript: display,
+      rawTranscript: rawAsr,
       normalizedForExtract: normalizeArabicAsrForExtraction(display),
       audioDurationMs: audioMs,
       completionReason: 'silence_commit',
@@ -229,6 +256,11 @@ export function createArabicUtteranceAssembler(options: {
         if (gen !== generation) return
         flushCommit()
       }, delayMs)
+    },
+    forceCommitNow() {
+      if (committed) return
+      clearTimer()
+      flushCommit()
     },
   }
 }

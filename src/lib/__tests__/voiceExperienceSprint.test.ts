@@ -96,10 +96,11 @@ describe('voice experience sprint', () => {
 
   it('builds controlled TTS instructions without punctuation tricks', () => {
     const ar = buildTtsSpeechInstructions({ locale: 'ar', dialect: 'saudi' })
-    expect(ar).toMatch(/Speak naturally/i)
-    expect(ar).toMatch(/warm|confident|calm/i)
-    expect(ar).toMatch(/announcer/i)
-    expect(ar).toMatch(/navigation system|text reader/i)
+    expect(ar).toMatch(/Speak in natural modern Arabic/i)
+    expect(ar).toMatch(/warm, confident, human travel-consultant/i)
+    expect(ar).toMatch(/robotic pacing/i)
+    expect(ar).toMatch(/announcer-style/i)
+    expect(ar).toMatch(/preserve English proper nouns/i)
     expect(ar).not.toMatch(/\.{3,}|!!!/)
     for (const d of ARABIC_DIALECT_OPTIONS) {
       expect(dialectChatGuidance(d.id).length).toBeGreaterThan(20)

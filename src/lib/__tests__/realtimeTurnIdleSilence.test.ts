@@ -239,6 +239,9 @@ describe('realtime session — one response per confirmed ASR only', () => {
     })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.output_audio.done' }) })
     channel.onmessage!({ data: JSON.stringify({ type: 'response.done' }) })
+    // Speaking waits for remoteAudio.play() success (Safari audible gate).
+    await new Promise<void>((r) => setTimeout(r, 0))
+    await new Promise<void>((r) => setTimeout(r, 0))
     expect(session.getStatus()).toBe('speaking')
     channel.onmessage!({ data: JSON.stringify({ type: 'output_audio_buffer.stopped' }) })
     expect(session.getStatus()).toBe('idle')

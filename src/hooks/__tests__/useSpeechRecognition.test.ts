@@ -85,11 +85,16 @@ describe('detectSpeechLang', () => {
     expect(detectSpeechLang('AR-sa')).toBe('ar-SA')
   })
 
+  it('maps French browser languages to fr-FR', () => {
+    expect(detectSpeechLang('fr')).toBe('fr-FR')
+    expect(detectSpeechLang('fr-FR')).toBe('fr-FR')
+    expect(detectSpeechLang('fr-CA')).toBe('fr-FR')
+  })
+
   it('maps other languages to en-US', () => {
     expect(detectSpeechLang('en')).toBe('en-US')
     expect(detectSpeechLang('en-US')).toBe('en-US')
     expect(detectSpeechLang('en-GB')).toBe('en-US')
-    expect(detectSpeechLang('fr-FR')).toBe('en-US')
   })
 })
 
