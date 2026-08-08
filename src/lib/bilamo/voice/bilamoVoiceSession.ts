@@ -1026,21 +1026,26 @@ export function createBilamoVoiceSession(
           const mic = await captureMicFromUserGesture()
           if (!mic.ok) {
             noteVoiceLifecycleStage('MIC_PERMISSION_FAILED', { code: mic.code.toUpperCase() })
-            error = USER_SAFE_ERRORS.mic
-            lastSafeErrorCode = mic.code
-            playbackDiag.mediaStreamActive = false
-            playbackDiag.lastSafeErrorCode = mic.code
-            noteVoiceTurnStage('error')
-            setState('error')
-            globalThis.setTimeout(() => {
-              if (!disposed && state === 'error') releaseToIdle('mic_error_recover')
-            }, 80)
-            return false
+            // No MediaDevices API (jsdom / unsupported) — continue; classic/mocks may still listen.
+            // Real permission denials must fail closed.
+            if (mic.code !== 'mic_unsupported') {
+              error = USER_SAFE_ERRORS.mic
+              lastSafeErrorCode = mic.code
+              playbackDiag.mediaStreamActive = false
+              playbackDiag.lastSafeErrorCode = mic.code
+              noteVoiceTurnStage('error')
+              setState('error')
+              globalThis.setTimeout(() => {
+                if (!disposed && state === 'error') releaseToIdle('mic_error_recover')
+              }, 80)
+              return false
+            }
+          } else {
+            gestureStream = mic.stream
+            ownGestureStream = true
+            noteVoiceLifecycleStage('MIC_PERMISSION_GRANTED')
+            noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
           }
-          gestureStream = mic.stream
-          ownGestureStream = true
-          noteVoiceLifecycleStage('MIC_PERMISSION_GRANTED')
-          noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
         } else {
           noteVoiceLifecycleStage('MIC_PERMISSION_GRANTED')
           noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
@@ -1262,18 +1267,23 @@ export function createBilamoVoiceSession(
       noteVoiceLifecycleStage('GESTURE_RECEIVED')
       noteVoiceLifecycleStage('MIC_PERMISSION_REQUESTED')
       const mic = await captureMicFromUserGesture()
+      let bargeStream: MediaStream | null = null
       if (!mic.ok) {
         noteVoiceLifecycleStage('MIC_PERMISSION_FAILED', { code: mic.code.toUpperCase() })
-        if (voiceSessionActive && !manuallyStopped) {
-          setState('idle')
-          scheduleAutoRelisten('barge_in_mic_retry')
-        } else {
-          setState('idle')
+        if (mic.code !== 'mic_unsupported') {
+          if (voiceSessionActive && !manuallyStopped) {
+            setState('idle')
+            scheduleAutoRelisten('barge_in_mic_retry')
+          } else {
+            setState('idle')
+          }
+          return false
         }
-        return false
+      } else {
+        bargeStream = mic.stream
+        noteVoiceLifecycleStage('MIC_PERMISSION_GRANTED')
+        noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
       }
-      noteVoiceLifecycleStage('MIC_PERMISSION_GRANTED')
-      noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
       if (!prepared) await session.prepare()
       metrics.mark('interrupt')
       generation += 1
@@ -1288,10 +1298,12 @@ export function createBilamoVoiceSession(
       finalTranscript = null
       lastFinalKey = ''
       metrics.mark('listen_start')
-      const ok = await transport!.startListening(locale, { localStream: mic.stream })
+      const ok = await transport!.startListening(locale, { localStream: bargeStream })
       if (ok) {
         metrics.mark('mic_ready')
-        playbackDiag.mediaStreamActive = true
+        playbackDiag.mediaStreamActive = bargeStream
+          ? true
+          : playbackDiag.mediaStreamActive
         setState('listening')
       } else if (voiceSessionActive && !manuallyStopped) {
         setState('idle')
