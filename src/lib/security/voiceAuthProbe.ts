@@ -71,7 +71,9 @@ export async function voiceApiHeaders(
  */
 export async function voiceAuthenticatedFetch(
   route: string,
-  init: RequestInit & { kind?: 'realtime' | 'realtime_session' | 'tts' | 'other' } = {},
+  init: RequestInit & {
+    kind?: 'realtime' | 'realtime_session' | 'realtime_capability' | 'tts' | 'other'
+  } = {},
 ): Promise<Response> {
   const { kind = 'other', headers: initHeaders, ...rest } = init
   const extra: Record<string, string> = {}

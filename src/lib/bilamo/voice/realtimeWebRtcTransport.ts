@@ -11,6 +11,7 @@ import type { VoiceLocale } from '../../chat/voice/voiceTypes'
 import type {
   BilamoSpeakHandle,
   BilamoSpeakRequest,
+  BilamoVoiceConnectOptions,
   BilamoVoiceConnectionState,
   BilamoVoiceTransport,
   BilamoVoiceTransportCallbacks,
@@ -171,13 +172,13 @@ export function createRealtimeWebRtcBilamoTransport(
       callbacks = next || {}
     },
 
-    async connect() {
+    async connect(options?: BilamoVoiceConnectOptions) {
       if (disposed) return
       userWantsConnected = true
       if (!session) bindSession()
       setConnection('connecting')
       try {
-        await session!.connect()
+        await session!.connect({ localStream: options?.localStream ?? null })
         setConnection('connected')
       } catch (err) {
         setConnection('error')
@@ -198,13 +199,20 @@ export function createRealtimeWebRtcBilamoTransport(
       setConnection('disconnected')
     },
 
-    async startListening(locale?: VoiceLocale) {
+    async startListening(locale?: VoiceLocale, options?: BilamoVoiceConnectOptions) {
       if (disposed) return false
       if (!session?.isConnected()) {
         try {
-          await transport.connect()
+          await transport.connect({ localStream: options?.localStream ?? null })
         } catch {
           return false
+        }
+      } else if (options?.localStream) {
+        // Peer already up — still attach gesture mic if the prior track died.
+        try {
+          await session!.connect({ localStream: options.localStream })
+        } catch {
+          /* ensureListening below */
         }
       }
       // Wire ASR language (ar/en/fr/es/…). Ignoring locale locked transcription to Arabic.

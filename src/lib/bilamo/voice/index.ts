@@ -2,6 +2,7 @@ export type {
   BilamoSpeakHandle,
   BilamoSpeakRequest,
   BilamoTranscriptEvent,
+  BilamoVoiceConnectOptions,
   BilamoVoiceConnectionState,
   BilamoVoiceTransport,
   BilamoVoiceTransportCallbacks,
@@ -9,6 +10,7 @@ export type {
   BilamoVoiceTransportMode,
 } from './bilamoVoiceTransport'
 export { resolveVoiceTransportMode } from './bilamoVoiceTransport'
+export { captureMicFromUserGesture, stopMicStream } from './micGestureCapture'
 
 export { createClassicBilamoTransport } from './classicTransport'
 export { createRealtimeWebRtcBilamoTransport } from './realtimeWebRtcTransport'

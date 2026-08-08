@@ -137,7 +137,8 @@ export function noteVoiceHttpResult(opts: {
   route: string
   status: number
   bodyCode?: string | null
-  kind?: 'realtime' | 'realtime_session' | 'tts' | 'other'
+  /** realtime = SDP WebRTC call; realtime_capability = GET probe only (not a live session). */
+  kind?: 'realtime' | 'realtime_session' | 'realtime_capability' | 'tts' | 'other'
   bytes?: number | null
   mime?: string | null
 }): void {
@@ -149,24 +150,33 @@ export function noteVoiceHttpResult(opts: {
   } else if (opts.status >= 200 && opts.status < 300) {
     if (trace.safeServerErrorCode?.startsWith('HTTP_') || !trace.safeServerErrorCode) {
       // Clear transient HTTP_* only; keep AUTH_* until next turn if still relevant.
-      if (opts.kind !== 'tts') trace.safeServerErrorCode = null
+      if (opts.kind !== 'tts' && opts.kind !== 'realtime_capability') {
+        trace.safeServerErrorCode = null
+      }
     }
-    if (opts.kind === 'realtime' || opts.kind === 'realtime_session') {
+    if (opts.kind === 'realtime_capability') {
+      // Capability probe must NEVER look like a live WebRTC session.
+      trace.lastEvent = 'REALTIME_CAPABILITY_OK'
+    } else if (opts.kind === 'realtime' || opts.kind === 'realtime_session') {
       trace.realtimeSessionCreated = true
       trace.lastEvent = 'VOICE_REQUEST_ACCEPTED'
     } else if (opts.kind === 'tts') {
       trace.classicFallbackHttpStatus = opts.status
       if (typeof opts.bytes === 'number') trace.classicFallbackBytes = opts.bytes
       if (opts.mime) trace.classicFallbackMime = opts.mime
-      trace.lastEvent = opts.bytes != null && opts.bytes <= 0
-        ? 'CLASSIC_FALLBACK_FAILED'
-        : 'CLASSIC_FALLBACK_OK'
+      if (opts.bytes != null && opts.bytes <= 0) {
+        trace.lastEvent = 'CLASSIC_FALLBACK_FAILED'
+      } else {
+        trace.lastEvent = 'CLASSIC_TTS_HTTP_OK'
+      }
     } else {
       trace.lastEvent = 'VOICE_REQUEST_ACCEPTED'
     }
   }
   if (opts.status >= 400) {
-    if (opts.kind === 'tts') {
+    if (opts.kind === 'realtime_capability') {
+      trace.lastEvent = 'REALTIME_CAPABILITY_FAILED'
+    } else if (opts.kind === 'tts') {
       trace.classicFallbackHttpStatus = opts.status
       if (typeof opts.bytes === 'number') trace.classicFallbackBytes = opts.bytes
       if (opts.mime) trace.classicFallbackMime = opts.mime
@@ -175,6 +185,18 @@ export function noteVoiceHttpResult(opts: {
   }
   if (opts.status === 401 || opts.status === 403) {
     trace.lastEvent = 'VOICE_REQUEST_AUTHENTICATED'
+  }
+}
+
+/** Stage-by-stage Safari lifecycle — no silent stalls. */
+export function noteVoiceLifecycleStage(
+  stage: VoicePlaybackDiagnostics['lastEvent'],
+  detail?: { code?: string | null },
+): void {
+  if (!stage) return
+  trace.lastEvent = stage
+  if (detail?.code && /^[A-Z0-9_]{3,48}$/i.test(detail.code)) {
+    trace.safeServerErrorCode = detail.code
   }
 }
 

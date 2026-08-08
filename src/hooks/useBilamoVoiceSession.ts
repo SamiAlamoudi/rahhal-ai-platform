@@ -5,6 +5,7 @@ import {
   obtainSharedBilamoVoiceSession,
   orbStateFromVoiceSession,
   type BilamoOrbVoiceState,
+  type BilamoVoiceConnectOptions,
   type BilamoVoiceSession,
   type BilamoVoiceSessionSnapshot,
 } from '../lib/bilamo/voice'
@@ -120,12 +121,12 @@ export function useBilamoVoiceSession(options: UseBilamoVoiceSessionOptions = {}
     speak: (text: string, locale?: VoiceLocale) => session.speak(text, locale),
     interrupt: () => session.interrupt(),
     bargeIn: () => session.bargeIn(),
-    startListening: () => session.startListening(),
+    startListening: (options?: BilamoVoiceConnectOptions) => session.startListening(options),
     stopListening: () => session.stopListening(),
     cancelListening: () => session.cancelListening(),
     /** End-of-speech finalize (commit once) — preferred over stopListening for silence. */
     finalizeListening: () => session.finalizeListening(),
-    connect: () => session.connect(),
+    connect: (options?: BilamoVoiceConnectOptions) => session.connect(options),
     disconnect: () => session.disconnect(),
     switchToClassic: () => session.switchToClassic(),
     clearError: () => session.clearError(),

@@ -70,11 +70,12 @@ export async function probeRealtimeCapability(
       headers,
     })
     const bodyCode = res.ok ? null : await parseSafeErrorCodeFromResponse(res)
+    // Capability probe only — must NOT mark VOICE_REQUEST_ACCEPTED / realtimeSessionCreated.
     noteVoiceHttpResult({
       route: '/api/openai/realtime-session',
       status: res.status,
       bodyCode,
-      kind: 'realtime_session',
+      kind: 'realtime_capability',
     })
     if (!res.ok) return null
     return await res.json() as RealtimeCapability

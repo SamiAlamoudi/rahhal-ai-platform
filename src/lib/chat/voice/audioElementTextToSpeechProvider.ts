@@ -399,6 +399,12 @@ async function fetchSpeechAudio(
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       hooks?.onTtsRequestStart?.()
+      try {
+        const { noteVoiceLifecycleStage } = await import('../../bilamo/voice/voiceHttpTrace')
+        noteVoiceLifecycleStage('CLASSIC_TTS_REQUESTED')
+      } catch {
+        /* ignore */
+      }
       const { voiceAuthenticatedFetch } = await import('../../security/voiceAuthProbe')
       const openaiRes = await voiceAuthenticatedFetch('/api/openai/tts', {
         method: 'POST',
@@ -411,7 +417,9 @@ async function fetchSpeechAudio(
         hooks?.onTtsResponseComplete?.()
         const mime = blob.type || openaiRes.headers.get('content-type') || request.format
         try {
-          const { noteVoiceHttpResult } = await import('../../bilamo/voice/voiceHttpTrace')
+          const { noteVoiceHttpResult, noteVoiceLifecycleStage } = await import(
+            '../../bilamo/voice/voiceHttpTrace'
+          )
           noteVoiceHttpResult({
             route: '/api/openai/tts',
             status: openaiRes.status,
@@ -419,6 +427,7 @@ async function fetchSpeechAudio(
             bytes: blob.size,
             mime,
           })
+          noteVoiceLifecycleStage('CLASSIC_TTS_HTTP_OK')
         } catch {
           /* ignore */
         }

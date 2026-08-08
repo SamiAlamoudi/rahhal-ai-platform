@@ -12,6 +12,8 @@ import {
   runDirectAudioProbe,
   type DirectAudioProbeResult,
 } from '../lib/bilamo/voice/directAudioProbe'
+import { captureMicFromUserGesture } from '../lib/bilamo/voice/micGestureCapture'
+import { noteVoiceLifecycleStage } from '../lib/bilamo/voice/voiceHttpTrace'
 import { unlockAudioPlayback } from '../lib/chat/voice/audioElementTextToSpeechProvider'
 import { probeVoiceAuth } from '../lib/security/voiceAuthProbe'
 
@@ -165,7 +167,21 @@ export default function BilamoVoiceDiagnostics() {
             label="Safe server error code"
             value={playback.safeServerErrorCode || snap.lastSafeErrorCode || playback.lastSafeErrorCode || '—'}
           />
-          <Row label="Realtime session created" value={yn(playback.realtimeSessionCreated)} />
+          <Row
+            label="Realtime session created"
+            value={yn(
+              playback.realtimeSessionCreated
+              && playback.httpRoute !== '/api/openai/realtime-session',
+            )}
+          />
+          <Row
+            label="Capability probe only"
+            value={yn(
+              playback.httpRoute === '/api/openai/realtime-session'
+              || playback.lastEvent === 'REALTIME_CAPABILITY_OK'
+              || playback.lastEvent === 'REALTIME_CAPABILITY_FAILED',
+            )}
+          />
           <Row label="FSM current state" value={snap.state} />
           <Row label="Last FSM transition" value={playback.lastFsmTransition || '—'} />
           <Row label="Connection" value={snap.connection} />
@@ -287,7 +303,25 @@ export default function BilamoVoiceDiagnostics() {
             type="button"
             variant="secondary"
             onClick={() => {
-              void unlockAudioPlayback().then(() => voice.connect())
+              noteVoiceLifecycleStage('GESTURE_RECEIVED')
+              void (async () => {
+                try {
+                  await unlockAudioPlayback()
+                } catch {
+                  /* ignore */
+                }
+                noteVoiceLifecycleStage('MIC_PERMISSION_REQUESTED')
+                const mic = await captureMicFromUserGesture()
+                if (!mic.ok) {
+                  noteVoiceLifecycleStage('MIC_PERMISSION_FAILED', {
+                    code: mic.code.toUpperCase(),
+                  })
+                  return
+                }
+                noteVoiceLifecycleStage('MIC_PERMISSION_GRANTED')
+                noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
+                await voice.connect({ localStream: mic.stream })
+              })()
             }}
           >
             Connect
@@ -296,7 +330,26 @@ export default function BilamoVoiceDiagnostics() {
             type="button"
             variant="secondary"
             onClick={() => {
-              void unlockAudioPlayback().then(() => voice.startListening())
+              noteVoiceLifecycleStage('GESTURE_RECEIVED')
+              void (async () => {
+                try {
+                  await unlockAudioPlayback()
+                } catch {
+                  /* ignore */
+                }
+                noteVoiceLifecycleStage('MIC_PERMISSION_REQUESTED')
+                const mic = await captureMicFromUserGesture()
+                if (!mic.ok) {
+                  noteVoiceLifecycleStage('MIC_PERMISSION_FAILED', {
+                    code: mic.code.toUpperCase(),
+                  })
+                  return
+                }
+                noteVoiceLifecycleStage('MIC_PERMISSION_GRANTED')
+                noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
+                voice.setContinuousListening(true)
+                await voice.startListening({ localStream: mic.stream })
+              })()
             }}
           >
             Start mic

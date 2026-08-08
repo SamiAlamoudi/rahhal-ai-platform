@@ -16,6 +16,7 @@ import { createBilamoVoiceTransport } from './createBilamoVoiceTransport'
 import type {
   BilamoSpeakHandle,
   BilamoTranscriptEvent,
+  BilamoVoiceConnectOptions,
   BilamoVoiceConnectionState,
   BilamoVoiceTransport,
   BilamoVoiceTransportMode,
@@ -29,8 +30,10 @@ import {
 import {
   applyVoiceHttpTrace,
   beginVoiceTurnCorrelation,
+  noteVoiceLifecycleStage,
   noteVoiceTurnStage,
 } from './voiceHttpTrace'
+import { captureMicFromUserGesture, stopMicStream } from './micGestureCapture'
 import { probeVoiceAuth } from '../../security/voiceAuthProbe'
 import { logChat } from '../../chat/chatLogger'
 
@@ -104,9 +107,9 @@ export type BilamoVoiceSession = {
   /** Mutable final-utterance sink (Home/Conversation bind via React). */
   setOnFinalUtterance: (handler: ((event: BilamoTranscriptEvent) => void) | null) => void
   prepare: () => Promise<void>
-  connect: () => Promise<void>
+  connect: (options?: BilamoVoiceConnectOptions) => Promise<void>
   disconnect: () => void
-  startListening: () => Promise<boolean>
+  startListening: (options?: BilamoVoiceConnectOptions) => Promise<boolean>
   stopListening: () => void
   /** Soft-cancel mic without emitting a final transcript. */
   cancelListening: () => void
@@ -189,6 +192,8 @@ export function createBilamoVoiceSession(
   let conversationId: string | null = options.conversationId ?? null
   let disposed = false
   let prepared = false
+  /** True while startListening owns connect — must not park FSM at idle mid-arm. */
+  let listenArmInFlight = false
   let lastFinalKey = ''
   /** Transport speak generation currently allowed to drive speaking state. */
   let activeSpeakTransportGen = -1
@@ -559,6 +564,8 @@ export function createBilamoVoiceSession(
     if (!pending || pending.gen !== failedGen) return
     classicFallbackInFlight = true
     clearSilentRealtimeTimer()
+    noteVoiceLifecycleStage('REALTIME_AUDIO_FAILED', { code: 'SILENT_REALTIME' })
+    noteVoiceLifecycleStage('CLASSIC_TTS_REQUESTED')
     logChat('warn', 'voice', 'REALTIME_AUDIO_FAILED', {
       generation: failedGen,
       next: 'CLASSIC_TTS',
@@ -577,6 +584,7 @@ export function createBilamoVoiceSession(
         prepared = true
         playbackDiag.lastEvent = 'CLASSIC_FALLBACK_STARTED'
         playbackDiag.classicFallbackInvoked = true
+        noteVoiceLifecycleStage('CLASSIC_FALLBACK_STARTED')
         emit()
       }
       const spoken = pending.text.trim()
@@ -589,6 +597,8 @@ export function createBilamoVoiceSession(
       await handle.done
       if (!playbackDiag.audioPlaybackStarted) {
         // Classic also silent — last-resort user guidance (still not text-only reply).
+        noteVoiceLifecycleStage('CLASSIC_FALLBACK_FAILED')
+        noteVoiceLifecycleStage('VOICE_OUTPUT_FAILED', { code: 'CLASSIC_SILENT' })
         logChat('error', 'voice', 'VOICE_OUTPUT_FAILED', {
           generation: failedGen,
           stage: 'classic_silent',
@@ -598,6 +608,8 @@ export function createBilamoVoiceSession(
         setState('idle')
         scheduleAutoRelisten('classic_silent')
       } else {
+        noteVoiceLifecycleStage('CLASSIC_TTS_PLAYBACK_STARTED')
+        noteVoiceLifecycleStage('CLASSIC_FALLBACK_OK')
         logChat('debug', 'voice', 'REALTIME_AUDIO_FAILED → CLASSIC_TTS_OK', {
           generation: failedGen,
         })
@@ -939,7 +951,7 @@ export function createBilamoVoiceSession(
       publishBilamoVoiceMetrics(metrics.report())
       emit()
     },
-    async connect() {
+    async connect(options?: BilamoVoiceConnectOptions) {
       if (disposed) return
       if (!prepared) await session.prepare()
       metrics.mark('connect_start')
@@ -957,23 +969,31 @@ export function createBilamoVoiceSession(
         emit()
       }
       setState('connecting')
+      noteVoiceLifecycleStage('CONNECTION_STATE_CONNECTING')
       try {
-        await transport!.connect()
+        await transport!.connect({ localStream: options?.localStream ?? null })
         metrics.mark('connect_ok')
         error = null
-        playbackDiag.realtimeSessionCreated = transportKind === 'realtime_webrtc' ? true : playbackDiag.realtimeSessionCreated
-        setState('idle')
+        // Live WebRTC only — capability probe must never set this.
+        if (transportKind === 'realtime_webrtc' && transport!.isConnected()) {
+          playbackDiag.realtimeSessionCreated = true
+        }
+        // Never park idle while startListening is arming mic/WebRTC.
+        if (state === 'connecting' && !listenArmInFlight) {
+          setState('idle')
+        }
         publishBilamoVoiceMetrics(metrics.report())
       } catch {
         metrics.mark('connect_fail')
+        noteVoiceLifecycleStage('REALTIME_AUDIO_FAILED', { code: 'CONNECT_FAILED' })
         // Auto-fallback to classic if realtime connect fails.
         if (transport?.kind === 'realtime_webrtc') {
           await session.switchToClassic()
           try {
-            await transport!.connect()
+            await transport!.connect({ localStream: options?.localStream ?? null })
             metrics.mark('connect_ok')
             error = USER_SAFE_ERRORS.fallback
-            setState('idle')
+            if (state === 'connecting' && !listenArmInFlight) setState('idle')
             publishBilamoVoiceMetrics(metrics.report())
             return
           } catch {
@@ -981,6 +1001,7 @@ export function createBilamoVoiceSession(
           }
         }
         error = USER_SAFE_ERRORS.connect
+        noteVoiceLifecycleStage('VOICE_OUTPUT_FAILED', { code: 'CONNECT_FAILED' })
         setState('error')
         publishBilamoVoiceMetrics(metrics.report())
       }
@@ -989,81 +1010,150 @@ export function createBilamoVoiceSession(
       transport?.disconnect()
       setState('idle')
     },
-    async startListening() {
+    async startListening(options?: BilamoVoiceConnectOptions) {
       if (disposed) return false
       if (manuallyStopped && !voiceSessionActive) {
         // Caller must re-arm session via setContinuousListening(true).
       }
-      if (!prepared) await session.prepare()
-      if (!transport?.isConnected()) {
-        await session.connect()
-      }
-      // Only barge when we are truly mid-speak — never kill stale isSpeaking() during auto-relisten.
-      if (transport?.isSpeaking() && state === 'speaking') {
-        return session.bargeIn()
-      }
-      if (transport?.isSpeaking() && state === 'idle') {
-        try {
-          transport.interrupt()
-        } catch {
-          /* ignore */
+      noteVoiceLifecycleStage('GESTURE_RECEIVED')
+      listenArmInFlight = true
+      try {
+        // Mic FIRST — before prepare/auth/SDP. Safari drops gesture after any network await.
+        let gestureStream: MediaStream | null = options?.localStream ?? null
+        let ownGestureStream = false
+        if (!gestureStream?.getAudioTracks?.().some((t) => t.readyState === 'live')) {
+          noteVoiceLifecycleStage('MIC_PERMISSION_REQUESTED')
+          const mic = await captureMicFromUserGesture()
+          if (!mic.ok) {
+            noteVoiceLifecycleStage('MIC_PERMISSION_FAILED', { code: mic.code.toUpperCase() })
+            error = USER_SAFE_ERRORS.mic
+            lastSafeErrorCode = mic.code
+            playbackDiag.mediaStreamActive = false
+            playbackDiag.lastSafeErrorCode = mic.code
+            noteVoiceTurnStage('error')
+            setState('error')
+            globalThis.setTimeout(() => {
+              if (!disposed && state === 'error') releaseToIdle('mic_error_recover')
+            }, 80)
+            return false
+          }
+          gestureStream = mic.stream
+          ownGestureStream = true
+          noteVoiceLifecycleStage('MIC_PERMISSION_GRANTED')
+          noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
+        } else {
+          noteVoiceLifecycleStage('MIC_PERMISSION_GRANTED')
+          noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
         }
-      }
-      error = null
-      partialTranscript = ''
-      finalTranscript = null
-      lastFinalKey = ''
-      // Fresh turn diagnostics — sticky EOS/commit flags must not block the next finalize.
-      const correlationId = beginVoiceTurnCorrelation()
-      const prevSession = {
-        voiceSessionActive,
-        manuallyStopped,
-        autoRelistenTriggered: playbackDiag.autoRelistenTriggered,
-        stuckWatchdogCount: playbackDiag.stuckWatchdogCount,
-        peerConnectionState: playbackDiag.peerConnectionState,
-        iceConnectionState: playbackDiag.iceConnectionState,
-        audioElementAttached: playbackDiag.audioElementAttached,
-        remoteTrackReceived: playbackDiag.remoteTrackReceived,
-        remoteTrackMuted: playbackDiag.remoteTrackMuted,
-        remoteTrackReadyState: playbackDiag.remoteTrackReadyState,
-      }
-      playbackDiag = {
-        ...emptyVoicePlaybackDiagnostics(),
-        correlationId,
-        turnStage: 'listening',
-        speechRecognitionSupported: speechRecognitionSupported(),
-        peerConnectionState: prevSession.peerConnectionState,
-        iceConnectionState: prevSession.iceConnectionState,
-        audioElementAttached: prevSession.audioElementAttached,
-        remoteTrackReceived: prevSession.remoteTrackReceived,
-        remoteTrackMuted: prevSession.remoteTrackMuted,
-        remoteTrackReadyState: prevSession.remoteTrackReadyState,
-        stuckWatchdogCount: prevSession.stuckWatchdogCount,
-        voiceSessionActive: prevSession.voiceSessionActive,
-        manuallyStopped: prevSession.manuallyStopped,
-        autoRelistenTriggered: prevSession.autoRelistenTriggered,
-        timestampMs: Date.now(),
-      }
-      void probeVoiceAuth().catch(() => undefined)
-      playbackReconnectAttempted = false
-      metrics.mark('listen_start')
-      const ok = await transport!.startListening(locale)
-      if (ok) {
-        metrics.mark('mic_ready')
-        playbackDiag.mediaStreamActive = true
-        noteVoiceTurnStage('listening')
-        setState('listening')
-        publishBilamoVoiceMetrics(metrics.report())
-      } else {
+
+        error = null
+        partialTranscript = ''
+        finalTranscript = null
+        lastFinalKey = ''
+        // Correlate the turn before network so HTTP stages attach to this gesture.
+        const correlationId = beginVoiceTurnCorrelation()
+        noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
+        const prevSession = {
+          voiceSessionActive,
+          manuallyStopped,
+          autoRelistenTriggered: playbackDiag.autoRelistenTriggered,
+          stuckWatchdogCount: playbackDiag.stuckWatchdogCount,
+          peerConnectionState: playbackDiag.peerConnectionState,
+          iceConnectionState: playbackDiag.iceConnectionState,
+          audioElementAttached: playbackDiag.audioElementAttached,
+          remoteTrackReceived: playbackDiag.remoteTrackReceived,
+          remoteTrackMuted: playbackDiag.remoteTrackMuted,
+          remoteTrackReadyState: playbackDiag.remoteTrackReadyState,
+        }
+        playbackDiag = {
+          ...emptyVoicePlaybackDiagnostics(),
+          correlationId,
+          turnStage: 'listening',
+          speechRecognitionSupported: speechRecognitionSupported(),
+          peerConnectionState: prevSession.peerConnectionState,
+          iceConnectionState: prevSession.iceConnectionState,
+          audioElementAttached: prevSession.audioElementAttached,
+          remoteTrackReceived: prevSession.remoteTrackReceived,
+          remoteTrackMuted: prevSession.remoteTrackMuted,
+          remoteTrackReadyState: prevSession.remoteTrackReadyState,
+          stuckWatchdogCount: prevSession.stuckWatchdogCount,
+          voiceSessionActive: prevSession.voiceSessionActive,
+          manuallyStopped: prevSession.manuallyStopped,
+          autoRelistenTriggered: prevSession.autoRelistenTriggered,
+          mediaStreamActive: true,
+          timestampMs: Date.now(),
+          lastEvent: 'MEDIASTREAM_ACTIVE',
+        }
+
+        setState('connecting')
+        if (!prepared) await session.prepare()
+        // Only barge when we are truly mid-speak — never kill stale isSpeaking() during auto-relisten.
+        if (transport?.isSpeaking() && state === 'speaking') {
+          if (ownGestureStream) stopMicStream(gestureStream)
+          return session.bargeIn()
+        }
+        if (transport?.isSpeaking() && (state === 'idle' || state === 'connecting')) {
+          try {
+            transport.interrupt()
+          } catch {
+            /* ignore */
+          }
+        }
+        if (!transport?.isConnected()) {
+          await session.connect({ localStream: gestureStream })
+        }
+        void probeVoiceAuth().catch(() => undefined)
+        playbackReconnectAttempted = false
+        metrics.mark('listen_start')
+        setState('connecting')
+        const ok = await transport!.startListening(locale, { localStream: gestureStream })
+        if (ok) {
+          metrics.mark('mic_ready')
+          playbackDiag.mediaStreamActive = true
+          noteVoiceTurnStage('listening')
+          setState('listening')
+          publishBilamoVoiceMetrics(metrics.report())
+          return true
+        }
+
+        // Explicit stall: capability/session HTTP succeeded but mic/peer never armed.
+        noteVoiceLifecycleStage('LIFECYCLE_STALL', { code: 'POST_ACCEPT_NO_MIC_PEER' })
+        lastSafeErrorCode = 'LIFECYCLE_STALL'
+        playbackDiag.lastSafeErrorCode = 'LIFECYCLE_STALL'
+        playbackDiag.mediaStreamActive = Boolean(
+          gestureStream?.getAudioTracks?.().some((t) => t.readyState === 'live'),
+        )
+        // Realtime cannot listen — fall back to classic so assistant audio still works later.
+        if (transportKind === 'realtime_webrtc' && !fellBackToClassic) {
+          try {
+            await session.switchToClassic()
+            const classicOk = await transport!.startListening(locale, {
+              localStream: gestureStream,
+            })
+            if (classicOk) {
+              metrics.mark('mic_ready')
+              playbackDiag.mediaStreamActive = true
+              noteVoiceTurnStage('listening')
+              setState('listening')
+              publishBilamoVoiceMetrics(metrics.report())
+              return true
+            }
+          } catch {
+            /* fall through */
+          }
+        }
+        if (ownGestureStream) stopMicStream(gestureStream)
         error = USER_SAFE_ERRORS.mic
-        playbackDiag.mediaStreamActive = false
         noteVoiceTurnStage('error')
+        noteVoiceLifecycleStage('VOICE_OUTPUT_FAILED', { code: 'LIFECYCLE_STALL' })
         setState('error')
         globalThis.setTimeout(() => {
           if (!disposed && state === 'error') releaseToIdle('mic_error_recover')
         }, 80)
+        return false
+      } finally {
+        listenArmInFlight = false
       }
-      return ok
     },
     stopListening() {
       // Soft stop (background / cancel). Silence + orb end-of-speech must call finalizeListening.
@@ -1169,6 +1259,21 @@ export function createBilamoVoiceSession(
         voiceSessionActive = true
         continuousListening = true
       }
+      noteVoiceLifecycleStage('GESTURE_RECEIVED')
+      noteVoiceLifecycleStage('MIC_PERMISSION_REQUESTED')
+      const mic = await captureMicFromUserGesture()
+      if (!mic.ok) {
+        noteVoiceLifecycleStage('MIC_PERMISSION_FAILED', { code: mic.code.toUpperCase() })
+        if (voiceSessionActive && !manuallyStopped) {
+          setState('idle')
+          scheduleAutoRelisten('barge_in_mic_retry')
+        } else {
+          setState('idle')
+        }
+        return false
+      }
+      noteVoiceLifecycleStage('MIC_PERMISSION_GRANTED')
+      noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
       if (!prepared) await session.prepare()
       metrics.mark('interrupt')
       generation += 1
@@ -1183,9 +1288,10 @@ export function createBilamoVoiceSession(
       finalTranscript = null
       lastFinalKey = ''
       metrics.mark('listen_start')
-      const ok = await transport!.startListening(locale)
+      const ok = await transport!.startListening(locale, { localStream: mic.stream })
       if (ok) {
         metrics.mark('mic_ready')
+        playbackDiag.mediaStreamActive = true
         setState('listening')
       } else if (voiceSessionActive && !manuallyStopped) {
         setState('idle')

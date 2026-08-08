@@ -46,6 +46,7 @@ import {
   unlockAudioPlayback,
 } from './audioElementTextToSpeechProvider'
 import { BILAMO_TRANSCRIPTION_PROMPT } from './bilamoBrandAsr'
+import { noteVoiceLifecycleStage } from '../../bilamo/voice/voiceHttpTrace'
 import {
   ARABIC_UTTERANCE_COMMIT_MS,
   createArabicUtteranceAssembler,
@@ -92,8 +93,13 @@ export type RealtimeWebRtcCallbacks = {
   onQualitySnapshot?: (snapshot: RealtimeQualitySnapshot) => void
 }
 
+export type RealtimeConnectOptions = {
+  /** Mic acquired inside the originating user gesture — required on iPhone Safari. */
+  localStream?: MediaStream | null
+}
+
 export type RealtimeWebRtcSession = {
-  connect: () => Promise<void>
+  connect: (options?: RealtimeConnectOptions) => Promise<void>
   /** End the WebRTC call but allow a later connect() on the same session object. */
   disconnect: () => void
   /**
@@ -548,7 +554,8 @@ export function createRealtimeWebRtcSession(
     playbackDiag.audioElementAttached = Boolean(remoteAudio.srcObject)
     playbackDiag.audioPlayRequested = true
     playbackDiag.playResult = 'pending'
-    playbackDiag.lastEvent = 'playRequested'
+    playbackDiag.lastEvent = 'PLAY_CALLED'
+    noteVoiceLifecycleStage('PLAY_CALLED')
     playbackDiag.audible = false
     try {
       if (remoteTrack) {
@@ -573,6 +580,7 @@ export function createRealtimeWebRtcSession(
         playbackDiag.audioPlaybackFailed = true
         playbackDiag.lastEvent = 'playRejected'
         playbackDiag.lastSafeErrorCode = 'no_remote_src_object'
+        noteVoiceLifecycleStage('REALTIME_AUDIO_FAILED', { code: 'NO_REMOTE_SRC' })
         return false
       }
       if (remoteTrack && (remoteTrack.readyState === 'ended' || remoteTrack.muted)) {
@@ -580,6 +588,7 @@ export function createRealtimeWebRtcSession(
         playbackDiag.audioPlaybackFailed = true
         playbackDiag.lastEvent = 'playRejected'
         playbackDiag.lastSafeErrorCode = 'remote_track_not_live'
+        noteVoiceLifecycleStage('REALTIME_AUDIO_FAILED', { code: 'REMOTE_TRACK_NOT_LIVE' })
         return false
       }
       if (remoteTrack) remoteTrack.enabled = true
@@ -589,6 +598,7 @@ export function createRealtimeWebRtcSession(
         playbackDiag.audioPlaybackFailed = true
         playbackDiag.lastEvent = 'playRejected'
         playbackDiag.lastSafeErrorCode = 'play_resolved_but_silent'
+        noteVoiceLifecycleStage('REALTIME_AUDIO_FAILED', { code: 'PLAY_SILENT' })
         return false
       }
       playbackDiag.playResult = 'resolved'
@@ -601,13 +611,15 @@ export function createRealtimeWebRtcSession(
           playbackDiag.audioPlaybackFailed = true
           playbackDiag.lastEvent = 'playRejected'
           playbackDiag.lastSafeErrorCode = 'play_resolved_no_progression'
+          noteVoiceLifecycleStage('REALTIME_AUDIO_FAILED', { code: 'NO_PROGRESSION' })
           return false
         }
       }
       playbackDiag.audioPlaybackStarted = true
       playbackDiag.audible = true
       playbackDiag.audioPlaybackFailed = false
-      playbackDiag.lastEvent = 'audioPlaybackStarted'
+      playbackDiag.lastEvent = 'ACTUAL_PLAYBACK_STARTED'
+      noteVoiceLifecycleStage('ACTUAL_PLAYBACK_STARTED')
       return true
     } catch (err) {
       const name = err instanceof Error ? err.name : 'play_error'
@@ -619,6 +631,9 @@ export function createRealtimeWebRtcSession(
         name === 'NotAllowedError' || name === 'AbortError'
           ? name
           : 'playback_blocked'
+      noteVoiceLifecycleStage('REALTIME_AUDIO_FAILED', {
+        code: playbackDiag.lastSafeErrorCode?.toUpperCase?.() || 'PLAYBACK_BLOCKED',
+      })
       quality.markAudioRestart()
       emitQuality()
       // Structured recovery is owned by BilamoVoiceSession (reconnect → classic TTS).
@@ -715,6 +730,9 @@ export function createRealtimeWebRtcSession(
     clientRequestedResponse = true
     setStatus('thinking')
     telemetry('response_create_requested', { reason })
+    playbackDiag.realtimeAudioRequested = true
+    playbackDiag.assistantResponseCreated = true
+    noteVoiceLifecycleStage('REALTIME_AUDIO_REQUESTED')
     // Must request audio output — bare response.create can yield text-only
     // (transcript events without remote track audio → silent device).
     sendEvent({
@@ -1577,7 +1595,7 @@ export function createRealtimeWebRtcSession(
     getStatus: () => status,
     isConnected: () => Boolean(pc && dc && dc.readyState === 'open'),
     getQualitySnapshot: () => quality.snapshot(),
-    async connect() {
+    async connect(options?: RealtimeConnectOptions) {
       if (disposed) return
       // Explicit user start — clear hard Stop latch; keep preferred FR/EN/AR ASR language.
       hardStopped = false
@@ -1587,11 +1605,18 @@ export function createRealtimeWebRtcSession(
       utteranceAssembler.reset()
       transcriptGate.resetTurn()
       clearPlaybackTimers()
+      noteVoiceLifecycleStage('GESTURE_RECEIVED')
       // Allow reconnect after a clean disconnect on the same session object.
       // Prefer keeping the live peer — rebuilding mid-session drops mic frames.
       if (pc && dc && dc.readyState === 'open') {
-        const ok = await acquireLocalMic()
+        if (options?.localStream && !hasLiveMicTrack()) {
+          localStream = options.localStream
+          captureAudit.attachLocalStream(localStream)
+          noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
+        }
+        const ok = hasLiveMicTrack() || (await acquireLocalMic())
         if (!ok) {
+          noteVoiceLifecycleStage('MIC_PERMISSION_FAILED', { code: 'MIC_REACQUIRE_FAILED' })
           callbacks.onError?.(VOICE_RECOVERABLE_ERROR_AR)
           setStatus('error')
           return
@@ -1608,17 +1633,66 @@ export function createRealtimeWebRtcSession(
         tearDownPeer()
       }
       setStatus('connecting')
+      noteVoiceLifecycleStage('CONNECTION_STATE_CONNECTING')
 
       const prefs = loadVoiceExperiencePrefs()
       const voice = mapPrefsToRealtimeVoice(prefs)
 
+      // Mic BEFORE peer/network — Safari loses gesture if getUserMedia runs after awaits.
+      if (options?.localStream) {
+        localStream = options.localStream
+        noteVoiceLifecycleStage('MIC_PERMISSION_GRANTED')
+      } else {
+        noteVoiceLifecycleStage('MIC_PERMISSION_REQUESTED')
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              channelCount: 1,
+            },
+          })
+          noteVoiceLifecycleStage('MIC_PERMISSION_GRANTED')
+        } catch (err) {
+          noteVoiceLifecycleStage('MIC_PERMISSION_FAILED', { code: 'MIC_PERMISSION_FAILED' })
+          playbackDiag.lastSafeErrorCode = 'MIC_PERMISSION_FAILED'
+          callbacks.onError?.(VOICE_RECOVERABLE_ERROR_AR)
+          setStatus('error')
+          throw err instanceof Error ? err : new Error('mic_permission_failed')
+        }
+      }
+      if (!localStream?.getAudioTracks?.().some((t) => t.readyState === 'live')) {
+        noteVoiceLifecycleStage('MIC_PERMISSION_FAILED', { code: 'MIC_TRACK_MISSING' })
+        setStatus('error')
+        throw new Error('mic_track_missing')
+      }
+      captureAudit.attachLocalStream(localStream)
+      noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
+      playbackDiag.mediaStreamActive = true
+
+      // Best-effort unlock AFTER mic — never delay getUserMedia for AudioContext.
+      try {
+        await unlockAudioPlayback()
+      } catch {
+        /* best-effort */
+      }
+
+      // Register ontrack BEFORE negotiation — required so early audio is not dropped.
       pc = new RTCPeerConnection()
+      noteVoiceLifecycleStage('PEER_CREATED')
+      playbackDiag.peerConnectionState = pc.connectionState
       captureAudit.attachPeer(pc)
       // Transport hardening: tolerate brief ICE blips; fail soft on hard drops mid-utterance.
       const peer = pc
       peer.oniceconnectionstatechange = () => {
         const ice = peer.iceConnectionState
+        playbackDiag.iceConnectionState = ice
         captureAudit.noteIceConnectionState(ice)
+        if (ice === 'checking') noteVoiceLifecycleStage('ICE_STATE_CHECKING')
+        else if (ice === 'connected' || ice === 'completed') noteVoiceLifecycleStage('ICE_STATE_CONNECTED')
+        else if (ice === 'failed') noteVoiceLifecycleStage('ICE_STATE_FAILED')
+        else if (ice === 'disconnected') noteVoiceLifecycleStage('ICE_STATE_DISCONNECTED')
         if (ice === 'disconnected') {
           if (iceRecoveryTimer) clearTimeout(iceRecoveryTimer)
           // Mobile Safari often blips ICE briefly — wait before treating as loss.
@@ -1646,7 +1720,13 @@ export function createRealtimeWebRtcSession(
         }
       }
       peer.onconnectionstatechange = () => {
+        playbackDiag.peerConnectionState = peer.connectionState
         captureAudit.noteConnectionState(peer.connectionState)
+        if (peer.connectionState === 'connected') {
+          noteVoiceLifecycleStage('CONNECTION_STATE_CONNECTED')
+        } else if (peer.connectionState === 'failed') {
+          noteVoiceLifecycleStage('CONNECTION_STATE_FAILED')
+        }
         if (peer.connectionState === 'failed' && utteranceAssembler.hasPending()) {
           rejectTurnForTransport('connection_failed')
         }
@@ -1659,13 +1739,8 @@ export function createRealtimeWebRtcSession(
       remoteAudio.setAttribute('webkit-playsinline', 'true')
       remoteAudio.muted = false
       remoteAudio.volume = 1
-
-      // Unlock AudioContext during connect (must be called from a user gesture).
-      try {
-        await unlockAudioPlayback()
-      } catch {
-        /* best-effort */
-      }
+      playbackDiag.audioElementAttached = true
+      noteVoiceLifecycleStage('AUDIO_ELEMENT_ATTACHED')
 
       pc.ontrack = (e) => {
         if (!remoteAudio) return
@@ -1675,7 +1750,8 @@ export function createRealtimeWebRtcSession(
         remoteTrack = stream?.getAudioTracks()?.[0] ?? e.track ?? null
         playbackDiag.remoteTrackReceived = Boolean(remoteTrack)
         playbackDiag.audioElementAttached = Boolean(remoteAudio.srcObject)
-        playbackDiag.lastEvent = 'remoteTrackReceived'
+        playbackDiag.lastEvent = 'REMOTE_TRACK_RECEIVED'
+        noteVoiceLifecycleStage('REMOTE_TRACK_RECEIVED')
         if (remoteTrack) {
           remoteTrack.enabled = true
           playbackDiag.remoteTrackMuted = remoteTrack.muted
@@ -1706,22 +1782,13 @@ export function createRealtimeWebRtcSession(
         remoteAudio.muted = false
         remoteAudio.volume = 1
         // Attach only — do not claim SPEAKING until assistant audio actually plays.
+        noteVoiceLifecycleStage('PLAY_CALLED')
         void remoteAudio.play().catch(() => {
           /* gesture may be required; ensureRemoteAudible retries on response audio */
         })
         setStatus('listening')
       }
 
-      localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          // Prefer mono speech capture; browsers may ignore on iOS.
-          channelCount: 1,
-        },
-      })
-      captureAudit.attachLocalStream(localStream)
       for (const track of localStream.getTracks()) {
         try {
           if ('contentHint' in track) {
@@ -1731,6 +1798,7 @@ export function createRealtimeWebRtcSession(
           // ignore
         }
         pc.addTrack(track, localStream)
+        noteVoiceLifecycleStage('LOCAL_TRACK_ADDED')
       }
       // Prefer continuous mic send — never start muted.
       ensureLocalMicLive()
@@ -1795,6 +1863,7 @@ export function createRealtimeWebRtcSession(
 
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
+      noteVoiceLifecycleStage('OFFER_CREATED')
 
       const initial = buildInstructions(undefined, activeLanguage)
       activeLanguage = initial.language
@@ -1820,6 +1889,7 @@ export function createRealtimeWebRtcSession(
         playbackDiag.safeServerErrorCode =
           res.status === 401 ? 'AUTH_INVALID' : res.status === 403 ? 'CORS_ORIGIN_DENIED' : `HTTP_${res.status}`
         playbackDiag.lastSafeErrorCode = playbackDiag.safeServerErrorCode
+        noteVoiceLifecycleStage('REALTIME_AUDIO_FAILED', { code: playbackDiag.safeServerErrorCode })
         callbacks.onError?.(VOICE_RECOVERABLE_ERROR_AR)
         setStatus('error')
         tearDownPeer()
@@ -1828,9 +1898,16 @@ export function createRealtimeWebRtcSession(
       playbackDiag.realtimeSessionCreated = true
       playbackDiag.httpRoute = '/api/openai/realtime-call'
       playbackDiag.httpStatus = res.status
+      noteVoiceLifecycleStage('SESSION_HTTP_OK')
+      noteVoiceLifecycleStage('VOICE_REQUEST_ACCEPTED')
 
       const answerSdp = await res.text()
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+      noteVoiceLifecycleStage('REMOTE_DESCRIPTION_SET')
+      // Must not stall in connecting/idle — listening or explicit failure.
+      if (status !== 'listening' && status !== 'error') {
+        setStatus('listening')
+      }
     },
     disconnect() {
       // Soft teardown: tear down peer without latching hardStopped.

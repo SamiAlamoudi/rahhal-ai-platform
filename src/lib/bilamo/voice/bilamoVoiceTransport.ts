@@ -20,6 +20,11 @@ export type BilamoVoiceConnectionState =
 
 export type BilamoVoiceTransportMode = 'realtime' | 'classic' | 'auto'
 
+/** Options for connect / startListening — Safari needs mic from the user gesture. */
+export type BilamoVoiceConnectOptions = {
+  localStream?: MediaStream | null
+}
+
 export interface BilamoSpeakRequest {
   text: string
   locale: VoiceLocale
@@ -64,9 +69,9 @@ export interface BilamoVoiceTransportCallbacks {
 export interface BilamoVoiceTransport {
   readonly kind: BilamoVoiceTransportKind
   setCallbacks(callbacks: BilamoVoiceTransportCallbacks): void
-  connect(): Promise<void>
+  connect(options?: BilamoVoiceConnectOptions): Promise<void>
   disconnect(): void
-  startListening(locale?: VoiceLocale): Promise<boolean>
+  startListening(locale?: VoiceLocale, options?: BilamoVoiceConnectOptions): Promise<boolean>
   /**
    * End listening and finalize the current utterance once (silence / user stop).
    * Must emit at most one final transcript. Must NOT auto-relisten.

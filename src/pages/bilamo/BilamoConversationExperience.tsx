@@ -37,7 +37,11 @@ import {
   shouldIgnoreOrbTapDuringVoiceSubmit,
   shouldRecoverStuckThinking,
 } from '../../lib/bilamo/speech/voiceSubmitGate'
-import { noteSpeechUnderstandingDiag } from '../../lib/bilamo/voice/voiceHttpTrace'
+import { captureMicFromUserGesture } from '../../lib/bilamo/voice/micGestureCapture'
+import {
+  noteSpeechUnderstandingDiag,
+  noteVoiceLifecycleStage,
+} from '../../lib/bilamo/voice/voiceHttpTrace'
 import { unlockAudioPlayback } from '../../lib/chat/voice/audioElementTextToSpeechProvider'
 import { sanitizeArabicVoiceTranscript } from '../../lib/chat/voice/sanitizeArabicVoiceTranscript'
 import { chatEngine } from '../../lib/chat/chatEngine'
@@ -886,14 +890,29 @@ export function BilamoConversationExperience({
     voice.clearError()
     setChatOrb(null)
     bilamoHaptic(6)
-    // Unlock during the mic tap gesture (required for later TTS / WebRTC play).
-    void unlockAudioPlayback().catch(() => undefined)
+    noteVoiceLifecycleStage('GESTURE_RECEIVED')
+    // Unlock + mic MUST stay inside this tap — any network await first kills Safari gesture.
+    try {
+      await unlockAudioPlayback()
+    } catch {
+      /* best-effort */
+    }
+    noteVoiceLifecycleStage('MIC_PERMISSION_REQUESTED')
+    const mic = await captureMicFromUserGesture()
+    if (!mic.ok) {
+      noteVoiceLifecycleStage('MIC_PERMISSION_FAILED', { code: mic.code.toUpperCase() })
+      setError(voice.lastError || copy.micNeed)
+      setComposerOpen(true)
+      return
+    }
+    noteVoiceLifecycleStage('MIC_PERMISSION_GRANTED')
+    noteVoiceLifecycleStage('MEDIASTREAM_ACTIVE')
     const locale = isBilamoReplyLocale(uiLocale) ? uiLocale : 'ar'
     setUiLocale(locale)
     voice.setLocale(replyLocaleToVoiceLocale(locale))
     // First orb tap owns persistent hands-free session (survives every turn).
     voice.setContinuousListening(true)
-    const ok = await voice.startListening()
+    const ok = await voice.startListening({ localStream: mic.stream })
     if (!ok) {
       setError(voice.lastError || copy.micNeed)
       setComposerOpen(true)
@@ -920,8 +939,7 @@ export function BilamoConversationExperience({
 
   const toggleOrb = useCallback(() => {
     bilamoHaptic(orbState === 'listening' ? 4 : 8)
-    // Always unlock Safari audio on the user gesture that owns the mic.
-    void unlockAudioPlayback().catch(() => undefined)
+    noteVoiceLifecycleStage('GESTURE_RECEIVED')
 
     const gate = {
       voiceSubmitInFlight: voiceSubmitInFlightRef.current,
