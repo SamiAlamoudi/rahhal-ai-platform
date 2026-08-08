@@ -62,38 +62,45 @@ export default function BilamoVoiceDiagnostics() {
   const agg = report?.aggregates
   const playback = snap.playback
 
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  const iosMatch = ua.match(/OS (\d+)[_.](\d+)/)
   const failureBundle = [
-    `ts=${playback.timestampMs ?? Date.now()}`,
-    `corr=${playback.correlationId || '—'}`,
-    `stage=${playback.turnStage || '—'}`,
-    `fsm=${snap.state}`,
-    `reqTransport=${snap.requestedTransport || '—'}`,
-    `actTransport=${snap.transportKind || '—'}`,
-    `authUser=${yn(playback.authenticatedUser)}`,
-    `supabase=${yn(playback.supabaseSessionAvailable)}`,
+    `correlationId=${playback.correlationId || '—'}`,
+    `turnId=${playback.turnId == null ? '—' : String(playback.turnId)}`,
+    `browser=${/Safari/i.test(ua) && !/Chrome|CriOS|FxiOS/i.test(ua) ? 'Safari' : (ua.slice(0, 80) || '—')}`,
+    `iosVersion=${iosMatch ? `${iosMatch[1]}.${iosMatch[2]}` : '—'}`,
+    `authStatus=${playback.authenticatedUser ? 'authenticated' : (playback.supabaseSessionAvailable ? 'session' : 'none')}`,
     `authProbe=${playback.authProbeCode || '—'}`,
-    `micPerm=${micPermission}`,
-    `media=${yn(playback.mediaStreamActive)}`,
-    `speech=${yn(playback.speechDetected)}`,
-    `eos=${yn(playback.endOfSpeechDetected)}`,
-    `final=${yn(playback.finalTranscriptReceived)}`,
-    `dispatched=${yn(playback.requestDispatched)}`,
-    `route=${playback.httpRoute || '—'}`,
-    `http=${playback.httpStatus ?? '—'}`,
-    `code=${playback.safeServerErrorCode || snap.lastSafeErrorCode || playback.lastSafeErrorCode || '—'}`,
-    `rtSession=${yn(playback.realtimeSessionCreated)}`,
+    `micPermission=${micPermission}`,
+    `sttState=${playback.speechRecognitionSupported == null ? '—' : (playback.speechRecognitionSupported ? 'supported' : 'unsupported')}`,
+    `detectedLanguage=${playback.language || '—'}`,
+    `dialect=${playback.dialect || '—'}`,
+    `finalTranscript=${yn(playback.finalTranscriptReceived)}`,
+    `eosLatencyMs=${playback.finalTranscriptLatencyMs ?? '—'}`,
+    `llmLatencyMs=${playback.submitLatencyMs ?? '—'}`,
+    `realtimeConnection=${snap.connection}`,
+    `remoteTrack=${yn(playback.remoteTrackReceived)}`,
+    `remoteTrackMuted=${playback.remoteTrackMuted == null ? '—' : String(playback.remoteTrackMuted)}`,
+    `remoteTrackReadyState=${playback.remoteTrackReadyState || '—'}`,
+    `audioPlayAttempt=${yn(playback.audioPlayRequested)}`,
+    `audioPlaying=${yn(playback.audioPlaybackStarted)}`,
+    `playbackProgression=${yn(playback.audible || playback.audioPlaybackStarted)}`,
+    `playbackEnded=${yn(playback.audioPlaybackEnded)}`,
+    `realtimeFailureReason=${snap.lastSafeErrorCode || playback.lastSafeErrorCode || '—'}`,
+    `classicFallbackAttempted=${yn(playback.classicFallbackInvoked || snap.fellBackToClassic)}`,
+    `classicHttpStatus=${playback.classicFallbackHttpStatus ?? '—'}`,
+    `classicMime=${playback.httpRoute || '—'}`,
+    `classicBytes=${playback.classicFallbackInvoked ? 'invoked' : '—'}`,
+    `classicPlaybackState=${snap.fellBackToClassic ? (playback.audioPlaybackStarted ? 'playing_or_played' : 'attempted') : 'n/a'}`,
+    `autoRelisten=${yn(playback.autoRelistenTriggered)}`,
+    `voiceSessionActive=${yn(snap.voiceSessionActive || playback.voiceSessionActive)}`,
+    `finalVoiceState=${snap.state}`,
+    `turnStage=${playback.turnStage || '—'}`,
     `pc=${playback.peerConnectionState || '—'}`,
     `ice=${playback.iceConnectionState || '—'}`,
-    `remoteTrack=${yn(playback.remoteTrackReceived)}`,
-    `playCalled=${yn(playback.audioPlayRequested)}`,
     `playResult=${playback.playResult || '—'}`,
-    `audible=${yn(playback.audioPlaybackStarted)}`,
-    `classicFb=${yn(playback.classicFallbackInvoked || snap.fellBackToClassic)}`,
-    `classicHttp=${playback.classicFallbackHttpStatus ?? '—'}`,
-    `acx=${snap.audioContextState || playback.audioContextState || '—'}`,
-    `discard=${playback.discardReason || '—'}`,
     `event=${playback.lastEvent || '—'}`,
-    `idleReady=${yn(snap.secondTurnReady)}`,
+    `ts=${playback.timestampMs ?? Date.now()}`,
   ].join('\n')
 
   return (
@@ -222,7 +229,7 @@ export default function BilamoVoiceDiagnostics() {
               })
             }}
           >
-            Copy failure bundle
+            COPY FAILURE BUNDLE
           </Button>
           {copyHint ? (
             <p className="text-[12px] text-[var(--bilamo-muted)]">{copyHint}</p>

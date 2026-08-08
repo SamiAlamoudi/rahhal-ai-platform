@@ -53,6 +53,9 @@ const USER_SAFE_ERRORS = {
   fallback: 'أعيد تشغيل الصوت بصوت أوضح…',
 } as const
 
+/** Exported for gate tests — recoverable transport blips must not sticky-show this. */
+export const USER_SAFE_RECONNECT_COPY = USER_SAFE_ERRORS.reconnect
+
 /** Canonical session state machine (maps onto Orb visuals). */
 export type BilamoVoiceSessionState =
   | 'idle'
@@ -445,6 +448,21 @@ export function createBilamoVoiceSession(
     clearEmptyFinalizeTimer()
     activeSpeakTransportGen = -1
     armingSpeak = false
+    // Recoverable idle must clear sticky transport banners (never leave "Connection lost").
+    if (
+      reason === 'recoverable_error'
+      || reason === 'recoverable_reconnect'
+      || reason === 'watchdog'
+      || reason === 'empty_finalize'
+      || reason === 'classic_ok'
+      || reason === 'classic_retry_ok'
+      || reason === 'speaking_end'
+      || reason.startsWith('auto_relisten')
+    ) {
+      if (error === USER_SAFE_ERRORS.reconnect || error === USER_SAFE_ERRORS.fallback) {
+        error = null
+      }
+    }
     if (reason === 'watchdog') {
       playbackDiag.lastEvent = 'watchdogIdleRecovery'
       lastSafeErrorCode = 'watchdog_idle_recovery'
@@ -453,6 +471,9 @@ export function createBilamoVoiceSession(
       lastSafeErrorCode = 'empty_finalize'
     } else if (reason === 'manual_stop') {
       playbackDiag.lastEvent = 'VOICE_SESSION_STOPPED'
+    } else if (reason === 'recoverable_reconnect' || reason === 'recoverable_error') {
+      playbackDiag.lastEvent = 'VOICE_SESSION_RECOVERED'
+      lastSafeErrorCode = reason
     }
     noteVoiceTurnStage('idle')
     playbackDiag.turnStage = 'idle'
@@ -762,12 +783,21 @@ export function createBilamoVoiceSession(
         if (next === 'connecting') setState('connecting')
         else if (next === 'reconnecting') {
           metrics.mark('reconnect_start')
+          // Soft reconnect — keep conversation; never sticky "Connection lost".
+          error = null
           setState('reconnecting')
         } else if (next === 'error') setState('error')
         else if (next === 'connected' && (state === 'connecting' || state === 'reconnecting')) {
-          if (state === 'reconnecting') metrics.mark('reconnect_ok')
-          // Reconnect must not reopen mic — return to idle.
+          if (state === 'reconnecting') {
+            metrics.mark('reconnect_ok')
+            playbackDiag.lastEvent = 'VOICE_SESSION_RECOVERED'
+          }
+          error = null
+          // Reconnect must not reopen mic — idle then auto-relisten if session active.
           setState('idle')
+          if (voiceSessionActive && !manuallyStopped) {
+            scheduleAutoRelisten('realtime_reconnect_ok')
+          }
         }
         emit()
       },
@@ -800,8 +830,31 @@ export function createBilamoVoiceSession(
           activeSpeakTransportGen = -1
           setState('idle')
           return
-        } else if (code.startsWith('reconnect') || code === 'connect_failed') {
-          error = USER_SAFE_ERRORS.reconnect
+        } else if (code.startsWith('reconnect') || code === 'connect_failed' || code === 'realtime_error') {
+          // Recoverable transport blips must NOT map to fatal "Connection lost".
+          // Soft path: clear banner, keep memory, auto-relisten / classic TTS.
+          error = null
+          playbackDiag.lastEvent = 'VOICE_SESSION_RECOVERED'
+          if (detail?.recoverable !== false) {
+            if (pendingClassicFallbackText && activeSpeakTransportGen >= 0) {
+              void recoverAudiblePlayback(activeSpeakTransportGen)
+              return
+            }
+            setState('reconnecting')
+            globalThis.setTimeout(() => {
+              if (!disposed && (state === 'error' || state === 'reconnecting')) {
+                releaseToIdle('recoverable_reconnect')
+              }
+            }, 80)
+            return
+          }
+          // Exhausted + non-recoverable only — still prefer soft recovery over sticky English banner.
+          if (code === 'reconnect_exhausted') {
+            lastSafeErrorCode = 'reconnect_exhausted'
+            releaseToIdle('recoverable_reconnect')
+            return
+          }
+          error = USER_SAFE_ERRORS.connect
         } else {
           // Never surface raw provider / WebRTC strings to travelers.
           error = USER_SAFE_ERRORS.connect

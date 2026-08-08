@@ -32,23 +32,34 @@ export function composeRecommendation(input: {
   const timedOut = /timeout/i.test(String(flightsMeta?.error || ''))
   const stale = flightsMeta?.stale === true
 
+  const validationError = String(flightsMeta?.error || '')
+  const sameCity = /same_city|same_airport|same_metro/i.test(validationError)
+  const demoInventory = flightsMeta?.mode === 'demo' || flightsMeta?.inventorySource === 'demo'
+
   if (locale === 'ar') {
     if (emptyFlights) {
-      const displayText = timedOut
-        ? 'تعذّر الوصول لمزوّد الرحلات لحظة. أقدر أبحث مجدداً أو بتواريخ مرنة.'
-        : `لم أجد رحلة مناسبة لـ ${dest} بهذه الشروط. أقدر أبحث بتوقيت مرن.`
+      const displayText = sameCity
+        ? 'المسار غير صالح: المغادرة والوصول في نفس المدينة. حدّد وجهة مختلفة.'
+        : timedOut
+          ? 'تعذّر الوصول لمزوّد الرحلات لحظة. أقدر أبحث مجدداً أو بتواريخ مرنة.'
+          : `لم أجد رحلات حية صالحة لـ ${dest} بهذه الشروط.`
       return {
         displayText,
-        spokenText: 'لم أجد رحلة مناسبة بعد. هل نجرّب تواريخ أوسع؟',
+        spokenText: sameCity
+          ? 'المسار غير صالح. إلى أي مدينة تريد السفر؟'
+          : 'لم أجد رحلة مناسبة بعد. هل نجرّب تواريخ أوسع؟',
       }
     }
 
-    // Cards are the source of truth — never emit recommendation paragraphs.
-    let displayText = `هذا ما أختاره لك إلى ${dest}.`
+    // Specific consultant line — never a repeated generic pick phrase.
+    let displayText = flight
+      ? `أنصح بـ ${flight.airline} إلى ${dest}.`
+      : `رتّبت خيارات مناسبة إلى ${dest}.`
+    if (demoInventory) displayText += ' (عينة توضيحية — ليست أسعاراً حية).'
     if (input.assumedSolo) displayText += ' افترضت أنك لوحدك.'
     if (stale) displayText += ' قد تتحرك الأسعار.'
     const spokenText = flight
-      ? `أقترح ${flight.airline} لـ ${dest}.`
+      ? `أنصح بـ ${flight.airline} إلى ${dest}.`
       : `رتّبت خيارات لـ ${dest}.`
     return {
       displayText,
@@ -58,16 +69,23 @@ export function composeRecommendation(input: {
 
   if (locale === 'fr') {
     if (emptyFlights) {
-      const displayText = timedOut
-        ? 'Le fournisseur de vols a marqué une pause. Je peux relancer ou élargir les dates.'
-        : `Je n'ai pas trouvé de vol solide pour ${dest} avec ces critères. Je peux élargir le calendrier.`
+      const displayText = sameCity
+        ? 'Itinéraire invalide : départ et arrivée dans la même ville.'
+        : timedOut
+          ? 'Le fournisseur de vols a marqué une pause. Je peux relancer ou élargir les dates.'
+          : `Je n'ai pas trouvé de vols live valides pour ${dest}.`
       return {
         displayText,
-        spokenText: 'Pas encore de vol solide. On élargit les dates ?',
+        spokenText: sameCity
+          ? 'Itinéraire invalide. Quelle ville visez-vous ?'
+          : 'Pas encore de vol solide. On élargit les dates ?',
       }
     }
 
-    let displayText = `Voici mon choix pour ${dest}.`
+    let displayText = flight
+      ? `Je retiendrais ${flight.airline} pour ${dest}.`
+      : `J'ai préparé des options pour ${dest}.`
+    if (demoInventory) displayText += ' (échantillon — pas des tarifs live).'
     if (input.assumedSolo) displayText += ' Solo par défaut.'
     if (stale) displayText += ' Les tarifs ont pu bouger.'
     const spokenText = flight
@@ -80,21 +98,27 @@ export function composeRecommendation(input: {
   }
 
   if (emptyFlights) {
-    const displayText = timedOut
-      ? 'The flight provider paused for a moment. I can retry or search with flexible dates.'
-      : `I could not find a strong flight for ${dest} with those constraints. I can search with flexible timing.`
+    const displayText = sameCity
+      ? 'Invalid route: origin and destination are the same city.'
+      : timedOut
+        ? 'The flight provider paused for a moment. I can retry or search with flexible dates.'
+        : `I could not find valid live flights for ${dest} with those constraints.`
     return {
       displayText,
-      spokenText: 'No strong flight yet. Shall we try more flexible dates?',
+      spokenText: sameCity
+        ? 'That route is invalid. Which city should we fly to?'
+        : 'No strong flight yet. Shall we try more flexible dates?',
     }
   }
 
-  // Cards carry flight/hotel/visa/weather/costs — keep display to one short line.
-  let displayText = `Here is my pick for ${dest}.`
+  let displayText = flight
+    ? `I'd take ${flight.airline} to ${dest}.`
+    : `I've shaped options for ${dest}.`
+  if (demoInventory) displayText += ' (Sample inventory — not live prices).'
   if (input.assumedSolo) displayText += ' Solo assumed.'
   if (stale) displayText += ' Prices may have shifted.'
   const spokenText = flight
-    ? `I'd take the ${flight.airline} for ${dest}.`
+    ? `I'd take ${flight.airline} to ${dest}.`
     : `I've shaped options for ${dest}.`
   return {
     displayText,

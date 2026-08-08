@@ -39,6 +39,8 @@ export type VoicePlaybackDiagEvent =
   | 'AUTO_RELISTEN_TRIGGERED'
   | 'VOICE_SESSION_STARTED'
   | 'VOICE_SESSION_STOPPED'
+  | 'VOICE_SESSION_RECOVERED'
+  | 'VOICE_OUTPUT_FAILED'
   | 'PLAYBACK_ENDED'
 
 export type VoiceTurnStage =

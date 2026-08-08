@@ -82,6 +82,8 @@ type BilamoFlightsStatus = {
   stale: boolean
   empty: boolean
   timedOut: boolean
+  validation?: string | null
+  inventorySource?: 'live' | 'demo' | 'unavailable'
 }
 
 type BilamoIntelCard = {
@@ -146,22 +148,14 @@ function classifyFlightKind(
   }
 }
 
-/** Cards carry the details — never paint recommendation paragraphs. */
-function displayAssistantContent(
-  content: string,
-  hasResults: boolean,
-  locale: BilamoReplyLocale,
-): string {
+/** Keep each turn's own text — never rewrite history to a generic pick line. */
+function displayAssistantContent(content: string): string {
   const trimmed = content.trim()
   if (!trimmed) return trimmed
-  if (!hasResults) {
-    // Clarification / greeting: keep a single short line, never a paragraph block.
-    const first = trimmed.split(/\n+/)[0]?.trim() || trimmed
-    return first.length <= 140 ? first : `${first.slice(0, 120).trim()}…`
-  }
-  if (locale === 'ar') return 'هذا ما أختاره لك.'
-  if (locale === 'fr') return 'Voici mon choix.'
-  return 'Here is my pick.'
+  // Drop ephemeral progress stacks if they leaked into content.
+  const lines = trimmed.split(/\n+/).map((l) => l.trim()).filter(Boolean)
+  const first = lines[lines.length - 1] || trimmed
+  return first.length <= 160 ? first : `${first.slice(0, 140).trim()}…`
 }
 
 function resultsFromAssistantMeta(
@@ -186,6 +180,8 @@ function resultsFromAssistantMeta(
         error?: string | null
         stale?: boolean
         bestScore?: number | null
+        validation?: string | null
+        inventorySource?: string
       }
     } | null
     memory?: {
@@ -210,8 +206,21 @@ function resultsFromAssistantMeta(
     return null
   }
 
+  // Hard gate: never render same-city / invalid airport cards (e.g. RUH→RIY).
+  const rawFlights = (search?.flights || []).filter((f) => {
+    const o = String(f.origin || '').trim().toUpperCase()
+    const d = String(f.destination || '').trim().toUpperCase()
+    if (!/^[A-Z]{3}$/.test(o) || !/^[A-Z]{3}$/.test(d)) return false
+    if (o === d) return false
+    const metro: Record<string, string> = {
+      RUH: 'riyadh', RIY: 'riyadh', DXB: 'dubai', DWC: 'dubai', SHJ: 'dubai',
+    }
+    if ((metro[o] || o) === (metro[d] || d)) return false
+    return true
+  })
+
   // Hero + at most 2 alternatives (cheapest / fastest).
-  const flights: BilamoFlightCard[] = (search?.flights || []).slice(0, 3).map((f, i) => ({
+  const flights: BilamoFlightCard[] = rawFlights.slice(0, 3).map((f, i) => ({
     id: String(f.id ?? `f-${i}`),
     airline: String(f.airline ?? 'Flight'),
     origin: String(f.origin ?? '—'),
@@ -219,7 +228,10 @@ function resultsFromAssistantMeta(
     departTime: String(f.departTime ?? '—'),
     arriveTime: String(f.arriveTime ?? '—'),
     duration: String(f.duration ?? '—'),
-    stopsLabel: String(f.stopsLabel ?? 'Nonstop'),
+    stopsLabel: String(
+      f.stopsLabel
+        ?? (locale === 'ar' ? 'مباشر' : 'Nonstop'),
+    ),
     priceLabel: moneyLabel(f.price, f.currency, locale),
     reason: typeof f.reason === 'string' ? f.reason : undefined,
     kindLabel: typeof f.kindLabel === 'string' ? f.kindLabel : null,
@@ -252,9 +264,23 @@ function resultsFromAssistantMeta(
         stale: flightsMeta.stale === true,
         empty: flights.length === 0,
         timedOut,
+        validation: typeof flightsMeta.validation === 'string' ? flightsMeta.validation : null,
+        inventorySource:
+          flightsMeta.inventorySource === 'live'
+            || flightsMeta.inventorySource === 'demo'
+            || flightsMeta.inventorySource === 'unavailable'
+            ? flightsMeta.inventorySource
+            : (flightsMeta.mode === 'live' ? 'live' : 'demo'),
       }
     : (flights.length === 0
-      ? { mode: 'demo', error: null, stale: false, empty: true, timedOut: false }
+      ? {
+          mode: 'demo',
+          error: null,
+          stale: false,
+          empty: true,
+          timedOut: false,
+          inventorySource: 'unavailable',
+        }
       : null)
 
   const titleFor = (kind: BilamoIntelCard['kind']): string => {
@@ -514,15 +540,17 @@ export function BilamoConversationExperience({
   const inConversation = messages.length > 0 || busy || orbState !== 'idle'
   const copy = uiLocale === 'ar'
     ? {
-        heroLead: 'هذا ما أختاره لك.',
-        emptyFlights: 'لم أجد رحلة قوية بهذه التواريخ بعد.',
+        heroLead: '',
+        demoInventory: 'نتائج تجريبية للتوضيح — ليست أسعاراً أو توفّراً حياً.',
+        liveUnavailable: 'التوفّر الحي غير متاح حالياً. لم أعرض مخزوناً ملفّقاً.',
+        emptyFlights: 'لم أجد رحلة صالحة بهذه التواريخ بعد.',
         emptySuggest: 'جرّب تواريخ أوسع، أو مدينة مغادرة أخرى، أو وجهة قريبة.',
         timeout: 'انتهت مهلة المزوّد — يمكننا إعادة المحاولة الآن.',
         tryAgain: 'أعد البحث',
         flexibleDates: 'تواريخ مرنة',
         nearbyIdeas: 'اقترح بدائل',
         stale: 'قد تكون الأسعار تحرّكت — قل لي إن أردت تحديثاً.',
-        backup: 'استخدمت مخزوناً موثوقاً بعد تعثّر لحظي في التوفر.',
+        backup: 'تعذّر الوصول للمزوّد الحي — لم أعرض بديلاً ملفّقاً كأنه حي.',
         providerError: 'تعذّر الوصول للمزوّد للحظة. يمكنك إعادة المحاولة.',
         compareTitle: 'مقارنة سريعة',
         compareSelect: 'اختيار',
@@ -541,15 +569,17 @@ export function BilamoConversationExperience({
       }
     : uiLocale === 'fr'
       ? {
-          heroLead: 'Voici ce que je choisirais pour vous.',
-          emptyFlights: 'Je n\'ai pas encore trouvé de vol solide pour ces dates.',
+          heroLead: '',
+          demoInventory: 'Résultats d\'échantillon — pas des tarifs live.',
+          liveUnavailable: 'Inventaire live indisponible. Aucun tarif fabriqué.',
+          emptyFlights: 'Je n\'ai pas encore trouvé de vol valide pour ces dates.',
           emptySuggest: 'Essayez des dates plus souples, une autre ville de départ, ou une destination proche.',
           timeout: 'Le fournisseur a expiré — nous pouvons réessayer maintenant.',
           tryAgain: 'Relancer la recherche',
           flexibleDates: 'Dates flexibles',
           nearbyIdeas: 'Proposer des alternatives',
           stale: 'Les tarifs ont pu bouger — dites-moi si vous voulez une mise à jour.',
-          backup: 'J\'ai utilisé un inventaire de secours fiable après un court incident.',
+          backup: 'Fournisseur live indisponible — aucun inventaire fabriqué.',
           providerError: 'Le fournisseur a marqué une pause. Vous pouvez réessayer.',
           compareTitle: 'Comparaison rapide',
           compareSelect: 'Choisir',
@@ -567,15 +597,17 @@ export function BilamoConversationExperience({
           audioError: 'Impossible de lire l\'audio. Vous pouvez réessayer.',
         }
       : {
-          heroLead: 'Here is what I would choose for you.',
-          emptyFlights: 'I could not find a strong flight match for those dates yet.',
+          heroLead: '',
+          demoInventory: 'Sample inventory for illustration — not live prices or availability.',
+          liveUnavailable: 'Live inventory unavailable. No fabricated offers shown.',
+          emptyFlights: 'I could not find a valid flight match for those dates yet.',
           emptySuggest: 'Try more flexible dates, another departure city, or a nearby destination.',
           timeout: 'The provider timed out — we can retry right now.',
           tryAgain: 'Search again',
           flexibleDates: 'Flexible dates',
           nearbyIdeas: 'Suggest alternatives',
           stale: 'Prices may have shifted — say if you want me to refresh.',
-          backup: 'I used a reliable backup inventory after a brief availability hiccup.',
+          backup: 'Live provider unavailable — no fabricated inventory shown as live.',
           providerError: 'The provider paused for a moment. You can try again.',
           compareTitle: 'Quick compare',
           compareSelect: 'Select',
@@ -1262,11 +1294,7 @@ export function BilamoConversationExperience({
                         </p>
                       ) : (
                         <p className="max-w-[98%] text-[16.5px] leading-[1.72] tracking-[-0.02em] whitespace-pre-wrap text-[var(--bilamo-text)]/93">
-                          {displayAssistantContent(
-                            msg.content || '',
-                            Boolean(results?.flights.length || results?.hotels.length),
-                            binaryLocale,
-                          )}
+                          {displayAssistantContent(msg.content || '')}
                           {isLastAssistant ? (
                             <motion.span
                               aria-hidden
@@ -1352,14 +1380,18 @@ export function BilamoConversationExperience({
                           ))}
                         </div>
                       </div>
-                    ) : (
-                      <motion.p
-                        layout
-                        className="px-1 pb-2 text-[13.5px] leading-relaxed text-[var(--bilamo-muted)]"
-                      >
-                        {copy.heroLead}
-                      </motion.p>
-                    )}
+                    ) : null}
+                    {results.flightsStatus?.mode === 'demo'
+                      || results.flightsStatus?.inventorySource === 'demo' ? (
+                      <p className="px-1 pb-2 text-[12.5px] leading-relaxed text-[var(--bilamo-muted)]">
+                        {copy.demoInventory}
+                      </p>
+                    ) : null}
+                    {results.flightsStatus?.inventorySource === 'unavailable' ? (
+                      <p className="px-1 pb-2 text-[12.5px] leading-relaxed text-[var(--bilamo-muted)]">
+                        {copy.liveUnavailable}
+                      </p>
+                    ) : null}
                     {results.flightsStatus?.stale ? (
                       <div className="space-y-2 px-1">
                         <p className="text-[12.5px] text-[var(--bilamo-muted)]/90">

@@ -123,17 +123,27 @@ function buildConsultantTripPlan(
   const total = (flight?.price ?? 0) + (hotel?.price ?? 0)
   const dailyItinerary = Array.from({ length: Math.min(nights, 3) }, (_, i) => ({
     day: i + 1,
-    title: i === 0 ? `Arrive ${dest}` : `Day ${i + 1} in ${dest}`,
+    title: locale === 'ar'
+      ? (i === 0 ? `الوصول إلى ${dest}` : `اليوم ${i + 1} في ${dest}`)
+      : (i === 0 ? `Arrive ${dest}` : `Day ${i + 1} in ${dest}`),
     location: dest,
     activities: [
       {
-        time: i === 0 ? 'Morning' : null,
+        time: i === 0
+          ? (locale === 'ar' ? 'صباحًا' : 'Morning')
+          : null,
         title: i === 0
-          ? (flight ? `${flight.airline} arrival` : 'Arrival')
-          : 'Open day at your pace',
+          ? (flight
+            ? (locale === 'ar' ? `وصول ${flight.airline}` : `${flight.airline} arrival`)
+            : (locale === 'ar' ? 'الوصول' : 'Arrival'))
+          : (locale === 'ar' ? 'يوم مفتوح بإيقاعك' : 'Open day at your pace'),
         description: i === 0
-          ? 'Soft landing and private transfer to your stay.'
-          : 'Shaped around what you enjoy — no rigid checklist.',
+          ? (locale === 'ar'
+            ? 'وصول هادئ وانتقال خاص إلى الإقامة.'
+            : 'Soft landing and private transfer to your stay.')
+          : (locale === 'ar'
+            ? 'مُرتّب حسب ما تحب — بدون جدول صارم.'
+            : 'Shaped around what you enjoy — no rigid checklist.'),
       },
     ],
   }))
@@ -141,8 +151,8 @@ function buildConsultantTripPlan(
     amount: total,
     currency,
     breakdown: [
-      ...(flight ? [{ label: 'Flights', amount: flight.price }] : []),
-      ...(hotel ? [{ label: 'Stay', amount: hotel.price }] : []),
+      ...(flight ? [{ label: locale === 'ar' ? 'الطيران' : 'Flights', amount: flight.price }] : []),
+      ...(hotel ? [{ label: locale === 'ar' ? 'الإقامة' : 'Stay', amount: hotel.price }] : []),
     ],
   }
   return {
@@ -464,15 +474,9 @@ export async function runBilamoIntelligenceTurn(
     phase: 'searching',
     agent: { ...memory.agent, requirements },
   }
-  const progressLines: string[] = []
-  const pushProgress = (message: string) => {
-    if (!message || progressLines[progressLines.length - 1] === message) return
-    progressLines.push(message)
-    const displayText = progressLines.join('\n')
-    input.onDelta?.({
-      displayText,
-      spokenText: message,
-    })
+  // Progress is ephemeral UI only — never arm TTS or append permanent assistant turns.
+  const pushProgress = (_message: string) => {
+    /* status line / thinking orb owns progressive acks */
   }
   pushProgress(
     locale === 'ar'
@@ -487,7 +491,6 @@ export async function runBilamoIntelligenceTurn(
     signal: input.signal,
     locale: agentLocale,
     onFlightProgress: (message) => {
-      // Avoid duplicating the opening line from the orchestrator.
       if (/enough information to search/i.test(message)) return
       pushProgress(message)
     },

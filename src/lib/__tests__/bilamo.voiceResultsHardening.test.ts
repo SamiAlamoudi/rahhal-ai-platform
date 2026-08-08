@@ -100,7 +100,8 @@ describe('Bilamo voice + results hardening', () => {
       search: sampleSearch(),
       locale: 'ar',
     })
-    expect(copy.displayText).toMatch(/أختاره|أقترح|إسطنبول|Istanbul|dest/i)
+    expect(copy.displayText).toMatch(/أنصح|أقترح|رتّبت|إسطنبول|Istanbul|dest/i)
+    expect(copy.displayText).not.toMatch(/^هذا ما أختاره لك\.?$/)
     expect(copy.displayText).not.toMatch(/Turkish Airlines.*2660/)
     expect(copy.displayText.split('\n\n').length).toBeLessThanOrEqual(2)
     expect(copy.spokenText.length).toBeGreaterThan(8)

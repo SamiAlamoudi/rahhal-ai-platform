@@ -13,7 +13,7 @@ const PLACE_TO_IATA: Array<{ keys: string[]; code: string }> = [
   { keys: ['rome', 'روما'], code: 'FCO' },
   { keys: ['paris', 'باريس', 'france', 'فرنسا'], code: 'CDG' },
   { keys: ['dubai', 'دبي'], code: 'DXB' },
-  { keys: ['riyadh', 'الرياض'], code: 'RUH' },
+  { keys: ['riyadh', 'الرياض', 'riy'], code: 'RUH' },
   { keys: ['morocco', 'المغرب', 'marrakech', 'مراكش'], code: 'RAK' },
   { keys: ['casablanca', 'الدار البيضاء', 'الدار'], code: 'CMN' },
   { keys: ['istanbul', 'اسطنبول', 'إسطنبول', 'turkey', 'تركيا'], code: 'IST' },
@@ -35,7 +35,12 @@ const ARABIC_RE = /[\u0600-\u06FF]/
 export function resolveAirportCode(place: string): string {
   const trimmed = (place || '').trim()
   if (!trimmed) return 'XXX'
-  if (/^[a-z]{3}$/i.test(trimmed)) return trimmed.toUpperCase()
+  if (/^[a-z]{3}$/i.test(trimmed)) {
+    const code = trimmed.toUpperCase()
+    // Nonstandard / confusing codes → canonical metro airport.
+    if (code === 'RIY') return 'RUH'
+    return code
+  }
 
   const key = trimmed.toLowerCase()
   for (const row of PLACE_TO_IATA) {
@@ -47,7 +52,14 @@ export function resolveAirportCode(place: string): string {
   // Never truncate Arabic country/city names into fake IATA (لبنان → لبن).
   if (ARABIC_RE.test(trimmed)) return 'XXX'
 
+  // Never invent RIY from "Riyadh" slice — only known place map above.
+  if (/^riyadh/i.test(trimmed)) return 'RUH'
+
   const latin = trimmed.replace(/[^A-Za-z]/g, '')
-  if (latin.length >= 3) return latin.slice(0, 3).toUpperCase()
+  if (latin.length >= 3) {
+    const sliced = latin.slice(0, 3).toUpperCase()
+    if (sliced === 'RIY') return 'RUH'
+    return sliced
+  }
   return 'XXX'
 }

@@ -59,6 +59,10 @@ export interface BilamoFlightOption {
   baggageSummary?: string | null
   refundable?: boolean | null
   fetchedAt?: string | null
+  /** Provenance — never present demo as live. */
+  source?: 'live' | 'demo' | 'unavailable'
+  provider?: string | null
+  confidence?: 'live' | 'demo' | 'unavailable'
 }
 
 export interface BilamoHotelOption {
@@ -71,6 +75,9 @@ export interface BilamoHotelOption {
   currency: string
   reason: string
   score: number
+  source?: 'live' | 'demo' | 'unavailable'
+  provider?: string | null
+  fetchedAt?: string | null
 }
 
 export interface BilamoContextIntel {
@@ -98,6 +105,8 @@ export interface BilamoSearchBundle {
     error: string | null
     stale: boolean
     bestScore: number | null
+    validation?: string | null
+    inventorySource?: 'live' | 'demo' | 'unavailable'
   }
 }
 
